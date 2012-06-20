@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.mk.simple;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
+import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.blobs.AbstractBlobStore;
 import org.apache.jackrabbit.mk.blobs.FileBlobStore;
 import org.apache.jackrabbit.mk.blobs.MemoryBlobStore;
@@ -29,8 +30,8 @@ import org.apache.jackrabbit.mk.util.AscendingClock;
 import org.apache.jackrabbit.mk.util.Cache;
 import org.apache.jackrabbit.mk.util.CommitGate;
 import org.apache.jackrabbit.mk.util.ExceptionFactory;
-import org.apache.jackrabbit.mk.util.PathUtils;
 import org.apache.jackrabbit.mk.wrapper.MicroKernelWrapperBase;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -128,7 +129,10 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         }
     }
 
+    @Override
     public synchronized String commitStream(String rootPath, JsopReader jsonDiff, String revisionId, String message) {
+        revisionId = revisionId == null ? headRevision : revisionId;
+
         // TODO message should be json
         // TODO read / write version
         // TODO getJournal and getRevision don't have a path,
@@ -148,7 +152,7 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         JsopWriter diff = new JsopStream();
         while (true) {
             int r = t.read();
-            if (r == JsopTokenizer.END) {
+            if (r == JsopReader.END) {
                 break;
             }
             String path = PathUtils.concat(rootPath, t.readString());
@@ -184,7 +188,7 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
                 t.read(':');
                 boolean isConfigChange = from.startsWith(":root/head/config/");
                 String value;
-                if (t.matches(JsopTokenizer.NULL)) {
+                if (t.matches(JsopReader.NULL)) {
                     value = null;
                     diff.tag('^').key(path).value(null);
                 } else {
@@ -332,11 +336,13 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         return nodeMap.getRootId().getNode(nodeMap);
     }
 
+    @Override
     public String getHeadRevision() {
         return headRevision;
     }
 
-    public JsopReader getRevisionsStream(long since, int maxEntries) {
+    @Override
+    public JsopReader getRevisionsStream(long since, int maxEntries, String path) {
         NodeImpl node = getRoot();
         long sinceNanos = since * 1000000;
         ArrayList<Revision> revisions = new ArrayList<Revision>();
@@ -374,11 +380,16 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         return buff.endArray();
     }
 
+    @Override
     public String waitForCommit(String oldHeadRevisionId, long maxWaitMillis) throws InterruptedException {
         return gate.waitForCommit(oldHeadRevisionId, maxWaitMillis);
     }
 
-    public JsopReader getJournalStream(String fromRevisionId, String toRevisionId, String filter) {
+    @Override
+    public JsopReader getJournalStream(String fromRevisionId, String toRevisionId, String path) {
+        fromRevisionId = fromRevisionId == null ? headRevision : fromRevisionId;
+        toRevisionId = toRevisionId == null ? headRevision : toRevisionId;
+
         long fromRev = Revision.parseId(fromRevisionId);
         long toRev = Revision.parseId(toRevisionId);
         NodeImpl node = getRoot();
@@ -442,7 +453,10 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
     }
 
 
-    public JsopReader diffStream(String fromRevisionId, String toRevisionId, String filter) {
+    @Override
+    public JsopReader diffStream(String fromRevisionId, String toRevisionId, String path) {
+        fromRevisionId = fromRevisionId == null ? headRevision : fromRevisionId;
+        toRevisionId = toRevisionId == null ? headRevision : toRevisionId;
         // TODO implement if required
         return new JsopStream();
     }
@@ -457,11 +471,15 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
      * @param revisionId the revision
      * @return the json string
      */
+    @Override
     public JsopReader getNodesStream(String path, String revisionId) {
         return getNodesStream(path, revisionId, 1, 0, -1, null);
     }
 
+    @Override
     public JsopReader getNodesStream(String path, String revisionId, int depth, long offset, int count, String filter) {
+        revisionId = revisionId == null ? headRevision : revisionId;
+
         // TODO offset > 0 should mean the properties are not included
         if (count < 0) {
             count = nodeMap.getMaxMemoryChildren();
@@ -518,7 +536,10 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         }
     }
 
+    @Override
     public boolean nodeExists(String path, String revisionId) {
+        revisionId = revisionId == null ? headRevision : revisionId;
+
         if (!PathUtils.isAbsolute(path)) {
             throw ExceptionFactory.get("Not an absolute path: " + path);
         }
@@ -530,23 +551,41 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         return getRevisionDataRoot(revisionId).exists(path.substring(1));
     }
 
+    @Override
     public long getChildNodeCount(String path, String revisionId) {
+        revisionId = revisionId == null ? headRevision : revisionId;
+
         if (!PathUtils.isAbsolute(path)) {
             throw ExceptionFactory.get("Not an absolute path: " + path);
         }
         return getRevisionDataRoot(revisionId).getNode(path).getChildNodeCount();
     }
 
+    @Override
     public long getLength(String blobId) {
-        return ds.getBlobLength(blobId);
+        try {
+            return ds.getBlobLength(blobId);
+        } catch (Exception e) {
+            throw ExceptionFactory.convert(e);
+        }
     }
 
+    @Override
     public int read(String blobId, long pos, byte[] buff, int off, int length) {
-        return ds.readBlob(blobId, pos, buff, off, length);
+        try {
+            return ds.readBlob(blobId, pos, buff, off, length);
+        } catch (Exception e) {
+            throw ExceptionFactory.convert(e);
+        }
     }
 
+    @Override
     public String write(InputStream in) {
-        return ds.writeBlob(in);
+        try {
+            return ds.writeBlob(in);
+        } catch (Exception e) {
+            throw ExceptionFactory.convert(e);
+        }
     }
 
     public synchronized void dispose() {
@@ -567,4 +606,17 @@ public class SimpleKernelImpl extends MicroKernelWrapperBase implements MicroKer
         return "simple:" + name;
     }
 
+    @Override
+    public String branch(String trunkRevisionId) throws MicroKernelException {
+        trunkRevisionId = trunkRevisionId == null ? headRevision : trunkRevisionId;
+
+        // TODO OAK-45 support
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String merge(String branchRevisionId, String message) throws MicroKernelException {
+        // TODO OAK-45 support
+        throw new UnsupportedOperationException();
+    }
 }

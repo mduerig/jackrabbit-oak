@@ -26,13 +26,14 @@ import java.util.Map;
 
 import org.apache.jackrabbit.mk.store.NotFoundException;
 import org.apache.jackrabbit.mk.store.RevisionStore;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  *
  */
 public class CommitBuilder {
 
+    /** revision changes are based upon */
     private Id baseRevId;
 
     private final String msg;
@@ -86,47 +87,85 @@ public class CommitBuilder {
     }
 
     public Id /* new revId */ doCommit() throws Exception {
-        if (staged.isEmpty()) {
+        return doCommit(false);
+    }
+
+    public Id /* new revId */ doCommit(boolean createBranch) throws Exception {
+        if (staged.isEmpty() && !createBranch) {
             // nothing to commit
             return baseRevId;
         }
 
-        Id currentHead = store.getHeadCommitId();
-        if (!currentHead.equals(baseRevId)) {
-            // todo gracefully handle certain conflicts (e.g. changes on moved sub-trees, competing deletes etc)
-            // update base revision to new head
-            baseRevId = currentHead;
-            // clear staging area
-            staged.clear();
-            // replay change log on new base revision
-            for (Change change : changeLog) {
-                change.apply();
+        StoredCommit baseCommit = store.getCommit(baseRevId);
+        if (createBranch && baseCommit.getBranchRootId() != null) {
+            throw new Exception("cannot branch off a private branch");
+        }
+
+        boolean privateCommit = createBranch || baseCommit.getBranchRootId() != null;
+
+
+        if (!privateCommit) {
+            Id currentHead = store.getHeadCommitId();
+            if (!currentHead.equals(baseRevId)) {
+                // todo gracefully handle certain conflicts (e.g. changes on moved sub-trees, competing deletes etc)
+                // update base revision to new head
+                baseRevId = currentHead;
+                // clear staging area
+                staged.clear();
+                // replay change log on new base revision
+                for (Change change : changeLog) {
+                    change.apply();
+                }
             }
         }
 
-        Id rootNodeId = persistStagedNodes();
+        RevisionStore.PutToken token = store.createPutToken();
+        Id rootNodeId =
+                changeLog.isEmpty() ? baseCommit.getRootNodeId() : persistStagedNodes(token);
 
         Id newRevId;
-        store.lockHead();
-        try {
-            currentHead = store.getHeadCommitId();
-            if (!currentHead.equals(baseRevId)) {
-                StoredNode baseRoot = store.getRootNode(baseRevId);
-                StoredNode theirRoot = store.getRootNode(currentHead);
-                StoredNode ourRoot = store.getNode(rootNodeId);
 
-                rootNodeId = mergeTree(baseRoot, ourRoot, theirRoot);
+        if (!privateCommit) {
+            store.lockHead();
+            try {
+                Id currentHead = store.getHeadCommitId();
+                if (!currentHead.equals(baseRevId)) {
+                    StoredNode baseRoot = store.getRootNode(baseRevId);
+                    StoredNode theirRoot = store.getRootNode(currentHead);
+                    StoredNode ourRoot = store.getNode(rootNodeId);
 
-                baseRevId = currentHead;
+                    rootNodeId = mergeTree(baseRoot, ourRoot, theirRoot, token);
+
+                    baseRevId = currentHead;
+                }
+
+                if (store.getCommit(currentHead).getRootNodeId().equals(rootNodeId)) {
+                    // the commit didn't cause any changes,
+                    // no need to create new commit object/update head revision
+                    return currentHead;
+                }
+                MutableCommit newCommit = new MutableCommit();
+                newCommit.setParentId(baseRevId);
+                newCommit.setCommitTS(System.currentTimeMillis());
+                newCommit.setMsg(msg);
+                StringBuilder diff = new StringBuilder();
+                for (Change change : changeLog) {
+                    if (diff.length() > 0) {
+                        diff.append('\n');
+                    }
+                    diff.append(change.asDiff());
+                }
+                newCommit.setChanges(diff.toString());
+                newCommit.setRootNodeId(rootNodeId);
+                newCommit.setBranchRootId(null);
+                newRevId = store.putHeadCommit(token, newCommit, null);
+            } finally {
+                store.unlockHead();
             }
-
-            if (store.getCommit(currentHead).getRootNodeId().equals(rootNodeId)) {
-                // the commit didn't cause any changes,
-                // no need to create new commit object/update head revision
-                return currentHead;
-            }
+        } else {
+            // private commit/branch
             MutableCommit newCommit = new MutableCommit();
-            newCommit.setParentId(baseRevId);
+            newCommit.setParentId(baseCommit.getId());
             newCommit.setCommitTS(System.currentTimeMillis());
             newCommit.setMsg(msg);
             StringBuilder diff = new StringBuilder();
@@ -138,7 +177,62 @@ public class CommitBuilder {
             }
             newCommit.setChanges(diff.toString());
             newCommit.setRootNodeId(rootNodeId);
-            newRevId = store.putHeadCommit(newCommit);
+            if (createBranch) {
+                newCommit.setBranchRootId(baseCommit.getId());
+            } else {
+                newCommit.setBranchRootId(baseCommit.getBranchRootId());
+            }
+            newRevId = store.putCommit(token, newCommit);
+        }
+
+        // reset instance
+        staged.clear();
+        changeLog.clear();
+
+        return newRevId;
+    }
+
+    public Id /* new revId */ doMerge() throws Exception {
+        StoredCommit branchCommit = store.getCommit(baseRevId);
+        Id branchRootId = branchCommit.getBranchRootId();
+        if (branchRootId == null) {
+            throw new Exception("can only merge a private branch commit");
+        }
+
+        RevisionStore.PutToken token = store.createPutToken();
+        Id rootNodeId =
+                changeLog.isEmpty() ? branchCommit.getRootNodeId() : persistStagedNodes(token);
+
+        Id newRevId;
+
+        store.lockHead();
+        try {
+            Id currentHead = store.getHeadCommitId();
+
+            StoredNode baseRoot = store.getRootNode(branchRootId);
+            StoredNode theirRoot = store.getRootNode(currentHead);
+            StoredNode ourRoot = store.getNode(rootNodeId);
+
+            rootNodeId = mergeTree(baseRoot, ourRoot, theirRoot, token);
+
+            if (store.getCommit(currentHead).getRootNodeId().equals(rootNodeId)) {
+                // the merge didn't cause any changes,
+                // no need to create new commit object/update head revision
+                return currentHead;
+            }
+            MutableCommit newCommit = new MutableCommit();
+            newCommit.setParentId(currentHead);
+            newCommit.setCommitTS(System.currentTimeMillis());
+            newCommit.setMsg(msg);
+            // dynamically build diff of merged commit
+            String diff = new DiffBuilder(
+                    store.getNodeState(theirRoot),
+                    store.getNodeState(store.getNode(rootNodeId)),
+                    "/", store, "").build();
+            newCommit.setChanges(diff);
+            newCommit.setRootNodeId(rootNodeId);
+            newCommit.setBranchRootId(null);
+            newRevId = store.putHeadCommit(token, newCommit, branchRootId);
         } finally {
             store.unlockHead();
         }
@@ -150,7 +244,7 @@ public class CommitBuilder {
         return newRevId;
     }
 
-    //--------------------------------------------------------< inner classes >
+    //-------------------------------------------------------< implementation >
 
     MutableNode getOrCreateStagedNode(String nodePath) throws Exception {
         MutableNode node = staged.get(nodePath);
@@ -161,14 +255,15 @@ public class CommitBuilder {
                 staged.put("/", parent);
             }
             node = parent;
-            String names[] = PathUtils.split(nodePath);
-            for (int i = names.length - 1; i >= 0; i--) {
-                String path = PathUtils.getAncestorPath(nodePath, i);
+
+            int nth = PathUtils.getDepth(nodePath) - 1;
+            for (String name : PathUtils.elements(nodePath)) {
+                String path = PathUtils.getAncestorPath(nodePath, nth--);
                 node = staged.get(path);
                 if (node == null) {
                     // not yet staged, resolve id using staged parent
                     // to allow for staged move operations
-                    ChildNode cne = parent.getChildNodeEntry(names[names.length - i - 1]);
+                    ChildNode cne = parent.getChildNodeEntry(name);
                     if (cne == null) {
                         throw new NotFoundException(nodePath);
                     }
@@ -193,13 +288,18 @@ public class CommitBuilder {
         }
     }
 
-    void copyStagedNodes(String srcPath, String destPath) throws Exception {
+    void copyStagedNodes(String srcPath, String destPath, String breakAtSrcPath) throws Exception {
+        if (srcPath.equals(breakAtSrcPath)) {
+            // OAK-83: prevent infinite recursion when copying to descendant path
+            return;
+        }
+
         MutableNode node = staged.get(srcPath);
         if (node != null) {
             staged.put(destPath, new MutableNode(node, store, destPath));
             for (Iterator<String> it = node.getChildNodeNames(0, -1); it.hasNext(); ) {
                 String childName = it.next();
-                copyStagedNodes(PathUtils.concat(srcPath, childName), PathUtils.concat(destPath, childName));
+                copyStagedNodes(PathUtils.concat(srcPath, childName), PathUtils.concat(destPath, childName), breakAtSrcPath);
             }
         }
     }
@@ -215,7 +315,7 @@ public class CommitBuilder {
         }
     }
 
-    Id /* new id of root node */ persistStagedNodes() throws Exception {
+    Id /* new id of root node */ persistStagedNodes(RevisionStore.PutToken token) throws Exception {
         // sort paths in in depth-descending order
         ArrayList<String> orderedPaths = new ArrayList<String>(staged.keySet());
         Collections.sort(orderedPaths, new Comparator<String>() {
@@ -233,7 +333,7 @@ public class CommitBuilder {
         Id rootNodeId = null;
         for (String path : orderedPaths) {
             // persist node
-            Id id = store.putNode(staged.get(path));
+            Id id = store.putNode(token, staged.get(path));
             if (PathUtils.denotesRoot(path)) {
                 rootNodeId = id;
             } else {
@@ -247,8 +347,8 @@ public class CommitBuilder {
     }
 
     /**
-     * Performs a three-way merge of the trees rooted at <code>ourRoot</code>,
-     * <code>theirRoot</code>, using the tree at <code>baseRoot</code> as reference.
+     * Performs a three-way merge of the trees rooted at {@code ourRoot},
+     * {@code theirRoot}, using the tree at {@code baseRoot} as reference.
      *
      * @param baseRoot
      * @param ourRoot
@@ -256,7 +356,9 @@ public class CommitBuilder {
      * @return id of merged root node
      * @throws Exception
      */
-    Id /* id of merged root node */ mergeTree(StoredNode baseRoot, StoredNode ourRoot, StoredNode theirRoot) throws Exception {
+    Id /* id of merged root node */ mergeTree(StoredNode baseRoot, StoredNode ourRoot, StoredNode theirRoot,
+            RevisionStore.PutToken token) throws Exception {
+        
         // as we're going to use the staging area for the merge process,
         // we need to clear it first
         staged.clear();
@@ -264,7 +366,7 @@ public class CommitBuilder {
         // recursively merge 'our' changes with 'their' changes...
         mergeNode(baseRoot, ourRoot, theirRoot, "/");
 
-        return persistStagedNodes();
+        return persistStagedNodes(token);
     }
 
     void mergeNode(StoredNode baseNode, StoredNode ourNode, StoredNode theirNode, String path) throws Exception {
@@ -517,15 +619,16 @@ public class CommitBuilder {
                 throw new NotFoundException(srcPath);
             }
 
+            if (staged.containsKey(srcPath)) {
+                // the copied subtree is modified
+
+                // update staging area
+                copyStagedNodes(srcPath, destPath, destPath);
+            }
+
             MutableNode destParent = getOrCreateStagedNode(destParentPath);
             destParent.add(new ChildNode(destNodeName, srcCNE.getId()));
 
-            if (srcCNE.getId() == null) {
-                // a 'new' node is being copied
-
-                // update staging area
-                copyStagedNodes(srcPath, destPath);
-            }
         }
 
         @Override

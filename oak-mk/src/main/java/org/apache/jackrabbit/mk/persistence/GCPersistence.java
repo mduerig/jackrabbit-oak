@@ -16,13 +16,14 @@
  */
 package org.apache.jackrabbit.mk.persistence;
 
+import org.apache.jackrabbit.mk.model.Commit;
 import org.apache.jackrabbit.mk.model.Id;
 
 /**
  * Advanced persistence implementation offering GC support.
  * <p>
- * The persistence implementation must ensure that objects written after {@link #start()}
- * was invoked are not swept.
+ * The persistence implementation must ensure that objects written between {@link #start()}
+ * and {@link #sweep()} are not swept, in other words, they must be marked implicitely.
  */
 public interface GCPersistence extends Persistence {
 
@@ -37,20 +38,34 @@ public interface GCPersistence extends Persistence {
      * 
      * @param id
      *            commit id
-     * @return <code>true</code> if the commit was not marked before;
-     *         <code>false</code> otherwise
+     * @return {@code true} if the commit was not marked before;
+     *         {@code false} otherwise
      * 
      * @throws Exception if an error occurs
      */
     boolean markCommit(Id id) throws Exception;
     
     /**
+     * Replace a commit. Introduced to replace dangling parent commits where
+     * a parent commit might be collected.
+     * 
+     * @param id
+     *            commit id
+     * @param 
+     * @return {@code true} if the commit was not marked before;
+     *         {@code false} otherwise
+     * 
+     * @throws Exception if an error occurs
+     */
+    void replaceCommit(Id id, Commit commit) throws Exception;
+    
+    /**
      * Mark a node.
      * 
      * @param id
      *            node id
-     * @return <code>true</code> if the node was not marked before;
-     *         <code>false</code> otherwise
+     * @return {@code true} if the node was not marked before;
+     *         {@code false} otherwise
      * 
      * @throws Exception if an error occurs
      */
@@ -61,8 +76,8 @@ public interface GCPersistence extends Persistence {
      * 
      * @param id
      *            child node entry map id
-     * @return <code>true</code> if the child node entry map was not marked before;
-     *         <code>false</code> otherwise
+     * @return {@code true} if the child node entry map was not marked before;
+     *         {@code false} otherwise
      * 
      * @throws Exception if an error occurs
      */

@@ -26,29 +26,68 @@ import org.apache.jackrabbit.mk.model.MutableNode;
  */
 public interface RevisionStore extends RevisionProvider {
 
-    Id /*id*/ putNode(MutableNode node) throws Exception;
-    Id /*id*/ putCNEMap(ChildNodeEntriesMap map) throws Exception;
+    /**
+     * Token that must be created first before invoking any put operation.
+     */
+    public abstract class PutToken {
+        
+        /* Prevent other implementations. */
+        PutToken() {}
+    }
+    
+    /**
+     * Create a put token.
+     * 
+     * @return put token
+     */
+    PutToken createPutToken();
+    
+    Id /*id*/ putNode(PutToken token, MutableNode node) throws Exception;
+    Id /*id*/ putCNEMap(PutToken token, ChildNodeEntriesMap map) throws Exception;
     
     /**
      * Lock the head. Must be called prior to putting a new head commit.
      * 
-     * @see #putHeadCommit(MutableCommit)
+     * @see #putHeadCommit(PutToken, MutableCommit, Id)
+     * @see #unlockHead()
      */
     void lockHead();
     
     /**
-     * Put a new head commit. Must be called while holding a
-     * lock on the head.
+     * Put a new head commit. Must be called while holding a lock on the head.
      * 
-     * @param commit commit
+     * @param token
+     *            put token
+     * @param commit
+     *            commit
+     * @param branchRootId
+     *            former branch root id, if this is a merge; otherwise
+     *            {@code null}
      * @return head commit id
-     * @throws Exception if an error occurs
+     * @throws Exception
+     *             if an error occurs
      * @see #lockHead()
      */
-    Id /*id*/ putHeadCommit(MutableCommit commit) throws Exception;
+    Id /*id*/ putHeadCommit(PutToken token, MutableCommit commit, Id branchRootId) throws Exception;
     
     /**
      * Unlock the head.
+     *
+     * @see #lockHead()
      */
     void unlockHead();
+
+    /**
+     * Store a new commit.
+     * <p/>
+     * Unlike {@code putHeadCommit(MutableCommit)}, this method
+     * does not affect the current head commit and therefore doesn't
+     * require a lock on the head.
+     *
+     * @param token put token
+     * @param commit commit
+     * @return new commit id
+     * @throws Exception if an error occurs
+     */
+    Id /*id*/ putCommit(PutToken token, MutableCommit commit) throws Exception;
 }

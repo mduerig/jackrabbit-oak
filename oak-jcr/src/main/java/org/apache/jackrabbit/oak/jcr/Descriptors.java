@@ -85,11 +85,11 @@ public class Descriptors {
     public Descriptors(ValueFactory valueFactory) {
         descriptors = new HashMap<String, Descriptor>();
         Value trueValue = valueFactory.createValue(true);
-        Value falseValue = valueFactory.createValue(true);
+        Value falseValue = valueFactory.createValue(false);
 
         put(new Descriptor(
                 IDENTIFIER_STABILITY,
-                valueFactory.createValue(Repository.IDENTIFIER_STABILITY_INDEFINITE_DURATION), true, true));
+                valueFactory.createValue(Repository.IDENTIFIER_STABILITY_METHOD_DURATION), true, true));
         put(new Descriptor(
                 LEVEL_1_SUPPORTED,
                 trueValue, true, true));
@@ -98,7 +98,7 @@ public class Descriptors {
                 trueValue, true, true));
         put(new Descriptor(
                 OPTION_NODE_TYPE_MANAGEMENT_SUPPORTED,
-                trueValue, true, true));
+                falseValue, true, true));
         put(new Descriptor(
                 NODE_TYPE_MANAGEMENT_AUTOCREATED_DEFINITIONS_SUPPORTED,
                 trueValue, true, true));
@@ -164,7 +164,7 @@ public class Descriptors {
                 falseValue, true, true));
         put(new Descriptor(
                 OPTION_OBSERVATION_SUPPORTED,
-                trueValue, true, true));
+                falseValue, true, true));
         put(new Descriptor(
                 OPTION_NODE_AND_PROPERTY_WITH_SAME_NAME_SUPPORTED,
                 trueValue, true, true));

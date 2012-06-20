@@ -16,12 +16,6 @@
  */
 package org.apache.jackrabbit.mk.simple;
 
-import java.io.OutputStream;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Iterator;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
@@ -29,21 +23,26 @@ import org.apache.jackrabbit.mk.json.JsopWriter;
 import org.apache.jackrabbit.mk.util.Cache;
 import org.apache.jackrabbit.mk.util.ExceptionFactory;
 import org.apache.jackrabbit.mk.util.IOUtils;
-import org.apache.jackrabbit.mk.util.PathUtils;
 import org.apache.jackrabbit.mk.util.StringCache;
 import org.apache.jackrabbit.mk.util.StringUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+
+import java.io.OutputStream;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
 
 /**
  * An in-memory node, including all child nodes.
  */
 public class NodeImpl implements Cache.Value {
 
-    private static final boolean NODE_NAME_AS_PROPERTY = false;
-
     /**
      * The child node count.
      */
-    public static final String CHILREN_COUNT = ":childNodeCount";
+    public static final String CHILDREN_COUNT = ":childNodeCount";
 
     /**
      * The total number of child nodes.
@@ -81,6 +80,8 @@ public class NodeImpl implements Cache.Value {
      * The number of child nodes for an internal node.
      */
     static final String COUNT = ":childCount";
+
+    private static final boolean NODE_NAME_AS_PROPERTY = false;
 
     /**
      * The node name.
@@ -178,7 +179,8 @@ public class NodeImpl implements Cache.Value {
     }
 
     private NodeImpl getChildNode(String name) {
-        return childNodes.get(name).getNode(map);
+        NodeId id = childNodes.get(name);
+        return id == null ? null : id.getNode(map);
     }
 
     public NodeImpl cloneAndAddChildNode(String path, boolean before, String position, NodeImpl newNode, long revId) {
@@ -306,11 +308,11 @@ public class NodeImpl implements Cache.Value {
         }
         if (childNodes == null) {
             if (childNodeCount) {
-                json.key(CHILREN_COUNT).value(0);
+                json.key(CHILDREN_COUNT).value(0);
             }
         } else {
             if (childNodeCount) {
-                json.key(CHILREN_COUNT).value(childNodes.size());
+                json.key(CHILDREN_COUNT).value(childNodes.size());
             }
             if (descendantCount > childNodes.size()) {
                 if (map.getDescendantCount()) {
@@ -468,7 +470,7 @@ public class NodeImpl implements Cache.Value {
                 } else {
                     String value = t.readRawValue().trim();
                     if (key.length() > 0 && key.charAt(0) == ':') {
-                        if (key.equals(CHILREN_COUNT)) {
+                        if (key.equals(CHILDREN_COUNT)) {
                             node.totalChildNodeCount = Long.parseLong(value);
                         } else if (key.equals(HASH)) {
                             value = JsopTokenizer.decodeQuoted(value);
@@ -525,6 +527,7 @@ public class NodeImpl implements Cache.Value {
         return propertyValuePairs[index + index + 1];
     }
 
+    @Override
     public String toString() {
         String s = asString();
         if (path != null) {
@@ -538,12 +541,15 @@ public class NodeImpl implements Cache.Value {
             try {
                 MessageDigest d = MessageDigest.getInstance("SHA-1");
                 DigestOutputStream out = new DigestOutputStream(new OutputStream() {
+                    @Override
                     public void write(byte[] buff, int off, int length) {
                         // ignore
                     }
+                    @Override
                     public void write(byte[] buff) {
                         // ignore
                     }
+                    @Override
                     public void write(int b) {
                         // ignore
                     }
@@ -690,6 +696,7 @@ public class NodeImpl implements Cache.Value {
         void accept(NodeId childId);
     }
 
+    @Override
     public int getMemory() {
         if (memory == 0) {
             String[] pv = propertyValuePairs;
@@ -705,6 +712,7 @@ public class NodeImpl implements Cache.Value {
         return memory;
     }
 
+    @Override
     public int hashCode() {
         int hash = Arrays.hashCode(propertyValuePairs);
         if (childNodes != null) {
@@ -713,6 +721,7 @@ public class NodeImpl implements Cache.Value {
         return hash;
     }
 
+    @Override
     public boolean equals(Object other) {
         if (other == this) {
             return true;

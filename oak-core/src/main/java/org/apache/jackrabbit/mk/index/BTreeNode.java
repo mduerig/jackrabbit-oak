@@ -18,8 +18,8 @@ package org.apache.jackrabbit.mk.index;
 
 import java.util.Arrays;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
-import org.apache.jackrabbit.mk.util.ArrayUtils;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.util.ArrayUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  * An index node page.
@@ -31,6 +31,7 @@ class BTreeNode extends BTreePage {
     BTreeNode(BTree tree, BTreeNode parent, String name, String[] keys, String[] values, String[] children) {
         super(tree, parent, name, keys, values);
         this.children = children;
+        verify();
     }
 
     String getNextChildPath() {
@@ -44,10 +45,12 @@ class BTreeNode extends BTreePage {
         return Integer.toString(max + 1);
     }
 
+    @Override
     BTreeLeaf firstLeaf() {
         return tree.getPage(this, children[0]).firstLeaf();
     }
 
+    @Override
     void split(BTreeNode newParent, String newName, int pos, String siblingName) {
         setParent(newParent, newName, true);
         String[] k2 = Arrays.copyOfRange(keys, pos + 1, keys.length, String[].class);
@@ -63,6 +66,7 @@ class BTreeNode extends BTreePage {
         keys = Arrays.copyOfRange(keys, 0, pos, String[].class);
         values = Arrays.copyOfRange(values, 0, pos, String[].class);
         children = Arrays.copyOfRange(children, 0, pos + 1, String[].class);
+        verify();
         n2.writeCreate();
         for (String c : n2.children) {
             tree.bufferMove(
@@ -93,13 +97,16 @@ class BTreeNode extends BTreePage {
     }
 
     void writeData() {
+        verify();
         tree.modified(this);
         tree.bufferSetArray(getPath(), "keys", keys);
         tree.bufferSetArray(getPath(), "values", values);
         tree.bufferSetArray(getPath(), "children", children);
     }
 
+    @Override
     void writeCreate() {
+        verify();
         tree.modified(this);
         JsopBuilder jsop = new JsopBuilder();
         jsop.tag('+').key(PathUtils.concat(tree.getName(), getPath())).object();
@@ -135,6 +142,7 @@ class BTreeNode extends BTreePage {
             values = ArrayUtils.arrayRemove(values, Math.max(0, pos - 1));
         }
         children = ArrayUtils.arrayRemove(children, pos);
+        verify();
     }
 
     void insert(int pos, String key, String value, String child) {
@@ -142,10 +150,26 @@ class BTreeNode extends BTreePage {
         keys = ArrayUtils.arrayInsert(keys, pos, key);
         values = ArrayUtils.arrayInsert(values, pos, value);
         children = ArrayUtils.arrayInsert(children, pos + 1, child);
+        verify();
     }
 
     boolean isEmpty() {
         return children.length == 0;
+    }
+
+    void verify() {
+        if (values.length != keys.length) {
+            throw new IllegalArgumentException(
+                    "Number of values doesn't match number of keys: " +
+                    Arrays.toString(values) + " " + Arrays.toString(keys) + " " + Arrays.toString(children));
+        }
+        if (children.length != keys.length + 1) {
+            if (children.length != 0 || keys.length != 0) {
+                throw new IllegalArgumentException(
+                        "Number of children doesn't match number of keys + 1: " +
+                        Arrays.toString(values) + " " + Arrays.toString(keys) + " " + Arrays.toString(children));
+            }
+        }
     }
 
 }

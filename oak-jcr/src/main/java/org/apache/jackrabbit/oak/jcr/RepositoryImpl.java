@@ -17,8 +17,9 @@
 package org.apache.jackrabbit.oak.jcr;
 
 import org.apache.jackrabbit.commons.SimpleValueFactory;
-import org.apache.jackrabbit.oak.api.Connection;
-import org.apache.jackrabbit.oak.api.RepositoryService;
+import org.apache.jackrabbit.oak.api.ContentSession;
+import org.apache.jackrabbit.oak.api.ContentRepository;
+import org.apache.jackrabbit.oak.core.ContentRepositoryImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,19 +40,19 @@ public class RepositoryImpl implements Repository {
      */
     private static final Logger log = LoggerFactory.getLogger(RepositoryImpl.class);
 
-    private final GlobalContext context;
     private final Descriptors descriptors = new Descriptors(new SimpleValueFactory());
+    private final ContentRepository contentRepository;
 
-    /**
-     * Utility constructor that creates a JCR binding for an initially empty,
-     * newly constructed Oak repository.
-     */
-    public RepositoryImpl() throws RepositoryException {
-        context = new GlobalContext("mem:oak");
+    public RepositoryImpl(ContentRepository contentRepository) {
+        this.contentRepository = contentRepository;
     }
 
-    public RepositoryImpl(GlobalContext context) {
-        this.context = context;
+    /**
+     * Utility constructor that creates a new in-memory repository for use
+     * mostly in test cases.
+     */
+    public RepositoryImpl() {
+        this(new ContentRepositoryImpl());
     }
 
     //---------------------------------------------------------< Repository >---
@@ -118,11 +119,9 @@ public class RepositoryImpl implements Repository {
     @Override
     public Session login(Credentials credentials, String workspaceName) throws RepositoryException {
         // TODO: needs complete refactoring
-
-        RepositoryService service = context.getInstance(RepositoryService.class);
         try {
-            Connection connection = service.login(credentials, workspaceName);
-            return new SessionImpl(context, connection);
+            ContentSession contentSession = contentRepository.login(credentials, workspaceName);
+            return new SessionDelegate(this, contentSession).getSession();
         } catch (LoginException e) {
             throw new javax.jcr.LoginException(e.getMessage());
         }

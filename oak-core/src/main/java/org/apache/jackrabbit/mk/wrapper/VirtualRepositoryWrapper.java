@@ -30,7 +30,7 @@ import org.apache.jackrabbit.mk.json.JsopWriter;
 import org.apache.jackrabbit.mk.simple.NodeImpl;
 import org.apache.jackrabbit.mk.simple.NodeMap;
 import org.apache.jackrabbit.mk.util.ExceptionFactory;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  * A microkernel prototype implementation that distributes nodes based on the path,
@@ -78,7 +78,7 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
 
         String head = mk.getHeadRevision();
         if (mk.nodeExists(MOUNT, head)) {
-            String mounts = mk.getNodes(MOUNT, head);
+            String mounts = mk.getNodes(MOUNT, head, 1, 0, -1, null);
             NodeMap map = new NodeMap();
             JsopReader t = new JsopTokenizer(mounts);
             t.read('{');
@@ -105,10 +105,11 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
         }
     }
 
+    @Override
     public String commitStream(String rootPath, JsopReader t, String revisionId, String message) {
         while (true) {
             int r = t.read();
-            if (r == JsopTokenizer.END) {
+            if (r == JsopReader.END) {
                 break;
             }
             String path = PathUtils.relativize("/", PathUtils.concat(rootPath, t.readString()));
@@ -138,7 +139,7 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
             case '^':
                 t.read(':');
                 String value;
-                if (t.matches(JsopTokenizer.NULL)) {
+                if (t.matches(JsopReader.NULL)) {
                     JsopWriter diff = new JsopBuilder();
                     diff.tag('^').key(path).value(null);
                     buffer(path, diff);
@@ -226,12 +227,12 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
     }
 
     public void dispose() {
-        for (MicroKernel m : mounts.values()) {
-            m.dispose();
+        for (MicroKernelWrapper wrapper : mounts.values()) {
+            MicroKernelFactory.disposeInstance(MicroKernelWrapperBase.unwrap(wrapper));
         }
-        mk.dispose();
     }
 
+    @Override
     public String getHeadRevision() {
         StringBuilder buff = new StringBuilder();
         if (revisions.size() != mounts.size()) {
@@ -253,26 +254,32 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
         return buff.toString();
     }
 
-    public JsopReader getJournalStream(String fromRevisionId, String toRevisionId, String filter) {
-        return mk.getJournalStream(fromRevisionId, toRevisionId, filter);
+    @Override
+    public JsopReader getJournalStream(String fromRevisionId, String toRevisionId, String path) {
+        return mk.getJournalStream(fromRevisionId, toRevisionId, path);
     }
 
+    @Override
     public JsopReader diffStream(String fromRevisionId, String toRevisionId, String path) throws MicroKernelException {
         return mk.diffStream(fromRevisionId, toRevisionId, path);
     }
 
+    @Override
     public long getLength(String blobId) {
         return mk.getLength(blobId);
     }
 
+    @Override
     public JsopReader getNodesStream(String path, String revisionId) {
         return getNodesStream(path, revisionId, 1, 0, -1, null);
     }
 
+    @Override
     public JsopReader getNodesStream(String path, String revisionId, int depth, long offset, int count, String filter) {
         String mount = getMount(path);
         if (mount == null) {
-            throw ExceptionFactory.get("Not mapped: " + path);
+            // not mapped
+            return null;
         }
         String rev = getRevision(mount, revisionId);
         MicroKernelWrapper mk = mounts.get(mount);
@@ -288,10 +295,12 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
         throw ExceptionFactory.get("Unknown revision: " + revisionId + " mount: " + mount);
     }
 
-    public JsopReader getRevisionsStream(long since, int maxEntries) {
-        return mk.getRevisionsStream(since, maxEntries);
+    @Override
+    public JsopReader getRevisionsStream(long since, int maxEntries, String path) {
+        return mk.getRevisionsStream(since, maxEntries, path);
     }
 
+    @Override
     public boolean nodeExists(String path, String revisionId) {
         String mount = getMount(path);
         if (mount == null) {
@@ -302,6 +311,7 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
         return mk.nodeExists(path, rev);
     }
 
+    @Override
     public long getChildNodeCount(String path, String revisionId) {
         String mount = getMount(path);
         if (mount == null) {
@@ -312,17 +322,31 @@ public class VirtualRepositoryWrapper extends MicroKernelWrapperBase implements 
         return mk.getChildNodeCount(path, rev);
     }
 
+    @Override
     public int read(String blobId, long pos, byte[] buff, int off, int length) {
         return mk.read(blobId, pos, buff, off, length);
     }
 
+    @Override
     public String waitForCommit(String oldHeadRevisionId, long maxWaitMillis) throws InterruptedException {
         return mk.waitForCommit(oldHeadRevisionId, maxWaitMillis);
     }
 
+    @Override
     public String write(InputStream in) {
         return mk.write(in);
     }
 
+    @Override
+    public String branch(String trunkRevisionId) {
+        // TODO OAK-45 support
+        return mk.branch(trunkRevisionId);
+    }
+
+    @Override
+    public String merge(String branchRevisionId, String message) {
+        // TODO OAK-45 support
+        return mk.merge(branchRevisionId, message);
+    }
 }
 

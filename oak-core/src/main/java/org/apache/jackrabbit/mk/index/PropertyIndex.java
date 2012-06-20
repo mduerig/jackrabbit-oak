@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.mk.index;
 
 import java.util.Iterator;
+import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
 import org.apache.jackrabbit.mk.simple.NodeImpl;
 
@@ -34,28 +35,34 @@ public class PropertyIndex implements Index {
     public PropertyIndex(Indexer indexer, String propertyName, boolean unique) {
         this.indexer = indexer;
         this.propertyName = propertyName;
-        this.tree = new BTree(indexer, (unique ? "id:" : "property:") + propertyName, unique);
+        this.tree = new BTree(indexer, Indexer.TYPE_PROPERTY + propertyName +
+                (unique ? "," + Indexer.UNIQUE : ""), unique);
         tree.setMinSize(10);
     }
 
     public static PropertyIndex fromNodeName(Indexer indexer, String nodeName) {
-        boolean unique;
-        if (nodeName.startsWith("property:")) {
-            unique = false;
-        } else if (nodeName.startsWith("id:")) {
-            unique = true;
-        } else {
+        if (!nodeName.startsWith(Indexer.TYPE_PROPERTY)) {
             return null;
         }
-        int index = nodeName.indexOf(':');
-        String propertyName = nodeName.substring(0, index);
-        return new PropertyIndex(indexer, propertyName, unique);
+        boolean unique = false;
+        if (nodeName.endsWith(Indexer.UNIQUE)) {
+            unique = true;
+            nodeName = nodeName.substring(0, nodeName.length() - Indexer.UNIQUE.length() - 1);
+        }
+        String property = nodeName.substring(Indexer.TYPE_PROPERTY.length());
+        return new PropertyIndex(indexer, property, unique);
     }
 
-    public String getName() {
+    public String getPropertyName() {
+        return propertyName;
+    }
+
+    @Override
+    public String getIndexNodeName() {
         return tree.getName();
     }
 
+    @Override
     public void addOrRemoveNode(NodeImpl node, boolean add) {
         String value = node.getProperty(propertyName);
         if (value != null) {
@@ -63,6 +70,7 @@ public class PropertyIndex implements Index {
         }
     }
 
+    @Override
     public void addOrRemoveProperty(String nodePath, String propertyName,
             String value, boolean add) {
         if (this.propertyName.equals(propertyName)) {
@@ -72,7 +80,7 @@ public class PropertyIndex implements Index {
 
     private void addOrRemoveRaw(String nodePath, String value, boolean add) {
         JsopTokenizer t = new JsopTokenizer(value);
-        if (t.matches(JsopTokenizer.STRING) || t.matches(JsopTokenizer.NUMBER)) {
+        if (t.matches(JsopReader.STRING) || t.matches(JsopReader.NUMBER)) {
             String v = t.getToken();
             addOrRemove(nodePath, v, add);
         }
@@ -116,10 +124,16 @@ public class PropertyIndex implements Index {
      * @param revision the revision
      * @return an iterator of the paths (an empty iterator if not found)
      */
+    @Override
     public Iterator<String> getPaths(String propertyValue, String revision) {
         indexer.updateUntil(revision);
         Cursor c = tree.findFirst(propertyValue);
         return new Cursor.RangeIterator(c, propertyValue);
+    }
+
+    @Override
+    public boolean isUnique() {
+        return tree.isUnique();
     }
 
 }

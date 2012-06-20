@@ -16,6 +16,7 @@
  */
 package org.apache.jackrabbit.mk.simple;
 
+import java.io.File;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -26,7 +27,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.TreeMap;
 import java.util.Map.Entry;
-import org.apache.jackrabbit.mk.fs.FilePath;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.simple.NodeImpl.ChildVisitor;
 import org.apache.jackrabbit.mk.util.Cache;
@@ -49,7 +49,8 @@ public class NodeMapInDb extends NodeMap implements Cache.Backend<Long, NodeImpl
 
     NodeMapInDb(String dir) {
         try {
-            url = "jdbc:h2:" + FilePath.get(dir).resolve("nodes").toRealPath().toString() + System.getProperty("mk.db", "");
+            String path = new File(dir, "nodes").getAbsolutePath();
+            url = "jdbc:h2:" + path + System.getProperty("mk.db", "");
             Class.forName("org.h2.Driver");
             conn = DriverManager.getConnection(url);
             Statement stat = conn.createStatement();
@@ -72,6 +73,7 @@ public class NodeMapInDb extends NodeMap implements Cache.Backend<Long, NodeImpl
         }
     }
 
+    @Override
     public synchronized NodeId addNode(NodeImpl node) {
         return addNode(node, true);
     }
@@ -91,10 +93,12 @@ public class NodeMapInDb extends NodeMap implements Cache.Backend<Long, NodeImpl
         return x;
     }
 
+    @Override
     public NodeImpl getNode(long x) {
         return x < 0 ? temp.get(x) : cache.get(x);
     }
 
+    @Override
     public NodeImpl load(Long key) {
         try {
             select.setLong(1, key);
@@ -108,12 +112,14 @@ public class NodeMapInDb extends NodeMap implements Cache.Backend<Long, NodeImpl
         }
     }
 
+    @Override
     public synchronized NodeId commit(NodeImpl newRoot) {
         addNode(newRoot, false);
         try {
             final NodeMap map = this;
             final ArrayList<Long> list = new ArrayList<Long>();
             newRoot.visit(new ChildVisitor() {
+                @Override
                 public void accept(NodeId childId) {
                     if (childId.getLong() < 0) {
                         NodeImpl t = temp.get(childId.getLong());
@@ -154,15 +160,18 @@ public class NodeMapInDb extends NodeMap implements Cache.Backend<Long, NodeImpl
         return root.getId();
     }
 
+    @Override
     public NodeId getId(NodeId id) {
         long x = id.getLong();
         return (x > 0 || !pos.containsKey(x)) ? id : NodeId.get(pos.get(x));
     }
 
+    @Override
     public NodeId getRootId() {
         return root.getId();
     }
 
+    @Override
     public NodeImpl getInfo(String path) {
         NodeImpl n = new NodeImpl(this, 0);
         n.setProperty("url", JsopBuilder.encode(url));
@@ -177,6 +186,7 @@ public class NodeMapInDb extends NodeMap implements Cache.Backend<Long, NodeImpl
         return n;
     }
 
+    @Override
     public synchronized void close() {
         try {
             conn.close();

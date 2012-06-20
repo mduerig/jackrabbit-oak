@@ -22,7 +22,7 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
 import javax.jcr.Node;
-import javax.jcr.Repository;
+import javax.jcr.NodeIterator;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.ValueFactory;
@@ -47,8 +47,7 @@ public class QueryTest extends AbstractRepositoryTest {
 
     @Test
     public void simple() throws RepositoryException {
-        Repository repository = getRepository();
-        Session session = repository.login();
+        Session session = createAnonymousSession();
         try {
             Node hello = session.getRootNode().addNode("hello");
             hello.setProperty("id",  "1");
@@ -65,6 +64,13 @@ public class QueryTest extends AbstractRepositoryTest {
             assertTrue(it.hasNext());
             Row row = it.nextRow();
             assertEquals("hello world", row.getValue("text").getString());
+            assertFalse(it.hasNext());
+
+            r = q.execute();
+            NodeIterator nodeIt = r.getNodes();
+            assertTrue(nodeIt.hasNext());
+            Node n = nodeIt.nextNode();
+            assertEquals("hello world", n.getProperty("text").getString());
             assertFalse(it.hasNext());
 
         } finally {

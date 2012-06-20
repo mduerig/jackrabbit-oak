@@ -18,26 +18,25 @@ package org.apache.jackrabbit.mk.core;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
+import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
 import org.apache.jackrabbit.mk.model.ChildNodeEntry;
 import org.apache.jackrabbit.mk.model.Commit;
 import org.apache.jackrabbit.mk.model.CommitBuilder;
 import org.apache.jackrabbit.mk.model.CommitBuilder.NodeTree;
+import org.apache.jackrabbit.mk.model.DiffBuilder;
 import org.apache.jackrabbit.mk.model.Id;
 import org.apache.jackrabbit.mk.model.NodeState;
 import org.apache.jackrabbit.mk.model.PropertyState;
 import org.apache.jackrabbit.mk.model.StoredCommit;
-import org.apache.jackrabbit.mk.model.TraversingNodeDiffHandler;
-import org.apache.jackrabbit.mk.store.RevisionProvider;
 import org.apache.jackrabbit.mk.util.CommitGate;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.mk.util.NameFilter;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  *
@@ -63,7 +62,7 @@ public class MicroKernelImpl implements MicroKernel {
 
     /**
      * Alternate constructor, used for testing.
-     * 
+     *
      * @param rep repository, already initialized
      */
     public MicroKernelImpl(Repository rep) {
@@ -97,10 +96,10 @@ public class MicroKernelImpl implements MicroKernel {
         }
         return getHeadRevisionId().toString();
     }
-    
+
     /**
-     * Same as <code>getHeadRevisionId</code>, with typed <code>Id</code> return value instead of string.
-     * 
+     * Same as {@code getHeadRevisionId}, with typed {@code Id} return value instead of string.
+     *
      * @see #getHeadRevision()
      */
     private Id getHeadRevisionId() throws MicroKernelException {
@@ -111,10 +110,14 @@ public class MicroKernelImpl implements MicroKernel {
         }
     }
 
-    public String getRevisions(long since, int maxEntries) throws MicroKernelException {
+    public String getRevisionHistory(long since, int maxEntries, String path) throws MicroKernelException {
         if (rep == null) {
             throw new IllegalStateException("this instance has already been disposed");
         }
+
+        path = (path == null || "".equals(path)) ? "/" : path;
+        boolean filtered = !"/".equals(path);
+
         maxEntries = maxEntries < 0 ? Integer.MAX_VALUE : maxEntries;
         List<StoredCommit> history = new ArrayList<StoredCommit>();
         try {
@@ -122,7 +125,21 @@ public class MicroKernelImpl implements MicroKernel {
             while (commit != null
                     && history.size() < maxEntries
                     && commit.getCommitTS() >= since) {
-                history.add(commit);
+                if (filtered) {
+                    try {
+                        String diff = new DiffBuilder(
+                                rep.getNodeState(commit.getParentId(), "/"),
+                                rep.getNodeState(commit.getId(), "/"),
+                                "/", rep.getRevisionStore(), path).build();
+                        if (!diff.isEmpty()) {
+                            history.add(commit);
+                        }
+                    } catch (Exception e) {
+                        throw new MicroKernelException(e);
+                    }
+                } else {
+                    history.add(commit);
+                }
 
                 Id commitId = commit.getParentId();
                 if (commitId == null) {
@@ -140,6 +157,7 @@ public class MicroKernelImpl implements MicroKernel {
             buff.object().
                     key("id").value(commit.getId().toString()).
                     key("ts").value(commit.getCommitTS()).
+                    key("msg").value(commit.getMsg()).
                     endObject();
         }
         return buff.endArray().toString();
@@ -149,10 +167,13 @@ public class MicroKernelImpl implements MicroKernel {
         return gate.waitForCommit(oldHeadRevisionId, maxWaitMillis);
     }
 
-    public String getJournal(String fromRevision, String toRevision, String filter) throws MicroKernelException {
+    public String getJournal(String fromRevision, String toRevision, String path) throws MicroKernelException {
         if (rep == null) {
             throw new IllegalStateException("this instance has already been disposed");
         }
+
+        path = (path == null || "".equals(path)) ? "/" : path;
+        boolean filtered = !"/".equals(path);
 
         Id fromRevisionId = Id.fromString(fromRevision);
         Id toRevisionId = toRevision == null ? getHeadRevisionId() : Id.fromString(toRevision);
@@ -160,6 +181,9 @@ public class MicroKernelImpl implements MicroKernel {
         List<StoredCommit> commits = new ArrayList<StoredCommit>();
         try {
             StoredCommit toCommit = rep.getCommit(toRevisionId);
+            if (toCommit.getBranchRootId() != null) {
+                throw new MicroKernelException("branch revisions are not supported: " + toRevisionId);
+            }
 
             Commit fromCommit;
             if (toRevisionId.equals(fromRevisionId)) {
@@ -167,9 +191,12 @@ public class MicroKernelImpl implements MicroKernel {
             } else {
                 fromCommit = rep.getCommit(fromRevisionId);
                 if (fromCommit.getCommitTS() > toCommit.getCommitTS()) {
-                    // negative range, return empty array
+                    // negative range, return empty journal
                     return "[]";
                 }
+            }
+            if (fromCommit.getBranchRootId() != null) {
+                throw new MicroKernelException("branch revisions are not supported: " + fromRevisionId);
             }
 
             // collect commits, starting with toRevisionId
@@ -183,9 +210,14 @@ public class MicroKernelImpl implements MicroKernel {
                 }
                 Id commitId = commit.getParentId();
                 if (commitId == null) {
+                    // inconsistent revision history, ignore silently...
                     break;
                 }
                 commit = rep.getCommit(commitId);
+                if (commit.getCommitTS() < fromCommit.getCommitTS()) {
+                    // inconsistent revision history, ignore silently...
+                    break;
+                }
             }
         } catch (Exception e) {
             throw new MicroKernelException(e);
@@ -199,181 +231,59 @@ public class MicroKernelImpl implements MicroKernel {
             if (commit.getParentId() == null) {
                 continue;
             }
+            String diff = commit.getChanges();
+            if (filtered) {
+                try {
+                    diff = new DiffBuilder(
+                            rep.getNodeState(commit.getParentId(), "/"),
+                            rep.getNodeState(commit.getId(), "/"),
+                            "/", rep.getRevisionStore(), path).build();
+                    if (diff.isEmpty()) {
+                        continue;
+                    }
+                } catch (Exception e) {
+                    throw new MicroKernelException(e);
+                }
+            }
             commitBuff.object().
                     key("id").value(commit.getId().toString()).
                     key("ts").value(commit.getCommitTS()).
                     key("msg").value(commit.getMsg()).
-                    key("changes").value(commit.getChanges()).endObject();
+                    key("changes").value(diff).endObject();
         }
         return commitBuff.endArray().toString();
     }
 
-    public String diff(String fromRevision, String toRevision, String filter) throws MicroKernelException {
-        Id toRevisionId = toRevision == null ? getHeadRevisionId() : Id.fromString(toRevision);
-        
-        return diff(Id.fromString(fromRevision), toRevisionId, filter);
-    }
-    
-    /**
-     * Same as <code>diff</code>, with typed <code>Id</code> arguments instead of strings.
-     * 
-     * @see #diff(String, String, String) 
-     */
-    private String diff(Id fromRevisionId, Id toRevisionId, String filter) throws MicroKernelException {
-        // TODO extract and evaluate filter criteria (such as e.g. 'path') specified in 'filter' parameter
-        String path = "/";
+    public String diff(String fromRevision, String toRevision, String path) throws MicroKernelException {
+        path = (path == null || "".equals(path)) ? "/" : path;
+
+        Id fromRevisionId, toRevisionId;
+        if (fromRevision == null || toRevision == null) {
+            Id head = getHeadRevisionId();
+            fromRevisionId = fromRevision == null ? head : Id.fromString(fromRevision);
+            toRevisionId = toRevision == null ? head : Id.fromString(toRevision);
+        } else {
+            fromRevisionId = Id.fromString(fromRevision);
+            toRevisionId = Id.fromString(toRevision);
+        }
+
+        if (fromRevisionId.equals(toRevisionId)) {
+            return "";
+        }
 
         try {
-            final JsopBuilder buff = new JsopBuilder();
-            final RevisionProvider rp = rep.getRevisionStore();
-            // maps (key: id of target node, value: path/to/target)
-            // for tracking added/removed nodes; this allows us
-            // to detect 'move' operations
-            final HashMap<Id, String> addedNodes = new HashMap<Id, String>();
-            final HashMap<Id, String> removedNodes = new HashMap<Id, String>();
-            NodeState node1 = rep.getNodeState(fromRevisionId, path);
-            NodeState node2 = rep.getNodeState(toRevisionId, path);
-
-            if (node1 == null) {
-                if (node2 != null) {
-                    buff.tag('+').key(path).object();
-                    toJson(buff, node2, Integer.MAX_VALUE, 0, -1, false);
-                    return buff.endObject().newline().toString();
-                } else {
-                    throw new MicroKernelException("path doesn't exist in the specified revisions: " + path);
-                }
-            } else if (node2 == null) {
-                buff.tag('-');
-                buff.value(path);
-                return buff.newline().toString();
-            }
-
-            TraversingNodeDiffHandler diffHandler = new TraversingNodeDiffHandler(rp) {
-                @Override
-                public void propertyAdded(PropertyState after) {
-                    buff.tag('+').
-                            key(PathUtils.concat(getCurrentPath(), after.getName())).
-                            encodedValue(after.getEncodedValue()).
-                            newline();
-                }
-
-                @Override
-                public void propertyChanged(PropertyState before, PropertyState after) {
-                    buff.tag('^').
-                            key(PathUtils.concat(getCurrentPath(), after.getName())).
-                            encodedValue(after.getEncodedValue()).
-                            newline();
-                }
-
-                @Override
-                public void propertyDeleted(PropertyState before) {
-                    // since property and node deletions can't be distinguished
-                    // using the "- <path>" notation we're representing
-                    // property deletions as "^ <path>:null"
-                    buff.tag('^').
-                            key(PathUtils.concat(getCurrentPath(), before.getName())).
-                            value(null).
-                            newline();
-                }
-
-                @Override
-                public void childNodeAdded(String name, NodeState after) {
-                    addedNodes.put(rp.getId(after), PathUtils.concat(getCurrentPath(), name));
-                    buff.tag('+').
-                            key(PathUtils.concat(getCurrentPath(), name)).object();
-                    toJson(buff, after, Integer.MAX_VALUE, 0, -1, false);
-                    buff.endObject().newline();
-                }
-
-                @Override
-                public void childNodeDeleted(String name, NodeState before) {
-                    removedNodes.put(rp.getId(before), PathUtils.concat(getCurrentPath(), name));
-                    buff.tag('-');
-                    buff.value(PathUtils.concat(getCurrentPath(), name));
-                    buff.newline();
-                }
-            };
-            diffHandler.start(node1, node2, path);
-
-            // check if this commit includes 'move' operations
-            // by building intersection of added and removed nodes
-            addedNodes.keySet().retainAll(removedNodes.keySet());
-            if (!addedNodes.isEmpty()) {
-                // this commit includes 'move' operations
-                removedNodes.keySet().retainAll(addedNodes.keySet());
-                // addedNodes & removedNodes now only contain information about moved nodes
-
-                // re-build the diff in a 2nd pass, this time representing moves correctly
-                buff.resetWriter();
-
-                // TODO refactor code, avoid duplication
-
-                diffHandler = new TraversingNodeDiffHandler(rp) {
-                    @Override
-                    public void propertyAdded(PropertyState after) {
-                        buff.tag('+').
-                                key(PathUtils.concat(getCurrentPath(), after.getName())).
-                                encodedValue(after.getEncodedValue()).
-                                newline();
-                    }
-
-                    @Override
-                    public void propertyChanged(PropertyState before, PropertyState after) {
-                        buff.tag('^').
-                                key(PathUtils.concat(getCurrentPath(), after.getName())).
-                                encodedValue(after.getEncodedValue()).
-                                newline();
-                    }
-
-                    @Override
-                    public void propertyDeleted(PropertyState before) {
-                        // since property and node deletions can't be distinguished
-                        // using the "- <path>" notation we're representing
-                        // property deletions as "^ <path>:null"
-                        buff.tag('^').
-                                key(PathUtils.concat(getCurrentPath(), before.getName())).
-                                value(null).
-                                newline();
-                    }
-
-                    @Override
-                    public void childNodeAdded(String name, NodeState after) {
-                        if (addedNodes.containsKey(rp.getId(after))) {
-                            // moved node, will be processed separately
-                            return;
-                        }
-                        buff.tag('+').
-                                key(PathUtils.concat(getCurrentPath(), name)).object();
-                        toJson(buff, after, Integer.MAX_VALUE, 0, -1, false);
-                        buff.endObject().newline();
-                    }
-
-                    @Override
-                    public void childNodeDeleted(String name, NodeState before) {
-                        if (addedNodes.containsKey(rp.getId(before))) {
-                            // moved node, will be processed separately
-                            return;
-                        }
-                        buff.tag('-');
-                        buff.value(PathUtils.concat(getCurrentPath(), name));
-                        buff.newline();
-                    }
-
-                };
-                diffHandler.start(node1, node2, path);
-
-                // finally process moved nodes
-                for (Map.Entry<Id, String> entry : addedNodes.entrySet()) {
-                    buff.tag('>').
-                            // path/to/deleted/node
-                            key(removedNodes.get(entry.getKey())).
-                            // path/to/added/node
-                            value(entry.getValue()).
-                            newline();
+            if ("/".equals(path)) {
+                StoredCommit toCommit = rep.getCommit(toRevisionId);
+                if (toCommit.getParentId().equals(fromRevisionId)) {
+                    // specified range spans a single commit:
+                    // use diff stored in commit instead of building it dynamically
+                    return toCommit.getChanges();
                 }
             }
-            return buff.toString();
+            NodeState before = rep.getNodeState(fromRevisionId, path);
+            NodeState after = rep.getNodeState(toRevisionId, path);
 
+            return new DiffBuilder(before, after, path, rep.getRevisionStore(), path).build();
         } catch (Exception e) {
             throw new MicroKernelException(e);
         }
@@ -412,26 +322,27 @@ public class MicroKernelImpl implements MicroKernel {
         }
     }
 
-    public String getNodes(String path, String revisionId) throws MicroKernelException {
-        return getNodes(path, revisionId, 1, 0, -1, null);
-    }
-
-    public String getNodes(String path, String revisionId, int depth, long offset, int count, String filter) throws MicroKernelException {
+    public String getNodes(String path, String revisionId, int depth, long offset, int maxChildNodes, String filter) throws MicroKernelException {
         if (rep == null) {
             throw new IllegalStateException("this instance has already been disposed");
         }
 
         Id revId = revisionId == null ? getHeadRevisionId() : Id.fromString(revisionId);
 
-        // TODO extract and evaluate filter criteria (such as e.g. ':hash') specified in 'filter' parameter
+        NodeFilter nodeFilter = filter == null || filter.isEmpty() ? null : NodeFilter.parse(filter);
+        if (offset > 0 && nodeFilter != null && nodeFilter.getChildNodeFilter() != null) {
+            // both an offset > 0 and a filter on node names have been specified...
+            throw new IllegalArgumentException("offset > 0 with child node filter");
+        }
 
         try {
             NodeState nodeState = rep.getNodeState(revId, path);
             if (nodeState == null) {
                 return null;
             }
+
             JsopBuilder buf = new JsopBuilder().object();
-            toJson(buf, nodeState, depth, (int) offset, count, true);
+            toJson(buf, nodeState, depth, (int) offset, maxChildNodes, true, nodeFilter);
             return buf.endObject().toString();
         } catch (Exception e) {
             throw new MicroKernelException(e);
@@ -453,7 +364,7 @@ public class MicroKernelImpl implements MicroKernel {
             CommitBuilder cb = rep.getCommitBuilder(revId, message);
             while (true) {
                 int r = t.read();
-                if (r == JsopTokenizer.END) {
+                if (r == JsopReader.END) {
                     break;
                 }
                 int pos; // used for error reporting
@@ -472,7 +383,7 @@ public class MicroKernelImpl implements MicroKernel {
                             cb.addNode(parentPath, nodeName, parseNode(t));
                         } else {
                             String value;
-                            if (t.matches(JsopTokenizer.NULL)) {
+                            if (t.matches(JsopReader.NULL)) {
                                 value = null;
                             } else {
                                 value = t.readRawValue().trim();
@@ -502,7 +413,7 @@ public class MicroKernelImpl implements MicroKernel {
                         String subPath = t.readString();
                         t.read(':');
                         String value;
-                        if (t.matches(JsopTokenizer.NULL)) {
+                        if (t.matches(JsopReader.NULL)) {
                             value = null;
                         } else {
                             value = t.readRawValue().trim();
@@ -569,6 +480,39 @@ public class MicroKernelImpl implements MicroKernel {
         }
     }
 
+    public String branch(String trunkRevisionId) throws MicroKernelException {
+        // create a private branch
+
+        if (rep == null) {
+            throw new IllegalStateException("this instance has already been disposed");
+        }
+
+        Id revId = trunkRevisionId == null ? getHeadRevisionId() : Id.fromString(trunkRevisionId);
+
+        try {
+            CommitBuilder cb = rep.getCommitBuilder(revId, "");
+            return cb.doCommit(true).toString();
+        } catch (Exception e) {
+            throw new MicroKernelException(e);
+        }
+    }
+
+    public String merge(String branchRevisionId, String message) throws MicroKernelException {
+        // merge a private branch with current head revision
+
+        if (rep == null) {
+            throw new IllegalStateException("this instance has already been disposed");
+        }
+
+        Id revId = Id.fromString(branchRevisionId);
+
+        try {
+            return rep.getCommitBuilder(revId, message).doMerge().toString();
+        } catch (Exception e) {
+            throw new MicroKernelException(e);
+        }
+    }
+
     public long getLength(String blobId) throws MicroKernelException {
         if (rep == null) {
             throw new IllegalStateException("this instance has already been disposed");
@@ -604,25 +548,88 @@ public class MicroKernelImpl implements MicroKernel {
 
     //-------------------------------------------------------< implementation >
 
-    void toJson(JsopBuilder builder, NodeState node, int depth, int offset, int count, boolean inclVirtualProps) {
+    void toJson(JsopBuilder builder, NodeState node,
+                int depth, int offset, int maxChildNodes,
+                boolean inclVirtualProps, NodeFilter filter) {
         for (PropertyState property : node.getProperties()) {
-            builder.key(property.getName()).encodedValue(property.getEncodedValue());
+            if (filter == null || filter.includeProperty(property.getName())) {
+                builder.key(property.getName()).encodedValue(property.getEncodedValue());
+            }
         }
         long childCount = node.getChildNodeCount();
         if (inclVirtualProps) {
-            builder.key(":childNodeCount").value(childCount);
+            if (filter == null || filter.includeProperty(":childNodeCount")) {
+                // :childNodeCount is by default always included
+                // unless it is explicitly excluded in the filter
+                builder.key(":childNodeCount").value(childCount);
+            }
+            // check whether :hash has been explicitly included
+            if (filter != null) {
+                NameFilter nf = filter.getPropertyFilter();
+                if (nf != null
+                        && nf.getInclusionPatterns().contains(":hash")
+                        && !nf.getExclusionPatterns().contains(":hash")) {
+                    builder.key(":hash").value(rep.getRevisionStore().getId(node).toString());
+                }
+            }
         }
         if (childCount > 0 && depth >= 0) {
-            for (ChildNodeEntry entry : node.getChildNodeEntries(offset, count)) {
-                builder.key(entry.getName()).object();
-                if (depth > 0) {
-                    toJson(builder, entry.getNode(), depth - 1, 0, -1, inclVirtualProps);
+            if (filter != null) {
+                NameFilter childFilter = filter.getChildNodeFilter();
+                if (childFilter != null && !childFilter.containsWildcard()) {
+                    // optimization for large child node lists:
+                    // no need to iterate over the entire child node list if the filter
+                    // does not include wildcards
+                    int count = maxChildNodes == -1 ? Integer.MAX_VALUE : maxChildNodes;
+                    for (String name : childFilter.getInclusionPatterns()) {
+                        NodeState child = node.getChildNode(name);
+                        if (child != null) {
+                            boolean incl = true;
+                            for (String exclName : childFilter.getExclusionPatterns()) {
+                                if (name.equals(exclName)) {
+                                    incl = false;
+                                    break;
+                                }
+                            }
+                            if (incl) {
+                                if (count-- <= 0) {
+                                    break;
+                                }
+                                builder.key(name).object();
+                                if (depth > 0) {
+                                    toJson(builder, child, depth - 1, 0, maxChildNodes, inclVirtualProps, filter);
+                                }
+                                builder.endObject();
+                            }
+                        }
+                    }
+                    return;
                 }
-                builder.endObject();
+            }
+
+            int count = maxChildNodes;
+            if (count != -1
+                    && filter != null
+                    && filter.getChildNodeFilter() != null) {
+                // specific maxChildNodes limit and child node filter
+                count = -1;
+            }
+            int numSiblings = 0;
+            for (ChildNodeEntry entry : node.getChildNodeEntries(offset, count)) {
+                if (filter == null || filter.includeNode(entry.getName())) {
+                    if (maxChildNodes != -1 && ++numSiblings > maxChildNodes) {
+                        break;
+                    }
+                    builder.key(entry.getName()).object();
+                    if (depth > 0) {
+                        toJson(builder, entry.getNode(), depth - 1, 0, maxChildNodes, inclVirtualProps, filter);
+                    }
+                    builder.endObject();
+                }
             }
         }
     }
-    
+
     NodeTree parseNode(JsopTokenizer t) throws Exception {
         NodeTree node = new NodeTree();
         if (!t.matches('}')) {
@@ -638,5 +645,68 @@ public class MicroKernelImpl implements MicroKernel {
             t.read('}');
         }
         return node;
+    }
+
+    //-------------------------------------------------------< inner classes >
+
+    static class NodeFilter {
+
+        NameFilter nodeFilter;
+        NameFilter propFilter;
+
+        private NodeFilter(NameFilter nodeFilter, NameFilter propFilter) {
+            this.nodeFilter = nodeFilter;
+            this.propFilter = propFilter;
+        }
+
+        static NodeFilter parse(String json) {
+            // parse json format filter
+            JsopTokenizer t = new JsopTokenizer(json);
+            t.read('{');
+
+            NameFilter nodeFilter = null, propFilter = null;
+
+            do {
+                String type = t.readRawValue();
+                t.read(':');
+                String[] globs = parseArray(t);
+                if (type.equals("nodes")) {
+                    nodeFilter = new NameFilter(globs);
+                } else if (type.equals("properties")) {
+                    propFilter = new NameFilter(globs);
+                } else {
+                    throw new IllegalArgumentException("illegal filter format");
+                }
+            } while (t.matches(','));
+            t.read('}');
+
+            return new NodeFilter(nodeFilter, propFilter);
+        }
+
+        private static String[] parseArray(JsopTokenizer t) {
+            List<String> l = new ArrayList<String>();
+            t.read('[');
+            do {
+                l.add(t.readString());
+            } while (t.matches(','));
+            t.read(']');
+            return l.toArray(new String[l.size()]);
+        }
+
+        NameFilter getChildNodeFilter() {
+            return nodeFilter;
+        }
+
+        NameFilter getPropertyFilter() {
+            return propFilter;
+        }
+
+        boolean includeNode(String name) {
+            return nodeFilter == null ? true : nodeFilter.matches(name);
+        }
+
+        boolean includeProperty(String name) {
+            return propFilter == null ? true : propFilter.matches(name);
+        }
     }
 }

@@ -20,6 +20,11 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.jackrabbit.mk.api.MicroKernel;
+import org.apache.jackrabbit.oak.api.ContentSession;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.CoreValueFactory;
+import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.query.ast.AstVisitorBase;
 import org.apache.jackrabbit.oak.query.ast.BindVariableValueImpl;
 import org.apache.jackrabbit.oak.query.ast.ChildNodeImpl;
@@ -30,6 +35,7 @@ import org.apache.jackrabbit.oak.query.ast.ConstraintImpl;
 import org.apache.jackrabbit.oak.query.ast.DescendantNodeImpl;
 import org.apache.jackrabbit.oak.query.ast.DescendantNodeJoinConditionImpl;
 import org.apache.jackrabbit.oak.query.ast.EquiJoinConditionImpl;
+import org.apache.jackrabbit.oak.query.ast.FullTextSearchImpl;
 import org.apache.jackrabbit.oak.query.ast.FullTextSearchScoreImpl;
 import org.apache.jackrabbit.oak.query.ast.LengthImpl;
 import org.apache.jackrabbit.oak.query.ast.LiteralImpl;
@@ -44,6 +50,8 @@ import org.apache.jackrabbit.oak.query.ast.SameNodeJoinConditionImpl;
 import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
 import org.apache.jackrabbit.oak.query.ast.SourceImpl;
 import org.apache.jackrabbit.oak.query.ast.UpperCaseImpl;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.QueryIndex;
 
 /**
  * Represents a parsed query. Lifecycle: use the constructor to create a new
@@ -54,23 +62,28 @@ public class Query {
     final SourceImpl source;
     final ConstraintImpl constraint;
     final HashMap<String, CoreValue> bindVariableMap = new HashMap<String, CoreValue>();
+    final HashMap<String, Integer> selectorIndexes = new HashMap<String, Integer>();
     final ArrayList<SelectorImpl> selectors = new ArrayList<SelectorImpl>();
 
     private MicroKernel mk;
+    private QueryEngineImpl queryEngine;
     private final OrderingImpl[] orderings;
     private ColumnImpl[] columns;
     private boolean explain;
-    private long limit;
+    private long limit = Long.MAX_VALUE;
     private long offset;
     private boolean prepared;
-    private final CoreValueFactory valueFactory = new CoreValueFactory();
+    private final CoreValueFactory valueFactory;
+    private ContentSession session;
+    private NamePathMapper namePathMapper;
 
     Query(SourceImpl source, ConstraintImpl constraint, OrderingImpl[] orderings,
-            ColumnImpl[] columns) {
+          ColumnImpl[] columns, CoreValueFactory valueFactory) {
         this.source = source;
         this.constraint = constraint;
         this.orderings = orderings;
         this.columns = columns;
+        this.valueFactory = valueFactory;
     }
 
     public void init() {
@@ -128,8 +141,16 @@ public class Query {
             }
 
             @Override
+            public boolean visit(FullTextSearchImpl node) {
+                node.setQuery(query);
+                node.bindSelector(source);
+                return true;
+            }
+
+            @Override
             public boolean visit(FullTextSearchScoreImpl node) {
                 node.setQuery(query);
+                node.bindSelector(source);
                 return true;
             }
 
@@ -183,6 +204,10 @@ public class Query {
 
             @Override
             public boolean visit(SelectorImpl node) {
+                String name = node.getSelectorName();
+                if (selectorIndexes.put(name, selectors.size()) != null) {
+                    throw new IllegalArgumentException("Two selectors with the same name: " + name);
+                }
                 selectors.add(node);
                 node.setQuery(query);
                 return true;
@@ -270,10 +295,10 @@ public class Query {
         if (explain) {
             String plan = source.getPlan();
             columns = new ColumnImpl[] { new ColumnImpl("explain", "plan", "plan")};
-            ResultRowImpl r = new ResultRowImpl(this, new String[0], new CoreValue[] { valueFactory.createValue(plan) }, null);
+            ResultRowImpl r = new ResultRowImpl(this, new String[0], new CoreValue[] { getValueFactory().createValue(plan) }, null);
             it = Arrays.asList(r).iterator();
         } else {
-            it = new RowIterator(revisionId);
+            it = new RowIterator(revisionId, limit, offset);
             if (orderings != null) {
                 // TODO "order by" is not necessary if the used index returns
                 // rows in the same order
@@ -316,7 +341,7 @@ public class Query {
         return comp;
     }
 
-    private void prepare() {
+    void prepare() {
         if (prepared) {
             return;
         }
@@ -328,13 +353,20 @@ public class Query {
         private final String revisionId;
         private ResultRowImpl current;
         private boolean started, end;
+        private long limit, offset, rowIndex;
 
-        RowIterator(String revisionId) {
+        RowIterator(String revisionId, long limit, long offset) {
             this.revisionId = revisionId;
+            this.limit = limit;
+            this.offset = offset;
         }
 
         private void fetchNext() {
             if (end) {
+                return;
+            }
+            if (rowIndex >= limit) {
+                end = true;
                 return;
             }
             if (!started) {
@@ -344,7 +376,12 @@ public class Query {
             while (true) {
                 if (source.next()) {
                     if (constraint == null || constraint.evaluate()) {
+                        if (offset > 0) {
+                            offset--;
+                            continue;
+                        }
                         current = currentRow();
+                        rowIndex++;
                         break;
                     }
                 } else {
@@ -413,12 +450,11 @@ public class Query {
     }
 
     public int getSelectorIndex(String selectorName) {
-        for (int i = 0, size = selectors.size(); i < size; i++) {
-            if (selectors.get(i).getSelectorName().equals(selectorName)) {
-                return i;
-            }
+        Integer index = selectorIndexes.get(selectorName);
+        if (index == null) {
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
-        throw new IllegalArgumentException("Unknown selector: " + selectorName);
+        return index;
     }
 
     public int getColumnIndex(String columnName) {
@@ -431,18 +467,10 @@ public class Query {
         throw new IllegalArgumentException("Column not found: " + columnName);
     }
 
-    public long getLimit() {
-        return limit;
-    }
-
-    public long getOffset() {
-        return offset;
-    }
-
     public CoreValue getBindVariableValue(String bindVariableName) {
         CoreValue v = bindVariableMap.get(bindVariableName);
         if (v == null) {
-            throw new RuntimeException("Bind variable value not set: " + bindVariableName);
+            throw new IllegalArgumentException("Bind variable value not set: " + bindVariableName);
         }
         return v;
     }
@@ -453,6 +481,34 @@ public class Query {
 
     public List<String> getBindVariableNames() {
         return new ArrayList<String>(bindVariableMap.keySet());
+    }
+
+    public String getWorkspaceName() {
+        return session.getWorkspaceName();
+    }
+
+    public void setQueryEngine(QueryEngineImpl queryEngine) {
+        this.queryEngine = queryEngine;
+    }
+
+    public QueryIndex getBestIndex(FilterImpl filter) {
+        return queryEngine.getBestIndex(filter);
+    }
+
+    public void setSession(ContentSession session) {
+        this.session = session;
+    }
+
+    public void setNamePathMapper(NamePathMapper namePathMapper) {
+        this.namePathMapper = namePathMapper;
+    }
+
+    public NamePathMapper getNamePathMapper() {
+        return namePathMapper;
+    }
+
+    public Tree getTree(String path) {
+        return session.getCurrentRoot().getTree(path);
     }
 
 }

@@ -18,9 +18,9 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.util.PathUtils;
-import org.apache.jackrabbit.oak.query.index.Filter;
-import org.apache.jackrabbit.oak.query.index.Filter.PathRestriction;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.Filter;
 
 public class DescendantNodeImpl extends ConstraintImpl {
 
@@ -44,7 +44,8 @@ public class DescendantNodeImpl extends ConstraintImpl {
     @Override
     public boolean evaluate() {
         String p = selector.currentPath();
-        return PathUtils.isAncestor(ancestorPath, p);
+        String path = getAbsolutePath(ancestorPath);
+        return PathUtils.isAncestor(path, p);
     }
 
     @Override
@@ -60,14 +61,15 @@ public class DescendantNodeImpl extends ConstraintImpl {
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
-    public void apply(Filter f) {
+    public void apply(FilterImpl f) {
         if (f.getSelector() == selector) {
-            f.restrictPath(ancestorPath, PathRestriction.ALL_CHILDREN);
+            String path = getAbsolutePath(ancestorPath);
+            f.restrictPath(path, Filter.PathRestriction.ALL_CHILDREN);
         }
     }
 

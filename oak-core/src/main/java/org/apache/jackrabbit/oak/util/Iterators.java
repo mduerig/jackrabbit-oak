@@ -16,18 +16,20 @@
  */
 package org.apache.jackrabbit.oak.util;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+import javax.annotation.Nonnull;
+
 import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.commons.collections.iterators.EmptyIterator;
 import org.apache.commons.collections.iterators.FilterIterator;
 import org.apache.commons.collections.iterators.IteratorChain;
 import org.apache.commons.collections.iterators.SingletonIterator;
 import org.apache.commons.collections.iterators.TransformIterator;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
 
 /**
  * Utility class containing type safe adapters for some of the iterators of
@@ -46,6 +48,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> singleton(T element) {
         return new SingletonIterator(element);
     }
@@ -57,6 +60,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> empty() {
         return EmptyIterator.INSTANCE;
     }
@@ -71,6 +75,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> chain(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2) {
         return new IteratorChain(iterator1, iterator2);
     }
@@ -83,6 +88,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> chain(Iterator<? extends T>[] iterators) {
         return new IteratorChain(iterators);
     }
@@ -95,6 +101,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> chain(Collection<? extends T> iterators) {
         return new IteratorChain(iterators);
     }
@@ -109,6 +116,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> arrayIterator(T[] values, int from, int to) {
         return new ArrayIterator(values, from, to);
     }
@@ -123,6 +131,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T> Iterator<T> filter(Iterator<? extends T> iterator,
             final Predicate<? super T> predicate) {
 
@@ -146,6 +155,7 @@ public final class Iterators {
      * @return
      */
     @SuppressWarnings("unchecked")
+    @Nonnull
     public static <T, R, S extends T> Iterator<R> map(Iterator<? extends T> iterator,
             final Function1<S, ? super R> f) {
 
@@ -163,6 +173,7 @@ public final class Iterators {
      * @param <T>
      * @return iterable containing the values from {@code iterator}
      */
+    @Nonnull
     public static <T> Iterable<T> toIterable(final Iterator<T> iterator) {
         return new Iterable<T>() {
             private List<T> copy;
@@ -191,7 +202,8 @@ public final class Iterators {
      * @param <T>
      * @return
      */
-    public static <T> Iterator<? extends T> flatten(final Iterator<Iterator<? extends T>> iterators) {
+    @Nonnull
+    public static <T> Iterator<T> flatten(final Iterator<Iterator<? extends T>> iterators) {
         return new Iterator<T>() {
             private Iterator<? extends T> current;
 
@@ -229,6 +241,21 @@ public final class Iterators {
                 current.remove();
             }
         };
+    }
+
+    /**
+     * Spools the values of an iterator into a list.
+     * @param values  the values to spool
+     * @param list  the target list to receive the values
+     * @param <T>
+     * @return  {@code list}
+     */
+    @Nonnull
+    public static <T> List<T> toList(Iterable<? extends T> values, List<T> list) {
+        for (T value : values) {
+            list.add(value);
+        }
+        return list;
     }
 
 }

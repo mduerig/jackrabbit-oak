@@ -15,6 +15,7 @@ package org.apache.jackrabbit.mk.wrapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.util.Arrays;
@@ -67,14 +68,10 @@ public class VirtualRepositoryWrapperTest extends MultiMkTestBase {
             mkRep1.commit("/", "- \":mount\"", mkRep1.getHeadRevision(), "");
             mkRep2.commit("/", "- \":mount\"", mkRep2.getHeadRevision(), "");
             if (mkVirtual != null) {
-                mkVirtual.dispose();
+                MicroKernelFactory.disposeInstance(mkVirtual);
             }
-            if (mkRep1 != null) {
-                mkRep1.dispose();
-            }
-            if (mkRep2 != null) {
-                mkRep2.dispose();
-            }
+            MicroKernelFactory.disposeInstance(mkRep1);
+            MicroKernelFactory.disposeInstance(mkRep2);
             super.tearDown();
         } catch (Throwable e) {
             e.printStackTrace();
@@ -91,35 +88,43 @@ public class VirtualRepositoryWrapperTest extends MultiMkTestBase {
         head = mkVirtual.commit("/", "+ \"data\": {} ", head, "");
         head = mkVirtual.commit("/", "+ \"data/a\": { \"data\": \"Hello\" }", head, "");
         head = mkVirtual.commit("/", "+ \"data/b\": { \"data\": \"World\" }", head, "");
-        String m1 = mkRep1.getNodes("/data", mkRep1.getHeadRevision());
+
+        // get nodes
+        String m1 = mkRep1.getNodes("/data", mkRep1.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\":childNodeCount\":1,\"a\":{\"data\":\"Hello\",\":childNodeCount\":0}}", m1);
-        String m2 = mkRep2.getNodes("/data", mkRep2.getHeadRevision());
+        String m2 = mkRep2.getNodes("/data", mkRep2.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\":childNodeCount\":1,\"b\":{\"data\":\"World\",\":childNodeCount\":0}}", m2);
-        String m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision());
+        String m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"Hello\",\":childNodeCount\":0}", m);
-        m = mkVirtual.getNodes("/data/b", mkVirtual.getHeadRevision());
+        m = mkVirtual.getNodes("/data/b", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"World\",\":childNodeCount\":0}", m);
+
+        // get nodes on unknown nodes
+        m = mkVirtual.getNodes("/notMapped", mkVirtual.getHeadRevision(), 1, 0, -1, null);
+        assertNull(m);
+        m = mkVirtual.getNodes("/data/a/notExist", mkVirtual.getHeadRevision(), 1, 0, -1, null);
+        assertNull(m);
 
         // set property
         head = mkVirtual.commit("/", "^ \"data/a/data\": \"Hallo\"", head, "");
         head = mkVirtual.commit("/", "^ \"data/b/data\": \"Welt\"", head, "");
-        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision());
+        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"Hallo\",\":childNodeCount\":0}", m);
-        m = mkVirtual.getNodes("/data/b", mkVirtual.getHeadRevision());
+        m = mkVirtual.getNodes("/data/b", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"Welt\",\":childNodeCount\":0}", m);
 
         // add property
         head = mkVirtual.commit("/", "+ \"data/a/lang\": \"de\"", head, "");
-        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision());
+        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"Hallo\",\"lang\":\"de\",\":childNodeCount\":0}", m);
         head = mkVirtual.commit("/", "^ \"data/a/lang\": null", head, "");
-        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision());
+        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"Hallo\",\":childNodeCount\":0}", m);
 
         // move
         head = mkVirtual.commit("/", "+ \"data/a/sub\": {}", head, "");
         head = mkVirtual.commit("/", "> \"data/a/sub\": \"data/a/sub2\"", head, "");
-        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision());
+        m = mkVirtual.getNodes("/data/a", mkVirtual.getHeadRevision(), 1, 0, -1, null);
         assertEquals("{\"data\":\"Hallo\",\":childNodeCount\":1,\"sub2\":{\":childNodeCount\":0}}", m);
         head = mkVirtual.commit("/", "- \"data/a/sub2\"", head, "");
 

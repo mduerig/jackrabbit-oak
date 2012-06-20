@@ -16,17 +16,15 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
-import org.apache.jackrabbit.oak.api.Branch;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.api.TransientNodeState;
-import org.apache.jackrabbit.oak.jcr.util.LogUtil;
-import org.apache.jackrabbit.oak.jcr.util.ValueConverter;
+import org.apache.jackrabbit.oak.api.Tree.Status;
+import org.apache.jackrabbit.oak.jcr.value.ValueConverter;
 import org.apache.jackrabbit.value.ValueHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.jcr.Binary;
-import javax.jcr.Item;
+import javax.jcr.InvalidItemStateException;
 import javax.jcr.ItemNotFoundException;
 import javax.jcr.ItemVisitor;
 import javax.jcr.Node;
@@ -39,7 +37,9 @@ import javax.jcr.ValueFormatException;
 import javax.jcr.nodetype.PropertyDefinition;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 
 /**
  * {@code PropertyImpl}...
@@ -51,15 +51,11 @@ public class PropertyImpl extends ItemImpl implements Property {
      */
     private static final Logger log = LoggerFactory.getLogger(PropertyImpl.class);
 
-    private TransientNodeState parentState;
-    private PropertyState propertyState;
-
-    PropertyImpl(SessionContext<SessionImpl> sessionContext, TransientNodeState parentState,
-            PropertyState propertyState) {
-
-        super(sessionContext);
-        this.parentState = parentState;
-        this.propertyState = propertyState;
+    private final PropertyDelegate dlg;
+    
+    PropertyImpl(PropertyDelegate dlg) {
+        super(dlg.getSessionDelegate(), dlg);
+        this.dlg = dlg;
     }
 
     //---------------------------------------------------------------< Item >---
@@ -72,47 +68,12 @@ public class PropertyImpl extends ItemImpl implements Property {
     }
 
     /**
-     * @see javax.jcr.Item#getName()
-     */
-    @Override
-    public String getName() throws RepositoryException {
-        return getStateName();
-    }
-
-    /**
-     * @see javax.jcr.Property#getPath() ()
-     */
-    @Override
-    public String getPath() throws RepositoryException {
-        return '/' + getParentState().getPath() + '/' + getStateName();
-    }
-
-    /**
      * @see javax.jcr.Item#getParent()
      */
     @Override
+    @Nonnull
     public Node getParent() throws RepositoryException {
-        return new NodeImpl(sessionContext, getParentState());
-    }
-
-    /**
-     * @see Item#getAncestor(int)
-     */
-    @Override
-    public Item getAncestor(int depth) throws RepositoryException {
-        if (depth == getDepth() - 1) {
-            return getParent();
-        } else {
-            return getParent().getAncestor(depth);
-        }
-    }
-
-    /**
-     * @see javax.jcr.Item#getDepth()
-     */
-    @Override
-    public int getDepth() throws RepositoryException {
-        return Paths.getDepth(getPath());
+        return new NodeImpl(dlg.getParent());
     }
 
     /**
@@ -120,8 +81,12 @@ public class PropertyImpl extends ItemImpl implements Property {
      */
     @Override
     public boolean isNew() {
-        // todo implement isNew
-        return false;
+        try {
+            return dlg.getStatus() == Status.NEW;
+        }
+        catch (InvalidItemStateException e) {
+            return false;
+        }
     }
 
     /**
@@ -129,8 +94,12 @@ public class PropertyImpl extends ItemImpl implements Property {
      */
     @Override
     public boolean isModified() {
-        // todo implement isModified
-        return false;
+        try {
+            return dlg.getStatus() == Status.MODIFIED;
+        }
+        catch (InvalidItemStateException e) {
+            return false;
+        }
     }
 
     /**
@@ -138,7 +107,8 @@ public class PropertyImpl extends ItemImpl implements Property {
      */
     @Override
     public void remove() throws RepositoryException {
-        getParentState().removeProperty(getStateName());
+        checkStatus();
+        dlg.remove();
     }
 
     /**
@@ -182,7 +152,7 @@ public class PropertyImpl extends ItemImpl implements Property {
                     valueType = value.getType();
                 }
                 else if (valueType != value.getType()) {
-                    String msg = "Inhomogeneous type of values (" + LogUtil.safeGetJCRPath(this) + ')';
+                    String msg = "Inhomogeneous type of values (" + this + ')';
                     log.debug(msg);
                     throw new ValueFormatException(msg);
                 }
@@ -216,16 +186,17 @@ public class PropertyImpl extends ItemImpl implements Property {
         checkStatus();
 
         int reqType = getRequiredType(PropertyType.STRING);
-        Value[] vs;
         if (values == null) {
-            vs = null;
+            setValues(null, reqType);
         } else {
-            vs = new Value[values.length];
-            for (int i = 0; i < values.length; i++) {
-                vs[i] = getValueFactory().createValue(values[i]);
+            List<Value> vs = new ArrayList<Value>(values.length);
+            for (String value : values) {
+                if (value != null) {
+                    vs.add(getValueFactory().createValue(value));
+                }
             }
+            setValues(vs.toArray(new Value[vs.size()]), reqType);
         }
-        setValues(vs, reqType);
     }
 
     /**
@@ -289,7 +260,11 @@ public class PropertyImpl extends ItemImpl implements Property {
         checkStatus();
 
         int reqType = getRequiredType(PropertyType.DECIMAL);
-        setValue(getValueFactory().createValue(value), reqType);
+        if (value == null) {
+            setValue(null, reqType);
+        } else {
+            setValue(getValueFactory().createValue(value), reqType);
+        }
     }
 
     /**
@@ -334,29 +309,32 @@ public class PropertyImpl extends ItemImpl implements Property {
     }
 
     @Override
+    @Nonnull
     public Value getValue() throws RepositoryException {
         checkStatus();
         if (isMultiple()) {
-            throw new ValueFormatException(LogUtil.safeGetJCRPath(this) + " is multi-valued.");
+            throw new ValueFormatException(this + " is multi-valued.");
         }
 
-        return ValueConverter.toValue(getValueFactory(), getPropertyState().getScalar());
+        return ValueConverter.toValue(dlg.getValue(), sessionDelegate);
     }
 
     @Override
+    @Nonnull
     public Value[] getValues() throws RepositoryException {
         checkStatus();
         if (!isMultiple()) {
-            throw new ValueFormatException(LogUtil.safeGetJCRPath(this) + " is not multi-valued.");
+            throw new ValueFormatException(this + " is not multi-valued.");
         }
 
-        return ValueConverter.toValues(getValueFactory(), getPropertyState().getArray());
+        return ValueConverter.toValues(dlg.getValues(), sessionDelegate);
     }
 
     /**
      * @see Property#getString()
      */
     @Override
+    @Nonnull
     public String getString() throws RepositoryException {
         return getValue().getString();
     }
@@ -366,6 +344,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      */
     @SuppressWarnings("deprecation")
     @Override
+    @Nonnull
     public InputStream getStream() throws RepositoryException {
         return getValue().getStream();
     }
@@ -374,6 +353,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      * @see javax.jcr.Property#getBinary()
      */
     @Override
+    @Nonnull
     public Binary getBinary() throws RepositoryException {
         return getValue().getBinary();
     }
@@ -398,6 +378,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      * @see Property#getDecimal()
      */
     @Override
+    @Nonnull
     public BigDecimal getDecimal() throws RepositoryException {
         return getValue().getDecimal();
     }
@@ -406,6 +387,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      * @see Property#getDate()
      */
     @Override
+    @Nonnull
     public Calendar getDate() throws RepositoryException {
         return getValue().getDate();
     }
@@ -422,6 +404,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      * @see javax.jcr.Property#getNode()
      */
     @Override
+    @Nonnull
     public Node getNode() throws RepositoryException {
         Value value = getValue();
         switch (value.getType()) {
@@ -432,10 +415,17 @@ public class PropertyImpl extends ItemImpl implements Property {
             case PropertyType.PATH:
             case PropertyType.NAME:
                 String path = value.getString();
-                try {
-                    return (path.charAt(0) == '/') ? getSession().getNode(path) : getParent().getNode(path);
-                } catch (PathNotFoundException e) {
-                    throw new ItemNotFoundException(path);
+                if (path.startsWith("[") && path.endsWith("]")) {
+                    // TODO OAK-23
+                    // TODO correct for NAME?
+                    return getSession().getNodeByIdentifier(path.substring(1, path.length() - 1));
+                }
+                else {
+                    try {
+                        return (path.charAt(0) == '/') ? getSession().getNode(path) : getParent().getNode(path);
+                    } catch (PathNotFoundException e) {
+                        throw new ItemNotFoundException(path);
+                    }
                 }
 
             case PropertyType.STRING:
@@ -464,6 +454,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      * @see javax.jcr.Property#getProperty()
      */
     @Override
+    @Nonnull
     public Property getProperty() throws RepositoryException {
         Value value = getValue();
         Value pathValue = ValueHelper.convert(value, PropertyType.PATH, getValueFactory());
@@ -487,6 +478,7 @@ public class PropertyImpl extends ItemImpl implements Property {
      * @see javax.jcr.Property#getLengths()
      */
     @Override
+    @Nonnull
     public long[] getLengths() throws RepositoryException {
         Value[] values = getValues();
         long[] lengths = new long[values.length];
@@ -498,9 +490,9 @@ public class PropertyImpl extends ItemImpl implements Property {
     }
 
     @Override
+    @Nonnull
     public PropertyDefinition getDefinition() throws RepositoryException {
-        // TODO
-        return null;
+        return dlg.getDefinition();
     }
 
     /**
@@ -521,74 +513,13 @@ public class PropertyImpl extends ItemImpl implements Property {
         }
     }
 
-    /**
-     * @see javax.jcr.Property#isMultiple()
-     */
     @Override
     public boolean isMultiple() throws RepositoryException {
-        return getPropertyState().isArray();
+        checkStatus();
+        return dlg.isMultivalue();
     }
 
     //------------------------------------------------------------< private >---
-
-    /**
-     *
-     * @param defaultType
-     * @return the required type for this property.
-     */
-    private int getRequiredType(int defaultType) throws RepositoryException {
-        // check type according to definition of this property
-        PropertyDefinition def = getDefinition();
-        int reqType = (def == null) ? PropertyType.UNDEFINED : getDefinition().getRequiredType();
-        if (reqType == PropertyType.UNDEFINED) {
-            if (defaultType == PropertyType.UNDEFINED) {
-                reqType = PropertyType.STRING;
-            } else {
-                reqType = defaultType;
-            }
-        }
-        return reqType;
-    }
-
-    /**
-     *
-     * @param value
-     * @param requiredType
-     * @throws RepositoryException
-     */
-    private void setValue(Value value, int requiredType) throws RepositoryException {
-        if (requiredType == PropertyType.UNDEFINED) {
-            // should never get here since calling methods assert valid type
-            throw new IllegalArgumentException("Property type of a value cannot be undefined (" + LogUtil.safeGetJCRPath(this) + ").");
-        }
-
-        if (value == null) {
-            remove();
-        }
-        else {
-            getParentState().setProperty(getStateName(), ValueConverter.toScalar(value));
-        }
-    }
-
-    /**
-     *
-     * @param values
-     * @param requiredType
-     * @throws RepositoryException
-     */
-    private void setValues(Value[] values, int requiredType) throws RepositoryException {
-        if (requiredType == PropertyType.UNDEFINED) {
-            // should never get here since calling methods assert valid type
-            throw new IllegalArgumentException("Property type of a value cannot be undefined (" + LogUtil.safeGetJCRPath(this) + ").");
-        }
-
-        if (values == null) {
-            remove();
-        }
-        else {
-            getParentState().setProperty(getStateName(), ValueConverter.toScalar(values));
-        }
-    }
 
     /**
      * Return the length of the specified JCR value object.
@@ -606,33 +537,64 @@ public class PropertyImpl extends ItemImpl implements Property {
         }
     }
 
-    private Branch getBranch() {
-        return sessionContext.getBranch();
-    }
-
-    private TransientNodeState getParentState() {
-        resolve();
-        return parentState;
-    }
-
-    private PropertyState getPropertyState() {
-        resolve();
-        return propertyState;
-    }
-
-    private String getStateName() {
-        return getPropertyState().getName();
-    }
-
-    private synchronized void resolve() {
-        parentState = getBranch().getNode(parentState.getPath());
-        String path = Paths.concat(parentState.getPath(), propertyState.getName());
-
-        if (parentState == null) {
-            propertyState = null;
+    /**
+    *
+    * @param defaultType
+    * @return the required type for this property.
+    * @throws javax.jcr.RepositoryException
+    */
+    private int getRequiredType(int defaultType) throws RepositoryException {
+        // check type according to definition of this property
+        int reqType = getDefinition().getRequiredType();
+        if (reqType == PropertyType.UNDEFINED) {
+            if (defaultType == PropertyType.UNDEFINED) {
+                reqType = PropertyType.STRING;
+            } else {
+                reqType = defaultType;
+            }
         }
-        else {
-            propertyState = parentState.getProperty(Paths.getName(path));
+        return reqType;
+    }
+
+    /**
+    *
+    * @param value
+    * @param requiredType
+    * @throws RepositoryException
+    */
+    private void setValue(Value value, int requiredType) throws RepositoryException {
+        assert(requiredType != PropertyType.UNDEFINED);
+
+        // TODO check again if definition validation should be respected here.
+        if (isMultiple()) {
+            throw new ValueFormatException("Attempt to set a single value to multi-valued property.");
+        }
+        if (value == null) {
+            dlg.remove();
+        } else {
+            Value targetValue = ValueHelper.convert(value, requiredType, sessionDelegate.getValueFactory());
+            dlg.setValue(ValueConverter.toCoreValue(targetValue, sessionDelegate));
+        }
+    }
+
+    /**
+   *
+   * @param values
+   * @param requiredType
+   * @throws RepositoryException
+   */
+    private void setValues(Value[] values, int requiredType) throws RepositoryException {
+        assert(requiredType != PropertyType.UNDEFINED);
+
+        // TODO check again if definition validation should be respected here.
+        if (!isMultiple()) {
+            throw new ValueFormatException("Attempt to set multiple values to single valued property.");
+        }
+        if (values == null) {
+            dlg.remove();
+        } else {
+            Value[] targetValues = ValueHelper.convert(values, requiredType, sessionDelegate.getValueFactory());
+            dlg.setValues(ValueConverter.toCoreValues(targetValues, sessionDelegate));
         }
     }
 

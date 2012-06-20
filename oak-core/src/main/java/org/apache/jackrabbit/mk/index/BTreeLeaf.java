@@ -17,9 +17,10 @@
 package org.apache.jackrabbit.mk.index;
 
 import java.util.Arrays;
+
 import org.apache.jackrabbit.mk.json.JsopBuilder;
-import org.apache.jackrabbit.mk.util.ArrayUtils;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.util.ArrayUtils;
 
 /**
  * An index leaf page.
@@ -28,16 +29,19 @@ class BTreeLeaf extends BTreePage {
 
     BTreeLeaf(BTree tree, BTreeNode parent, String name, String[] data, String[] paths) {
         super(tree, parent, name, data, paths);
+        verify();
     }
 
     BTreeLeaf nextLeaf() {
         return parent == null ? null : parent.next(this);
     }
 
+    @Override
     BTreeLeaf firstLeaf() {
         return this;
     }
 
+    @Override
     void split(BTreeNode newParent, String newName, int pos, String siblingName) {
         setParent(newParent, newName, true);
         String[] k2 = Arrays.copyOfRange(keys, pos, keys.length, String[].class);
@@ -53,21 +57,27 @@ class BTreeLeaf extends BTreePage {
         tree.modified(this);
         keys = ArrayUtils.arrayInsert(keys, pos, key);
         values = ArrayUtils.arrayInsert(values, pos, value);
+        verify();
     }
 
     void delete(int pos) {
         tree.modified(this);
         keys = ArrayUtils.arrayRemove(keys, pos);
         values = ArrayUtils.arrayRemove(values, pos);
+        verify();
     }
 
     void writeData() {
+        verify();
         tree.modified(this);
+        tree.bufferSetArray(getPath(), "children", null);
         tree.bufferSetArray(getPath(), "keys", keys);
         tree.bufferSetArray(getPath(), "values", values);
     }
 
+    @Override
     void writeCreate() {
+        verify();
         tree.modified(this);
         JsopBuilder jsop = new JsopBuilder();
         jsop.tag('+').key(PathUtils.concat(tree.getName(), getPath())).object();
@@ -84,6 +94,14 @@ class BTreeLeaf extends BTreePage {
         jsop.endObject();
         jsop.newline();
         tree.buffer(jsop.toString());
+    }
+
+    void verify() {
+        if (values.length != keys.length) {
+            throw new IllegalArgumentException(
+                    "Number of values doesn't match number of keys: " +
+                    Arrays.toString(values) + " " + Arrays.toString(keys));
+        }
     }
 
 }

@@ -23,32 +23,90 @@
   <parent>
     <groupId>org.apache.jackrabbit</groupId>
     <artifactId>oak-parent</artifactId>
-    <version>0.2-SNAPSHOT</version>
+    <version>0.3-SNAPSHOT</version>
     <relativePath>../oak-parent/pom.xml</relativePath>
   </parent>
 
   <artifactId>oak-mk</artifactId>
-  <name>Oak Microkernel</name>
+  <name>Oak MicroKernel</name>
+  <packaging>bundle</packaging>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <configuration>
+          <instructions>
+            <Export-Package>
+              org.apache.jackrabbit.mk.json,
+              org.apache.jackrabbit.mk.util,
+              org.apache.jackrabbit.mk.core,
+              org.apache.jackrabbit.mk.blobs
+            </Export-Package>
+          </instructions>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-scr-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
 
   <dependencies>
-    <!-- Optional dependencies for different persistence backends -->
+    <!-- Optional OSGi dependencies, used only when running within OSGi -->
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.core</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.compendium</artifactId>
+      <scope>provided</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>biz.aQute</groupId>
+      <artifactId>bndlib</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.felix</groupId>
+      <artifactId>org.apache.felix.scr.annotations</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    
+    <!-- api dependency -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-mk-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- commons dependency -->
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-commons</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- default persistence backend -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
       <version>1.3.158</version>
       <optional>true</optional>
     </dependency>
+
+    <!-- Findbugs annotations -->
     <dependency>
-      <groupId>com.sleepycat</groupId>
-      <artifactId>je</artifactId>
-      <version>4.0.92</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.mongodb</groupId>
-      <artifactId>mongo-java-driver</artifactId>
-      <version>2.7.1</version>
-      <optional>true</optional>
+      <groupId>com.google.code.findbugs</groupId>
+      <artifactId>jsr305</artifactId>
+      <version>2.0.0</version>
+      <scope>provided</scope>
     </dependency>
 
     <!--Test Dependencies-->
@@ -64,6 +122,5 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
 </project>
 

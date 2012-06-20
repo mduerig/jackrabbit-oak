@@ -18,8 +18,8 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.query.CoreValue;
-import org.apache.jackrabbit.oak.query.index.Filter;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
 
 public class PropertyExistenceImpl extends ConstraintImpl {
 
@@ -60,12 +60,12 @@ public class PropertyExistenceImpl extends ConstraintImpl {
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
-    public void apply(Filter f) {
+    public void apply(FilterImpl f) {
         if (f.getSelector() == selector) {
             f.restrictProperty(propertyName, Operator.NOT_EQUAL, (CoreValue) null);
         }

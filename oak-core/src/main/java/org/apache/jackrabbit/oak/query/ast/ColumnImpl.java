@@ -18,7 +18,7 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.query.CoreValue;
+import org.apache.jackrabbit.oak.api.CoreValue;
 
 public class ColumnImpl extends AstElement {
 
@@ -52,7 +52,7 @@ public class ColumnImpl extends AstElement {
     public String toString() {
         if (propertyName != null) {
             return getSelectorName() + '.' + getPropertyName()
-                    + " AS " + getColumnName();
+                    + " AS [" + columnName + "]";
         } else {
             return getSelectorName() + ".*";
         }

@@ -16,6 +16,8 @@
  */
 package org.apache.jackrabbit.oak.api;
 
+import javax.annotation.Nonnull;
+
 /**
  * Immutable property state. A property consists of a name and
  * a JSON-encoded value.
@@ -34,6 +36,7 @@ public interface PropertyState {
     /**
      * @return the name of this property state
      */
+    @Nonnull
     String getName();
 
     /**
@@ -43,15 +46,19 @@ public interface PropertyState {
     boolean isArray();
 
     /**
-     * @return  the single value of this property or {@code null} if this is a multi
-     * valued property.
+     * Value of this property.
+     * @return  the single value of this property.
+     * @throws IllegalStateException  if {@code isArray()} is {@code true}.
      */
-    Scalar getScalar();
+    @Nonnull
+    CoreValue getValue();
 
     /**
-     * @return  an iterable of the values of this multi valued property or
-     * {@code null} if this is not a multi valued property.
+     * Values of this property.
+     * @return  an iterable of the values of this multi valued property.
+     * @throws IllegalStateException  if {@code isArray()} is {@code false}.
      */
-    Iterable<Scalar> getArray();
+    @Nonnull
+    Iterable<CoreValue> getValues();
 
 }

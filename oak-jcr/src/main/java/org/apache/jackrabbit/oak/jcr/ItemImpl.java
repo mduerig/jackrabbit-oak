@@ -16,37 +16,62 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
+import org.apache.jackrabbit.commons.AbstractItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.jcr.InvalidItemStateException;
 import javax.jcr.Item;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.UnsupportedRepositoryOperationException;
 import javax.jcr.ValueFactory;
 
 /**
  * {@code ItemImpl}...
  */
-abstract class ItemImpl implements Item {
+abstract class ItemImpl extends AbstractItem {
 
-    protected final SessionContext<SessionImpl> sessionContext;
+    protected final SessionDelegate sessionDelegate;
+    protected final ItemDelegate dlg;
 
     /**
      * logger instance
      */
     private static final Logger log = LoggerFactory.getLogger(ItemImpl.class);
 
-    protected ItemImpl(SessionContext<SessionImpl> sessionContext) {
-        this.sessionContext = sessionContext;
+    protected ItemImpl(SessionDelegate sessionDelegate, ItemDelegate itemDelegate) {
+        this.sessionDelegate = sessionDelegate;
+        this.dlg = itemDelegate;
     }
 
     //---------------------------------------------------------------< Item >---
+
+    /**
+     * @see javax.jcr.Item#getName()
+     */
     @Override
+    @Nonnull
+    public String getName() throws RepositoryException {
+        String oakName = dlg.getName();
+        // special case name of root node
+        return oakName.isEmpty() ? "" : toJcrPath(dlg.getName());
+    }
+
+    /**
+     * @see javax.jcr.Property#getPath()
+     */
+    @Override
+    @Nonnull
+    public String getPath() throws RepositoryException {
+        return toJcrPath(dlg.getPath());
+    }
+
+    @Override
+    @Nonnull
     public Session getSession() throws RepositoryException {
-        return sessionContext.getSession();
+        return sessionDelegate.getSession();
     }
 
     /**
@@ -86,27 +111,46 @@ abstract class ItemImpl implements Item {
      * @see javax.jcr.Item#save()
      */
     @Override
-    public void save() throws UnsupportedRepositoryOperationException {
-        throw new UnsupportedRepositoryOperationException("Use Session#save");
+    public void save() throws RepositoryException {
+        log.warn("Item#save is no longer supported. Please use Session#save instead.");
+        
+        if (isNew()) {
+            throw new RepositoryException("Item.save() not allowed on new item");
+        }
+        
+        getSession().save();
     }
 
     /**
      * @see Item#refresh(boolean)
      */
     @Override
-    public void refresh(boolean keepChanges) throws UnsupportedRepositoryOperationException {
-        throw new UnsupportedRepositoryOperationException("Use Session#refresh");
+    public void refresh(boolean keepChanges) throws RepositoryException {
+        log.warn("Item#refresh is no longer supported. Please use Session#refresh");
+        getSession().refresh(keepChanges);
     }
 
-    //--------------------------------------------------------------------------
+    @Override
+    public String toString() {
+        return (isNode() ? "Node[" : "Property[") + dlg + ']';
+    }
+
+    //------------------------------------------------------------< internal >---
+
     /**
      * Performs a sanity check on this item and the associated session.
      *
      * @throws RepositoryException if this item has been rendered invalid for some reason
      */
     void checkStatus() throws RepositoryException {
+        if (dlg.isStale()) {
+            throw new InvalidItemStateException("stale");
+        }
+
         // check session status
-        sessionContext.getSession().ensureIsAlive();
+        if (!sessionDelegate.isAlive()) {
+            throw new RepositoryException("This session has been closed.");
+        }
 
         // TODO: validate item state.
     }
@@ -119,7 +163,12 @@ abstract class ItemImpl implements Item {
      * @throws RepositoryException
      */
     void ensureNoPendingSessionChanges() throws RepositoryException {
-        sessionContext.getSession().ensureNoPendingChanges();
+        // check for pending changes
+        if (sessionDelegate.hasPendingChanges()) {
+            String msg = "Unable to perform operation. Session has pending changes.";
+            log.debug(msg);
+            throw new InvalidItemStateException(msg);
+        }
     }
 
     /**
@@ -127,8 +176,13 @@ abstract class ItemImpl implements Item {
      *
      * @return the value factory
      */
+    @Nonnull
     ValueFactory getValueFactory() {
-        return sessionContext.getValueFactory();
+        return sessionDelegate.getValueFactory();
     }
 
+    @Nonnull
+    String toJcrPath(String oakPath) {
+        return sessionDelegate.getNamePathMapper().getJcrPath(oakPath);
+    }
 }

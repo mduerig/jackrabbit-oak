@@ -25,7 +25,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
-import org.apache.jackrabbit.mk.util.ExceptionFactory;
 import org.apache.jackrabbit.mk.util.IOUtils;
 import org.apache.jackrabbit.mk.util.StringUtils;
 
@@ -40,53 +39,51 @@ public class FileBlobStore extends AbstractBlobStore {
     private final byte[] buffer = new byte[16 * 1024];
     private boolean mark;
 
+    // TODO file operations are not secure (return values not checked, no retry,...)
+
     public FileBlobStore(String dir) throws IOException {
         baseDir = new File(dir);
         baseDir.mkdirs();
     }
 
     @Override
-    public String addBlob(String tempFilePath) {
+    public String addBlob(String tempFilePath) throws Exception {
+        File file = new File(tempFilePath);
+        InputStream in = new FileInputStream(file);
+        MessageDigest messageDigest = MessageDigest.getInstance(HASH_ALGORITHM);
+        DigestInputStream din = new DigestInputStream(in, messageDigest);
+        long length = file.length();
         try {
-            File file = new File(tempFilePath);
-            InputStream in = new FileInputStream(file);
-            MessageDigest messageDigest = MessageDigest.getInstance(HASH_ALGORITHM);
-            DigestInputStream din = new DigestInputStream(in, messageDigest);
-            long length = file.length();
-            try {
-                while (true) {
-                    int len = din.read(buffer, 0, buffer.length);
-                    if (len < 0) {
-                        break;
-                    }
+            while (true) {
+                int len = din.read(buffer, 0, buffer.length);
+                if (len < 0) {
+                    break;
                 }
-            } finally {
-                din.close();
             }
-            ByteArrayOutputStream idStream = new ByteArrayOutputStream();
-            idStream.write(TYPE_HASH);
-            IOUtils.writeVarInt(idStream, 0);
-            IOUtils.writeVarLong(idStream, length);
-            byte[] digest = messageDigest.digest();
-            File f = getFile(digest, false);
-            if (f.exists()) {
-                file.delete();
-            } else {
-                File parent = f.getParentFile();
-                if (!parent.exists()) {
-                    parent.mkdirs();
-                }
-                file.renameTo(f);
-            }
-            IOUtils.writeVarInt(idStream, digest.length);
-            idStream.write(digest);
-            byte[] id = idStream.toByteArray();
-            String blobId = StringUtils.convertBytesToHex(id);
-            usesBlobId(blobId);
-            return blobId;
-        } catch (Exception e) {
-            throw ExceptionFactory.convert(e);
+        } finally {
+            din.close();
         }
+        ByteArrayOutputStream idStream = new ByteArrayOutputStream();
+        idStream.write(TYPE_HASH);
+        IOUtils.writeVarInt(idStream, 0);
+        IOUtils.writeVarLong(idStream, length);
+        byte[] digest = messageDigest.digest();
+        File f = getFile(digest, false);
+        if (f.exists()) {
+            file.delete();
+        } else {
+            File parent = f.getParentFile();
+            if (!parent.exists()) {
+                parent.mkdirs();
+            }
+            file.renameTo(f);
+        }
+        IOUtils.writeVarInt(idStream, digest.length);
+        idStream.write(digest);
+        byte[] id = idStream.toByteArray();
+        String blobId = StringUtils.convertBytesToHex(id);
+        usesBlobId(blobId);
+        return blobId;
     }
 
     @Override

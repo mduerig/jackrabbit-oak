@@ -19,7 +19,10 @@
 package org.apache.jackrabbit.oak.query.index;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.spi.Cursor;
+import org.apache.jackrabbit.oak.spi.Filter;
+import org.apache.jackrabbit.oak.spi.QueryIndex;
 
 public class TraversingIndex implements QueryIndex {
 
@@ -61,6 +64,11 @@ public class TraversingIndex implements QueryIndex {
             p = "";
         }
         return "traverse \"" + p + r + '"';
+    }
+
+    @Override
+    public String getIndexName() {
+        return "traverse";
     }
 
 }

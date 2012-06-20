@@ -19,19 +19,22 @@
 package org.apache.jackrabbit.oak.query.ast;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.json.JsopTokenizer;
-import org.apache.jackrabbit.mk.simple.NodeImpl;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.query.Query;
-import org.apache.jackrabbit.oak.query.CoreValue;
-import org.apache.jackrabbit.oak.query.index.Cursor;
-import org.apache.jackrabbit.oak.query.index.Filter;
-import org.apache.jackrabbit.oak.query.index.QueryIndex;
-import org.apache.jackrabbit.oak.query.index.TraversingIndex;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.Cursor;
+import org.apache.jackrabbit.oak.spi.QueryIndex;
 
 public class SelectorImpl extends SourceImpl {
 
     // TODO jcr:path isn't an official feature, support it?
     private static final String PATH = "jcr:path";
+
+    private static final String JCR_PRIMARY_TYPE = "jcr:primaryType";
+
+    private static final String TYPE_BASE = "nt:base";
 
     protected QueryIndex index;
 
@@ -65,7 +68,7 @@ public class SelectorImpl extends SourceImpl {
 
     @Override
     public void prepare(MicroKernel mk) {
-        index = new TraversingIndex(mk);
+        index = query.getBestIndex(createFilter());
     }
 
     @Override
@@ -78,8 +81,9 @@ public class SelectorImpl extends SourceImpl {
         return  nodeTypeName + " AS " + getSelectorName() + " /* " + index.getPlan(createFilter()) + " */";
     }
 
-    private Filter createFilter() {
-        Filter f = new Filter(this);
+    private FilterImpl createFilter() {
+        FilterImpl f = new FilterImpl(this);
+        f.setNodeType(nodeTypeName);
         if (joinCondition != null) {
             joinCondition.apply(f);
         }
@@ -95,7 +99,28 @@ public class SelectorImpl extends SourceImpl {
 
     @Override
     public boolean next() {
-        return cursor == null ? false : cursor.next();
+        if (cursor == null) {
+            return false;
+        }
+        while (true) {
+            boolean result = cursor.next();
+            if (!result) {
+                return false;
+            }
+            if (nodeTypeName.equals(TYPE_BASE)) {
+                return true;
+            }
+            Tree tree = getTree(cursor.currentPath());
+            PropertyState p = tree.getProperty(JCR_PRIMARY_TYPE);
+            if (p == null) {
+                return true;
+            }
+            CoreValue v = p.getValue();
+            // TODO node type matching
+            if (nodeTypeName.equals(v.getString())) {
+                return true;
+            }
+        }
     }
 
     @Override
@@ -103,31 +128,32 @@ public class SelectorImpl extends SourceImpl {
         return cursor == null ? null : cursor.currentPath();
     }
 
-    @Override
-    public NodeImpl currentNode() {
-        return cursor == null ? null : cursor.currentNode();
-    }
-
     public CoreValue currentProperty(String propertyName) {
         if (propertyName.equals(PATH)) {
             String p = currentPath();
-            return p == null ? null : query.getValueFactory().createValue(p);
+            if (p == null) {
+                return null;
+            }
+            String local = getLocalPath(p);
+            if (local == null) {
+                // not a local path
+                return null;
+            }
+            return query.getValueFactory().createValue(local);
         }
-        NodeImpl n = currentNode();
-        if (n == null) {
+        String path = currentPath();
+        if (path == null) {
             return null;
         }
-        String value = n.getProperty(propertyName);
-        if (value == null) {
+        PropertyState p = getTree(path).getProperty(propertyName);
+        if (p == null) {
             return null;
         }
-        // TODO data type mapping
-        value = JsopTokenizer.decodeQuoted(value);
-        return query.getValueFactory().createValue(value);
+        return p.getValue();
     }
 
     @Override
-    public void init(Query qom) {
+    public void init(Query query) {
         // nothing to do
     }
 

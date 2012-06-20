@@ -18,10 +18,12 @@ package org.apache.jackrabbit.oak.jcr.security.user;
 
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
-import org.apache.jackrabbit.oak.jcr.NodeImpl;
+import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.jackrabbit.oak.spi.security.principal.EveryonePrincipal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import java.security.Principal;
 import java.util.Enumeration;
@@ -37,8 +39,15 @@ class GroupImpl extends AuthorizableImpl implements Group {
      */
     private static final Logger log = LoggerFactory.getLogger(GroupImpl.class);
 
-    public GroupImpl(NodeImpl node, UserManagerImpl userManager) {
+    GroupImpl(Node node, UserManagerImpl userManager) throws RepositoryException {
         super(node, userManager);
+    }
+
+    @Override
+    void checkValidNode(Node node) throws RepositoryException {
+        if (node == null || !node.isNodeType(getJcrName(NT_REP_GROUP))) {
+            throw new IllegalArgumentException("Invalid group node: node type rep:Group expected.");
+        }
     }
 
     //-------------------------------------------------------< Authorizable >---
@@ -59,46 +68,135 @@ class GroupImpl extends AuthorizableImpl implements Group {
     }
 
     //--------------------------------------------------------------< Group >---
-
+    /**
+     * @see org.apache.jackrabbit.api.security.user.Group#getDeclaredMembers()
+     */
     @Override
     public Iterator<Authorizable> getDeclaredMembers() throws RepositoryException {
-        // TODO
-        return null;
+        return getMembers(false);
     }
 
+    /**
+     * @see org.apache.jackrabbit.api.security.user.Group#getMembers()
+     */
     @Override
     public Iterator<Authorizable> getMembers() throws RepositoryException {
-        // TODO
-        return null;
+        return getMembers(true);
     }
 
+    /**
+     * @see org.apache.jackrabbit.api.security.user.Group#isDeclaredMember(org.apache.jackrabbit.api.security.user.Authorizable)
+     */
     @Override
     public boolean isDeclaredMember(Authorizable authorizable) throws RepositoryException {
-        // TODO
-        return false;
+        return isMember(authorizable, false);
     }
 
+    /**
+     * @see org.apache.jackrabbit.api.security.user.Group#isMember(org.apache.jackrabbit.api.security.user.Authorizable)
+     */
     @Override
     public boolean isMember(Authorizable authorizable) throws RepositoryException {
-        // TODO
-        return false;
+        return isMember(authorizable, true);
     }
 
+    /**
+     * @see org.apache.jackrabbit.api.security.user.Group#addMember(org.apache.jackrabbit.api.security.user.Authorizable)
+     */
     @Override
     public boolean addMember(Authorizable authorizable) throws RepositoryException {
-        // TODO
-        return false;
+        if (!isValidAuthorizableImpl(authorizable)) {
+            log.warn("Invalid Authorizable: {}", authorizable);
+            return false;
+        }
+
+        AuthorizableImpl authorizableImpl = ((AuthorizableImpl) authorizable);
+        if (isEveryone() || authorizableImpl.isEveryone()) {
+            return false;
+        }
+
+        if (authorizableImpl.isGroup()) {
+            if (getID().equals(authorizableImpl.getID())) {
+                String msg = "Attempt to add a group as member of itself (" + getID() + ").";
+                log.debug(msg);
+                return false;
+            }
+            if (((Group) authorizableImpl).isMember(this)) {
+                log.debug("Attempt to create circular group membership.");
+                return false;
+            }
+        }
+
+        if (isDeclaredMember(authorizable)) {
+            log.debug("Authorizable {} is already declared member of {}", authorizable.getID(), getID());
+            return false;
+        }
+
+        return getUserManager().getMembershipManager().addMember(this, authorizableImpl);
     }
 
+    /**
+     * @see org.apache.jackrabbit.api.security.user.Group#removeMember(org.apache.jackrabbit.api.security.user.Authorizable)
+     */
     @Override
     public boolean removeMember(Authorizable authorizable) throws RepositoryException {
-        // TODO
-        return false;
+        if (!isValidAuthorizableImpl(authorizable)) {
+            log.warn("Invalid Authorizable: {}", authorizable);
+            return false;
+        }
+        if (isEveryone()) {
+            return false;
+        } else {
+            return getUserManager().getMembershipManager().removeMember(this, (AuthorizableImpl) authorizable);
+        }
     }
 
     //--------------------------------------------------------------------------
     /**
+     * Internal implementation of {@link #getDeclaredMembers()} and {@link #getMembers()}.
      *
+     * @param includeInherited Flag indicating if only the declared or all members
+     * should be returned.
+     * @return Iterator of authorizables being member of this group.
+     * @throws RepositoryException If an error occurs.
+     */
+    private Iterator<Authorizable> getMembers(boolean includeInherited) throws RepositoryException {
+        if (isEveryone()) {
+            String propName = getJcrName(REP_PRINCIPAL_NAME);
+            return getUserManager().findAuthorizables(propName, null, UserManager.SEARCH_TYPE_AUTHORIZABLE);
+        } else {
+            MembershipManager mMgr = getUserManager().getMembershipManager();
+            return mMgr.getMembers(this, UserManager.SEARCH_TYPE_AUTHORIZABLE, includeInherited);
+        }
+    }
+
+    /**
+     * Internal implementation of {@link #isDeclaredMember(Authorizable)} and {@link #isMember(Authorizable)}.
+     *
+     * @param authorizable The authorizable to test.
+     * @param includeInherited Flag indicating if only declared or all members
+     * should taken into account.
+     * @return {@code true} if the specified authorizable is member or declared
+     * member of this group; {@code false} otherwise.
+     * @throws RepositoryException If an error occurs.
+     */
+    private boolean isMember(Authorizable authorizable, boolean includeInherited) throws RepositoryException {
+        if (!isValidAuthorizableImpl(authorizable)) {
+            return false;
+        }
+
+        if (isEveryone()) {
+            return true;
+        } else if (getID().equals(authorizable.getID())) {
+            return false;
+        } else {
+            AuthorizableImpl authorizableImpl = (AuthorizableImpl) authorizable;
+            return getUserManager().getMembershipManager().isMember(this, authorizableImpl, includeInherited);
+        }
+    }
+
+    /**
+     * Principal representation of this group instance.
      */
     private class GroupPrincipal extends ItemBasedPrincipalImpl implements java.security.acl.Group {
 
@@ -118,14 +216,57 @@ class GroupImpl extends AuthorizableImpl implements Group {
 
         @Override
         public boolean isMember(Principal principal) {
-            // TODO
-            return false;
+            boolean isMember = false;
+            try {
+                // shortcut for everyone group -> avoid collecting all members
+                // as all users and groups are member of everyone.
+                if (isEveryone()) {
+                    isMember = !EveryonePrincipal.NAME.equals(principal.getName());
+                } else {
+                    Authorizable a = getUserManager().getAuthorizable(principal);
+                    if (a != null) {
+                        isMember = GroupImpl.this.isMember(a);
+                    }
+                }
+            } catch (RepositoryException e) {
+                log.warn("Failed to determine group membership", e.getMessage());
+            }
+
+            // principal doesn't represent a known authorizable or an error occurred.
+            return isMember;
         }
 
         @Override
         public Enumeration<? extends Principal> members() {
-            // TODO
-            return null;
+            final Iterator<Authorizable> iterator;
+            try {
+                iterator = GroupImpl.this.getMembers();
+            } catch (RepositoryException e) {
+                // should not occur.
+                String msg = "Unable to retrieve Group members: " + e.getMessage();
+                log.error(msg);
+                throw new IllegalStateException(msg);
+            }
+
+            Enumeration<Principal> members = new Enumeration<Principal>() {
+
+                @Override
+                public boolean hasMoreElements() {
+                    return iterator.hasNext();
+                }
+
+                @Override
+                public Principal nextElement() {
+                    try {
+                        return iterator.next().getPrincipal();
+                    } catch (RepositoryException e) {
+                        String msg = "Internal error while retrieving principal: " + e.getMessage();
+                        log.error(msg);
+                        throw new IllegalStateException(msg);
+                    }
+                }
+            };
+            return members;
         }
     }
 }

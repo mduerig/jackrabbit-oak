@@ -18,11 +18,13 @@ package org.apache.jackrabbit.mk.wrapper;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import junit.framework.Assert;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
+import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
 import org.apache.jackrabbit.mk.simple.SimpleKernelImpl;
 import org.junit.Before;
@@ -102,12 +104,16 @@ public class SecurityWrapperTest {
         head = mk.getHeadRevision();
         assertTrue(mkAdmin.nodeExists("/:user", head));
         assertFalse(mkGuest.nodeExists("/:user", head));
+        assertNull(mkGuest.getNodes("/:user", head, 1, 0, -1, null));
         head = mkAdmin.commit("/", "^ \":rights\": \"read\"", head, "");
         head = mkAdmin.commit("/", "+ \"test\": { \"data\": \"Hello\" }", head, "");
         assertTrue(mkAdmin.nodeExists("/", head));
+        assertNull(mkGuest.getNodes("/unknown", head, 1, 0, -1, null));
+        assertNull(mkGuest.getNodes("/unknown/node", head, 1, 0, -1, null));
         assertTrue(mkGuest.nodeExists("/", head));
-        assertEquals("{\":rights\":\"read\",\":childNodeCount\":2,\":user\":{\":rights\":\"admin\",\":childNodeCount\":2,\"guest\":{},\"sa\":{}},\"test\":{\"data\":\"Hello\",\":childNodeCount\":0}}", mkAdmin.getNodes("/", head));
-        assertEquals("{\":childNodeCount\":1,\"test\":{\"data\":\"Hello\",\":childNodeCount\":0}}", mkGuest.getNodes("/", head));
+        assertNull(mkGuest.getNodes("/unknown", head, 1, 0, -1, null));
+        assertEquals("{\":rights\":\"read\",\":childNodeCount\":2,\":user\":{\":rights\":\"admin\",\":childNodeCount\":2,\"guest\":{},\"sa\":{}},\"test\":{\"data\":\"Hello\",\":childNodeCount\":0}}", mkAdmin.getNodes("/", head, 1, 0, -1, null));
+        assertEquals("{\":childNodeCount\":1,\"test\":{\"data\":\"Hello\",\":childNodeCount\":0}}", mkGuest.getNodes("/", head, 1, 0, -1, null));
     }
 
     private String filterJournal(String journal) {
@@ -123,7 +129,7 @@ public class SecurityWrapperTest {
             t.read(',');
             Assert.assertEquals("ts", t.readString());
             t.read(':');
-            t.read(JsopTokenizer.NUMBER);
+            t.read(JsopReader.NUMBER);
             t.read(',');
             Assert.assertEquals("msg", t.readString());
             t.read(':');

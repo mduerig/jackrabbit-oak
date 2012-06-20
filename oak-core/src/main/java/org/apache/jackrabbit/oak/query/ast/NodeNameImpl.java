@@ -18,9 +18,10 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.util.PathUtils;
-import org.apache.jackrabbit.oak.query.CoreValue;
-import org.apache.jackrabbit.oak.query.index.Filter;
+import javax.jcr.PropertyType;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
 
 public class NodeNameImpl extends DynamicOperandImpl {
 
@@ -48,18 +49,34 @@ public class NodeNameImpl extends DynamicOperandImpl {
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
-    public  CoreValue currentValue() {
+    public CoreValue currentValue() {
         String name = PathUtils.getName(selector.currentPath());
-        return query.getValueFactory().createValue(name);
+        CoreValue v = query.getValueFactory().createValue(name);
+        String path = v.getString();
+        // normalize paths (./name > name)
+        path = getOakPath(path);
+        return query.getValueFactory().createValue(path, PropertyType.NAME);
     }
 
     @Override
-    public void apply(Filter f, Operator operator, CoreValue v) {
+    public void apply(FilterImpl f, Operator operator, CoreValue v) {
+        if (!isName(v)) {
+            throw new IllegalArgumentException("Invalid name value: " + v.toString());
+        }
+        String path = v.getString();
+        // normalize paths (./name > name)
+        path = getOakPath(path);
+        if (PathUtils.isAbsolute(path)) {
+            throw new IllegalArgumentException("NAME() comparison with absolute path are not allowed: " + path);
+        }
+        if (PathUtils.getDepth(path) > 1) {
+            throw new IllegalArgumentException("NAME() comparison with relative path are not allowed: " + path);
+        }
         // TODO support NAME(..) index conditions
     }
 

@@ -14,7 +14,6 @@
 package org.apache.jackrabbit.oak.query.ast;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.simple.NodeImpl;
 import org.apache.jackrabbit.oak.query.Query;
 
 public class JoinImpl extends SourceImpl {
@@ -70,30 +69,30 @@ public class JoinImpl extends SourceImpl {
     }
 
     @Override
-    public void init(Query qom) {
+    public void init(Query query) {
         switch (joinType) {
         case INNER:
             left.setQueryConstraint(queryConstraint);
             right.setQueryConstraint(queryConstraint);
             right.setJoinCondition(joinCondition);
-            left.init(qom);
-            right.init(qom);
+            left.init(query);
+            right.init(query);
             break;
         case LEFT_OUTER:
             left.setQueryConstraint(queryConstraint);
             right.setOuterJoin(true);
             right.setQueryConstraint(queryConstraint);
             right.setJoinCondition(joinCondition);
-            left.init(qom);
-            right.init(qom);
+            left.init(query);
+            right.init(query);
             break;
         case RIGHT_OUTER:
             right.setQueryConstraint(queryConstraint);
             left.setOuterJoin(true);
             left.setQueryConstraint(queryConstraint);
             left.setJoinCondition(joinCondition);
-            right.init(qom);
-            left.init(qom);
+            right.init(query);
+            left.init(query);
             // TODO right outer join: verify whether converting
             // to left outer join is always correct (given the current restrictions)
             joinType = JoinType.LEFT_OUTER;
@@ -169,13 +168,8 @@ public class JoinImpl extends SourceImpl {
 
     @Override
     public String currentPath() {
-        // TODO
+        // TODO join: what is the path of a join? it this method ever called?
         return left.currentPath();
-    }
-
-    @Override
-    public NodeImpl currentNode() {
-        return null;
     }
 
 }

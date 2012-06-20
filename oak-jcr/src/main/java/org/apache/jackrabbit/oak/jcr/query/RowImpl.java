@@ -18,45 +18,52 @@
  */
 package org.apache.jackrabbit.oak.jcr.query;
 
-import org.apache.jackrabbit.oak.api.ResultRow;
-import org.apache.jackrabbit.oak.query.CoreValue;
-
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.query.Row;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.ResultRow;
 
 /**
  * The implementation of the corresponding JCR interface.
  */
 public class RowImpl implements Row {
 
+    private final QueryResultImpl result;
     private final ResultRow row;
 
-    public RowImpl(ResultRow row) {
+    public RowImpl(QueryResultImpl result, ResultRow row) {
+        this.result = result;
         this.row = row;
     }
 
     @Override
     public Node getNode() throws RepositoryException {
-        // TODO row node
-        return null;
+        return result.getNode(getPath());
     }
 
     @Override
     public Node getNode(String selectorName) throws RepositoryException {
-        // TODO row node
-        return null;
+        return result.getNode(getPath(selectorName));
     }
 
     @Override
     public String getPath() throws RepositoryException {
-        return row.getPath();
+        try {
+            return result.getLocalPath(row.getPath());
+        } catch (IllegalArgumentException e) {
+            throw new RepositoryException(e);
+        }
     }
 
     @Override
     public String getPath(String selectorName) throws RepositoryException {
-        return row.getPath(selectorName);
+        try {
+            return result.getLocalPath(row.getPath(selectorName));
+        } catch (IllegalArgumentException e) {
+            throw new RepositoryException(e);
+        }
     }
 
     @Override
@@ -73,7 +80,11 @@ public class RowImpl implements Row {
 
     @Override
     public Value getValue(String columnName) throws RepositoryException {
-        return ValueConverter.convert(row.getValue(columnName));
+        try {
+            return result.createValue(row.getValue(columnName));
+        } catch (IllegalArgumentException e) {
+            throw new RepositoryException(e);
+        }
     }
 
     @Override
@@ -82,7 +93,7 @@ public class RowImpl implements Row {
         int len = values.length;
         Value[] v2 = new Value[values.length];
         for (int i = 0; i < len; i++) {
-            v2[i] = ValueConverter.convert(values[i]);
+            v2[i] = result.createValue(values[i]);
         }
         return v2;
     }

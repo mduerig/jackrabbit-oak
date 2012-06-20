@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.fs.FileUtils;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
@@ -56,11 +55,10 @@ public class MultiMkTestBase {
 
     @Before
     public void setUp() throws Exception {
-        FileUtils.deleteRecursive("target/temp", false);
         mk = MicroKernelFactory.getInstance(url + ";clean");
         cleanRepository(mk);
 
-        String root = mk.getNodes("/", mk.getHeadRevision());
+        String root = mk.getNodes("/", mk.getHeadRevision(), 1, 0, -1, null);
         NodeImpl rootNode = NodeImpl.parse(root);
         if (rootNode.getPropertyCount() > 0) {
             System.out.println("Last mk not disposed: " + root);
@@ -81,7 +79,7 @@ public class MultiMkTestBase {
         if (prof != null) {
             System.out.println(prof.getTop(5));
         }
-        mk.dispose();
+        MicroKernelFactory.disposeInstance(mk);
     }
 
     protected void reconnect() {
@@ -89,7 +87,7 @@ public class MultiMkTestBase {
             if (url.equals("simple:")) {
                 return;
             }
-            mk.dispose();
+            MicroKernelFactory.disposeInstance(mk);
         }
         mk = MicroKernelFactory.getInstance(url);
     }

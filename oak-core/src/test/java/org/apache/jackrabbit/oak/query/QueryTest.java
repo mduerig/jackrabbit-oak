@@ -27,8 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.core.MicroKernelImpl;
+import org.apache.jackrabbit.oak.api.CoreValue;
 import org.apache.jackrabbit.oak.api.Result;
 import org.apache.jackrabbit.oak.api.ResultRow;
 import org.junit.Test;
@@ -36,10 +35,7 @@ import org.junit.Test;
 /**
  * Test the query feature.
  */
-public class QueryTest {
-
-    private final MicroKernel mk = new MicroKernelImpl();
-    private QueryEngineImpl qe = new QueryEngineImpl(mk);
+public class QueryTest extends AbstractQueryTest {
 
     @Test
     public void script() throws Exception {
@@ -56,22 +52,21 @@ public class QueryTest {
         mk.commit("/", "+ \"test\": { \"hello\": {\"id\": \"1\"}, \"world\": {\"id\": \"2\"}}",
                 null, null);
         HashMap<String, CoreValue> sv = new HashMap<String, CoreValue>();
-        CoreValueFactory vf = new CoreValueFactory();
         sv.put("id", vf.createValue("1"));
         Iterator<? extends ResultRow> result;
-        result = qe.executeQuery("select * from [nt:base] where id = $id",
-                QueryEngineImpl.SQL2, sv).getRows().iterator();
+        result = executeQuery("select * from [nt:base] where id = $id",
+                sv).getRows().iterator();
         assertTrue(result.hasNext());
         assertEquals("/test/hello", result.next().getPath());
 
         sv.put("id", vf.createValue("2"));
-        result = qe.executeQuery("select * from [nt:base] where id = $id",
-                QueryEngineImpl.SQL2, sv).getRows().iterator();
+        result = executeQuery("select * from [nt:base] where id = $id",
+                sv).getRows().iterator();
         assertTrue(result.hasNext());
         assertEquals("/test/world", result.next().getPath());
 
-        result = qe.executeQuery("explain select * from [nt:base] where id = 1 order by id",
-                QueryEngineImpl.SQL2, null).getRows().iterator();
+        result = executeQuery("explain select * from [nt:base] where id = 1 order by id",
+                null).getRows().iterator();
         assertTrue(result.hasNext());
         assertEquals("nt:base AS nt:base /* traverse \"//*\" */",
                 result.next().getValue("plan").getString());
@@ -145,9 +140,13 @@ public class QueryTest {
                             errors = true;
                         }
                     }
-                } else {
+                } else if (line.startsWith("commit")) {
                     w.println(line);
-                    mk.commit("/", line, mk.getHeadRevision(), "");
+                    line = line.substring("commit".length()).trim();
+                    int spaceIndex = line.indexOf(' ');
+                    String path = line.substring(0, spaceIndex).trim();
+                    String diff = line.substring(spaceIndex).trim();
+                    mk.commit(path, diff, mk.getHeadRevision(), "");
                 }
             }
         } finally {
@@ -160,14 +159,20 @@ public class QueryTest {
         }
     }
 
-    private List<String> executeQuery(String query) throws ParseException {
+    private List<String> executeQuery(String query) {
         List<String> lines = new ArrayList<String>();
-        Result result = qe.executeQuery(query, QueryEngineImpl.SQL2, null);
-        for (ResultRow row : result.getRows()) {
-            lines.add(readRow(row));
-        }
-        if (!query.contains("order by")) {
-            Collections.sort(lines);
+        try {
+            Result result = executeQuery(query, null);
+            for (ResultRow row : result.getRows()) {
+                lines.add(readRow(row));
+            }
+            if (!query.contains("order by")) {
+                Collections.sort(lines);
+            }
+        } catch (ParseException e) {
+            lines.add(e.toString());
+        } catch (IllegalArgumentException e) {
+            lines.add(e.toString());
         }
         return lines;
     }
@@ -183,6 +188,10 @@ public class QueryTest {
             buff.append(v == null ? "null" : v.getString());
         }
         return buff.toString();
+    }
+
+    private Result executeQuery(String statement, HashMap<String, CoreValue> sv) throws ParseException {
+        return qe.executeQuery(statement, QueryEngineImpl.SQL2, session, Long.MAX_VALUE, 0, sv, null);
     }
 
 }

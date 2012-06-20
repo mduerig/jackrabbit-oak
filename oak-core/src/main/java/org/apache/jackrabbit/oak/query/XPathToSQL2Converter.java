@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.oak.query;
 
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 import java.math.BigDecimal;
 import java.text.ParseException;
@@ -57,6 +57,10 @@ public class XPathToSQL2Converter {
      */
     public String convert(String query) throws ParseException {
         // TODO verify this is correct
+        boolean explain = query.startsWith("explain ");
+        if (explain) {
+            query = query.substring("explain ".length());
+        }
         if (!query.startsWith("/")) {
             query = "/jcr:root/" + query;
         }
@@ -64,21 +68,30 @@ public class XPathToSQL2Converter {
         expected = new ArrayList<String>();
         read();
         String path = "";
+        String nodeName = null;
         Expression condition = null;
         String from = "nt:base";
         ArrayList<Expression> columnList = new ArrayList<Expression>();
-        boolean children = true;
-        boolean descendants = true;
+        boolean children = false;
+        boolean descendants = false;
         while (true) {
             String nodeType;
             if (readIf("/")) {
+                if (nodeName != null) {
+                    throw getSyntaxError("non-path condition");
+                }
                 if (readIf("/")) {
                     descendants = true;
                 } else if (readIf("jcr:root")) {
                     path = "/";
-                    read("/");
                     if (readIf("/")) {
+                        if (readIf("/")) {
+                            descendants = true;
+                        }
+                    } else {
                         descendants = true;
+                        // expected end of statement
+                        break;
                     }
                 } else {
                     descendants = false;
@@ -86,38 +99,55 @@ public class XPathToSQL2Converter {
                 if (readIf("*")) {
                     nodeType = "nt:base";
                     from = nodeType;
+                    children = true;
+                } else if (readIf("text")) {
+                    read("(");
+                    read(")");
+                    if (descendants) {
+                        nodeName = "jcr:xmltext";
+                    } else {
+                        path = PathUtils.concat(path, "jcr:xmltext");
+                    }
                 } else if (readIf("element")) {
                     read("(");
-                    if (readIf("*")) {
+                    if (readIf(")")) {
                         // any
                         children = true;
                     } else {
-                        children = false;
-                        String name = readIdentifier();
-                        path = PathUtils.concat(path, name);
+                        if (readIf("*")) {
+                            // any
+                            children = true;
+                        } else {
+                            children = false;
+                            String name = readIdentifier();
+                            path = PathUtils.concat(path, name);
+                        }
+                        if (readIf(",")) {
+                            nodeType = readIdentifier();
+                            from = nodeType;
+                        } else {
+                            nodeType = "nt:base";
+                            from = nodeType;
+                        }
+                        read(")");
                     }
-                    if (readIf(",")) {
-                        nodeType = readIdentifier();
-                        from = nodeType;
-                    } else {
-                        nodeType = "nt:base";
-                        from = nodeType;
-                    }
-                    read(")");
                 } else if (readIf("@")) {
-                    Property p = new Property(readIdentifier());
+                    Property p = readProperty();
                     columnList.add(p);
                 } else if (readIf("(")) {
                     do {
                         read("@");
-                        Property p = new Property(readIdentifier());
+                        Property p = readProperty();
                         columnList.add(p);
                     } while (readIf("|"));
                     read(")");
                 } else {
-                    String name = readIdentifier();
-                    path = PathUtils.concat(path, name);
-                    continue;
+                    if (descendants) {
+                        nodeName = readIdentifier();
+                    } else {
+                        String name = readIdentifier();
+                        path = PathUtils.concat(path, name);
+                    }
                 }
                 if (readIf("[")) {
                     Expression c = parseConstraint();
@@ -131,6 +161,9 @@ public class XPathToSQL2Converter {
         if (path.isEmpty()) {
             // no condition
         } else {
+            if (!PathUtils.isAbsolute(path)) {
+                path = PathUtils.concat("/", path);
+            }
             if (descendants) {
                 Function c = new Function("isdescendantnode");
                 c.params.add(Literal.newString(path));
@@ -140,8 +173,13 @@ public class XPathToSQL2Converter {
                 f.params.add(Literal.newString(path));
                 condition = add(condition, f);
             } else {
-                // TODO jcr:path is only a pseudo-property
-                Condition c = new Condition(new Property("jcr:path"), "=", Literal.newString(path));
+                Function c = new Function("issamenode");
+                c.params.add(Literal.newString(path));
+                condition = add(condition, c);
+            }
+            if (nodeName != null) {
+                Function f = new Function("name");
+                Condition c = new Condition(f, "=", Literal.newString(nodeName));
                 condition = add(condition, c);
             }
         }
@@ -162,7 +200,12 @@ public class XPathToSQL2Converter {
         if (!currentToken.isEmpty()) {
             throw getSyntaxError("<end>");
         }
-        StringBuilder buff = new StringBuilder("select ");
+        StringBuilder buff = new StringBuilder();
+        if (explain) {
+            buff.append("explain ");
+        }
+        buff.append("select ");
+        buff.append("[jcr:path], [jcr:score], ");
         if (columnList.isEmpty()) {
             buff.append('*');
         } else {
@@ -264,7 +307,7 @@ public class XPathToSQL2Converter {
 
     private Expression parseExpression() throws ParseException {
         if (readIf("@")) {
-            return new Property(readIdentifier());
+            return readProperty();
         } else if (readIf("true")) {
             return Literal.newBoolean(true);
         } else if (readIf("false")) {
@@ -367,6 +410,13 @@ public class XPathToSQL2Converter {
             throw getSyntaxError(expected);
         }
         read();
+    }
+
+    private Property readProperty() throws ParseException {
+        if (readIf("*")) {
+            return new Property("*");
+        }
+        return new Property(readIdentifier());
     }
 
     private String readIdentifier() throws ParseException {
@@ -671,7 +721,7 @@ public class XPathToSQL2Converter {
         }
 
         public static Expression newBoolean(boolean value) {
-            return new Literal("" + value);
+            return new Literal(String.valueOf(value));
         }
 
         static Literal newNumber(String s) {

@@ -21,14 +21,23 @@ package org.apache.jackrabbit.oak.kernel;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.CoreValueFactory;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.api.Scalar;
+import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.util.Iterators;
+import org.apache.jackrabbit.oak.util.PagedIterator;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 /**
  * Basic {@link NodeState} implementation based on the {@link MicroKernel}
@@ -42,6 +51,7 @@ class KernelNodeState extends AbstractNodeState {
     static final int MAX_CHILD_NODE_NAMES = 1000;
 
     private final MicroKernel kernel;
+    private final CoreValueFactory valueFactory;
 
     private final String path;
 
@@ -51,7 +61,8 @@ class KernelNodeState extends AbstractNodeState {
 
     private long childNodeCount = -1;
 
-    private Map<String, NodeState> childNodes; // TODO: WeakReference?
+    // TODO: WeakReference?
+    private Map<String, NodeState> childNodes;
 
     /**
      * Create a new instance of this class representing the node at the
@@ -59,11 +70,18 @@ class KernelNodeState extends AbstractNodeState {
      * underlying Microkernel does not contain such a node.
      *
      * @param kernel
+     * @param valueFactory
      * @param path
      * @param revision
      */
-    public KernelNodeState(MicroKernel kernel, String path, String revision) {
+    public KernelNodeState(MicroKernel kernel, CoreValueFactory valueFactory, String path, String revision) {
+        assert kernel != null;
+        assert valueFactory != null;
+        assert path != null;
+        assert revision != null;
+
         this.kernel = kernel;
+        this.valueFactory = valueFactory;
         this.path = path;
         this.revision = revision;
     }
@@ -82,36 +100,23 @@ class KernelNodeState extends AbstractNodeState {
                 reader.read(':');
                 if (":childNodeCount".equals(name)) {
                     childNodeCount =
-                            Long.valueOf(reader.read(JsopTokenizer.NUMBER));
+                            Long.valueOf(reader.read(JsopReader.NUMBER));
                 } else if (reader.matches('{')) {
                     reader.read('}');
                     String childPath = path + '/' + name;
                     if ("/".equals(path)) {
                         childPath = '/' + name;
                     }
-                    childNodes.put(name, new KernelNodeState(
-                            kernel, childPath, revision));
-                } else if (reader.matches(JsopTokenizer.NUMBER)) {
-                    properties.put(name, new KernelPropertyState(
-                            name, ScalarImpl.numberScalar(reader.getToken())));
-                } else if (reader.matches(JsopTokenizer.STRING)) {
-                    properties.put(name, new KernelPropertyState(
-                            name, ScalarImpl.stringScalar(reader.getToken())));
-                } else if (reader.matches(JsopTokenizer.TRUE)) {
-                    properties.put(name, new KernelPropertyState(
-                            name, ScalarImpl.booleanScalar(true)));
-                } else if (reader.matches(JsopTokenizer.FALSE)) {
-                    properties.put(name, new KernelPropertyState(
-                            name, ScalarImpl.booleanScalar(false)));
+                    childNodes.put(name, new KernelNodeState(kernel, valueFactory, childPath, revision));
                 } else if (reader.matches('[')) {
-                    properties.put(name, new KernelPropertyState(
-                            name, readArray(reader)));
+                    properties.put(name, new PropertyStateImpl(name, CoreValueMapper.listFromJsopReader(reader, valueFactory)));
                 } else {
-                    throw new IllegalArgumentException("Unexpected token: " + reader.getToken());
+                    CoreValue cv = CoreValueMapper.fromJsopReader(reader, valueFactory);
+                    properties.put(name, new PropertyStateImpl(name, cv));
                 }
             } while (reader.matches(','));
             reader.read('}');
-            reader.read(JsopTokenizer.END);
+            reader.read(JsopReader.END);
         }
     }
 
@@ -146,36 +151,67 @@ class KernelNodeState extends AbstractNodeState {
         if (child == null && childNodeCount > MAX_CHILD_NODE_NAMES) {
             String childPath = getChildPath(name);
             if (kernel.nodeExists(childPath, revision)) {
-                child = new KernelNodeState(kernel, childPath, revision);
+                child = new KernelNodeState(kernel, valueFactory, childPath, revision);
             }
         }
         return child;
     }
 
     @Override
-    public Iterable<? extends ChildNodeEntry> getChildNodeEntries(
+    public Iterable<? extends ChildNodeEntry> getChildNodeEntries() {
+        return new Iterable<ChildNodeEntry>() {
+            @Override
+            public Iterator<ChildNodeEntry> iterator() {
+                return Iterators.flatten(
+                    new PagedIterator<ChildNodeEntry>(MAX_CHILD_NODE_NAMES) {
+                        @Override
+                        protected Iterator<? extends ChildNodeEntry> getPage(long pos, int size) {
+                            return getChildNodeEntries(pos, size);
+                        }
+                });
+            }
+        };
+    }
+
+    //------------------------------------------------------------< internal >---
+
+    @Nonnull
+    String getRevision() {
+        return revision;
+    }
+
+    @Nonnull
+    String getPath() {
+        return path;
+    }
+
+    //------------------------------------------------------------< private >---
+
+    private Iterator<? extends ChildNodeEntry> getChildNodeEntries(
             long offset, int count) {
         init();
+        boolean all;
         if (count == -1) {
             count = Integer.MAX_VALUE;
+            all = true;
             if (childNodeCount > count) {
                 throw new RuntimeException("Too many child nodes");
             }
+        } else {
+            all = false;
         }
 
         List<ChildNodeEntry> entries = new ArrayList<ChildNodeEntry>();
 
         if (offset < childNodes.size()) {
-            Iterator<Map.Entry<String, NodeState>> iterator =
+            Iterator<Entry<String, NodeState>> iterator =
                     childNodes.entrySet().iterator();
             while (offset > 0) {
                 iterator.next();
                 offset--;
             }
             while (count > 0 && iterator.hasNext()) {
-                Map.Entry<String, NodeState> entry = iterator.next();
-                entries.add(new KernelChildNodeEntry(
-                        entry.getKey(), entry.getValue()));
+                entries.add(new MemoryChildNodeEntry(iterator.next()));
                 count--;
             }
             offset = childNodes.size();
@@ -183,7 +219,7 @@ class KernelNodeState extends AbstractNodeState {
 
         if (count > 0 && childNodeCount > MAX_CHILD_NODE_NAMES) {
             String json = kernel.getNodes(
-                    path, revision, 0, offset, count, null);
+                    path, revision, 0, offset, all ? -1 : count, null);
 
             JsopReader reader = new JsopTokenizer(json);
             reader.read('{');
@@ -193,28 +229,18 @@ class KernelNodeState extends AbstractNodeState {
                 if (reader.matches('{')) {
                     reader.read('}');
                     String childPath = getChildPath(name);
-                    NodeState child =
-                            new KernelNodeState(kernel, childPath, revision);
-                    entries.add(new KernelChildNodeEntry(name, child));
+                    NodeState child = new KernelNodeState(
+                            kernel, valueFactory, childPath, revision);
+                    entries.add(new MemoryChildNodeEntry(name, child));
                 } else {
                     reader.read();
                 }
             } while (reader.matches(','));
             reader.read('}');
-            reader.read(JsopTokenizer.END);
+            reader.read(JsopReader.END);
         }
 
-        return entries;
-    }
-
-    //------------------------------------------------------------< internal >---
-
-    String getRevision() {
-        return revision;
-    }
-
-    String getPath() {
-        return path;
+        return entries.iterator();
     }
 
     private String getChildPath(String name) {
@@ -225,23 +251,12 @@ class KernelNodeState extends AbstractNodeState {
         }
     }
 
-    private static List<Scalar> readArray(JsopReader reader) {
-        List<Scalar> values = new ArrayList<Scalar>();
+    private List<CoreValue> readArray(JsopReader reader) {
+        List<CoreValue> values = new ArrayList<CoreValue>();
         while (!reader.matches(']')) {
-            if (reader.matches(JsopTokenizer.NUMBER)) {
-                values.add(ScalarImpl.numberScalar(reader.getToken()));
-            } else if (reader.matches(JsopTokenizer.STRING)) {
-                values.add(ScalarImpl.stringScalar(reader.getToken()));
-            } else if (reader.matches(JsopTokenizer.TRUE)) {
-                values.add(ScalarImpl.booleanScalar(true));
-            } else if (reader.matches(JsopTokenizer.FALSE)) {
-                values.add(ScalarImpl.booleanScalar(false));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + reader.getToken());
-            }
+            values.add(CoreValueMapper.fromJsopReader(reader, valueFactory));
             reader.matches(',');
         }
         return values;
     }
-
 }

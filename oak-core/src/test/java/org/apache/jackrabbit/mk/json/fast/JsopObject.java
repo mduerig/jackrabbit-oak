@@ -16,13 +16,14 @@
  */
 package org.apache.jackrabbit.mk.json.fast;
 
+import org.apache.jackrabbit.mk.json.JsopBuilder;
+import org.apache.jackrabbit.mk.json.JsopTokenizer;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import org.apache.jackrabbit.mk.json.JsopBuilder;
-import org.apache.jackrabbit.mk.json.JsopTokenizer;
 
 /**
  * A map.
@@ -64,6 +65,7 @@ public class JsopObject extends Jsop implements Map<String, Object> {
         }
     }
 
+    @Override
     public Object get(Object key) {
         init();
         String v = map.get(key);
@@ -107,16 +109,19 @@ public class JsopObject extends Jsop implements Map<String, Object> {
         return null;
     }
 
+    @Override
     public boolean containsKey(Object key) {
         get(key);
         return map.containsKey(key);
     }
 
+    @Override
     public boolean isEmpty() {
         init();
         return map == EMPTY_MAP;
     }
 
+    @Override
     public int size() {
         readAll();
         return map.size();
@@ -131,6 +136,7 @@ public class JsopObject extends Jsop implements Map<String, Object> {
         jsop = null;
     }
 
+    @Override
     public String toString() {
         if (jsop == null) {
             JsopBuilder w = new JsopBuilder();
@@ -158,37 +164,45 @@ public class JsopObject extends Jsop implements Map<String, Object> {
         return jsop.substring(start);
     }
 
+    @Override
     public void clear() {
         initWrite();
         map.clear();
     }
 
+    @Override
     public Object put(String key, Object value) {
         initWrite();
         String old = map.put(key, toString(value));
         return Jsop.parse(old);
     }
 
+    @Override
     public boolean containsValue(Object value) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Set<Entry<String, Object>> entrySet() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Set<String> keySet() {
         throw new UnsupportedOperationException();
     }
 
-    public void putAll(Map<? extends String, ? extends Object> m) {
+    @Override
+    public void putAll(Map<? extends String, ?> m) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object remove(Object key) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Collection<Object> values() {
         throw new UnsupportedOperationException();
     }

@@ -16,6 +16,7 @@
  */
 package org.apache.jackrabbit.mk.persistence;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -25,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import org.apache.jackrabbit.mk.model.Id;
+import org.apache.jackrabbit.mk.model.MutableCommit;
 import org.apache.jackrabbit.mk.model.MutableNode;
 import org.apache.jackrabbit.mk.model.StoredNode;
 import org.apache.jackrabbit.mk.store.NotFoundException;
@@ -79,6 +81,7 @@ public class GCPersistenceTest {
         MutableNode node = new MutableNode(null, "/");
         Id id = pm.writeNode(node);
 
+        Thread.sleep(1);
         pm.start();
         pm.sweep();
         
@@ -95,35 +98,18 @@ public class GCPersistenceTest {
         MutableNode node = new MutableNode(null, "/");
         Id id = pm.writeNode(node);
 
-        pm.start();
-        pm.markNode(id);
-        pm.sweep();
-        
-        pm.readNode(new StoredNode(id, null));
-    }
-
-    @Test
-    public void testOldNodeIsUnmarked() throws Exception {
-        MutableNode node = new MutableNode(null, "/");
-        Id id = pm.writeNode(node);
-        
         // small delay needed
         Thread.sleep(100);
         
         pm.start();
+
+        // old node must not be marked 
         assertTrue(pm.markNode(id));
+        
+        pm.sweep();
+        pm.readNode(new StoredNode(id, null));
     }
     
-    @Test
-    public void testNewNodeIsMarked() throws Exception {
-        pm.start();
-        
-        MutableNode node = new MutableNode(null, "/");
-        Id id = pm.writeNode(node);
-        
-        assertFalse(pm.markNode(id));
-    }
-
     @Test
     public void testNewNodeIsNotSwept() throws Exception {
         pm.start();
@@ -131,8 +117,31 @@ public class GCPersistenceTest {
         MutableNode node = new MutableNode(null, "/");
         Id id = pm.writeNode(node);
         
+        // new node must already be marked 
+        assertFalse(pm.markNode(id));
+
         pm.sweep();
         pm.readNode(new StoredNode(id, null));
+    }
+    
+    @Test
+    public void testReplaceCommit() throws Exception {
+        MutableCommit c1 = new MutableCommit();
+        c1.setRootNodeId(Id.fromLong(0));
+        pm.writeCommit(Id.fromLong(1), c1);
+
+        MutableCommit c2 = new MutableCommit();
+        c2.setParentId(c1.getId());
+        c2.setRootNodeId(Id.fromLong(0));
+        pm.writeCommit(Id.fromLong(2), c2);
+
+        pm.start();
+        c2 = new MutableCommit();
+        c2.setRootNodeId(Id.fromLong(0));
+        pm.replaceCommit(Id.fromLong(2), c2);
+        pm.sweep();
+        
+        assertEquals(null, pm.readCommit(Id.fromLong(2)).getParentId());
     }
 }
 

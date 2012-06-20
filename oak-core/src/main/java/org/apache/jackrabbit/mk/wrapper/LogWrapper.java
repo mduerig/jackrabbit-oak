@@ -37,6 +37,7 @@ public class LogWrapper implements MicroKernel {
         this.mk = mk;
     }
 
+    @Override
     public String commit(String path, String jsonDiff, String revisionId, String message) {
         try {
             logMethod("commit", path, jsonDiff, revisionId, message);
@@ -50,16 +51,10 @@ public class LogWrapper implements MicroKernel {
     }
 
     public void dispose() {
-        try {
-            logMethod("dispose");
-            mk.dispose();
-            logResult();
-        } catch (Exception e) {
-            logException(e);
-            throw convert(e);
-        }
+        // do nothing
     }
 
+    @Override
     public String getHeadRevision() {
         try {
             logMethod("getHeadRevision");
@@ -72,10 +67,11 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
-    public String getJournal(String fromRevisionId, String toRevisionId, String filter) {
+    @Override
+    public String getJournal(String fromRevisionId, String toRevisionId, String path) {
         try {
             logMethod("getJournal", fromRevisionId, toRevisionId);
-            String result = mk.getJournal(fromRevisionId, toRevisionId, filter);
+            String result = mk.getJournal(fromRevisionId, toRevisionId, path);
             logResult(result);
             return result;
         } catch (Exception e) {
@@ -84,10 +80,11 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
-    public String diff(String fromRevisionId, String toRevisionId, String filter) {
+    @Override
+    public String diff(String fromRevisionId, String toRevisionId, String path) {
         try {
-            logMethod("diff", fromRevisionId, toRevisionId, filter);
-            String result = mk.diff(fromRevisionId, toRevisionId, filter);
+            logMethod("diff", fromRevisionId, toRevisionId, path);
+            String result = mk.diff(fromRevisionId, toRevisionId, path);
             logResult(result);
             return result;
         } catch (Exception e) {
@@ -96,6 +93,7 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
+    @Override
     public long getLength(String blobId) {
         try {
             logMethod("getLength", blobId);
@@ -108,10 +106,11 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
-    public String getNodes(String path, String revisionId) {
+    @Override
+    public String getNodes(String path, String revisionId, int depth, long offset, int maxChildNodes, String filter) {
         try {
-            logMethod("getNodes", path, revisionId);
-            String result = mk.getNodes(path, revisionId);
+            logMethod("getNodes", path, revisionId, depth, offset, maxChildNodes, filter);
+            String result = mk.getNodes(path, revisionId, depth, offset, maxChildNodes, filter);
             logResult(result);
             return result;
         } catch (Exception e) {
@@ -120,10 +119,11 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
-    public String getNodes(String path, String revisionId, int depth, long offset, int count, String filter) {
+    @Override
+    public String getRevisionHistory(long since, int maxEntries, String path) {
         try {
-            logMethod("getNodes", path, revisionId, depth, offset, count, filter);
-            String result = mk.getNodes(path, revisionId, depth, offset, count, filter);
+            logMethod("getRevisionHistory", since, maxEntries, path);
+            String result = mk.getRevisionHistory(since, maxEntries, path);
             logResult(result);
             return result;
         } catch (Exception e) {
@@ -132,18 +132,7 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
-    public String getRevisions(long since, int maxEntries) {
-        try {
-            logMethod("getRevisions", since, maxEntries);
-            String result = mk.getRevisions(since, maxEntries);
-            logResult(result);
-            return result;
-        } catch (Exception e) {
-            logException(e);
-            throw convert(e);
-        }
-    }
-
+    @Override
     public boolean nodeExists(String path, String revisionId) {
         try {
             logMethod("nodeExists", path, revisionId);
@@ -156,6 +145,7 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
+    @Override
     public long getChildNodeCount(String path, String revisionId) {
         try {
             logMethod("getChildNodeCount", path, revisionId);
@@ -168,6 +158,7 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
+    @Override
     public int read(String blobId, long pos, byte[] buff, int off, int length) {
         try {
             logMethod("read", blobId, pos, buff, off, length);
@@ -180,6 +171,7 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
+    @Override
     public String waitForCommit(String oldHeadRevisionId, long maxWaitMillis) throws InterruptedException {
         try {
             logMethod("waitForCommit", oldHeadRevisionId, maxWaitMillis);
@@ -195,10 +187,37 @@ public class LogWrapper implements MicroKernel {
         }
     }
 
+    @Override
     public String write(InputStream in) {
         try {
             logMethod("write", in.toString());
             String result = mk.write(in);
+            logResult(result);
+            return result;
+        } catch (Exception e) {
+            logException(e);
+            throw convert(e);
+        }
+    }
+
+    @Override
+    public String branch(String trunkRevisionId) {
+        try {
+            logMethod("branch", trunkRevisionId);
+            String result = mk.branch(trunkRevisionId);
+            logResult(result);
+            return result;
+        } catch (Exception e) {
+            logException(e);
+            throw convert(e);
+        }
+    }
+
+    @Override
+    public String merge(String branchRevisionId, String message) {
+        try {
+            logMethod("merge", branchRevisionId, message);
+            String result = mk.merge(branchRevisionId, message);
             logResult(result);
             return result;
         } catch (Exception e) {
@@ -243,10 +262,6 @@ public class LogWrapper implements MicroKernel {
 
     private void logResult(Object result) {
         log("// " + quote(result));
-    }
-
-    private void logResult() {
-        // ignored
     }
 
     private void log(String message) {

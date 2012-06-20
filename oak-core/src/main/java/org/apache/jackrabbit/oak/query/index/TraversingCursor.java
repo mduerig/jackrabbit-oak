@@ -15,7 +15,8 @@ package org.apache.jackrabbit.oak.query.index;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.simple.NodeImpl;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.spi.Cursor;
 import java.util.ArrayList;
 
 /**
@@ -29,7 +30,6 @@ public class TraversingCursor implements Cursor {
 
     private ArrayList<NodeCursor> nodes = new ArrayList<NodeCursor>();
     private String currentPath;
-    private NodeImpl currentNode;
 
     public TraversingCursor(MicroKernel mk, String revisionId, int childBlockSize, String path) {
         this.mk = mk;
@@ -40,6 +40,9 @@ public class TraversingCursor implements Cursor {
 
     private boolean loadChildren(String path, long offset) {
         String s = mk.getNodes(path, revisionId, 0, offset, childBlockSize, null);
+        if (s == null) {
+            return false;
+        }
         NodeCursor c = new NodeCursor();
         c.node = NodeImpl.parse(s);
         c.node.setPath(path);
@@ -50,25 +53,12 @@ public class TraversingCursor implements Cursor {
     }
 
     @Override
-    public NodeImpl currentNode() {
-        if (currentNode == null) {
-            if (currentPath == null) {
-                return null;
-            }
-            currentNode = NodeImpl.parse(mk.getNodes(currentPath, revisionId));
-            currentNode.setPath(currentPath);
-        }
-        return currentNode;
-    }
-
-    @Override
     public String currentPath() {
         return currentPath;
     }
 
     @Override
     public boolean next() {
-        currentNode = null;
         if (nodes == null) {
             currentPath = null;
             return false;

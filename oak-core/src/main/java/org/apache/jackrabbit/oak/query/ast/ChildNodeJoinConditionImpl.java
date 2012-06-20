@@ -18,9 +18,9 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.util.PathUtils;
-import org.apache.jackrabbit.oak.query.index.Filter;
-import org.apache.jackrabbit.oak.query.index.Filter.PathRestriction;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.Filter;
 
 public class ChildNodeJoinConditionImpl extends JoinConditionImpl {
 
@@ -57,11 +57,11 @@ public class ChildNodeJoinConditionImpl extends JoinConditionImpl {
     public void bindSelector(SourceImpl source) {
         parentSelector = source.getSelector(parentSelectorName);
         if (parentSelector == null) {
-            throw new RuntimeException("Unknown selector: " + parentSelector);
+            throw new IllegalArgumentException("Unknown selector: " + parentSelector);
         }
         childSelector = source.getSelector(childSelectorName);
         if (childSelector == null) {
-            throw new RuntimeException("Unknown selector: " + childSelectorName);
+            throw new IllegalArgumentException("Unknown selector: " + childSelectorName);
         }
     }
 
@@ -75,14 +75,14 @@ public class ChildNodeJoinConditionImpl extends JoinConditionImpl {
     }
 
     @Override
-    public void apply(Filter f) {
+    public void apply(FilterImpl f) {
         String p = parentSelector.currentPath();
         String c = childSelector.currentPath();
         if (f.getSelector() == parentSelector && c != null) {
-            f.restrictPath(PathUtils.getParentPath(c), PathRestriction.EXACT);
+            f.restrictPath(PathUtils.getParentPath(c), Filter.PathRestriction.EXACT);
         }
         if (f.getSelector() == childSelector && p != null) {
-            f.restrictPath(p, PathRestriction.DIRECT_CHILDREN);
+            f.restrictPath(p, Filter.PathRestriction.DIRECT_CHILDREN);
         }
     }
 

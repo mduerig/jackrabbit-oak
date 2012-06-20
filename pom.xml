@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.jackrabbit</groupId>
     <artifactId>oak-parent</artifactId>
-    <version>0.2-SNAPSHOT</version>
+    <version>0.3-SNAPSHOT</version>
     <relativePath>oak-parent/pom.xml</relativePath>
   </parent>
 
@@ -37,9 +37,13 @@
 
   <modules>
     <module>oak-parent</module>
+    <module>oak-commons</module>
+    <module>oak-mk-api</module>
     <module>oak-mk</module>
+    <module>oak-mk-remote</module>
     <module>oak-core</module>
     <module>oak-jcr</module>
+    <module>oak-sling</module>
     <module>oak-run</module>
     <module>oak-it</module>
     <module>oak-bench</module>
@@ -52,25 +56,40 @@
   </scm>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.rat</groupId>
+          <artifactId>apache-rat-plugin</artifactId>
+          <configuration>
+            <excludes>
+              <exclude>release.properties</exclude>
+              <exclude>.git/**</exclude>
+              <exclude>.idea/**</exclude>
+              <exclude>.gitignore</exclude>
+              <exclude>oak-js/package.json</exclude>
+            </excludes>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <reporting>
     <plugins>
       <plugin>
-        <groupId>org.apache.rat</groupId>
-        <artifactId>apache-rat-plugin</artifactId>
-        <configuration>
-          <excludes>
-            <exclude>release.properties</exclude>
-            <exclude>.git/**</exclude>
-          </excludes>
-        </configuration>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>findbugs-maven-plugin</artifactId>
+        <version>2.4.0</version>
       </plugin>
     </plugins>
-  </build>
+  </reporting>
 
   <profiles>
     <profile>
       <id>apache-release</id>
       <properties>
-        <username>${user.name}</username>
+        <apache.username>${user.name}</apache.username>
         <keyfile>${user.home}/.ssh/id_rsa</keyfile>
         <passphrase />
       </properties>
@@ -128,17 +147,17 @@
                     </checksum>
                     <checksum file="${basedir}/target/${project.version}/${project.artifactId}-${project.version}-src.zip" algorithm="SHA1" property="checksum" />
                     <echo file="${basedir}/target/vote.txt">
-From: ${username}@apache.org
-To: dev@jackrabbit.apache.org
+From: ${apache.username}@apache.org
+To: oak-dev@jackrabbit.apache.org
 Subject: [VOTE] Release Apache Jackrabbit Oak ${project.version}
 
 A candidate for the Jackrabbit Oak ${project.version} release is available at:
 
-    http://people.apache.org/~${username}/oak/${project.version}/
+    http://people.apache.org/~${apache.username}/oak/${project.version}/
 
 The release candidate is a zip archive of the sources in:
 
-    http://svn.apache.org/repos/asf/jackrabbit/oak/tags/${project.version}/
+    http://svn.apache.org/repos/asf/jackrabbit/oak/tags/${project.artifactId}-${project.version}/
 
 The SHA1 checksum of the archive is ${checksum}.
 
@@ -148,7 +167,7 @@ A staged Maven repository is available for review at:
 
 The command for running automated checks against this release candidate is:
 
-    $ sh check-release.sh ${username} ${project.version} ${checksum}
+    $ sh check-release.sh ${apache.username} ${project.version} ${checksum}
 
 Please vote on releasing this package as Apache Jackrabbit Oak ${project.version}.
 The vote is open for the next 72 hours and passes if a majority of at
@@ -165,7 +184,8 @@ The release candidate has been prepared in:
 
 Please deploy it to people.apache.org like this:
 
-    scp -r ${basedir}/target/${project.version} people.apache.org:public_html/oak/
+    scp -r ${basedir}/target/${project.version} \
+        ${apache.username}@people.apache.org:public_html/oak/
 
 A release vote template has been generated for you:
 

@@ -1,12 +1,27 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.jackrabbit.oak.jcr;
+
+import javax.jcr.Node;
+import javax.jcr.RepositoryException;
+import javax.jcr.Session;
 
 import org.junit.After;
 import org.junit.Test;
-
-import javax.jcr.Node;
-import javax.jcr.Repository;
-import javax.jcr.RepositoryException;
-import javax.jcr.Session;
 
 import static org.junit.Assert.fail;
 
@@ -34,17 +49,15 @@ public class CompatibilityIssuesTest extends AbstractRepositoryTest {
      */
     @Test
     public void sessionIsolation() throws RepositoryException {
-        Repository repository = getRepository();
-
-        Session session0 = repository.login();
+        Session session0 = createAnonymousSession();
         Node testNode = session0.getNode("/").addNode("testNode");
         testNode.setProperty("p1", 1);
         testNode.setProperty("p2", 1);
         session0.save();
         check(getSession());
 
-        Session session1 = repository.login();
-        Session session2 = repository.login();
+        Session session1 = createAnonymousSession();
+        Session session2 = createAnonymousSession();
 
         session1.getNode("/testNode").setProperty("p1", -1);
         check(session1);
@@ -54,7 +67,7 @@ public class CompatibilityIssuesTest extends AbstractRepositoryTest {
         check(session2);      // Throws on JR2, not on JR3
         session2.save();
 
-        Session session3 = repository.login();
+        Session session3 = createAnonymousSession();
         try {
             check(session3);  // Throws on JR3
             fail();

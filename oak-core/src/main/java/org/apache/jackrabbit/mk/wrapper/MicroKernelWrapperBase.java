@@ -28,26 +28,20 @@ import org.apache.jackrabbit.mk.json.JsopTokenizer;
  */
 public abstract class MicroKernelWrapperBase implements MicroKernel, MicroKernelWrapper {
 
+    @Override
     public final String commit(String path, String jsonDiff, String revisionId, String message) {
         return commitStream(path, new JsopTokenizer(jsonDiff), revisionId, message);
     }
 
-    public final String getJournal(String fromRevisionId, String toRevisionId, String filter) {
-        return getJournalStream(fromRevisionId, toRevisionId, filter).toString();
+    @Override
+    public final String getJournal(String fromRevisionId, String toRevisionId, String path) {
+        return getJournalStream(fromRevisionId, toRevisionId, path).toString();
     }
 
-    public final String getNodes(String path, String revisionId) {
-        JsopReader reader = getNodesStream(path, revisionId);
-        if (reader != null) {
-            return reader.toString();
-        } else {
-            return null;
-        }
-    }
-
-    public final String getNodes(String path, String revisionId, int depth, long offset, int count, String filter) {
+    @Override
+    public final String getNodes(String path, String revisionId, int depth, long offset, int maxChildNodes, String filter) {
         JsopReader reader =
-                getNodesStream(path, revisionId, depth, offset, count, filter);
+                getNodesStream(path, revisionId, depth, offset, maxChildNodes, filter);
         if (reader != null) {
             return reader.toString();
         } else {
@@ -55,12 +49,14 @@ public abstract class MicroKernelWrapperBase implements MicroKernel, MicroKernel
         }
     }
 
-    public final String diff(String fromRevisionId, String toRevisionId, String filter) {
-        return diffStream(fromRevisionId, toRevisionId, filter).toString();
+    @Override
+    public final String diff(String fromRevisionId, String toRevisionId, String path) {
+        return diffStream(fromRevisionId, toRevisionId, path).toString();
     }
 
-    public final String getRevisions(long since, int maxEntries) {
-        return getRevisionsStream(since, maxEntries).toString();
+    @Override
+    public final String getRevisionHistory(long since, int maxEntries, String path) {
+        return getRevisionsStream(since, maxEntries, path).toString();
     }
 
     /**
@@ -71,105 +67,151 @@ public abstract class MicroKernelWrapperBase implements MicroKernel, MicroKernel
      * @return the wrapped instance
      */
     public static MicroKernelWrapper wrap(final MicroKernel mk) {
-        if (mk instanceof MicroKernelWrapper) {
+        if (mk instanceof MicroKernelWrapperImpl) {
             return (MicroKernelWrapper) mk;
         }
-        return new MicroKernelWrapper() {
+        return new MicroKernelWrapperImpl(mk);
+    }
 
-            MicroKernel wrapped = mk;
+    /**
+     * Unwrap a wrapped MicroKernel implementation previously created by
+     * {@link #wrap};
+     *
+     * @param wrapper the MicroKernel wrapper to unwrap
+     * @return the unwrapped instance
+     * @throws IllegalArgumentException if the specified instance was not
+     * originally returned by {@link #wrap}.
+     */
+    public static MicroKernel unwrap(final MicroKernelWrapper wrapper) {
+        if (wrapper instanceof MicroKernelWrapperImpl) {
+            return ((MicroKernelWrapperImpl) wrapper).getWrapped();
+        }
+        throw new IllegalArgumentException("wrapper instance was not created by this factory");
+    }
 
-            public String commitStream(String path, JsopReader jsonDiff, String revisionId, String message) {
-                return wrapped.commit(path, jsonDiff.toString(), revisionId, message);
+    private static class MicroKernelWrapperImpl implements MicroKernelWrapper {
+
+        final MicroKernel wrapped;
+
+        private MicroKernelWrapperImpl(MicroKernel mk) {
+            wrapped = mk;
+        }
+
+        private MicroKernel getWrapped() {
+            return wrapped;
+        }
+
+        @Override
+        public String commitStream(String path, JsopReader jsonDiff, String revisionId, String message) {
+            return wrapped.commit(path, jsonDiff.toString(), revisionId, message);
+        }
+
+        @Override
+        public JsopReader getJournalStream(String fromRevisionId, String toRevisionId, String path) {
+            return new JsopTokenizer(wrapped.getJournal(fromRevisionId, toRevisionId, path));
+        }
+
+        @Override
+        public JsopReader getNodesStream(String path, String revisionId) {
+            String json = wrapped.getNodes(path, revisionId, 1, 0, -1, null);
+            if (json != null) {
+                return new JsopTokenizer(json);
+            } else {
+                return null;
             }
+        }
 
-            public JsopReader getJournalStream(String fromRevisionId, String toRevisionId, String filter) {
-                return new JsopTokenizer(wrapped.getJournal(fromRevisionId, toRevisionId, filter));
+        @Override
+        public JsopReader getNodesStream(String path, String revisionId, int depth, long offset, int count, String filter) {
+            String json = wrapped.getNodes(
+                    path, revisionId, depth, offset, count, filter);
+            if (json != null) {
+                return new JsopTokenizer(json);
+            } else {
+                return null;
             }
+        }
 
-            public JsopReader getNodesStream(String path, String revisionId) {
-                String json = wrapped.getNodes(path, revisionId);
-                if (json != null) {
-                    return new JsopTokenizer(json);
-                } else {
-                    return null;
-                }
-            }
+        @Override
+        public JsopReader getRevisionsStream(long since, int maxEntries, String path) {
+            return new JsopTokenizer(wrapped.getRevisionHistory(since, maxEntries, path));
+        }
 
-            public JsopReader getNodesStream(String path, String revisionId, int depth, long offset, int count, String filter) {
-                String json = wrapped.getNodes(
-                        path, revisionId, depth, offset, count, filter);
-                if (json != null) {
-                    return new JsopTokenizer(json);
-                } else {
-                    return null;
-                }
-            }
+        @Override
+        public JsopReader diffStream(String fromRevisionId, String toRevisionId, String path) {
+            return new JsopTokenizer(wrapped.diff(fromRevisionId, toRevisionId, path));
+        }
 
-            public JsopReader getRevisionsStream(long since, int maxEntries) {
-                return new JsopTokenizer(wrapped.getRevisions(since, maxEntries));
-            }
+        @Override
+        public String commit(String path, String jsonDiff, String revisionId, String message) {
+            return wrapped.commit(path, jsonDiff, revisionId, message);
+        }
 
-            public JsopReader diffStream(String fromRevisionId, String toRevisionId, String path) {
-                return new JsopTokenizer(wrapped.diff(fromRevisionId, toRevisionId, path));
-            }
+        @Override
+        public String branch(String trunkRevisionId) {
+            return wrapped.branch(trunkRevisionId);
+        }
 
-            public String commit(String path, String jsonDiff, String revisionId, String message) {
-                return wrapped.commit(path, jsonDiff, revisionId, message);
-            }
+        @Override
+        public String merge(String branchRevisionId, String message) {
+            return wrapped.merge(branchRevisionId, message);
+        }
 
-            public String diff(String fromRevisionId, String toRevisionId, String path) {
-                return wrapped.diff(fromRevisionId, toRevisionId, path);
-            }
+        @Override
+        public String diff(String fromRevisionId, String toRevisionId, String path) {
+            return wrapped.diff(fromRevisionId, toRevisionId, path);
+        }
 
-            public void dispose() {
-                wrapped.dispose();
-            }
+        @Override
+        public String getHeadRevision() throws MicroKernelException {
+            return wrapped.getHeadRevision();
+        }
 
-            public String getHeadRevision() throws MicroKernelException {
-                return wrapped.getHeadRevision();
-            }
+        @Override
+        public String getJournal(String fromRevisionId, String toRevisionId, String path) {
+            return wrapped.getJournal(fromRevisionId, toRevisionId, path);
+        }
 
-            public String getJournal(String fromRevisionId, String toRevisionId, String filter) {
-                return wrapped.getJournal(fromRevisionId, toRevisionId, filter);
-            }
+        @Override
+        public long getLength(String blobId) {
+            return wrapped.getLength(blobId);
+        }
 
-            public long getLength(String blobId) {
-                return wrapped.getLength(blobId);
-            }
+        @Override
+        public String getNodes(String path, String revisionId, int depth, long offset, int maxChildNodes, String filter) {
+            return wrapped.getNodes(path, revisionId, depth, offset, maxChildNodes, filter);
+        }
 
-            public String getNodes(String path, String revisionId) {
-                return wrapped.getNodes(path, revisionId);
-            }
+        @Override
+        public String getRevisionHistory(long since, int maxEntries, String path) {
+            return wrapped.getRevisionHistory(since, maxEntries, path);
+        }
 
-            public String getNodes(String path, String revisionId, int depth, long offset, int count, String filter) {
-                return wrapped.getNodes(path, revisionId, depth, offset, count, filter);
-            }
+        @Override
+        public boolean nodeExists(String path, String revisionId) {
+            return wrapped.nodeExists(path, revisionId);
+        }
 
-            public String getRevisions(long since, int maxEntries) {
-                return wrapped.getRevisions(since, maxEntries);
-            }
+        @Override
+        public long getChildNodeCount(String path, String revisionId) {
+            return wrapped.getChildNodeCount(path, revisionId);
+        }
 
-            public boolean nodeExists(String path, String revisionId) {
-                return wrapped.nodeExists(path, revisionId);
-            }
+        @Override
+        public int read(String blobId, long pos, byte[] buff, int off, int length) {
+            return wrapped.read(blobId, pos, buff, off, length);
+        }
 
-            public long getChildNodeCount(String path, String revisionId) {
-                return wrapped.getChildNodeCount(path, revisionId);
-            }
+        @Override
+        public String waitForCommit(String oldHeadRevisionId, long maxWaitMillis) throws InterruptedException {
+            return wrapped.waitForCommit(oldHeadRevisionId, maxWaitMillis);
+        }
 
-            public int read(String blobId, long pos, byte[] buff, int off, int length) {
-                return wrapped.read(blobId, pos, buff, off, length);
-            }
+        @Override
+        public String write(InputStream in) {
+            return wrapped.write(in);
+        }
 
-            public String waitForCommit(String oldHeadRevisionId, long maxWaitMillis) throws InterruptedException {
-                return wrapped.waitForCommit(oldHeadRevisionId, maxWaitMillis);
-            }
-
-            public String write(InputStream in) {
-                return wrapped.write(in);
-            }
-
-        };
     }
 
 }

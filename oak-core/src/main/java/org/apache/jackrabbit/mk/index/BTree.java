@@ -17,11 +17,11 @@
 package org.apache.jackrabbit.mk.index;
 
 import org.apache.jackrabbit.mk.json.JsopBuilder;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  * A tree allows to query a value for a given key, similar to
- * <code>java.util.SortedMap</code>.
+ * {@code java.util.SortedMap}.
  */
 public class BTree {
 
@@ -129,7 +129,7 @@ public class BTree {
         JsopBuilder jsop = new JsopBuilder();
         path = PathUtils.concat(name, path);
         jsop.tag('^').key(PathUtils.concat(path, propertyName));
-        if (data.length == 0) {
+        if (data == null) {
             jsop.value(null);
         } else {
             jsop.array();
@@ -208,7 +208,6 @@ public class BTree {
                 break;
             }
         }
-        commit();
         return true;
     }
 
@@ -240,8 +239,6 @@ public class BTree {
                     // other node now)
                     n = parent;
                 }
-                // subsequent operations are based on the new structure
-                commit();
             }
             if (n instanceof BTreeNode) {
                 BTreeNode page = (BTreeNode) n;
@@ -269,11 +266,6 @@ public class BTree {
                 break;
             }
         }
-        commit();
-    }
-
-    void commit() {
-        indexer.commit();
     }
 
     String getName() {
@@ -286,6 +278,10 @@ public class BTree {
 
     private int getMaxSize() {
         return minSize + minSize + 1;
+    }
+
+    boolean isUnique() {
+        return unique;
     }
 
 }

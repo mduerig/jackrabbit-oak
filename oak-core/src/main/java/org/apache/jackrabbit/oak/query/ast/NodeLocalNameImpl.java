@@ -18,9 +18,9 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.util.PathUtils;
-import org.apache.jackrabbit.oak.query.CoreValue;
-import org.apache.jackrabbit.oak.query.index.Filter;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
 
 public class NodeLocalNameImpl extends DynamicOperandImpl {
 
@@ -48,12 +48,12 @@ public class NodeLocalNameImpl extends DynamicOperandImpl {
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
-    public  CoreValue currentValue() {
+    public CoreValue currentValue() {
         String name = PathUtils.getName(selector.currentPath());
         int colon = name.indexOf(':');
         // TODO LOCALNAME: evaluation of local name might not be correct
@@ -62,7 +62,7 @@ public class NodeLocalNameImpl extends DynamicOperandImpl {
     }
 
     @Override
-    public void apply(Filter f, Operator operator, CoreValue v) {
+    public void apply(FilterImpl f, Operator operator, CoreValue v) {
         // TODO support LOCALNAME index conditions
     }
 

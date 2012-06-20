@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.query.index.Filter;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
 
 public abstract class ConstraintImpl extends AstElement {
 
@@ -28,10 +28,12 @@ public abstract class ConstraintImpl extends AstElement {
     public abstract boolean evaluate();
 
     /**
-     * Apply the condition to the filter, further restricting the filter if possible.
+     * Apply the condition to the filter, further restricting the filter if
+     * possible. This may also verify the data types are compatible, and that
+     * paths are valid.
      *
      * @param f the filter
      */
-    public abstract void apply(Filter f);
+    public abstract void apply(FilterImpl f);
 
 }

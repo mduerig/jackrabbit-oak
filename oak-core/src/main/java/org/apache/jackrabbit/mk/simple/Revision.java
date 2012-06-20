@@ -97,14 +97,17 @@ public class Revision implements Comparable<Revision>, Cache.Value {
         return "";
     }
 
+    @Override
     public int compareTo(Revision o) {
         return id < o.id ? -1 : id > o.id ? 1 : 0;
     }
 
+    @Override
     public String toString() {
         return new JsopBuilder().object().
             key("id").value(formatId(id)).
             key("ts").value(nanos / 1000000).
+            key("msg").value(getMsg()).
         endObject().toString();
     }
 
@@ -139,6 +142,7 @@ public class Revision implements Comparable<Revision>, Cache.Value {
         endObject().newline();
     }
 
+    @Override
     public int getMemory() {
         return (getDiff().length() + getMsg().length()) * 2;
     }

@@ -18,11 +18,10 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.json.JsopTokenizer;
-import org.apache.jackrabbit.mk.simple.NodeImpl;
-import org.apache.jackrabbit.mk.util.PathUtils;
-import org.apache.jackrabbit.oak.query.CoreValue;
-import org.apache.jackrabbit.oak.query.index.Filter;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
 
 public class PropertyValueImpl extends DynamicOperandImpl {
 
@@ -60,35 +59,32 @@ public class PropertyValueImpl extends DynamicOperandImpl {
             return selector.currentProperty(propertyName);
         }
         // TODO really support relative properties?
-        NodeImpl n = selector.currentNode();
-        String[] elements = PathUtils.split(propertyName);
-        for (int i = 0; i < elements.length - 1; i++) {
-            String p = elements[i];
-            if (!n.exists(p)) {
+        Tree tree = getTree(selector.currentPath());
+        for (String p : PathUtils.elements(PathUtils.getParentPath(propertyName))) {
+            if (tree == null) {
                 return null;
             }
-            n = n.getNode(p);
+            if (!tree.hasChild(p)) {
+                return null;
+            }
+            tree = tree.getChild(p);
         }
         String name = PathUtils.getName(propertyName);
-        if (!n.hasProperty(name)) {
+        if (!tree.hasProperty(name)) {
             return null;
         }
-        // TODO data type mapping
-        String value = n.getProperty(name);
-        value = JsopTokenizer.decodeQuoted(value);
-        return query.getValueFactory().createValue(value);
-
+        return tree.getProperty(name).getValue();
     }
 
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
-    public void apply(Filter f, Operator operator, CoreValue v) {
+    public void apply(FilterImpl f, Operator operator, CoreValue v) {
         if (f.getSelector() == selector) {
             f.restrictProperty(propertyName, operator, v);
         }

@@ -16,13 +16,14 @@
  */
 package org.apache.jackrabbit.oak.jcr.security.user;
 
+import org.apache.jackrabbit.oak.jcr.security.user.action.AuthorizableAction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.jcr.Node;
-import javax.jcr.Property;
-import javax.jcr.RepositoryException;
-import javax.jcr.Value;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import javax.annotation.Nonnull;
 
 /**
  * UserManagerConfig...
@@ -32,66 +33,86 @@ public class UserManagerConfig {
     private static final Logger log = LoggerFactory.getLogger(UserManagerImpl.class);
 
     /**
+     * Configuration option to define the path underneath which user nodes
+     * are being created.
+     */
+    public static final String PARAM_USER_PATH = "usersPath";
+
+    /**
+     * Configuration option to define the path underneath which group nodes
+     * are being created.
+     */
+    public static final String PARAM_GROUP_PATH = "groupsPath";
+
+    /**
+     * Parameter used to change the number of levels that are used by default
+     * store authorizable nodes.<br>The default number of levels is 2.
+     */
+    public static final String PARAM_DEFAULT_DEPTH = "defaultDepth";
+
+    /**
+     * If this parameter is present group members are collected in a node
+     * structure below a {@link UserConstants#REP_MEMBERS} node instead of the
+     * default multi valued property {@link UserConstants#REP_MEMBERS}.
+     * Its value determines the maximum number of member properties until
+     * additional intermediate nodes are inserted.
+     */
+    public static final String PARAM_GROUP_MEMBERSHIP_SPLIT_SIZE = "groupMembershipSplitSize";
+
+    /**
      * Configuration parameter to change the default algorithm used to generate
-     * password hashes. The default value is {@link PasswordUtility#DEFAULT_ALGORITHM}.
+     * password hashes.
      */
     public static final String PARAM_PASSWORD_HASH_ALGORITHM = "passwordHashAlgorithm";
 
     /**
      * Configuration parameter to change the number of iterations used for
-     * password hash generation. The default value is {@link PasswordUtility#DEFAULT_ITERATIONS}.
+     * password hash generation.
      */
     public static final String PARAM_PASSWORD_HASH_ITERATIONS = "passwordHashIterations";
 
     /**
      * Configuration parameter to change the number of iterations used for
-     * password hash generation. The default value is {@link PasswordUtility#DEFAULT_ITERATIONS}.
+     * password hash generation.
      */
     public static final String PARAM_PASSWORD_SALT_SIZE = "passwordSaltSize";
 
-    // TODO: check if that can really be node, who would retrieve it and what kind of access rights needed to be enforced on it
-    private final Node configNode;
     private final String adminId;
-    //private final AuthorizableAction[] actions;
+    private final Map<String, Object> options;
+    private final Set<AuthorizableAction> actions;
 
-    UserManagerConfig(Node configNode, String adminId) {
-        this.configNode = configNode;
+    public UserManagerConfig(String adminId, Map<String, Object> options, Set<AuthorizableAction> actions) {
+        assert adminId != null;
+
         this.adminId = adminId;
-        // this.actions = (actions == null) ? new AuthorizableAction[0] : actions;
+        this.options = (options == null) ? Collections.<String, Object>emptyMap() : Collections.unmodifiableMap(options);
+        this.actions = (actions == null) ? Collections.<AuthorizableAction>emptySet() : Collections.unmodifiableSet(actions);
     }
 
-    public <T> T getConfigValue(String key, T defaultValue) {
-        try {
-            if (configNode.hasProperty(key)) {
-                return convert(configNode.getProperty(key), defaultValue);
-            }
-        } catch (RepositoryException e) {
-            // unexpected error -> return default value
-            log.debug(e.getMessage());
-        }
-        return defaultValue;
-    }
-
+    @Nonnull
     public String getAdminId() {
         return adminId;
     }
 
-//    public AuthorizableAction[] getAuthorizableActions() {
-//        return actions;
-//    }
+    public <T> T getConfigValue(String key, T defaultValue) {
+        if (options != null && options.containsKey(key)) {
+            return convert(options.get(key), defaultValue);
+        } else {
+            return defaultValue;
+        }
+    }
+
+    @Nonnull
+    public AuthorizableAction[] getAuthorizableActions() {
+        return actions.toArray(new AuthorizableAction[actions.size()]);
+    }
 
     //--------------------------------------------------------< private >---
-    private static <T> T convert(Property configProperty, T defaultValue) throws RepositoryException {
+    @SuppressWarnings("unchecked")
+    private static <T> T convert(Object configProperty, T defaultValue) {
         T value;
-        String str;
-        // TODO properly deal with multi-value properties and array-default-values.
-        if (configProperty.isMultiple()) {
-            Value[] vls = configProperty.getValues();
-            str = (vls.length == 0) ? "" : vls[0].getString();
-        } else {
-            str = configProperty.getString();
-        }
-        Class<?> targetClass = (defaultValue == null) ? String.class : defaultValue.getClass();
+        String str = configProperty.toString();
+        Class targetClass = (defaultValue == null) ? String.class : defaultValue.getClass();
         try {
             if (targetClass == String.class) {
                 value = (T) str;
@@ -105,11 +126,11 @@ public class UserManagerConfig {
                 value = (T) Boolean.valueOf(str);
             } else {
                 // unsupported target type
-                log.warn("Unsupported target type {} for config entry {}", targetClass.getName(), configProperty.getName());
-                throw new IllegalArgumentException("Cannot convert config entry " + configProperty.getName() + " to " + targetClass.getName());
+                log.warn("Unsupported target type {} for value {}", targetClass.getName(), str);
+                throw new IllegalArgumentException("Cannot convert config entry " + str + " to " + targetClass.getName());
             }
         } catch (NumberFormatException e) {
-            log.warn("Invalid value of config entry {}; cannot be parsed into {}", configProperty.getName(), targetClass.getName());
+            log.warn("Invalid value {}; cannot be parsed into {}", str, targetClass.getName());
             value = defaultValue;
         }
         return value;

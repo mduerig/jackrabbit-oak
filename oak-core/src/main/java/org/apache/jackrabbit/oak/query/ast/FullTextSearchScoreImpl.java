@@ -18,12 +18,13 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.query.CoreValue;
-import org.apache.jackrabbit.oak.query.index.Filter;
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
 
 public class FullTextSearchScoreImpl extends DynamicOperandImpl {
 
     private final String selectorName;
+    private SelectorImpl selector;
 
     public FullTextSearchScoreImpl(String selectorName) {
         this.selectorName = selectorName;
@@ -49,8 +50,15 @@ public class FullTextSearchScoreImpl extends DynamicOperandImpl {
         return null;
     }
 
+    public void bindSelector(SourceImpl source) {
+        selector = source.getSelector(selectorName);
+        if (selector == null) {
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
+        }
+    }
+
     @Override
-    public void apply(Filter f, Operator operator, CoreValue v) {
+    public void apply(FilterImpl f, Operator operator, CoreValue v) {
         // TODO support fulltext index conditions (score)
     }
 

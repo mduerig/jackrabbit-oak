@@ -18,9 +18,9 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.util.PathUtils;
-import org.apache.jackrabbit.oak.query.index.Filter;
-import org.apache.jackrabbit.oak.query.index.Filter.PathRestriction;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.Filter;
 
 public class ChildNodeImpl extends ConstraintImpl {
 
@@ -54,22 +54,28 @@ public class ChildNodeImpl extends ConstraintImpl {
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
     public boolean evaluate() {
         String p = selector.currentPath();
+        String local = getLocalPath(p);
+        if (local == null) {
+            // not a local path
+            return false;
+        }
         // the parent of the root is the root,
         // so we need to special case this
-        return !PathUtils.denotesRoot(p) && PathUtils.getParentPath(p).equals(parentPath);
+        return !PathUtils.denotesRoot(local) && PathUtils.getParentPath(local).equals(parentPath);
     }
 
     @Override
-    public void apply(Filter f) {
+    public void apply(FilterImpl f) {
         if (selector == f.getSelector()) {
-            f.restrictPath(parentPath, PathRestriction.DIRECT_CHILDREN);
+            String path = getAbsolutePath(parentPath);
+            f.restrictPath(path, Filter.PathRestriction.DIRECT_CHILDREN);
         }
     }
 

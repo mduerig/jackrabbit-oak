@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.mk.index;
 
 import java.util.Iterator;
+import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
 import org.apache.jackrabbit.mk.simple.NodeImpl;
 
@@ -32,22 +33,28 @@ public class PrefixIndex implements Index {
     public PrefixIndex(Indexer indexer, String prefix) {
         this.indexer = indexer;
         this.prefix = prefix;
-        this.tree = new BTree(indexer, "prefix:" + prefix, false);
+        this.tree = new BTree(indexer, Indexer.TYPE_PREFIX + prefix, false);
         tree.setMinSize(10);
     }
 
     public static PrefixIndex fromNodeName(Indexer indexer, String nodeName) {
-        if (!nodeName.startsWith("prefix:")) {
+        if (!nodeName.startsWith(Indexer.TYPE_PREFIX)) {
             return null;
         }
-        String prefix = nodeName.substring("prefix:".length());
+        String prefix = nodeName.substring(Indexer.TYPE_PREFIX.length());
         return new PrefixIndex(indexer, prefix);
     }
 
-    public String getName() {
+    public String getPrefix() {
+        return prefix;
+    }
+
+    @Override
+    public String getIndexNodeName() {
         return tree.getName();
     }
 
+    @Override
     public void addOrRemoveNode(NodeImpl node, boolean add) {
         String nodePath = node.getPath();
         for (int i = 0, size = node.getPropertyCount(); i < size; i++) {
@@ -57,10 +64,11 @@ public class PrefixIndex implements Index {
         }
     }
 
+    @Override
     public void addOrRemoveProperty(String nodePath, String propertyName,
             String value, boolean add) {
         JsopTokenizer t = new JsopTokenizer(value);
-        if (t.matches(JsopTokenizer.STRING)) {
+        if (t.matches(JsopReader.STRING)) {
             String v = t.getToken();
             if (v.startsWith(prefix)) {
                 addOrRemove(nodePath, propertyName, v, add);
@@ -68,18 +76,18 @@ public class PrefixIndex implements Index {
         } else if (t.matches('[')) {
             if (!t.matches(']')) {
                 do {
-                    if (t.matches(JsopTokenizer.STRING)) {
+                    if (t.matches(JsopReader.STRING)) {
                         String v = t.getToken();
                         if (v.startsWith(prefix)) {
                             addOrRemove(nodePath, propertyName, v, add);
                         }
-                    } else if (t.matches(JsopTokenizer.FALSE)) {
+                    } else if (t.matches(JsopReader.FALSE)) {
                         // ignore
-                    } else if (t.matches(JsopTokenizer.TRUE)) {
+                    } else if (t.matches(JsopReader.TRUE)) {
                         // ignore
-                    } else if (t.matches(JsopTokenizer.NULL)) {
+                    } else if (t.matches(JsopReader.NULL)) {
                         // ignore
-                    } else if (t.matches(JsopTokenizer.NUMBER)) {
+                    } else if (t.matches(JsopReader.NUMBER)) {
                         // ignore
                     }
                 } while (t.matches(','));
@@ -105,6 +113,7 @@ public class PrefixIndex implements Index {
      * @return an iterator of the paths (an empty iterator if not found)
      * @throws IllegalArgumentException if the value doesn't start with the prefix
      */
+    @Override
     public Iterator<String> getPaths(String value, String revision) {
         if (!value.startsWith(prefix)) {
             throw new IllegalArgumentException(
@@ -114,6 +123,11 @@ public class PrefixIndex implements Index {
         indexer.updateUntil(revision);
         Cursor c = tree.findFirst(v);
         return new Cursor.RangeIterator(c, v);
+    }
+
+    @Override
+    public boolean isUnique() {
+        return tree.isUnique();
     }
 
 }

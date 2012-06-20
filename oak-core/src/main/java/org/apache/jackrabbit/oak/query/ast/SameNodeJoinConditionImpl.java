@@ -18,8 +18,8 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.query.index.Filter;
-import org.apache.jackrabbit.oak.query.index.Filter.PathRestriction;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.Filter;
 
 public class SameNodeJoinConditionImpl extends JoinConditionImpl {
 
@@ -71,11 +71,11 @@ public class SameNodeJoinConditionImpl extends JoinConditionImpl {
     public void bindSelector(SourceImpl source) {
         selector1 = source.getSelector(selector1Name);
         if (selector1 == null) {
-            throw new RuntimeException("Unknown selector: " + selector1Name);
+            throw new IllegalArgumentException("Unknown selector: " + selector1Name);
         }
         selector2 = source.getSelector(selector2Name);
         if (selector2 == null) {
-            throw new RuntimeException("Unknown selector: " + selector2Name);
+            throw new IllegalArgumentException("Unknown selector: " + selector2Name);
         }
     }
 
@@ -87,14 +87,14 @@ public class SameNodeJoinConditionImpl extends JoinConditionImpl {
     }
 
     @Override
-    public void apply(Filter f) {
+    public void apply(FilterImpl f) {
         String p1 = selector1.currentPath();
         String p2 = selector2.currentPath();
         if (f.getSelector() == selector1) {
-            f.restrictPath(p2, PathRestriction.EXACT);
+            f.restrictPath(p2, Filter.PathRestriction.EXACT);
         }
         if (f.getSelector() == selector2) {
-            f.restrictPath(p1, PathRestriction.EXACT);
+            f.restrictPath(p1, Filter.PathRestriction.EXACT);
         }
     }
 

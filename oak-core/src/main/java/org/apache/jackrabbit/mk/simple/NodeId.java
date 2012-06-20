@@ -42,6 +42,7 @@ public class NodeId {
         return map.getNode(x);
     }
 
+    @Override
     public String toString() {
         return Long.toString(x);
     }
@@ -74,14 +75,17 @@ public class NodeId {
             this.node = node;
         }
 
+        @Override
         public NodeImpl getNode(NodeMap map) {
             return node;
         }
 
+        @Override
         public String toString() {
             return node.toString();
         }
 
+        @Override
         public boolean isInline() {
             return true;
         }

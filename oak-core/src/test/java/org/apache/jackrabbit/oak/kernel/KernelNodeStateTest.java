@@ -18,35 +18,31 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertNull;
+import org.apache.jackrabbit.mk.api.MicroKernel;
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.core.AbstractOakTest;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.simple.SimpleKernelImpl;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.junit.Before;
-import org.junit.Test;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertNull;
 
-public class KernelNodeStateTest {
+public class KernelNodeStateTest extends AbstractOakTest {
 
-    private NodeState state;
-
-    @Before
-    public void setUp() {
-        MicroKernel kernel = new SimpleKernelImpl("mem:KernelNodeStateTest");
+    @Override
+    protected NodeState createInitialState(MicroKernel microKernel) {
         String jsop =
                 "+\"test\":{\"a\":1,\"b\":2,\"c\":3,"
                 + "\"x\":{},\"y\":{},\"z\":{}}";
-        String revision = kernel.commit(
-                "/", jsop, kernel.getHeadRevision(), "test data");
-        state = new KernelNodeState(kernel, "/test", revision);
+        microKernel.commit("/", jsop, null, "test data");
+        return store.getRoot().getChildNode("test");
     }
 
     @Test
@@ -57,11 +53,11 @@ public class KernelNodeStateTest {
     @Test
     public void testGetProperty() {
         assertEquals("a", state.getProperty("a").getName());
-        assertEquals(1, state.getProperty("a").getScalar().getLong());
+        assertEquals(1, state.getProperty("a").getValue().getLong());
         assertEquals("b", state.getProperty("b").getName());
-        assertEquals(2, state.getProperty("b").getScalar().getLong());
+        assertEquals(2, state.getProperty("b").getValue().getLong());
         assertEquals("c", state.getProperty("c").getName());
-        assertEquals(3, state.getProperty("c").getScalar().getLong());
+        assertEquals(3, state.getProperty("c").getValue().getLong());
         assertNull(state.getProperty("x"));
     }
 
@@ -71,13 +67,12 @@ public class KernelNodeStateTest {
         List<Long> values = new ArrayList<Long>();
         for (PropertyState property : state.getProperties()) {
             names.add(property.getName());
-            values.add(property.getScalar().getLong());
+            values.add(property.getValue().getLong());
         }
         Collections.sort(names);
         Collections.sort(values);
         assertEquals(Arrays.asList("a", "b", "c"), names);
-        assertEquals(Arrays.asList(
-                Long.valueOf(1), Long.valueOf(2), Long.valueOf(3)), values);
+        assertEquals(Arrays.asList(1L, 2L, 3L), values);
     }
 
     @Test
@@ -96,37 +91,11 @@ public class KernelNodeStateTest {
     @Test
     public void testGetChildNodeEntries() {
         List<String> names = new ArrayList<String>();
-        for (ChildNodeEntry entry : state.getChildNodeEntries(0, -1)) {
+        for (ChildNodeEntry entry : state.getChildNodeEntries()) {
             names.add(entry.getName());
         }
         Collections.sort(names);
         assertEquals(Arrays.asList("x", "y", "z"), names);
-    }
-
-    @Test
-    public void testGetChildNodeEntriesWithOffset() {
-        List<String> names = new ArrayList<String>();
-        for (ChildNodeEntry entry : state.getChildNodeEntries(1, -1)) {
-            names.add(entry.getName());
-        }
-        Collections.sort(names);
-        assertEquals(Arrays.asList("y", "z"), names);
-
-        // Offset beyond the range
-        assertFalse(state.getChildNodeEntries(3, -1).iterator().hasNext());
-    }
-
-    @Test
-    public void testGetChildNodeEntriesWithCount() {
-        List<String> names = new ArrayList<String>();
-        for (ChildNodeEntry entry : state.getChildNodeEntries(0, 2)) {
-            names.add(entry.getName());
-        }
-        Collections.sort(names);
-        assertEquals(Arrays.asList("x", "y"), names);
-
-        // Zero count
-        assertFalse(state.getChildNodeEntries(0, 0).iterator().hasNext());
     }
 
 }

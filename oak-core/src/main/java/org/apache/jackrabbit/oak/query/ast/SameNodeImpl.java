@@ -18,8 +18,8 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.query.index.Filter;
-import org.apache.jackrabbit.oak.query.index.Filter.PathRestriction;
+import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.Filter;
 
 public class SameNodeImpl extends ConstraintImpl {
 
@@ -42,7 +42,9 @@ public class SameNodeImpl extends ConstraintImpl {
 
     @Override
     public boolean evaluate() {
-        return selector.currentPath().equals(path);
+        String p = getAbsolutePath(path);
+        // TODO normalize paths
+        return selector.currentPath().equals(p);
     }
 
     @Override
@@ -58,15 +60,17 @@ public class SameNodeImpl extends ConstraintImpl {
     public void bindSelector(SourceImpl source) {
         selector = source.getSelector(selectorName);
         if (selector == null) {
-            throw new RuntimeException("Unknown selector: " + selectorName);
+            throw new IllegalArgumentException("Unknown selector: " + selectorName);
         }
     }
 
     @Override
-    public void apply(Filter f) {
+    public void apply(FilterImpl f) {
         if (f.getSelector() == selector) {
-            f.restrictPath(path, PathRestriction.EXACT);
+            String p = getAbsolutePath(path);
+            f.restrictPath(p, Filter.PathRestriction.EXACT);
         }
+        // TODO validate absolute path
     }
 
 }

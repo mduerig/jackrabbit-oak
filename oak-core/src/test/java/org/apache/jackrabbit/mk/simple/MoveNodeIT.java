@@ -20,6 +20,7 @@ import junit.framework.Assert;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
+import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
 import org.junit.Before;
 import org.junit.Test;
@@ -245,7 +246,7 @@ public class MoveNodeIT {
     }
 
     private String getNode(String node) {
-        String s = mk.getNodes(node, mk.getHeadRevision());
+        String s = mk.getNodes(node, mk.getHeadRevision(), 1, 0, -1, null);
         s = s.replaceAll("\"", "").replaceAll(":childNodeCount:.", "");
         s = s.replaceAll("\\{\\,", "\\{").replaceAll("\\,\\}", "\\}");
         s = s.replaceAll("\\:\\{\\}", "");
@@ -259,7 +260,7 @@ public class MoveNodeIT {
 
     private String getJournal() {
         if (journalRevision == null) {
-            String revs = mk.getRevisions(0, 1);
+            String revs = mk.getRevisionHistory(0, 1, null);
             JsopTokenizer t = new JsopTokenizer(revs);
             t.read('[');
             do {
@@ -270,7 +271,11 @@ public class MoveNodeIT {
                 t.read(',');
                 Assert.assertEquals("ts", t.readString());
                 t.read(':');
-                t.read(JsopTokenizer.NUMBER);
+                t.read(JsopReader.NUMBER);
+                t.read(',');
+                Assert.assertEquals("msg", t.readString());
+                t.read(':');
+                t.read();
                 t.read('}');
             } while (t.matches(','));
         }
@@ -288,7 +293,7 @@ public class MoveNodeIT {
             t.read(',');
             Assert.assertEquals("ts", t.readString());
             t.read(':');
-            t.read(JsopTokenizer.NUMBER);
+            t.read(JsopReader.NUMBER);
             t.read(',');
             Assert.assertEquals("msg", t.readString());
             t.read(':');

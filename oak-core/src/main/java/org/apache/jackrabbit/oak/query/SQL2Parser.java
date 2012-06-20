@@ -16,6 +16,9 @@
  */
 package org.apache.jackrabbit.oak.query;
 
+import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.CoreValueFactory;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.query.ast.AstElementFactory;
 import org.apache.jackrabbit.oak.query.ast.Operator;
 import org.apache.jackrabbit.oak.query.ast.BindVariableValueImpl;
@@ -32,6 +35,7 @@ import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
 import org.apache.jackrabbit.oak.query.ast.SourceImpl;
 import org.apache.jackrabbit.oak.query.ast.StaticOperandImpl;
 
+import javax.jcr.PropertyType;
 import java.math.BigDecimal;
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -117,7 +121,7 @@ public class SQL2Parser {
         if (!currentToken.isEmpty()) {
             throw getSyntaxError("<end>");
         }
-        Query q = new Query(source, constraint, orderings, columnArray);
+        Query q = new Query(source, constraint, orderings, columnArray, valueFactory);
         q.setExplain(explain);
         q.init();
         return q;
@@ -197,7 +201,7 @@ public class SQL2Parser {
                 read(",");
                 String selector2 = readName();
                 if (readIf(",")) {
-                    c = factory.sameNodeJoinCondition(selector1, selector2, readPath());
+                    c = factory.sameNodeJoinCondition(selector1, selector2, readAbsolutePath());
                 } else {
                     // TODO verify "." is correct
                     c = factory.sameNodeJoinCondition(selector1, selector2, ".");
@@ -330,43 +334,55 @@ public class SQL2Parser {
     private ConstraintImpl parseConditionFunctionIf(String functionName) throws ParseException {
         ConstraintImpl c;
         if ("CONTAINS".equalsIgnoreCase(functionName)) {
-            String name = readName();
-            if (readIf(".")) {
-                if (readIf("*")) {
-                    read(",");
-                    c = factory.fullTextSearch(
-                            name, null, parseStaticOperand());
-                } else {
-                    String selector = name;
-                    name = readName();
-                    read(",");
-                    c = factory.fullTextSearch(
-                            selector, name, parseStaticOperand());
-                }
-            } else {
+            if (readIf("*")) {
+                // strictly speaking, CONTAINS(*, ...) is not supported
+                // according to the spec:
+                // "If only one selector exists in this query, explicit
+                // specification of the selectorName preceding the
+                // propertyName is optional"
+                // but we anyway support it
                 read(",");
                 c = factory.fullTextSearch(
-                        getOnlySelectorName(), name,
-                        parseStaticOperand());
+                        getOnlySelectorName(), null, parseStaticOperand());
+            } else {
+                String name = readName();
+                if (readIf(".")) {
+                    if (readIf("*")) {
+                        read(",");
+                        c = factory.fullTextSearch(
+                                name, null, parseStaticOperand());
+                    } else {
+                        String selector = name;
+                        name = readName();
+                        read(",");
+                        c = factory.fullTextSearch(
+                                selector, name, parseStaticOperand());
+                    }
+                } else {
+                    read(",");
+                    c = factory.fullTextSearch(
+                            getOnlySelectorName(), name,
+                            parseStaticOperand());
+                }
             }
         } else if ("ISSAMENODE".equalsIgnoreCase(functionName)) {
             String name = readName();
             if (readIf(",")) {
-                c = factory.sameNode(name, readPath());
+                c = factory.sameNode(name, readAbsolutePath());
             } else {
                 c = factory.sameNode(getOnlySelectorName(), name);
             }
         } else if ("ISCHILDNODE".equalsIgnoreCase(functionName)) {
             String name = readName();
             if (readIf(",")) {
-                c = factory.childNode(name, readPath());
+                c = factory.childNode(name, readAbsolutePath());
             } else {
                 c = factory.childNode(getOnlySelectorName(), name);
             }
         } else if ("ISDESCENDANTNODE".equalsIgnoreCase(functionName)) {
             String name = readName();
             if (readIf(",")) {
-                c = factory.descendantNode(name, readPath());
+                c = factory.descendantNode(name, readAbsolutePath());
             } else {
                 c = factory.descendantNode(getOnlySelectorName(), name);
             }
@@ -375,6 +391,14 @@ public class SQL2Parser {
         }
         read(")");
         return c;
+    }
+
+    private String readAbsolutePath() throws ParseException {
+        String path = readPath();
+        if (!PathUtils.isAbsolute(path)) {
+            throw getSyntaxError("absolute path");
+        }
+        return path;
     }
 
     private String readPath() throws ParseException {
@@ -442,16 +466,16 @@ public class SQL2Parser {
             }
             int valueType = currentValue.getType();
             switch (valueType) {
-            case CoreValue.LONG:
+            case PropertyType.LONG:
                 currentValue = valueFactory.createValue(-currentValue.getLong());
                 break;
-            case CoreValue.DOUBLE:
+            case PropertyType.DOUBLE:
                 currentValue = valueFactory.createValue(-currentValue.getDouble());
                 break;
-            case CoreValue.BOOLEAN:
+            case PropertyType.BOOLEAN:
                 currentValue = valueFactory.createValue(!currentValue.getBoolean());
                 break;
-            case CoreValue.DECIMAL:
+            case PropertyType.DECIMAL:
                 currentValue = valueFactory.createValue(currentValue.getDecimal().negate());
                 break;
             default:
@@ -505,35 +529,35 @@ public class SQL2Parser {
      * @param value the original value
      * @return the literal
      */
-    private LiteralImpl getUncastLiteral(CoreValue value) throws ParseException {
+    private LiteralImpl getUncastLiteral(CoreValue value) {
         return factory.literal(value);
     }
 
     private CoreValue parseCastAs(CoreValue value) throws ParseException {
-        if (readIf("STRING")) {
+        if (readIfPropertyType(PropertyType.STRING)) {
             return valueFactory.createValue(value.getString());
-        } else if (readIf("BINARY")) {
-            return valueFactory.createValue(value.getBinary());
-        } else if (readIf("DATE")) {
-            return valueFactory.createValue(value.getDate());
-        } else if (readIf("LONG")) {
+        } else if (readIfPropertyType(PropertyType.BINARY)) {
+            return valueFactory.createValue(value.getString(), PropertyType.BINARY);
+        } else if (readIfPropertyType(PropertyType.DATE)) {
+            return valueFactory.createValue(value.getString(), PropertyType.DATE);
+        } else if (readIfPropertyType(PropertyType.LONG)) {
             return valueFactory.createValue(value.getLong());
-        } else if (readIf("DOUBLE")) {
+        } else if (readIfPropertyType(PropertyType.DOUBLE)) {
             return valueFactory.createValue(value.getDouble());
-        } else if (readIf("DECIMAL")) {
+        } else if (readIfPropertyType(PropertyType.DECIMAL)) {
             return valueFactory.createValue(value.getDecimal());
-        } else if (readIf("BOOLEAN")) {
+        } else if (readIfPropertyType(PropertyType.BOOLEAN)) {
             return valueFactory.createValue(value.getBoolean());
-        } else if (readIf("NAME")) {
-            return valueFactory.createValue(value.getString(), CoreValue.NAME);
-        } else if (readIf("PATH")) {
-            return valueFactory.createValue(value.getString(), CoreValue.PATH);
-        } else if (readIf("REFERENCE")) {
-            return valueFactory.createValue(value.getString(), CoreValue.REFERENCE);
-        } else if (readIf("WEAKREFERENCE")) {
-            return valueFactory.createValue(value.getString(), CoreValue.WEAKREFERENCE);
-        } else if (readIf("URI")) {
-            return valueFactory.createValue(value.getString(), CoreValue.URI);
+        } else if (readIfPropertyType(PropertyType.NAME)) {
+            return valueFactory.createValue(value.getString(), PropertyType.NAME);
+        } else if (readIfPropertyType(PropertyType.PATH)) {
+            return valueFactory.createValue(value.getString(), PropertyType.PATH);
+        } else if (readIfPropertyType(PropertyType.REFERENCE)) {
+            return valueFactory.createValue(value.getString(), PropertyType.REFERENCE);
+        } else if (readIfPropertyType(PropertyType.WEAKREFERENCE)) {
+            return valueFactory.createValue(value.getString(), PropertyType.WEAKREFERENCE);
+        } else if (readIfPropertyType(PropertyType.URI)) {
+            return valueFactory.createValue(value.getString(), PropertyType.URI);
         } else {
             throw getSyntaxError("data type (STRING|BINARY|...)");
         }
@@ -588,6 +612,16 @@ public class SQL2Parser {
 
     private ColumnImpl[] resolveColumns(ArrayList<ColumnOrWildcard> list) throws ParseException {
         ArrayList<ColumnImpl> columns = new ArrayList<ColumnImpl>();
+//        for (SelectorImpl selector : selectors) {
+//            String selectorName = selector.getSelectorName();
+//            String columnName;
+//            if (selectors.size() > 1) {
+//                columnName = selectorName + "." + "jcr:path";
+//            } else {
+//                columnName = "jcr:path";
+//            }
+//            columns.add(factory.column(selectorName, "jcr:path", columnName));
+//        }
         for (ColumnOrWildcard c : list) {
             if (c.propertyName == null) {
                 for (SelectorImpl selector : selectors) {
@@ -614,6 +648,11 @@ public class SQL2Parser {
         ColumnImpl[] array = new ColumnImpl[columns.size()];
         columns.toArray(array);
         return array;
+    }
+
+    private boolean readIfPropertyType(int propertyType) throws ParseException {
+        String propertyName = PropertyType.nameFromValue(propertyType);
+        return readIf(propertyName);
     }
 
     private boolean readIf(String token) throws ParseException {
@@ -957,7 +996,7 @@ public class SQL2Parser {
     }
 
     private ParseException getSyntaxError(String expected) {
-        int index = Math.min(parseIndex, statement.length() - 1);
+        int index = Math.max(0, Math.min(parseIndex, statement.length() - 1));
         String query = statement.substring(0, index) + "(*)" + statement.substring(index).trim();
         if (expected != null) {
             query += "; expected: " + expected;

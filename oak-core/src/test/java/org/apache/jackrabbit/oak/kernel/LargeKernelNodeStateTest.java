@@ -18,34 +18,28 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
+import org.apache.jackrabbit.mk.api.MicroKernel;
+import org.apache.jackrabbit.oak.core.AbstractOakTest;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.junit.Test;
+
 import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.simple.SimpleKernelImpl;
-import org.junit.Before;
-import org.junit.Test;
+public class LargeKernelNodeStateTest extends AbstractOakTest {
+    private static final int N = KernelNodeState.MAX_CHILD_NODE_NAMES;
 
-public class LargeKernelNodeStateTest {
-
-    private final int N = KernelNodeState.MAX_CHILD_NODE_NAMES;
-
-    private NodeState state;
-
-    @Before
-    public void setUp() {
-        MicroKernel kernel =
-                new SimpleKernelImpl("mem:LargeKernelNodeStateTest");
+    @Override
+    protected NodeState createInitialState(MicroKernel microKernel) {
         StringBuilder jsop = new StringBuilder("+\"test\":{\"a\":1");
         for (int i = 0; i <= N; i++) {
-            jsop.append(",\"x" + i + "\":{}");
+            jsop.append(",\"x").append(i).append("\":{}");
         }
-        jsop.append("}");
-        String revision = kernel.commit(
-                "/", jsop.toString(), kernel.getHeadRevision(), "test data");
-        state = new KernelNodeState(kernel, "/test", revision);
+        jsop.append('}');
+        microKernel.commit("/", jsop.toString(), null, "test data");
+        return store.getRoot().getChildNode("test");
     }
 
     @Test
@@ -65,36 +59,10 @@ public class LargeKernelNodeStateTest {
     @SuppressWarnings("unused")
     public void testGetChildNodeEntries() {
         long count = 0;
-        for (ChildNodeEntry entry : state.getChildNodeEntries(0, -1)) {
+        for (ChildNodeEntry entry : state.getChildNodeEntries()) {
             count++;
         }
         assertEquals(N + 1, count);
-    }
-
-    @Test
-    @SuppressWarnings("unused")
-    public void testGetChildNodeEntriesWithOffset() {
-        long count = 0;
-        for (ChildNodeEntry entry : state.getChildNodeEntries(N, -1)) {
-            count++;
-        }
-        assertEquals(1, count);
-
-        // Offset beyond the range
-        assertFalse(state.getChildNodeEntries(N + 1, -1).iterator().hasNext());
-    }
-
-    @Test
-    @SuppressWarnings("unused")
-    public void testGetChildNodeEntriesWithCount() {
-        long count = 0;
-        for (ChildNodeEntry entry : state.getChildNodeEntries(0, N + 1)) {
-            count++;
-        }
-        assertEquals(N + 1, count);
-
-        // Zero count
-        assertFalse(state.getChildNodeEntries(0, 0).iterator().hasNext());
     }
 
 }

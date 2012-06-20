@@ -32,7 +32,7 @@ import org.apache.jackrabbit.mk.store.DefaultRevisionStore;
 import org.apache.jackrabbit.mk.store.NotFoundException;
 import org.apache.jackrabbit.mk.store.RevisionStore;
 import org.apache.jackrabbit.mk.util.IOUtils;
-import org.apache.jackrabbit.mk.util.PathUtils;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  *
@@ -69,9 +69,10 @@ public class Repository {
      */
     protected Repository() {
         this.homeDir = null;
-        
-        DefaultRevisionStore rs = new DefaultRevisionStore(new InMemPersistence());
-        
+
+        DefaultRevisionStore rs =
+                new DefaultRevisionStore(new InMemPersistence(), null);
+
         try {
             rs.initialize();
         } catch (Exception e) {
@@ -90,7 +91,6 @@ public class Repository {
         }
 
         H2Persistence pm = new H2Persistence();
-        //org.apache.jackrabbit.mk.persistence.MongoPersistence pm = new org.apache.jackrabbit.mk.persistence.MongoPersistence();
         pm.initialize(homeDir);
         
         DefaultRevisionStore rs = new DefaultRevisionStore(pm);
@@ -166,7 +166,7 @@ public class Repository {
         }
 
         NodeState node = rs.getNodeState(rs.getRootNode(revId));
-        for (String name : PathUtils.split(path)) {
+        for (String name : PathUtils.elements(path)) {
             node = node.getChildNode(name);
             if (node == null) {
                 break;
@@ -183,7 +183,7 @@ public class Repository {
         }
 
         NodeState node = rs.getNodeState(rs.getRootNode(revId));
-        for (String name : PathUtils.split(path)) {
+        for (String name : PathUtils.elements(path)) {
             node = node.getChildNode(name);
             if (node == null) {
                 return false;
