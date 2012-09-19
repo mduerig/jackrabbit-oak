@@ -73,45 +73,34 @@ public class TreeDecorator extends AbstractTreeDecorator {
 
     @Override
     public Tree getChild(String name) {
-        String head = head(mountPoint);
-        String tail = tail(mountPoint);
-
-        if (head.equals(name)) {
-            if (tail.isEmpty()) {
-                return mount(mount, getTree(), "");
-            }
-            else {
-                return mount(getTree().getChild(name), mount, tail);
-            }
-        }
-        else {
-            return mount(getTree().getChild(name), mount, cons("..", mountPoint));
-        }
+        return mountChild(getTree().getChild(name));
     }
 
     @Override
     public Iterable<Tree> getChildren() {
-        final String head = head(mountPoint);
-        final String tail = tail(mountPoint);
-
         return Iterables.transform(super.getChildren(), new Function<Tree, Tree>() {
             @Override
             public Tree apply(Tree child) {
-                String name = child.getName();
-
-                if (head.equals(name)) {
-                    if (tail.isEmpty()) {
-                        return mount(mount, getTree(), "");
-                    }
-                    else {
-                        return mount(child, mount, tail);
-                    }
-                }
-                else {
-                    return mount(child, mount, cons("..", mountPoint));
-                }
+                return mountChild(child);
             }
         });
+    }
+
+    private Tree mountChild(Tree child) {
+        String head = head(mountPoint);
+        String tail = tail(mountPoint);
+
+        if (head.equals(child.getName())) {
+            if (tail.isEmpty()) {
+                return mount(mount, getTree(), "");
+            }
+            else {
+                return mount(child, mount, tail);
+            }
+        }
+        else {
+            return mount(child, mount, cons("..", mountPoint));
+        }
     }
 
     private boolean isMountPoint() {
