@@ -16,23 +16,20 @@
  */
 package org.apache.jackrabbit.mongomk.impl.model;
 
+import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
-import org.apache.jackrabbit.mongomk.api.instruction.Instruction.AddNodeInstruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
-import org.apache.jackrabbit.oak.commons.PathUtils;
 
 import com.mongodb.BasicDBObject;
 
 /**
  * The {@code MongoDB} representation of a commit.
  */
-public class CommitMongo extends BasicDBObject {
+public class CommitMongo extends BasicDBObject implements Commit {
 
     public static final String KEY_AFFECTED_PATH = "affPaths";
     public static final String KEY_BASE_REVISION_ID = "baseRevId";
@@ -43,49 +40,26 @@ public class CommitMongo extends BasicDBObject {
     public static final String KEY_PATH = "path";
     public static final String KEY_REVISION_ID = "revId";
     public static final String KEY_TIMESTAMP = "ts";
+
+    private final List<Instruction> instructions;
+
     private static final long serialVersionUID = 6656294757102309827L;
 
-    public static CommitMongo fromCommit(Commit commit) {
-        CommitMongo commitMongo = new CommitMongo();
-
-        String message = commit.getMessage();
-        commitMongo.setMessage(message);
-
-        String path = commit.getPath();
-        commitMongo.setPath(path);
-
-        String diff = commit.getDiff();
-        commitMongo.setDiff(diff);
-
-        Long revisionId = commit.getRevisionId();
-        if (revisionId != null) {
-            commitMongo.setRevisionId(revisionId);
-        }
-
-        String branchId = commit.getBranchId();
-        if (branchId != null) {
-            commitMongo.setBranchId(branchId);
-        }
-
-        commitMongo.setTimestamp(commit.getTimestamp());
-
-        Set<String> affectedPaths = new HashSet<String>();
-        for (Instruction instruction : commit.getInstructions()) {
-            affectedPaths.add(instruction.getPath());
-
-            if (instruction instanceof AddNodeInstruction) {
-                affectedPaths.add(PathUtils.getParentPath(instruction.getPath()));
-            }
-        }
-        commitMongo.setAffectedPaths(new LinkedList<String>(affectedPaths));
-
-        return commitMongo;
-    }
-
+    /**
+     * Default constructor. Needed for MongoDB serialization.
+     */
     public CommitMongo() {
+        instructions = new LinkedList<Instruction>();
         setTimestamp(new Date().getTime());
     }
 
+    //--------------------------------------------------------------------------
+    //
+    // These properties are persisted to MongoDB
+    //
+    //--------------------------------------------------------------------------
+
+    @Override
     @SuppressWarnings("unchecked")
     public List<String> getAffectedPaths() {
         return (List<String>) get(KEY_AFFECTED_PATH);
@@ -95,14 +69,20 @@ public class CommitMongo extends BasicDBObject {
         put(KEY_AFFECTED_PATH, affectedPaths);
     }
 
-    public long getBaseRevId() {
-        return getLong(KEY_BASE_REVISION_ID);
+    @Override
+    public Long getBaseRevisionId() {
+        return containsField(KEY_BASE_REVISION_ID)? getLong(KEY_BASE_REVISION_ID) : null;
     }
 
-    public void setBaseRevId(long baseRevisionId) {
-        put(KEY_BASE_REVISION_ID, baseRevisionId);
+    public void setBaseRevisionId(Long baseRevisionId) {
+        if (baseRevisionId == null) {
+            removeField(KEY_BASE_REVISION_ID);
+        } else {
+            put(KEY_BASE_REVISION_ID, baseRevisionId);
+        }
     }
 
+    @Override
     public String getBranchId() {
         return getString(KEY_BRANCH_ID);
     }
@@ -111,36 +91,13 @@ public class CommitMongo extends BasicDBObject {
         put(KEY_BRANCH_ID, branchId);
     }
 
+    @Override
     public String getDiff() {
         return getString(KEY_DIFF);
     }
 
     public void setDiff(String diff) {
         put(KEY_DIFF, diff);
-    }
-
-    public String getMessage() {
-        return getString(KEY_MESSAGE);
-    }
-
-    public void setMessage(String message) {
-        put(KEY_MESSAGE, message);
-    }
-
-    public String getPath() {
-        return getString(KEY_PATH);
-    }
-
-    public void setPath(String path) {
-        put(KEY_PATH, path);
-    }
-
-    public long getRevisionId() {
-        return getLong(KEY_REVISION_ID);
-    }
-
-    public void setRevisionId(long revisionId) {
-        put(KEY_REVISION_ID, revisionId);
     }
 
     public boolean isFailed() {
@@ -151,11 +108,60 @@ public class CommitMongo extends BasicDBObject {
         put(KEY_FAILED, Boolean.TRUE);
     }
 
+    @Override
+    public String getMessage() {
+        return getString(KEY_MESSAGE);
+    }
+
+    public void setMessage(String message) {
+        put(KEY_MESSAGE, message);
+    }
+
+    @Override
+    public String getPath() {
+        return getString(KEY_PATH);
+    }
+
+    public void setPath(String path) {
+        put(KEY_PATH, path);
+    }
+
+    @Override
+    public Long getRevisionId() {
+        return containsField(KEY_REVISION_ID)? getLong(KEY_REVISION_ID) : null;
+    }
+
+    @Override
+    public void setRevisionId(Long revisionId) {
+        put(KEY_REVISION_ID, revisionId);
+    }
+
+    @Override
     public Long getTimestamp() {
         return getLong(KEY_TIMESTAMP);
     }
 
-    public void setTimestamp(long timestamp) {
+    public void setTimestamp(Long timestamp) {
         put(KEY_TIMESTAMP, timestamp);
+    }
+
+    //--------------------------------------------------------------------------
+    //
+    // These properties are used to keep track but not persisted to MongoDB
+    //
+    //--------------------------------------------------------------------------
+
+    /**
+     * Adds the given {@link Instruction}.
+     *
+     * @param instruction The {@code Instruction}.
+     */
+    public void addInstruction(Instruction instruction) {
+        instructions.add(instruction);
+    }
+
+    @Override
+    public List<Instruction> getInstructions() {
+        return Collections.unmodifiableList(instructions);
     }
 }
