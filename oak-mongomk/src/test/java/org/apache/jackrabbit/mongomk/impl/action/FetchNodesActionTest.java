@@ -16,7 +16,9 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -52,7 +54,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
         FetchNodesAction query = new FetchNodesAction(mongoConnection,
                 "/", true, revisionId3);
-        List<Node> actuals = NodeMongo.toNode(query.execute());
+        List<Node> actuals = toNode(query.execute());
 
         String json = String.format("{\"/#%2$s\" : { \"b#%1$s\" : {}, \"c#%2$s\" : {} }}",
                 revisionId2, revisionId3);
@@ -70,7 +72,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
         FetchNodesAction query = new FetchNodesAction(mongoConnection,
                 "/", true, revisionId3);
-        List<Node> actuals = NodeMongo.toNode(query.execute());
+        List<Node> actuals = toNode(query.execute());
 
         String json = String.format("{\"/#%2$s\" : { \"a#%1$s\" : {}, \"b#%2$s\" : {} }}",
                 revisionId1, revisionId2);
@@ -89,7 +91,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
         FetchNodesAction query = new FetchNodesAction(mongoConnection,
                 "/", true, revisionId3);
-        List<Node> actuals = NodeMongo.toNode(query.execute());
+        List<Node> actuals = toNode(query.execute());
 
         String json = String.format("{\"/#%2$s\" : { \"a#%1$s\" : {}, \"c#%2$s\" : {} }}",
                 revisionId1, revisionId3);
@@ -108,7 +110,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
                 "/", true, firstRevisionId);
         query.setDepth(0);
         List<NodeMongo> result = query.execute();
-        List<Node> actuals = NodeMongo.toNode(result);
+        List<Node> actuals = toNode(result);
         String json = String.format("{ \"/#%1$s\" : {} }", firstRevisionId);
         Node expected = NodeBuilder.build(json);
         Iterator<Node> expecteds = expected.getChildNodeEntries(0, -1);
@@ -117,7 +119,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
         query.setDepth(0);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : {} }", firstRevisionId);
         expected = NodeBuilder.build(json);
         expecteds = expected.getChildNodeEntries(0, -1);
@@ -126,7 +128,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         query = new FetchNodesAction(mongoConnection, "/", true, firstRevisionId);
         query.setDepth(1);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 } } }", firstRevisionId);
         expected = NodeBuilder.build(json);
         expecteds = expected.getChildNodeEntries(0, -1);
@@ -135,7 +137,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
         query.setDepth(1);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%2$s\" : { \"int\" : 1 , \"double\" : 0.123 } } }",
                 firstRevisionId, secondRevisionId);
         expected = NodeBuilder.build(json);
@@ -145,7 +147,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         query = new FetchNodesAction(mongoConnection, "/", true, firstRevisionId);
         query.setDepth(2);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1, \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
                 firstRevisionId);
         expected = NodeBuilder.build(json);
@@ -155,7 +157,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
         query.setDepth(2);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%2$s\" : { \"int\" : 1 , \"double\" : 0.123 , \"b#%2$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true }, \"d#%2$s\" : { \"null\" : null } } } }",
                 firstRevisionId, secondRevisionId);
         expected = NodeBuilder.build(json);
@@ -164,7 +166,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
         query = new FetchNodesAction(mongoConnection, "/", true, firstRevisionId);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 , \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
                 firstRevisionId);
         expected = NodeBuilder.build(json);
@@ -173,7 +175,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
         query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
         result = query.execute();
-        actuals = NodeMongo.toNode(result);
+        actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%2$s\" : { \"int\" : 1 , \"double\" : 0.123 , \"b#%2$s\" : { \"string\" : \"foo\", \"e#%2$s\" : { \"array\" : [ 123, null, 123.456, \"for:bar\", true ] } } , \"c#%1$s\" : { \"bool\" : true }, \"d#%2$s\" : { \"null\" : null } } } }",
                 firstRevisionId, secondRevisionId);
         expected = NodeBuilder.build(json);
@@ -195,7 +197,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         FetchNodesAction query = new FetchNodesAction(mongoConnection,
                 getPathSet("/a", "/a/b", "/a/c", "not_existing"), revisionId);
         List<NodeMongo> nodeMongos = query.execute();
-        List<Node> actuals = NodeMongo.toNode(nodeMongos);
+        List<Node> actuals = toNode(nodeMongos);
         String json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 , \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
                 revisionId);
         Node expected = NodeBuilder.build(json);
@@ -205,7 +207,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         query = new FetchNodesAction(mongoConnection,
                 getPathSet("/a", "not_existing"), revisionId);
         nodeMongos = query.execute();
-        actuals = NodeMongo.toNode(nodeMongos);
+        actuals = toNode(nodeMongos);
         json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 } } }",
                 revisionId);
         expected = NodeBuilder.build(json);
@@ -223,7 +225,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
                 getPathSet("/a", "/a/b", "/a/c", "/a/d", "/a/b/e", "not_existing"),
                 firstRevisionId);
         List<NodeMongo> nodeMongos = query.execute();
-        List<Node> actuals = NodeMongo.toNode(nodeMongos);
+        List<Node> actuals = toNode(nodeMongos);
         String json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 , \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
                 firstRevisionId);
         Node expected = NodeBuilder.build(json);
@@ -234,7 +236,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
                 getPathSet("/a", "/a/b", "/a/c", "/a/d", "/a/b/e", "not_existing"),
                 secondRevisionId);
         nodeMongos = query.execute();
-        actuals = NodeMongo.toNode(nodeMongos);
+        actuals = toNode(nodeMongos);
         json = String.format("{ \"/#%1$s\" : { \"a#%2$s\" : { \"int\" : 1 , \"double\" : 0.123 , \"b#%2$s\" : { \"string\" : \"foo\" , \"e#%2$s\" : { \"array\" : [ 123, null, 123.456, \"for:bar\", true ] } } , \"c#%1$s\" : { \"bool\" : true }, \"d#%2$s\" : { \"null\" : null } } } }",
                 firstRevisionId, secondRevisionId);
         expected = NodeBuilder.build(json);
@@ -263,5 +265,15 @@ public class FetchNodesActionTest extends BaseMongoTest {
         DBObject update = new BasicDBObject("$set",
                 new BasicDBObject(CommitMongo.KEY_BASE_REVISION_ID, baseRevisionId));
         commitCollection.update(query, update);
+    }
+
+    private List<Node> toNode(Collection<NodeMongo> nodeMongos) {
+        List<Node> nodes = new ArrayList<Node>(nodeMongos.size());
+        for (NodeMongo nodeMongo : nodeMongos) {
+            Node node = NodeMongo.toNode(nodeMongo);
+            nodes.add(node);
+        }
+
+        return nodes;
     }
 }

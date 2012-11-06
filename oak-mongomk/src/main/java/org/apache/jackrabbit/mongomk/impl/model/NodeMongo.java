@@ -16,14 +16,11 @@
  */
 package org.apache.jackrabbit.mongomk.impl.model;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 
 import com.mongodb.BasicDBObject;
@@ -46,16 +43,6 @@ public class NodeMongo extends BasicDBObject {
     private Map<String, Object> addedProps;
     private List<String> removedChildren;
     private Map<String, Object> removedProps;
-
-    public static List<Node> toNode(Collection<NodeMongo> nodeMongos) {
-        List<Node> nodes = new ArrayList<Node>(nodeMongos.size());
-        for (NodeMongo nodeMongo : nodeMongos) {
-            Node node = NodeMongo.toNode(nodeMongo);
-            nodes.add(node);
-        }
-
-        return nodes;
-    }
 
     public static NodeImpl toNode(NodeMongo nodeMongo) {
         String path = nodeMongo.getPath();
