@@ -150,7 +150,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
                 break;
             }
             validCommits.add(commitMongo);
-            long baseRevision = commitMongo.getBaseRevId();
+            long baseRevision = commitMongo.getBaseRevisionId();
             if (currentRevision == 0L || baseRevision < fromRevisionId) {
                 break;
             }

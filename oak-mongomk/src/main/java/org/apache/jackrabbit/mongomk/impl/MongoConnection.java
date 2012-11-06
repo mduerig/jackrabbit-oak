@@ -156,11 +156,11 @@ public class MongoConnection {
         commitCollection.ensureIndex(index, options);
         CommitMongo commit = new CommitMongo();
         commit.setAffectedPaths(Arrays.asList(new String[] { "/" }));
-        commit.setBaseRevId(0L);
+        commit.setBaseRevisionId(0L);
         commit.setDiff(INITIAL_COMMIT_DIFF);
         commit.setMessage(INITIAL_COMMIT_MESSAGE);
-        commit.setPath(INITIAL_COMMIT_PATH);
         commit.setRevisionId(0L);
+        commit.setPath(INITIAL_COMMIT_PATH);
         commitCollection.insert(commit);
     }
 

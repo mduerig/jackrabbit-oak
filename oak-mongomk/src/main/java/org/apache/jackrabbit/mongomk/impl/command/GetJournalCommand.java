@@ -83,7 +83,7 @@ public class GetJournalCommand extends BaseCommand<String> {
             if (MongoUtil.isFiltered(path)) {
                 try {
                     diff = new DiffBuilder(
-                            MongoUtil.wrap(getNode("/", commit.getBaseRevId())),
+                            MongoUtil.wrap(getNode("/", commit.getBaseRevisionId())),
                             MongoUtil.wrap(getNode("/", commit.getRevisionId())),
                             "/", -1, new MongoNodeStore(), path).build();
                     if (diff.isEmpty()) {

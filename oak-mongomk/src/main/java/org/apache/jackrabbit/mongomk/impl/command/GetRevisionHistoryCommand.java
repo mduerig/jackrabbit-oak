@@ -57,7 +57,7 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
                 if (MongoUtil.isFiltered(path)) {
                     try {
                         String diff = new DiffBuilder(
-                                MongoUtil.wrap(getNode("/", commit.getBaseRevId())),
+                                MongoUtil.wrap(getNode("/", commit.getBaseRevisionId())),
                                 MongoUtil.wrap(getNode("/", commit.getRevisionId())),
                                 "/", -1, new MongoNodeStore(), path).build();
                         if (!diff.isEmpty()) {

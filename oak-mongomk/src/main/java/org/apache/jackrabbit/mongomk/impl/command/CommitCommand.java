@@ -53,10 +53,9 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private static final Logger logger = LoggerFactory.getLogger(CommitCommand.class);
 
-    private final Commit commit;
+    private final CommitMongo commit;
 
     private Set<String> affectedPaths;
-    private CommitMongo commitMongo;
     private List<NodeMongo> existingNodes;
     private SyncMongo syncMongo;
     private Set<NodeMongo> nodeMongos;
@@ -71,7 +70,7 @@ public class CommitCommand extends BaseCommand<Long> {
      */
     public CommitCommand(MongoConnection mongoConnection, Commit commit) {
         super(mongoConnection);
-        this.commit = commit;
+        this.commit = (CommitMongo)commit;
     }
 
     @Override
@@ -82,7 +81,7 @@ public class CommitCommand extends BaseCommand<Long> {
         createRevision();
         readBranchIdFromBaseCommit();
         createMongoNodes();
-        createMongoCommit();
+        prepareCommit();
         readExistingNodes();
         mergeNodes();
         prepareMongoNodes();
@@ -139,14 +138,14 @@ public class CommitCommand extends BaseCommand<Long> {
         commit.setRevisionId(revisionId);
     }
 
-    private void createMongoCommit() throws Exception {
-        commitMongo = CommitMongo.fromCommit(commit);
-        commitMongo.setRevisionId(revisionId);
-        commitMongo.setAffectedPaths(new LinkedList<String>(affectedPaths));
-        commitMongo.setBaseRevId(syncMongo.getHeadRevisionId());
-        if (commitMongo.getBranchId() == null && branchId != null) {
-            commitMongo.setBranchId(branchId);
+    private void prepareCommit() throws Exception {
+        commit.setAffectedPaths(new LinkedList<String>(affectedPaths));
+        commit.setBaseRevisionId(syncMongo.getHeadRevisionId());
+        commit.setRevisionId(revisionId);
+        if (commit.getBranchId() == null && branchId != null) {
+            commit.setBranchId(branchId);
         }
+        commit.removeField("_id"); // In case this is a retry.
     }
 
     private void createMongoNodes() throws Exception {
@@ -176,7 +175,7 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private void markAsFailed() throws Exception {
         DBCollection commitCollection = mongoConnection.getCommitCollection();
-        DBObject query = QueryBuilder.start("_id").is(commitMongo.getObjectId("_id")).get();
+        DBObject query = QueryBuilder.start("_id").is(commit.getObjectId("_id")).get();
         DBObject update = new BasicDBObject("$set", new BasicDBObject(CommitMongo.KEY_FAILED, Boolean.TRUE));
         WriteResult writeResult = commitCollection.update(query, update);
         if (writeResult.getError() != null) {
@@ -304,7 +303,7 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     private void saveCommit() throws Exception {
-        new SaveCommitAction(mongoConnection, commitMongo).execute();
+        new SaveCommitAction(mongoConnection, commit).execute();
     }
 
     private void saveNodes() throws Exception {

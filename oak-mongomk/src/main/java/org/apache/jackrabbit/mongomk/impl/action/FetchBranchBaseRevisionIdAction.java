@@ -63,7 +63,7 @@ public class FetchBranchBaseRevisionIdAction extends BaseAction<Long> {
         DBCursor dbCursor = commitCollection.find(query, filter).sort(orderBy).limit(1);
         if (dbCursor.hasNext()) {
             CommitMongo commitMongo = (CommitMongo)dbCursor.next();
-            return commitMongo.getBaseRevId();
+            return commitMongo.getBaseRevisionId();
         }
         return 0L;
     }

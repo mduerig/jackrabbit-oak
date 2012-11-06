@@ -60,11 +60,15 @@ public class CommitBuilder {
      */
     public static Commit build(String path, String diff, String revisionId,
             String message) throws Exception {
-        CommitImpl commit = new CommitImpl(path, diff, message);
+        CommitMongo commit = new CommitMongo();
         commit.setBaseRevisionId(MongoUtil.toMongoRepresentation(revisionId));
-        CommitHandler commitHandler = new CommitHandler(commit);
-        JsopParser jsopParser = new JsopParser(path, diff, commitHandler);
+        commit.setDiff(diff);
+        commit.setMessage(message);
+        commit.setPath(path);
+
+        JsopParser jsopParser = new JsopParser(path, diff, new CommitHandler(commit));
         jsopParser.parse();
+
         return commit;
     }
 
@@ -72,9 +76,9 @@ public class CommitBuilder {
      * The {@link DefaultJaopHandler} for the {@code JSOP} diff.
      */
     private static class CommitHandler extends DefaultJsopHandler {
-        private final CommitImpl commit;
+        private final CommitMongo commit;
 
-        CommitHandler(CommitImpl commit) {
+        CommitHandler(CommitMongo commit) {
             this.commit = commit;
         }
 

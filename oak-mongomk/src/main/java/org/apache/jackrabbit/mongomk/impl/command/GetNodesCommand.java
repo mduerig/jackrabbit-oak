@@ -152,9 +152,8 @@ public class GetNodesCommand extends BaseCommand<Node> {
         for (ListIterator<CommitMongo> iterator = lastCommits.listIterator(); iterator.hasPrevious();) {
             CommitMongo commitMongo = iterator.previous();
             long revisionId = commitMongo.getRevisionId();
-            List<String> affectedPath = commitMongo.getAffectedPaths();
-
-            for (String path : affectedPath) {
+            List<String> affectedPaths = commitMongo.getAffectedPaths();
+            for (String path : affectedPaths) {
                 problematicNodes.put(path, revisionId);
             }
         }

@@ -85,6 +85,7 @@ public class ConcurrentCommitCommandTest extends BaseMongoTest {
                         Long revisionId = commandExecutor.execute(command);
                         revisionIds.add(revisionId);
                     } catch (Exception e) {
+                        e.printStackTrace();
                         revisionIds.add(null);
                     }
                 }

@@ -23,6 +23,7 @@ import org.apache.jackrabbit.mongomk.impl.SimpleNodeScenario;
 import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
 import org.apache.jackrabbit.mongomk.impl.model.NodeBuilder;
+import org.apache.jackrabbit.mongomk.util.MongoUtil;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -42,7 +43,7 @@ public class CommitCommandTest extends BaseMongoMicroKernelTest {
                 "{ \"/#%1$s\" : { \"a#%1$s\" : { \"b#%1$s\" : {} , \"c#%1$s\" : {} } } }", revisionId)));
 
         MongoAssert.assertCommitExists(commit);
-        MongoAssert.assertCommitContainsAffectedPaths(commit.getRevisionId().toString(),
+        MongoAssert.assertCommitContainsAffectedPaths(MongoUtil.fromMongoRepresentation(commit.getRevisionId()),
                 "/", "/a", "/a/b", "/a/c");
         MongoAssert.assertHeadRevision(1);
         MongoAssert.assertNextRevision(2);

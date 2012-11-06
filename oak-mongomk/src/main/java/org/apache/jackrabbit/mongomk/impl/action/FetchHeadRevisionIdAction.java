@@ -63,7 +63,7 @@ public class FetchHeadRevisionIdAction extends BaseAction<Long> {
             if (commitMongo.getBranchId() == null) {
                 return revisionId;
             }
-            revisionId = commitMongo.getBaseRevId();
+            revisionId = commitMongo.getBaseRevisionId();
         }
     }
 }

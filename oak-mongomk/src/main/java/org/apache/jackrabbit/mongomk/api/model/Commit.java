@@ -26,12 +26,11 @@ import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 public interface Commit {
 
     /**
-     * Returns the private branch id the commit is under or {@code null} if the
-     * commit is in the public branch.
+     * Returns the paths affected by the commit.
      *
-     * @return The private branch id or {@code null}
+     * @return The paths affected by the commit.
      */
-    String getBranchId();
+    List<String> getAffectedPaths();
 
     /**
      * Returns the base revision id the commit is based on.
@@ -41,12 +40,27 @@ public interface Commit {
     Long getBaseRevisionId();
 
     /**
+     * Returns the private branch id the commit is under or {@code null} if the
+     * commit is in the public branch.
+     *
+     * @return The private branch id or {@code null}
+     */
+    String getBranchId();
+
+    /**
      * Returns the <a href="http://wiki.apache.org/jackrabbit/Jsop">JSOP</a>
      * diff of this commit.
      *
      * @return The {@link String} representing the diff.
      */
     String getDiff();
+
+    /**
+     * Determines whether the commit failed or not.
+     *
+     * @return True if the commit failed.
+     */
+    boolean isFailed();
 
     /**
      * Returns the {@link List} of {@link Instruction}s which were created from
@@ -93,5 +107,5 @@ public interface Commit {
      *
      * @return The timestamp of this commit.
      */
-    long getTimestamp();
+    Long getTimestamp();
 }

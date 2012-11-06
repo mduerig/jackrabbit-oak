@@ -62,7 +62,7 @@ public class DiffCommand extends BaseCommand<String> {
 
         if ("/".equals(path)) {
             CommitMongo toCommit = new FetchCommitAction(mongoConnection, toRevisionId).execute();
-            if (toCommit.getBaseRevId() == fromRevisionId) {
+            if (toCommit.getBaseRevisionId() == fromRevisionId) {
                 // Specified range spans a single commit:
                 // use diff stored in commit instead of building it dynamically
                 return toCommit.getDiff();
