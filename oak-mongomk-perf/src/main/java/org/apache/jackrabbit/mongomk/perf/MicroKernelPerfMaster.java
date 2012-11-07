@@ -23,11 +23,11 @@ import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.api.NodeStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.json.DefaultJsopHandler;
 import org.apache.jackrabbit.mongomk.impl.json.JsopParser;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.MongoSync;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -118,7 +118,7 @@ public class MicroKernelPerfMaster {
     }
 
     private void initMicroKernel() throws Exception {
-        NodeStore nodeStore = new NodeStoreMongo(mongoConnection.getDB());
+        NodeStore nodeStore = new MongoNodeStore(mongoConnection.getDB());
         BlobStore blobStore = new BlobStoreFS(System.getProperty("java.io.tmpdir"));
         microKernel = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }
@@ -130,8 +130,8 @@ public class MicroKernelPerfMaster {
 
     private void startVerifying() throws Exception {
         while (true) {
-            List<CommitMongo> commitMongos = this.waitForCommit();
-            for (CommitMongo commitMongo : commitMongos) {
+            List<MongoCommit> commitMongos = this.waitForCommit();
+            for (MongoCommit commitMongo : commitMongos) {
                 if (commitMongo.isFailed()) {
                     LOG.info(String.format("Skipping commit %d because it failed", commitMongo.getRevisionId()));
                     this.lastRevId = commitMongo.getRevisionId();
@@ -146,7 +146,7 @@ public class MicroKernelPerfMaster {
         }
     }
 
-    private void verifyCommit(CommitMongo commitMongo) throws Exception {
+    private void verifyCommit(MongoCommit commitMongo) throws Exception {
         String path = commitMongo.getPath();
         String jsop = commitMongo.getDiff();
 
@@ -161,7 +161,7 @@ public class MicroKernelPerfMaster {
         LOG.info(String.format("Successfully verified commit %d", commitMongo.getRevisionId()));
     }
 
-    private void verifyCommitOrder(CommitMongo commitMongo) throws Exception {
+    private void verifyCommitOrder(MongoCommit commitMongo) throws Exception {
         long baseRevId = commitMongo.getBaseRevisionId();
         long revId = commitMongo.getRevisionId();
         if (baseRevId != this.lastCommitRevId) {
@@ -214,24 +214,24 @@ public class MicroKernelPerfMaster {
         }
     }
 
-    private List<CommitMongo> waitForCommit() {
+    private List<MongoCommit> waitForCommit() {
         // TODO Change this to MicroKernel#waitForCommit
-        List<CommitMongo> commitMongos = new LinkedList<CommitMongo>();
+        List<MongoCommit> commitMongos = new LinkedList<MongoCommit>();
         this.lastHeadRevId = 0L;
 
         while (true) {
             LOG.debug("Waiting for commit...");
 
-            DBCollection headCollection = ((NodeStoreMongo)microKernel.getNodeStore()).getSyncCollection();
-            SyncMongo syncMongo = (SyncMongo) headCollection.findOne();
+            DBCollection headCollection = ((MongoNodeStore)microKernel.getNodeStore()).getSyncCollection();
+            MongoSync syncMongo = (MongoSync) headCollection.findOne();
             if (this.lastHeadRevId < syncMongo.getHeadRevisionId()) {
-                DBCollection commitCollection = ((NodeStoreMongo)microKernel.getNodeStore()).getCommitCollection();
-                DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID).greaterThan(this.lastRevId)
-                        .and(CommitMongo.KEY_REVISION_ID).lessThanEquals(syncMongo.getHeadRevisionId()).get();
-                DBObject sort = QueryBuilder.start(CommitMongo.KEY_REVISION_ID).is(1).get();
+                DBCollection commitCollection = ((MongoNodeStore)microKernel.getNodeStore()).getCommitCollection();
+                DBObject query = QueryBuilder.start(MongoCommit.KEY_REVISION_ID).greaterThan(this.lastRevId)
+                        .and(MongoCommit.KEY_REVISION_ID).lessThanEquals(syncMongo.getHeadRevisionId()).get();
+                DBObject sort = QueryBuilder.start(MongoCommit.KEY_REVISION_ID).is(1).get();
                 DBCursor dbCursor = commitCollection.find(query).sort(sort);
                 while (dbCursor.hasNext()) {
-                    commitMongos.add((CommitMongo) dbCursor.next());
+                    commitMongos.add((MongoCommit) dbCursor.next());
                 }
 
                 if (commitMongos.size() > 0) {

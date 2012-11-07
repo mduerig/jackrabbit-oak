@@ -7,10 +7,10 @@ import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.tree.SimpleMongoNodeStore;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 
 /**
@@ -32,7 +32,7 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
      * @param path optional path filter; if {@code null} or {@code ""} the
      * default ({@code "/"}) will be assumed, i.e. no filter will be applied
      */
-    public GetRevisionHistoryCommand(NodeStoreMongo nodeStore,
+    public GetRevisionHistoryCommand(MongoNodeStore nodeStore,
             long since, int maxEntries, String path) {
         super(nodeStore);
         this.since = since;
@@ -49,17 +49,17 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
         action.setMaxEntries(maxEntries);
         action.includeBranchCommits(false);
 
-        List<CommitMongo> commits = action.execute();
-        List<CommitMongo> history = new ArrayList<CommitMongo>();
+        List<MongoCommit> commits = action.execute();
+        List<MongoCommit> history = new ArrayList<MongoCommit>();
         for (int i = commits.size() - 1; i >= 0; i--) {
-            CommitMongo commit = commits.get(i);
+            MongoCommit commit = commits.get(i);
             if (commit.getTimestamp() >= since) {
                 if (MongoUtil.isFiltered(path)) {
                     try {
                         String diff = new DiffBuilder(
                                 MongoUtil.wrap(getNode("/", commit.getBaseRevisionId())),
                                 MongoUtil.wrap(getNode("/", commit.getRevisionId())),
-                                "/", -1, new MongoNodeStore(), path).build();
+                                "/", -1, new SimpleMongoNodeStore(), path).build();
                         if (!diff.isEmpty()) {
                             history.add(commit);
                         }
@@ -73,7 +73,7 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
         }
 
         JsopBuilder buff = new JsopBuilder().array();
-        for (CommitMongo commit : history) {
+        for (MongoCommit commit : history) {
             buff.object()
             .key("id").value(MongoUtil.fromMongoRepresentation(commit.getRevisionId()))
             .key("ts").value(commit.getTimestamp())

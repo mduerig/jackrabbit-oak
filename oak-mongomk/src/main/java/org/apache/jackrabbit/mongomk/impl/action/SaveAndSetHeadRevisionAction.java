@@ -16,8 +16,8 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoSync;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -27,7 +27,7 @@ import com.mongodb.QueryBuilder;
 /**
  * An action for saving and setting the head revision id.
  */
-public class SaveAndSetHeadRevisionAction extends BaseAction<SyncMongo> {
+public class SaveAndSetHeadRevisionAction extends BaseAction<MongoSync> {
 
     private final long newHeadRevision;
     private final long oldHeadRevision;
@@ -39,7 +39,7 @@ public class SaveAndSetHeadRevisionAction extends BaseAction<SyncMongo> {
      * @param oldHeadRevision Old head revision.
      * @param newHeadRevision New head revision.
      */
-    public SaveAndSetHeadRevisionAction(NodeStoreMongo nodeStore,
+    public SaveAndSetHeadRevisionAction(MongoNodeStore nodeStore,
             long oldHeadRevision, long newHeadRevision) {
         super(nodeStore);
         this.oldHeadRevision = oldHeadRevision;
@@ -47,11 +47,11 @@ public class SaveAndSetHeadRevisionAction extends BaseAction<SyncMongo> {
     }
 
     @Override
-    public SyncMongo execute() throws Exception {
+    public MongoSync execute() throws Exception {
         DBCollection headCollection = nodeStore.getSyncCollection();
-        DBObject query = QueryBuilder.start(SyncMongo.KEY_HEAD_REVISION_ID).is(oldHeadRevision).get();
-        DBObject update = new BasicDBObject("$set", new BasicDBObject(SyncMongo.KEY_HEAD_REVISION_ID, newHeadRevision));
+        DBObject query = QueryBuilder.start(MongoSync.KEY_HEAD_REVISION_ID).is(oldHeadRevision).get();
+        DBObject update = new BasicDBObject("$set", new BasicDBObject(MongoSync.KEY_HEAD_REVISION_ID, newHeadRevision));
         DBObject dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);
-        return SyncMongo.fromDBObject(dbObject);
+        return MongoSync.fromDBObject(dbObject);
     }
 }

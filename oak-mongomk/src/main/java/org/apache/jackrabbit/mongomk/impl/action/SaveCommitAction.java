@@ -16,8 +16,8 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 
 import com.mongodb.DBCollection;
 import com.mongodb.WriteResult;
@@ -27,15 +27,15 @@ import com.mongodb.WriteResult;
  */
 public class SaveCommitAction extends BaseAction<Boolean> {
 
-    private final CommitMongo commitMongo;
+    private final MongoCommit commitMongo;
 
     /**
      * Constructs a new {@code SaveCommitAction}.
      *
      * @param nodeStore Node store.
-     * @param commitMongo The {@link CommitMongo} to save.
+     * @param commitMongo The {@link MongoCommit} to save.
      */
-    public SaveCommitAction(NodeStoreMongo nodeStore, CommitMongo commitMongo) {
+    public SaveCommitAction(MongoNodeStore nodeStore, MongoCommit commitMongo) {
         super(nodeStore);
         this.commitMongo = commitMongo;
     }

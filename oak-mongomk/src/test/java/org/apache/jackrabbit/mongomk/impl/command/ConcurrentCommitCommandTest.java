@@ -34,7 +34,7 @@ import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.junit.Test;
 
@@ -134,7 +134,7 @@ public class ConcurrentCommitCommandTest extends BaseMongoMicroKernelTest {
         }
 
         // Assert number of successful commits.
-        List<CommitMongo> commits = new FetchCommitsAction(getNodeStore()).execute();
+        List<MongoCommit> commits = new FetchCommitsAction(getNodeStore()).execute();
         assertEquals(numOfConcurrentThreads + 1, commits.size());
     }
 }

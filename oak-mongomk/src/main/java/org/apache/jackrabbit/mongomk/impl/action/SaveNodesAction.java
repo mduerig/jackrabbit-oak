@@ -18,8 +18,8 @@ package org.apache.jackrabbit.mongomk.impl.action;
 
 import java.util.Collection;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
@@ -31,15 +31,15 @@ import com.mongodb.WriteResult;
  */
 public class SaveNodesAction extends BaseAction<Boolean> {
 
-    private final Collection<NodeMongo> nodeMongos;
+    private final Collection<MongoNode> nodeMongos;
 
     /**
      * Constructs a new {@code SaveNodesAction}.
      *
      * @param nodeStore Node store.
-     * @param nodeMongos The list of {@link NodeMongo}s.
+     * @param nodeMongos The list of {@link MongoNode}s.
      */
-    public SaveNodesAction(NodeStoreMongo nodeStore, Collection<NodeMongo> nodeMongos) {
+    public SaveNodesAction(MongoNodeStore nodeStore, Collection<MongoNode> nodeMongos) {
         super(nodeStore);
         this.nodeMongos = nodeMongos;
     }

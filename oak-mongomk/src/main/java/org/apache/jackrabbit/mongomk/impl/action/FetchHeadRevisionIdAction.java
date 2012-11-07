@@ -16,9 +16,9 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.MongoSync;
 
 import com.mongodb.DBCollection;
 
@@ -34,7 +34,7 @@ public class FetchHeadRevisionIdAction extends BaseAction<Long> {
      *
      * @param nodeStore Node store.
      */
-    public FetchHeadRevisionIdAction(NodeStoreMongo nodeStore) {
+    public FetchHeadRevisionIdAction(MongoNodeStore nodeStore) {
         super(nodeStore);
     }
 
@@ -50,7 +50,7 @@ public class FetchHeadRevisionIdAction extends BaseAction<Long> {
     @Override
     public Long execute() throws Exception {
         DBCollection headCollection = nodeStore.getSyncCollection();
-        SyncMongo syncMongo = (SyncMongo)headCollection.findOne();
+        MongoSync syncMongo = (MongoSync)headCollection.findOne();
         long headRevisionId = syncMongo.getHeadRevisionId();
         if (includeBranchCommits) {
             return headRevisionId;
@@ -59,7 +59,7 @@ public class FetchHeadRevisionIdAction extends BaseAction<Long> {
         // Otherwise, find the first revision id that's not part of a branch.
         long revisionId = headRevisionId;
         while (true) {
-            CommitMongo commitMongo = new FetchCommitAction(nodeStore, revisionId).execute();
+            MongoCommit commitMongo = new FetchCommitAction(nodeStore, revisionId).execute();
             if (commitMongo.getBranchId() == null) {
                 return revisionId;
             }

@@ -1,6 +1,6 @@
 package org.apache.jackrabbit.mongomk.impl.command;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 
@@ -21,7 +21,7 @@ public class WaitForCommitCommand extends BaseCommand<Long> {
      * @param oldHeadRevisionId Id of earlier head revision
      * @param timeout The maximum time to wait in milliseconds
      */
-    public WaitForCommitCommand(NodeStoreMongo nodeStore, String oldHeadRevisionId,
+    public WaitForCommitCommand(MongoNodeStore nodeStore, String oldHeadRevisionId,
             long timeout) {
         super(nodeStore);
         this.oldHeadRevisionId = oldHeadRevisionId;

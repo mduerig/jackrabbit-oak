@@ -30,9 +30,9 @@ import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.NodeAssert;
 import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.NodeBuilder;
-import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.junit.Test;
 
 import com.mongodb.BasicDBObject;
@@ -108,7 +108,7 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
         FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 "/", true, firstRevisionId);
         query.setDepth(0);
-        List<NodeMongo> result = query.execute();
+        List<MongoNode> result = query.execute();
         List<Node> actuals = toNode(result);
         String json = String.format("{ \"/#%1$s\" : {} }", firstRevisionId);
         Node expected = NodeBuilder.build(json);
@@ -195,7 +195,7 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
 
         FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 getPathSet("/a", "/a/b", "/a/c", "not_existing"), revisionId);
-        List<NodeMongo> nodeMongos = query.execute();
+        List<MongoNode> nodeMongos = query.execute();
         List<Node> actuals = toNode(nodeMongos);
         String json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 , \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
                 revisionId);
@@ -223,7 +223,7 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
         FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 getPathSet("/a", "/a/b", "/a/c", "/a/d", "/a/b/e", "not_existing"),
                 firstRevisionId);
-        List<NodeMongo> nodeMongos = query.execute();
+        List<MongoNode> nodeMongos = query.execute();
         List<Node> actuals = toNode(nodeMongos);
         String json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 , \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
                 firstRevisionId);
@@ -249,27 +249,27 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
 
     private void invalidateCommit(Long revisionId) {
         DBCollection commitCollection = getNodeStore().getCommitCollection();
-        DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID)
+        DBObject query = QueryBuilder.start(MongoCommit.KEY_REVISION_ID)
                 .is(revisionId).get();
         DBObject update = new BasicDBObject();
-        update.put("$set", new BasicDBObject(CommitMongo.KEY_FAILED, Boolean.TRUE));
+        update.put("$set", new BasicDBObject(MongoCommit.KEY_FAILED, Boolean.TRUE));
         commitCollection.update(query, update);
     }
 
     private void updateBaseRevisionId(Long revisionId2, Long baseRevisionId) {
         DBCollection commitCollection = getNodeStore().getCommitCollection();
-        DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID)
+        DBObject query = QueryBuilder.start(MongoCommit.KEY_REVISION_ID)
                 .is(revisionId2)
                 .get();
         DBObject update = new BasicDBObject("$set",
-                new BasicDBObject(CommitMongo.KEY_BASE_REVISION_ID, baseRevisionId));
+                new BasicDBObject(MongoCommit.KEY_BASE_REVISION_ID, baseRevisionId));
         commitCollection.update(query, update);
     }
 
-    private List<Node> toNode(Collection<NodeMongo> nodeMongos) {
+    private List<Node> toNode(Collection<MongoNode> nodeMongos) {
         List<Node> nodes = new ArrayList<Node>(nodeMongos.size());
-        for (NodeMongo nodeMongo : nodeMongos) {
-            Node node = NodeMongo.toNode(nodeMongo);
+        for (MongoNode nodeMongo : nodeMongos) {
+            Node node = MongoNode.toNode(nodeMongo);
             nodes.add(node);
         }
 

@@ -29,7 +29,7 @@ import com.mongodb.BasicDBObject;
 /**
  * The {@code MongoDB} representation of a commit.
  */
-public class CommitMongo extends BasicDBObject implements Commit {
+public class MongoCommit extends BasicDBObject implements Commit {
 
     public static final String KEY_AFFECTED_PATH = "affPaths";
     public static final String KEY_BASE_REVISION_ID = "baseRevId";
@@ -48,7 +48,7 @@ public class CommitMongo extends BasicDBObject implements Commit {
     /**
      * Default constructor. Needed for MongoDB serialization.
      */
-    public CommitMongo() {
+    public MongoCommit() {
         instructions = new LinkedList<Instruction>();
         setTimestamp(new Date().getTime());
     }

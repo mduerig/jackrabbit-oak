@@ -29,8 +29,8 @@ import org.apache.felix.scr.annotations.Property;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoGridFsBlobStore;
 import org.apache.sling.commons.osgi.PropertiesUtil;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
@@ -80,8 +80,8 @@ public class MongoMicroKernelService {
 
         logger.info("Connected to database {}", mongoDB);
 
-        NodeStoreMongo nodeStore = new NodeStoreMongo(mongoDB);
-        BlobStoreMongoGridFS blobStore = new BlobStoreMongoGridFS(mongoDB);
+        MongoNodeStore nodeStore = new MongoNodeStore(mongoDB);
+        MongoGridFsBlobStore blobStore = new MongoGridFsBlobStore(mongoDB);
         MongoMicroKernel mk = new MongoMicroKernel(connection, nodeStore, blobStore);
 
         Properties props = new Properties();

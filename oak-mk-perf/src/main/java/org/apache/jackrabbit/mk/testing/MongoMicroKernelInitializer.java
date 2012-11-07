@@ -23,8 +23,8 @@ import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.util.Configuration;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoGridFsBlobStore;
 
 import com.mongodb.BasicDBObjectBuilder;
 import com.mongodb.DB;
@@ -62,8 +62,8 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
             DB db = mongoConnection.getDB();
             dropCollections(db);
 
-            NodeStoreMongo nodeStore = new NodeStoreMongo(db);
-            BlobStore blobStore = new BlobStoreMongoGridFS(db);
+            MongoNodeStore nodeStore = new MongoNodeStore(db);
+            BlobStore blobStore = new MongoGridFsBlobStore(db);
             mks.add(new MongoMicroKernel(mongoConnection, nodeStore, blobStore));
         }
 
@@ -75,8 +75,8 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
     }
 
     private void dropCollections(DB db) {
-        db.getCollection(NodeStoreMongo.COLLECTION_COMMITS).drop();
-        db.getCollection(NodeStoreMongo.COLLECTION_NODES).drop();
-        db.getCollection(NodeStoreMongo.COLLECTION_SYNC).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_COMMITS).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_NODES).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_SYNC).drop();
     }
 }

@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.command;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 
 /**
@@ -29,7 +29,7 @@ public class GetHeadRevisionCommand extends BaseCommand<Long> {
      *
      * @param nodeStore Node store.
      */
-    public GetHeadRevisionCommand(NodeStoreMongo nodeStore) {
+    public GetHeadRevisionCommand(MongoNodeStore nodeStore) {
         super(nodeStore);
     }
 

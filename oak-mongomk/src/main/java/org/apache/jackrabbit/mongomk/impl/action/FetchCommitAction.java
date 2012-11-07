@@ -16,8 +16,8 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +29,7 @@ import com.mongodb.QueryBuilder;
  * An action for fetching a commit. An exception is thrown if a commit with the
  * revision id does not exist.
  */
-public class FetchCommitAction extends BaseAction<CommitMongo> {
+public class FetchCommitAction extends BaseAction<MongoCommit> {
 
     private static final Logger LOG = LoggerFactory.getLogger(FetchCommitAction.class);
 
@@ -41,16 +41,16 @@ public class FetchCommitAction extends BaseAction<CommitMongo> {
      * @param nodeStore Node store.
      * @param revisionId Revision id.
      */
-    public FetchCommitAction(NodeStoreMongo nodeStore, long revisionId) {
+    public FetchCommitAction(MongoNodeStore nodeStore, long revisionId) {
         super(nodeStore);
         this.revisionId = revisionId;
     }
 
     @Override
-    public CommitMongo execute() throws Exception {
+    public MongoCommit execute() throws Exception {
         DBCollection commitCollection = nodeStore.getCommitCollection();
-        DBObject query = QueryBuilder.start(CommitMongo.KEY_FAILED).notEquals(Boolean.TRUE)
-                .and(CommitMongo.KEY_REVISION_ID).is(revisionId)
+        DBObject query = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE)
+                .and(MongoCommit.KEY_REVISION_ID).is(revisionId)
                 .get();
 
         LOG.debug(String.format("Executing query: %s", query));
@@ -59,6 +59,6 @@ public class FetchCommitAction extends BaseAction<CommitMongo> {
         if (dbObject == null) {
             throw new Exception(String.format("Commit with revision %d could not be found", revisionId));
         }
-        return (CommitMongo)dbObject;
+        return (MongoCommit)dbObject;
     }
 }

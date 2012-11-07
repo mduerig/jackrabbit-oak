@@ -25,7 +25,7 @@ import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.api.NodeStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.json.DefaultJsopHandler;
 import org.apache.jackrabbit.mongomk.impl.json.JsopParser;
 import org.apache.jackrabbit.mongomk.perf.RandomJsopGenerator.RandomJsop;
@@ -133,8 +133,8 @@ public class MicroKernelPerfClient {
     }
 
     private void createStats(VerificationHandler handler, JSONObject result) {
-        long numOfNodes = ((NodeStoreMongo)microKernel.getNodeStore()).getNodeCollection().count();
-        long numOfCommits = ((NodeStoreMongo)microKernel.getNodeStore()).getCommitCollection().count();
+        long numOfNodes = ((MongoNodeStore)microKernel.getNodeStore()).getNodeCollection().count();
+        long numOfCommits = ((MongoNodeStore)microKernel.getNodeStore()).getCommitCollection().count();
 
         Stats commitStats = new Stats("commit", commitMonitor.getLastValue(), numOfCommits, numOfNodes,
                 handler.addedNodes.size() + handler.addedProperties.size());
@@ -147,7 +147,7 @@ public class MicroKernelPerfClient {
     }
 
     private void initMicroKernel() throws Exception {
-        NodeStore nodeStore = new NodeStoreMongo(mongoConnection.getDB());
+        NodeStore nodeStore = new MongoNodeStore(mongoConnection.getDB());
         BlobStore blobStore = new BlobStoreFS(System.getProperty("java.io.tmpdir"));
         microKernel = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }

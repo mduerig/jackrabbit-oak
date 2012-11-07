@@ -16,8 +16,8 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -38,7 +38,7 @@ public class FetchBranchBaseRevisionIdAction extends BaseAction<Long> {
      * @param nodeStore Node store.
      * @param branchId The branch id. It should not be null.
      */
-    public FetchBranchBaseRevisionIdAction(NodeStoreMongo nodeStore, String branchId) {
+    public FetchBranchBaseRevisionIdAction(MongoNodeStore nodeStore, String branchId) {
         super(nodeStore);
         this.branchId = branchId;
     }
@@ -50,19 +50,19 @@ public class FetchBranchBaseRevisionIdAction extends BaseAction<Long> {
         }
 
         DBCollection commitCollection = nodeStore.getCommitCollection();
-        QueryBuilder queryBuilder = QueryBuilder.start(CommitMongo.KEY_FAILED)
+        QueryBuilder queryBuilder = QueryBuilder.start(MongoCommit.KEY_FAILED)
                 .notEquals(Boolean.TRUE)
-                .and(CommitMongo.KEY_BRANCH_ID).is(branchId);
+                .and(MongoCommit.KEY_BRANCH_ID).is(branchId);
         DBObject query = queryBuilder.get();
 
         BasicDBObject filter = new BasicDBObject();
-        filter.put(CommitMongo.KEY_BASE_REVISION_ID, 1);
+        filter.put(MongoCommit.KEY_BASE_REVISION_ID, 1);
 
-        BasicDBObject orderBy = new BasicDBObject(CommitMongo.KEY_BASE_REVISION_ID, 1);
+        BasicDBObject orderBy = new BasicDBObject(MongoCommit.KEY_BASE_REVISION_ID, 1);
 
         DBCursor dbCursor = commitCollection.find(query, filter).sort(orderBy).limit(1);
         if (dbCursor.hasNext()) {
-            CommitMongo commitMongo = (CommitMongo)dbCursor.next();
+            MongoCommit commitMongo = (MongoCommit)dbCursor.next();
             return commitMongo.getBaseRevisionId();
         }
         return 0L;

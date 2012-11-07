@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 
 /**
  * An abstract base class for actions performed against {@code MongoDB}.
@@ -25,14 +25,14 @@ import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
  */
 public abstract class BaseAction<T> {
 
-    protected NodeStoreMongo nodeStore;
+    protected MongoNodeStore nodeStore;
 
     /**
      * Constructs a new {@code AbstractAction}.
      *
      * @param nodeStore Node store.
      */
-    public BaseAction(NodeStoreMongo nodeStore) {
+    public BaseAction(MongoNodeStore nodeStore) {
         this.nodeStore = nodeStore;
     }
 

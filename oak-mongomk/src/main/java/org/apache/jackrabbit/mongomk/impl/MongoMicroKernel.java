@@ -29,7 +29,7 @@ import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.json.JsonUtil;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeState;
 
 /**
@@ -87,8 +87,8 @@ public class MongoMicroKernel implements MicroKernel {
         String revId = trunkRevisionId == null ? getHeadRevision() : trunkRevisionId;
 
         try {
-            CommitMongo commit = (CommitMongo)CommitBuilder.build("", "", revId,
-                    NodeStoreMongo.INITIAL_COMMIT_MESSAGE);
+            MongoCommit commit = (MongoCommit)CommitBuilder.build("", "", revId,
+                    MongoNodeStore.INITIAL_COMMIT_MESSAGE);
             commit.setBranchId(UUID.randomUUID().toString());
             return nodeStore.commit(commit);
         } catch (Exception e) {

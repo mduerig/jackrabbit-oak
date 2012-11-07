@@ -25,9 +25,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,7 +39,7 @@ import com.mongodb.QueryBuilder;
 /**
  * An action for fetching nodes.
  */
-public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
+public class FetchNodesAction extends BaseAction<List<MongoNode>> {
 
     public static final int LIMITLESS_DEPTH = -1;
     private static final Logger LOG = LoggerFactory.getLogger(FetchNodesAction.class);
@@ -61,7 +61,7 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
      * will be fetched as well.
      * @param revisionId The revision id.
      */
-    public FetchNodesAction(NodeStoreMongo nodeStore, String path,
+    public FetchNodesAction(MongoNodeStore nodeStore, String path,
             boolean fetchDescendants, long revisionId) {
         super(nodeStore);
         paths = new HashSet<String>();
@@ -78,7 +78,7 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
      * @param path The exact paths to fetch nodes for.
      * @param revisionId The revision id.
      */
-    public FetchNodesAction(NodeStoreMongo nodeStore,  Set<String> paths,
+    public FetchNodesAction(MongoNodeStore nodeStore,  Set<String> paths,
             long revisionId) {
         super(nodeStore);
         this.paths = paths;
@@ -104,17 +104,17 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
     }
 
     @Override
-    public List<NodeMongo> execute() {
+    public List<MongoNode> execute() {
         if (paths.isEmpty()) {
             return Collections.emptyList();
         }
         DBCursor dbCursor = performQuery();
-        List<CommitMongo> validCommits = new FetchCommitsAction(nodeStore, revisionId).execute();
+        List<MongoCommit> validCommits = new FetchCommitsAction(nodeStore, revisionId).execute();
         return getMostRecentValidNodes(dbCursor, validCommits);
     }
 
     private DBCursor performQuery() {
-        QueryBuilder queryBuilder = QueryBuilder.start(NodeMongo.KEY_PATH);
+        QueryBuilder queryBuilder = QueryBuilder.start(MongoNode.KEY_PATH);
         if (paths.size() > 1) {
             queryBuilder = queryBuilder.in(paths);
         } else {
@@ -128,11 +128,11 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
         }
 
         if (revisionId > 0) {
-            queryBuilder = queryBuilder.and(NodeMongo.KEY_REVISION_ID).lessThanEquals(revisionId);
+            queryBuilder = queryBuilder.and(MongoNode.KEY_REVISION_ID).lessThanEquals(revisionId);
         }
 
         if (branchId == null) {
-            DBObject query = new BasicDBObject(NodeMongo.KEY_BRANCH_ID, new BasicDBObject("$exists", false));
+            DBObject query = new BasicDBObject(MongoNode.KEY_BRANCH_ID, new BasicDBObject("$exists", false));
             queryBuilder = queryBuilder.and(query);
         } else {
             // Not only return nodes in the branch but also nodes in the trunk
@@ -141,8 +141,8 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
             long headBranchRevisionId = action.execute();
 
             DBObject branchQuery = QueryBuilder.start().or(
-                    QueryBuilder.start(NodeMongo.KEY_BRANCH_ID).is(branchId).get(),
-                    QueryBuilder.start(NodeMongo.KEY_REVISION_ID).lessThanEquals(headBranchRevisionId).get()
+                    QueryBuilder.start(MongoNode.KEY_BRANCH_ID).is(branchId).get(),
+                    QueryBuilder.start(MongoNode.KEY_REVISION_ID).lessThanEquals(headBranchRevisionId).get()
             ).get();
             queryBuilder = queryBuilder.and(branchQuery);
         }
@@ -177,13 +177,13 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
         return Pattern.compile(sb.toString());
     }
 
-    private List<NodeMongo> getMostRecentValidNodes(DBCursor dbCursor,
-            List<CommitMongo> validCommits) {
+    private List<MongoNode> getMostRecentValidNodes(DBCursor dbCursor,
+            List<MongoCommit> validCommits) {
         List<Long> validRevisions = extractRevisionIds(validCommits);
-        Map<String, NodeMongo> nodeMongos = new HashMap<String, NodeMongo>();
+        Map<String, MongoNode> nodeMongos = new HashMap<String, MongoNode>();
 
         while (dbCursor.hasNext()) {
-            NodeMongo nodeMongo = (NodeMongo) dbCursor.next();
+            MongoNode nodeMongo = (MongoNode) dbCursor.next();
 
             String path = nodeMongo.getPath();
             long revisionId = nodeMongo.getRevisionId();
@@ -196,7 +196,7 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
                 continue;
             }
 
-            NodeMongo existingNodeMongo = nodeMongos.get(path);
+            MongoNode existingNodeMongo = nodeMongos.get(path);
             if (existingNodeMongo != null) {
                 long existingRevId = existingNodeMongo.getRevisionId();
 
@@ -213,12 +213,12 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
             }
         }
 
-        return new ArrayList<NodeMongo>(nodeMongos.values());
+        return new ArrayList<MongoNode>(nodeMongos.values());
     }
 
-    private List<Long> extractRevisionIds(List<CommitMongo> validCommits) {
+    private List<Long> extractRevisionIds(List<MongoCommit> validCommits) {
         List<Long> validRevisions = new ArrayList<Long>(validCommits.size());
-        for (CommitMongo commitMongo : validCommits) {
+        for (MongoCommit commitMongo : validCommits) {
             validRevisions.add(commitMongo.getRevisionId());
         }
         return validRevisions;

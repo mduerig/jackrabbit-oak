@@ -17,7 +17,7 @@
 package org.apache.jackrabbit.mongomk.impl.action;
 
 import org.apache.jackrabbit.mongomk.api.model.Commit;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
 
@@ -26,14 +26,14 @@ import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
  */
 public class SimpleNodeScenario {
 
-    private final NodeStoreMongo nodeStore;
+    private final MongoNodeStore nodeStore;
 
     /**
      * Constructs a new {@code SimpleNodeScenario}.
      *
      * @param nodeStore Node store.
      */
-    public SimpleNodeScenario(NodeStoreMongo nodeStore) {
+    public SimpleNodeScenario(MongoNodeStore nodeStore) {
         this.nodeStore = nodeStore;
     }
 

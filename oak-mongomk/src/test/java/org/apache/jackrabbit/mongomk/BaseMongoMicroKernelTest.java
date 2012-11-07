@@ -29,8 +29,8 @@ import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoGridFsBlobStore;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -59,9 +59,9 @@ public class BaseMongoMicroKernelTest {
         DB db = mongoConnection.getDB();
         dropCollections(db);
 
-        NodeStoreMongo nodeStore = new NodeStoreMongo(db);
+        MongoNodeStore nodeStore = new MongoNodeStore(db);
         MongoAssert.setNodeStore(nodeStore);
-        BlobStore blobStore = new BlobStoreMongoGridFS(db);
+        BlobStore blobStore = new MongoGridFsBlobStore(db);
         mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }
 
@@ -76,9 +76,9 @@ public class BaseMongoMicroKernelTest {
         mongoConnection.getDB().dropDatabase();
     }
 
-    protected NodeStoreMongo getNodeStore() {
+    protected MongoNodeStore getNodeStore() {
         MongoMicroKernel mongoMk = (MongoMicroKernel)mk;
-        return (NodeStoreMongo)mongoMk.getNodeStore();
+        return (MongoNodeStore)mongoMk.getNodeStore();
     }
 
     protected JSONObject getObjectArrayEntry(JSONArray array, int pos) {
@@ -235,8 +235,8 @@ public class BaseMongoMicroKernelTest {
     }
 
     private void dropCollections(DB db) {
-        db.getCollection(NodeStoreMongo.COLLECTION_COMMITS).drop();
-        db.getCollection(NodeStoreMongo.COLLECTION_NODES).drop();
-        db.getCollection(NodeStoreMongo.COLLECTION_SYNC).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_COMMITS).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_NODES).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_SYNC).drop();
     }
 }

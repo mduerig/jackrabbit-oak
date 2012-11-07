@@ -3,11 +3,11 @@ package org.apache.jackrabbit.mongomk.impl.command;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mk.model.tree.NodeState;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.tree.SimpleMongoNodeStore;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 
 /**
@@ -30,7 +30,7 @@ public class DiffCommand extends BaseCommand<String> {
      * @param path Path.
      * @param depth Depth.
      */
-    public DiffCommand(NodeStoreMongo nodeStore, String fromRevision,
+    public DiffCommand(MongoNodeStore nodeStore, String fromRevision,
             String toRevision, String path, int depth) {
         super(nodeStore);
         this.fromRevision = fromRevision;
@@ -61,7 +61,7 @@ public class DiffCommand extends BaseCommand<String> {
         }
 
         if ("/".equals(path)) {
-            CommitMongo toCommit = new FetchCommitAction(nodeStore, toRevisionId).execute();
+            MongoCommit toCommit = new FetchCommitAction(nodeStore, toRevisionId).execute();
             if (toCommit.getBaseRevisionId() == fromRevisionId) {
                 // Specified range spans a single commit:
                 // use diff stored in commit instead of building it dynamically
@@ -73,7 +73,7 @@ public class DiffCommand extends BaseCommand<String> {
         NodeState afterState = MongoUtil.wrap(getNode(path, toRevisionId));
 
         return new DiffBuilder(beforeState, afterState, path, depth,
-                new MongoNodeStore(), path).build();
+                new SimpleMongoNodeStore(), path).build();
     }
 
     private void checkDepth() {

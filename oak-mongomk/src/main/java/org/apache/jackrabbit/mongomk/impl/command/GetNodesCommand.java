@@ -23,14 +23,14 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.command.exception.InconsistentNodeHierarchyException;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.NodeImpl;
-import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,10 +47,10 @@ public class GetNodesCommand extends BaseCommand<Node> {
     private String branchId;
     private int depth = FetchNodesAction.LIMITLESS_DEPTH;
     private Long revisionId;
-    private List<CommitMongo> lastCommits;
-    private List<NodeMongo> nodeMongos;
+    private List<MongoCommit> lastCommits;
+    private List<MongoNode> nodeMongos;
 
-    private Map<String, NodeMongo> pathAndNodeMap;
+    private Map<String, MongoNode> pathAndNodeMap;
     private Map<String, Long> problematicNodes;
     private Node rootNode;
 
@@ -61,7 +61,7 @@ public class GetNodesCommand extends BaseCommand<Node> {
      * @param path The root path of the nodes to get.
      * @param revisionId The revision id or null for head revision.
      */
-    public GetNodesCommand(NodeStoreMongo nodeStore, String path,
+    public GetNodesCommand(MongoNodeStore nodeStore, String path,
             Long revisionId) {
         super(nodeStore);
         this.path = path;
@@ -116,20 +116,20 @@ public class GetNodesCommand extends BaseCommand<Node> {
     }
 
     private void buildNodeStructure() {
-        NodeMongo nodeMongoRootOfPath = pathAndNodeMap.get(path);
+        MongoNode nodeMongoRootOfPath = pathAndNodeMap.get(path);
         rootNode = buildNodeStructure(nodeMongoRootOfPath);
     }
 
-    private NodeImpl buildNodeStructure(NodeMongo nodeMongo) {
+    private NodeImpl buildNodeStructure(MongoNode nodeMongo) {
         if (nodeMongo == null) {
             return null;
         }
 
-        NodeImpl node = NodeMongo.toNode(nodeMongo);
+        NodeImpl node = MongoNode.toNode(nodeMongo);
 
         for (Iterator<Node> it = node.getChildNodeEntries(0, -1); it.hasNext(); ) {
             Node child = it.next();
-            NodeMongo nodeMongoChild = pathAndNodeMap.get(child.getPath());
+            MongoNode nodeMongoChild = pathAndNodeMap.get(child.getPath());
             if (nodeMongoChild != null) {
                 NodeImpl nodeChild = buildNodeStructure(nodeMongoChild);
                 node.addChildNodeEntry(nodeChild);
@@ -140,8 +140,8 @@ public class GetNodesCommand extends BaseCommand<Node> {
     }
 
     private void createPathAndNodeMap() {
-        pathAndNodeMap = new HashMap<String, NodeMongo>();
-        for (NodeMongo nodeMongo : nodeMongos) {
+        pathAndNodeMap = new HashMap<String, MongoNode>();
+        for (MongoNode nodeMongo : nodeMongos) {
             pathAndNodeMap.put(nodeMongo.getPath(), nodeMongo);
         }
     }
@@ -149,8 +149,8 @@ public class GetNodesCommand extends BaseCommand<Node> {
     private void deriveProblematicNodes() {
         problematicNodes = new HashMap<String, Long>();
 
-        for (ListIterator<CommitMongo> iterator = lastCommits.listIterator(); iterator.hasPrevious();) {
-            CommitMongo commitMongo = iterator.previous();
+        for (ListIterator<MongoCommit> iterator = lastCommits.listIterator(); iterator.hasPrevious();) {
+            MongoCommit commitMongo = iterator.previous();
             long revisionId = commitMongo.getRevisionId();
             List<String> affectedPaths = commitMongo.getAffectedPaths();
             for (String path : affectedPaths) {
@@ -201,7 +201,7 @@ public class GetNodesCommand extends BaseCommand<Node> {
             return true;
         }
 
-        NodeMongo nodeMongo = pathAndNodeMap.get(path);
+        MongoNode nodeMongo = pathAndNodeMap.get(path);
         if (nodeMongo != null) {
             verified = true;
             if ((depth == -1) || (currentDepth < depth)) {
@@ -228,7 +228,7 @@ public class GetNodesCommand extends BaseCommand<Node> {
             String path = entry.getKey();
             Long revisionId = entry.getValue();
 
-            NodeMongo nodeMongo = pathAndNodeMap.get(path);
+            MongoNode nodeMongo = pathAndNodeMap.get(path);
             if (nodeMongo != null) {
                 if (!revisionId.equals(nodeMongo.getRevisionId())) {
                     verified = false;

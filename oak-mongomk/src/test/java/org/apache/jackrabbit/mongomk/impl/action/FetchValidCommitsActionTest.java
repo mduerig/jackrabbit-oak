@@ -22,7 +22,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.junit.Test;
 
 public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
@@ -33,7 +33,7 @@ public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
     @Test
     public void simple() throws Exception {
         FetchCommitsAction action = new FetchCommitsAction(getNodeStore());
-        List<CommitMongo> commits = action.execute();
+        List<MongoCommit> commits = action.execute();
         assertEquals(MIN_COMMITS, commits.size());
 
         SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
@@ -50,34 +50,34 @@ public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
     @Test
     public void revisionId() throws Exception {
         FetchCommitsAction action = new FetchCommitsAction(getNodeStore());
-        List<CommitMongo> commits = action.execute();
-        CommitMongo commit0 = commits.get(0);
+        List<MongoCommit> commits = action.execute();
+        MongoCommit commit0 = commits.get(0);
 
         SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
         commits = action.execute();
-        CommitMongo commit1 = commits.get(0);
+        MongoCommit commit1 = commits.get(0);
         assertTrue(commit0.getRevisionId() < commit1.getRevisionId());
 
         int numberOfChildren = 3;
         scenario.addChildrenToA(numberOfChildren);
         commits = action.execute();
-        CommitMongo commit2 = commits.get(0);
+        MongoCommit commit2 = commits.get(0);
         assertTrue(commit1.getRevisionId() < commit2.getRevisionId());
     }
 
     @Test
     public void time() throws Exception {
         FetchCommitsAction action = new FetchCommitsAction(getNodeStore());
-        List<CommitMongo> commits = action.execute();
-        CommitMongo commit0 = commits.get(0);
+        List<MongoCommit> commits = action.execute();
+        MongoCommit commit0 = commits.get(0);
 
         Thread.sleep(1000);
 
         SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
         commits = action.execute();
-        CommitMongo commit1 = commits.get(0);
+        MongoCommit commit1 = commits.get(0);
         assertTrue(commit0.getTimestamp() < commit1.getTimestamp());
 
         Thread.sleep(1000);
@@ -85,7 +85,7 @@ public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
         int numberOfChildren = 3;
         scenario.addChildrenToA(numberOfChildren);
         commits = action.execute();
-        CommitMongo commit2 = commits.get(0);
+        MongoCommit commit2 = commits.get(0);
         assertTrue(commit1.getTimestamp() < commit2.getTimestamp());
     }
 
@@ -99,7 +99,7 @@ public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
 
         FetchCommitsAction query = new FetchCommitsAction(getNodeStore(),
                 0L, Long.MAX_VALUE);
-        List<CommitMongo> commits = query.execute();
+        List<MongoCommit> commits = query.execute();
         assertEquals(SIMPLE_SCENARIO_COMMITS + numberOfChildren, commits.size());
     }
 
@@ -115,7 +115,7 @@ public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
         FetchCommitsAction query = new FetchCommitsAction(getNodeStore(),
                 0L, Long.MAX_VALUE);
         query.setMaxEntries(maxEntries);
-        List<CommitMongo> commits = query.execute();
+        List<MongoCommit> commits = query.execute();
         assertEquals(maxEntries, commits.size());
     }
 }

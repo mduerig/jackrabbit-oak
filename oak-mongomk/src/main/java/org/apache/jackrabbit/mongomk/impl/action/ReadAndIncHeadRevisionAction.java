@@ -16,8 +16,8 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoSync;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -26,21 +26,21 @@ import com.mongodb.DBObject;
 /**
  * An action for reading and incrementing the head revision id.
  */
-public class ReadAndIncHeadRevisionAction extends BaseAction<SyncMongo> {
+public class ReadAndIncHeadRevisionAction extends BaseAction<MongoSync> {
 
     /**
      * Constructs a new {@code ReadAndIncHeadRevisionQuery}.
      *
      * @param nodeStore Node store.
      */
-    public ReadAndIncHeadRevisionAction(NodeStoreMongo nodeStore) {
+    public ReadAndIncHeadRevisionAction(MongoNodeStore nodeStore) {
         super(nodeStore);
     }
 
     @Override
-    public SyncMongo execute() throws Exception {
+    public MongoSync execute() throws Exception {
         DBObject query = new BasicDBObject();
-        DBObject inc = new BasicDBObject(SyncMongo.KEY_NEXT_REVISION_ID, 1L);
+        DBObject inc = new BasicDBObject(MongoSync.KEY_NEXT_REVISION_ID, 1L);
         DBObject update = new BasicDBObject("$inc", inc);
         DBCollection headCollection = nodeStore.getSyncCollection();
 
@@ -49,6 +49,6 @@ public class ReadAndIncHeadRevisionAction extends BaseAction<SyncMongo> {
         while (dbObject == null) {
             dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);
         }
-        return SyncMongo.fromDBObject(dbObject);
+        return MongoSync.fromDBObject(dbObject);
     }
 }

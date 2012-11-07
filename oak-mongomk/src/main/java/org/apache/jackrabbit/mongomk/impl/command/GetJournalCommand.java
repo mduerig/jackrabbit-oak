@@ -6,11 +6,11 @@ import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.tree.SimpleMongoNodeStore;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 
 /**
@@ -31,7 +31,7 @@ public class GetJournalCommand extends BaseCommand<String> {
      * @param toRevisionId To revision.
      * @param path Path.
      */
-    public GetJournalCommand(NodeStoreMongo nodeStore, String fromRevisionId,
+    public GetJournalCommand(MongoNodeStore nodeStore, String fromRevisionId,
             String toRevisionId, String path) {
         super(nodeStore);
         this.fromRevisionId = fromRevisionId;
@@ -53,14 +53,14 @@ public class GetJournalCommand extends BaseCommand<String> {
             toRevision = MongoUtil.toMongoRepresentation(toRevisionId);
         }
 
-        List<CommitMongo> commits = getCommits(fromRevision, toRevision);
+        List<MongoCommit> commits = getCommits(fromRevision, toRevision);
 
-        CommitMongo toCommit = extractCommit(commits, toRevision);
+        MongoCommit toCommit = extractCommit(commits, toRevision);
         if (toCommit.getBranchId() != null) {
             throw new MicroKernelException("Branch revisions are not supported: " + toRevisionId);
         }
 
-        CommitMongo fromCommit;
+        MongoCommit fromCommit;
         if (toRevision == fromRevision) {
             fromCommit = toCommit;
         } else {
@@ -77,7 +77,7 @@ public class GetJournalCommand extends BaseCommand<String> {
         JsopBuilder commitBuff = new JsopBuilder().array();
         // Iterate over commits in chronological order, starting with oldest commit
         for (int i = commits.size() - 1; i >= 0; i--) {
-            CommitMongo commit = commits.get(i);
+            MongoCommit commit = commits.get(i);
 
             String diff = commit.getDiff();
             if (MongoUtil.isFiltered(path)) {
@@ -85,7 +85,7 @@ public class GetJournalCommand extends BaseCommand<String> {
                     diff = new DiffBuilder(
                             MongoUtil.wrap(getNode("/", commit.getBaseRevisionId())),
                             MongoUtil.wrap(getNode("/", commit.getRevisionId())),
-                            "/", -1, new MongoNodeStore(), path).build();
+                            "/", -1, new SimpleMongoNodeStore(), path).build();
                     if (diff.isEmpty()) {
                         continue;
                     }
@@ -102,8 +102,8 @@ public class GetJournalCommand extends BaseCommand<String> {
         return commitBuff.endArray().toString();
     }
 
-    private CommitMongo extractCommit(List<CommitMongo> commits, long revisionId) {
-        for (CommitMongo commit : commits) {
+    private MongoCommit extractCommit(List<MongoCommit> commits, long revisionId) {
+        for (MongoCommit commit : commits) {
             if (commit.getRevisionId() == revisionId) {
                 return commit;
             }
@@ -111,7 +111,7 @@ public class GetJournalCommand extends BaseCommand<String> {
         return null;
     }
 
-    private List<CommitMongo> getCommits(long fromRevisionId, long toRevisionId) {
+    private List<MongoCommit> getCommits(long fromRevisionId, long toRevisionId) {
         return new FetchCommitsAction(nodeStore, fromRevisionId, toRevisionId).execute();
     }
 

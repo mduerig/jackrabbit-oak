@@ -17,7 +17,7 @@
 package org.apache.jackrabbit.mongomk.impl.command;
 
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
@@ -38,7 +38,7 @@ public class NodeExistsCommand extends BaseCommand<Boolean> {
      * @param path The root path of the nodes to get.
      * @param revisionId The revision id or null.
      */
-    public NodeExistsCommand(NodeStoreMongo nodeStore, String path, Long revisionId) {
+    public NodeExistsCommand(MongoNodeStore nodeStore, String path, Long revisionId) {
         super(nodeStore);
         this.path = path;
         this.revisionId = revisionId;

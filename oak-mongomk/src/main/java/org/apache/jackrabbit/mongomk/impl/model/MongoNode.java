@@ -28,7 +28,7 @@ import com.mongodb.BasicDBObject;
 /**
  * The {@code MongoDB} representation of a node.
  */
-public class NodeMongo extends BasicDBObject {
+public class MongoNode extends BasicDBObject {
 
     public static final String KEY_BASE_REVISION_ID = "baseRevId";
     public static final String KEY_CHILDREN = "children";
@@ -44,7 +44,7 @@ public class NodeMongo extends BasicDBObject {
     private List<String> removedChildren;
     private Map<String, Object> removedProps;
 
-    public static NodeImpl toNode(NodeMongo nodeMongo) {
+    public static NodeImpl toNode(MongoNode nodeMongo) {
         String path = nodeMongo.getPath();
         NodeImpl nodeImpl = new NodeImpl(path);
 

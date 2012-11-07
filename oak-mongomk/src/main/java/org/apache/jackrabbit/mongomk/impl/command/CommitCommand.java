@@ -24,7 +24,7 @@ import java.util.Set;
 
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.action.ReadAndIncHeadRevisionAction;
@@ -34,9 +34,9 @@ import org.apache.jackrabbit.mongomk.impl.action.SaveNodesAction;
 import org.apache.jackrabbit.mongomk.impl.command.exception.ConflictingCommitException;
 import org.apache.jackrabbit.mongomk.impl.exception.NotFoundException;
 import org.apache.jackrabbit.mongomk.impl.instruction.CommitCommandInstructionVisitor;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
-import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
+import org.apache.jackrabbit.mongomk.impl.model.MongoSync;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,12 +53,12 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private static final Logger logger = LoggerFactory.getLogger(CommitCommand.class);
 
-    private final CommitMongo commit;
+    private final MongoCommit commit;
 
     private Set<String> affectedPaths;
-    private List<NodeMongo> existingNodes;
-    private SyncMongo syncMongo;
-    private Set<NodeMongo> nodeMongos;
+    private List<MongoNode> existingNodes;
+    private MongoSync syncMongo;
+    private Set<MongoNode> nodeMongos;
     private Long revisionId;
     private String branchId;
 
@@ -68,9 +68,9 @@ public class CommitCommand extends BaseCommand<Long> {
      * @param nodeStore Node store.
      * @param commit {@link Commit}
      */
-    public CommitCommand(NodeStoreMongo nodeStore, Commit commit) {
+    public CommitCommand(MongoNodeStore nodeStore, Commit commit) {
         super(nodeStore);
-        this.commit = (CommitMongo)commit;
+        this.commit = (MongoCommit)commit;
     }
 
     @Override
@@ -124,7 +124,7 @@ public class CommitCommand extends BaseCommand<Long> {
      * @throws Exception If an exception happens.
      */
     protected boolean saveAndSetHeadRevision() throws Exception {
-        SyncMongo syncMongo = new SaveAndSetHeadRevisionAction(nodeStore,
+        MongoSync syncMongo = new SaveAndSetHeadRevisionAction(nodeStore,
                 this.syncMongo.getHeadRevisionId(), revisionId).execute();
         if (syncMongo == null) {
             logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
@@ -157,11 +157,11 @@ public class CommitCommand extends BaseCommand<Long> {
             instruction.accept(visitor);
         }
 
-        Map<String, NodeMongo> pathNodeMap = visitor.getPathNodeMap();
+        Map<String, MongoNode> pathNodeMap = visitor.getPathNodeMap();
 
         affectedPaths = pathNodeMap.keySet();
-        nodeMongos = new HashSet<NodeMongo>(pathNodeMap.values());
-        for (NodeMongo nodeMongo : nodeMongos) {
+        nodeMongos = new HashSet<MongoNode>(pathNodeMap.values());
+        for (MongoNode nodeMongo : nodeMongos) {
             nodeMongo.setRevisionId(revisionId);
             if (branchId != null) {
                 nodeMongo.setBranchId(branchId);
@@ -176,7 +176,7 @@ public class CommitCommand extends BaseCommand<Long> {
     private void markAsFailed() throws Exception {
         DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start("_id").is(commit.getObjectId("_id")).get();
-        DBObject update = new BasicDBObject("$set", new BasicDBObject(CommitMongo.KEY_FAILED, Boolean.TRUE));
+        DBObject update = new BasicDBObject("$set", new BasicDBObject(MongoCommit.KEY_FAILED, Boolean.TRUE));
         WriteResult writeResult = commitCollection.update(query, update);
         if (writeResult.getError() != null) {
             // FIXME This is potentially a bug that we need to handle.
@@ -185,8 +185,8 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     private void mergeNodes() {
-        for (NodeMongo existingNode : existingNodes) {
-            for (NodeMongo committingNode : nodeMongos) {
+        for (MongoNode existingNode : existingNodes) {
+            for (MongoNode committingNode : nodeMongos) {
                 if (existingNode.getPath().equals(committingNode.getPath())) {
                     logger.debug(String.format("Found existing node to merge: %s", existingNode.getPath()));
                     logger.debug(String.format("Existing node: %s", existingNode));
@@ -218,7 +218,7 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     private void prepareMongoNodes() {
-        for (NodeMongo committingNode : nodeMongos) {
+        for (MongoNode committingNode : nodeMongos) {
             logger.debug(String.format("Preparing children (added and removed) of %s", committingNode.getPath()));
             logger.debug(String.format("Committing node: %s", committingNode));
 
@@ -282,7 +282,7 @@ public class CommitCommand extends BaseCommand<Long> {
             return;
         }
 
-        CommitMongo baseCommit = new FetchCommitAction(nodeStore, baseRevisionId).execute();
+        MongoCommit baseCommit = new FetchCommitAction(nodeStore, baseRevisionId).execute();
         branchId = baseCommit.getBranchId();
     }
 
@@ -292,7 +292,7 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private void readExistingNodes() {
         Set<String> paths = new HashSet<String>();
-        for (NodeMongo nodeMongo : nodeMongos) {
+        for (MongoNode nodeMongo : nodeMongos) {
             paths.add(nodeMongo.getPath());
         }
 

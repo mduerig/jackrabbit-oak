@@ -22,17 +22,17 @@ import com.mongodb.DBObject;
 /**
  * The {@code MongoDB} representation of the head revision.
  */
-public class SyncMongo extends BasicDBObject {
+public class MongoSync extends BasicDBObject {
 
     public static final String KEY_HEAD_REVISION_ID = "headRevId";
     public static final String KEY_NEXT_REVISION_ID = "nextRevId";
     private static final long serialVersionUID = 3541425042129003691L;
 
-    public static SyncMongo fromDBObject(DBObject dbObject) {
+    public static MongoSync fromDBObject(DBObject dbObject) {
         if (dbObject == null) {
             return null;
         }
-        SyncMongo syncMongo = new SyncMongo();
+        MongoSync syncMongo = new MongoSync();
         syncMongo.putAll(dbObject);
         return syncMongo;
     }

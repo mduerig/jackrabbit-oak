@@ -17,7 +17,7 @@
 package org.apache.jackrabbit.mongomk.impl.command;
 
 import org.apache.jackrabbit.mongomk.api.command.Command;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 
 /**
  * Base {@code Command} implementation.
@@ -26,7 +26,7 @@ import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
  */
 public abstract class BaseCommand<T> implements Command<T> {
 
-    protected NodeStoreMongo nodeStore;
+    protected MongoNodeStore nodeStore;
 
     /**
      * Constructs a base command.
@@ -39,7 +39,7 @@ public abstract class BaseCommand<T> implements Command<T> {
      *
      * @param nodeStore Node store.
      */
-    public BaseCommand(NodeStoreMongo nodeStore) {
+    public BaseCommand(MongoNodeStore nodeStore) {
         this.nodeStore = nodeStore;
     }
 

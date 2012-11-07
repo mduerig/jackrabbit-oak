@@ -8,17 +8,17 @@ import org.apache.jackrabbit.mk.model.tree.NodeState;
 import org.apache.jackrabbit.mongomk.api.command.Command;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchBranchBaseRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.NodeImpl;
 import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeDelta;
 import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeDelta.Conflict;
 import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeState;
-import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.tree.SimpleMongoNodeStore;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.slf4j.Logger;
@@ -41,7 +41,7 @@ public class MergeCommand extends BaseCommand<String> {
      * @param branchRevisionId Branch revision id.
      * @param message Merge message.
      */
-    public MergeCommand(NodeStoreMongo nodeStore, String branchRevisionId,
+    public MergeCommand(MongoNodeStore nodeStore, String branchRevisionId,
             String message) {
         super(nodeStore);
         this.branchRevisionId = branchRevisionId;
@@ -50,7 +50,7 @@ public class MergeCommand extends BaseCommand<String> {
 
     @Override
     public String execute() throws Exception {
-        CommitMongo commit = new FetchCommitAction(nodeStore,
+        MongoCommit commit = new FetchCommitAction(nodeStore,
                 MongoUtil.toMongoRepresentation(branchRevisionId)).execute();
         String branchId = commit.getBranchId();
         if (branchId == null) {
@@ -75,7 +75,7 @@ public class MergeCommand extends BaseCommand<String> {
 
         String diff = new DiffBuilder(MongoUtil.wrap(currentHeadNode),
                 MongoUtil.wrap(ourRoot), "/", -1,
-                new MongoNodeStore(), "").build();
+                new SimpleMongoNodeStore(), "").build();
 
         if (diff.isEmpty()) {
             LOG.debug("Merge of empty branch {} with differing content hashes encountered, " +
@@ -105,9 +105,9 @@ public class MergeCommand extends BaseCommand<String> {
 
     private NodeImpl mergeNode(Node baseNode, Node ourNode, Node theirNode,
             String path) throws Exception {
-        MongoNodeDelta theirChanges = new MongoNodeDelta(new MongoNodeStore(),
+        MongoNodeDelta theirChanges = new MongoNodeDelta(new SimpleMongoNodeStore(),
                 MongoUtil.wrap(baseNode), MongoUtil.wrap(theirNode));
-        MongoNodeDelta ourChanges = new MongoNodeDelta(new MongoNodeStore(),
+        MongoNodeDelta ourChanges = new MongoNodeDelta(new SimpleMongoNodeStore(),
                 MongoUtil.wrap(baseNode), MongoUtil.wrap(ourNode));
 
         NodeImpl stagedNode = (NodeImpl)theirNode; //new NodeImpl(path);

@@ -23,9 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +38,7 @@ import com.mongodb.QueryBuilder;
 /**
  * An action for fetching valid commits.
  */
-public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
+public class FetchCommitsAction extends BaseAction<List<MongoCommit>> {
 
     private static final int LIMITLESS = -1;
     private static final Logger LOG = LoggerFactory.getLogger(FetchCommitsAction.class);
@@ -54,7 +54,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
      * @param nodeStore Node store.
      * @param toRevisionId To revision id.
      */
-    public FetchCommitsAction(NodeStoreMongo nodeStore) {
+    public FetchCommitsAction(MongoNodeStore nodeStore) {
         this(nodeStore, -1L, -1L);
     }
 
@@ -64,7 +64,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
      * @param nodeStore Node store.
      * @param toRevisionId To revision id.
      */
-    public FetchCommitsAction(NodeStoreMongo nodeStore, long toRevisionId) {
+    public FetchCommitsAction(MongoNodeStore nodeStore, long toRevisionId) {
         this(nodeStore, -1L, toRevisionId);
     }
 
@@ -75,7 +75,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
      * @param fromRevisionId From revision id.
      * @param toRevisionId To revision id.
      */
-    public FetchCommitsAction(NodeStoreMongo nodeStore, long fromRevisionId,
+    public FetchCommitsAction(MongoNodeStore nodeStore, long fromRevisionId,
             long toRevisionId) {
         super(nodeStore);
         this.fromRevisionId = fromRevisionId;
@@ -101,7 +101,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
     }
 
     @Override
-    public List<CommitMongo> execute() {
+    public List<MongoCommit> execute() {
         if (maxEntries == 0) {
             return Collections.emptyList();
         }
@@ -111,13 +111,13 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
 
     private DBCursor fetchListOfValidCommits() {
         DBCollection commitCollection = nodeStore.getCommitCollection();
-        QueryBuilder queryBuilder = QueryBuilder.start(CommitMongo.KEY_FAILED).notEquals(Boolean.TRUE);
+        QueryBuilder queryBuilder = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE);
         if (toRevisionId > -1) {
-            queryBuilder = queryBuilder.and(CommitMongo.KEY_REVISION_ID).lessThanEquals(toRevisionId);
+            queryBuilder = queryBuilder.and(MongoCommit.KEY_REVISION_ID).lessThanEquals(toRevisionId);
         }
 
         if (!includeBranchCommits) {
-            queryBuilder = queryBuilder.and(new BasicDBObject(NodeMongo.KEY_BRANCH_ID,
+            queryBuilder = queryBuilder.and(new BasicDBObject(MongoNode.KEY_BRANCH_ID,
                     new BasicDBObject("$exists", false)));
         }
 
@@ -128,14 +128,14 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
         return maxEntries > 0? commitCollection.find(query).limit(maxEntries) : commitCollection.find(query);
     }
 
-    private List<CommitMongo> convertToCommits(DBCursor dbCursor) {
-        Map<Long, CommitMongo> commits = new HashMap<Long, CommitMongo>();
+    private List<MongoCommit> convertToCommits(DBCursor dbCursor) {
+        Map<Long, MongoCommit> commits = new HashMap<Long, MongoCommit>();
         while (dbCursor.hasNext()) {
-            CommitMongo commitMongo = (CommitMongo) dbCursor.next();
+            MongoCommit commitMongo = (MongoCommit) dbCursor.next();
             commits.put(commitMongo.getRevisionId(), commitMongo);
         }
 
-        List<CommitMongo> validCommits = new LinkedList<CommitMongo>();
+        List<MongoCommit> validCommits = new LinkedList<MongoCommit>();
         if (commits.isEmpty()) {
             return validCommits;
         }
@@ -145,7 +145,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
                 toRevisionId : Collections.max(revisions);
 
         while (true) {
-            CommitMongo commitMongo = commits.get(currentRevision);
+            MongoCommit commitMongo = commits.get(currentRevision);
             if (commitMongo == null) {
                 break;
             }

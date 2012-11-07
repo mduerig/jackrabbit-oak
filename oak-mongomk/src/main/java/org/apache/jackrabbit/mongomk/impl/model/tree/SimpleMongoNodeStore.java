@@ -12,7 +12,7 @@ import org.apache.jackrabbit.mongomk.api.model.Node;
  * This dummy NodeStore implementation is needed in order to be able to reuse
  * Oak's DiffBuilder in MongoMK.
  */
-public class MongoNodeStore implements NodeStore {
+public class SimpleMongoNodeStore implements NodeStore {
 
     @Override
     public NodeState getRoot() {

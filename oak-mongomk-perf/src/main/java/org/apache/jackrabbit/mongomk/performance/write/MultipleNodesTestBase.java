@@ -22,7 +22,7 @@ import java.util.Properties;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.perf.BlobStoreFS;
 import org.apache.jackrabbit.mongomk.perf.Config;
 
@@ -37,7 +37,7 @@ public class MultipleNodesTestBase {
     }
 
     static MongoMicroKernel initMicroKernel() throws Exception {
-        NodeStoreMongo nodeStore = new NodeStoreMongo(mongoConnection.getDB());
+        MongoNodeStore nodeStore = new MongoNodeStore(mongoConnection.getDB());
         BlobStore blobStore = new BlobStoreFS(
                 System.getProperty("java.io.tmpdir"));
         return new MongoMicroKernel(mongoConnection, nodeStore, blobStore);

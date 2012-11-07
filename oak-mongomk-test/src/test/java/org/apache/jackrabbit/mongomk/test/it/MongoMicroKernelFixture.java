@@ -24,8 +24,8 @@ import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.test.MicroKernelFixture;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
-import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
-import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
+import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoGridFsBlobStore;
 import org.junit.Assert;
 
 import com.mongodb.DB;
@@ -57,8 +57,8 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
             DB db = mongoConnection.getDB();
             dropCollections(db);
 
-            NodeStoreMongo nodeStore = new NodeStoreMongo(db);
-            BlobStore blobStore = new BlobStoreMongoGridFS(db);
+            MongoNodeStore nodeStore = new MongoNodeStore(db);
+            BlobStore blobStore = new MongoGridFsBlobStore(db);
             MicroKernel mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
 
             for (int i = 0; i < cluster.length; i++) {
@@ -84,8 +84,8 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
     }
 
     private void dropCollections(DB db) {
-        db.getCollection(NodeStoreMongo.COLLECTION_COMMITS).drop();
-        db.getCollection(NodeStoreMongo.COLLECTION_NODES).drop();
-        db.getCollection(NodeStoreMongo.COLLECTION_SYNC).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_COMMITS).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_NODES).drop();
+        db.getCollection(MongoNodeStore.COLLECTION_SYNC).drop();
     }
 }
