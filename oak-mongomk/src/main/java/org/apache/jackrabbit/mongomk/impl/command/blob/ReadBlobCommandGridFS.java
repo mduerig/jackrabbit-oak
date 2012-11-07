@@ -19,7 +19,6 @@ package org.apache.jackrabbit.mongomk.impl.command.blob;
 import java.io.InputStream;
 
 import org.apache.commons.io.IOUtils;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.command.BaseCommand;
 
 import com.mongodb.BasicDBObject;
@@ -33,6 +32,7 @@ import com.mongodb.gridfs.GridFSDBFile;
  */
 public class ReadBlobCommandGridFS extends BaseCommand<Integer> {
 
+    private final GridFS gridFS;
     private final String blobId;
     private final long blobOffset;
     private final byte[] buffer;
@@ -42,16 +42,17 @@ public class ReadBlobCommandGridFS extends BaseCommand<Integer> {
     /**
      * Constructs a new {@code ReadBlobCommandMongo}.
      *
-     * @param mongoConnection Mongo connection.
+     * @param gridFS GridFS instance.
      * @param blobId Blob id.
      * @param blobOffset Blob offset.
      * @param buffer Buffer.
      * @param bufferOffset Buffer offset.
      * @param length Length.
      */
-    public ReadBlobCommandGridFS(MongoConnection mongoConnection, String blobId,
-            long blobOffset, byte[] buffer, int bufferOffset, int length) {
-        super(mongoConnection);
+    public ReadBlobCommandGridFS(GridFS gridFS, String blobId, long blobOffset,
+            byte[] buffer, int bufferOffset, int length) {
+        super();
+        this.gridFS = gridFS;
         this.blobId = blobId;
         this.blobOffset = blobOffset;
         this.buffer = buffer;
@@ -65,7 +66,6 @@ public class ReadBlobCommandGridFS extends BaseCommand<Integer> {
     }
 
     private int fetchBlobFromMongo() throws Exception {
-        GridFS gridFS = mongoConnection.getGridFS();
         GridFSDBFile gridFile = gridFS.findOne(new BasicDBObject("md5", blobId));
         long fileLength = gridFile.getLength();
 

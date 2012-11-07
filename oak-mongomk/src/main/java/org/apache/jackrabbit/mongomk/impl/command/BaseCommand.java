@@ -26,10 +26,16 @@ import org.apache.jackrabbit.mongomk.impl.MongoConnection;
  */
 public abstract class BaseCommand<T> implements Command<T> {
 
-    protected final MongoConnection mongoConnection;
+    protected MongoConnection mongoConnection;
 
     /**
-     * Constructs a default command with the supplied connection.
+     * Constructs a base command.
+     */
+    public BaseCommand() {
+    }
+
+    /**
+     * Constructs a base command with a mongo connection.
      *
      * @param mongoConnection The mongo connection.
      */

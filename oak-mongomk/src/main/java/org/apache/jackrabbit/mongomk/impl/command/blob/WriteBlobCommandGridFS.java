@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 
 import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.command.BaseCommand;
 
 import com.mongodb.BasicDBObject;
@@ -34,16 +33,18 @@ import com.mongodb.gridfs.GridFSInputFile;
  */
 public class WriteBlobCommandGridFS extends BaseCommand<String> {
 
+    private final GridFS gridFS;
     private final InputStream is;
 
     /**
      * Constructs a {@code WriteBlobCommandMongo}
      *
-     * @param mongoConnection Mongo connection.
+     * @param gridFS GridFS instance.
      * @param is Input stream.
      */
-    public WriteBlobCommandGridFS(MongoConnection mongoConnection, InputStream is) {
-        super(mongoConnection);
+    public WriteBlobCommandGridFS(GridFS gridFS, InputStream is) {
+        super();
+        this.gridFS = gridFS;
         this.is = is;
     }
 
@@ -53,7 +54,6 @@ public class WriteBlobCommandGridFS extends BaseCommand<String> {
     }
 
     private String saveBlob() throws IOException {
-        GridFS gridFS = mongoConnection.getGridFS();
         BufferedInputStream bis = new BufferedInputStream(is);
         String md5 = calculateMd5(bis);
         GridFSDBFile gridFile = gridFS.findOne(new BasicDBObject("md5", md5));

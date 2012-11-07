@@ -27,7 +27,6 @@ import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.Mongo;
-import com.mongodb.gridfs.GridFS;
 
 /**
  * The {@code MongoConnection} contains connection properties for the {@code MongoDB}.
@@ -43,7 +42,6 @@ public class MongoConnection {
     private static final String COLLECTION_SYNC = "sync";
 
     private final DB db;
-    private final GridFS gridFS;
     private final Mongo mongo;
 
     /**
@@ -57,7 +55,6 @@ public class MongoConnection {
     public MongoConnection(String host, int port, String database) throws Exception {
         mongo = new Mongo(host, port);
         db = mongo.getDB(database);
-        gridFS = new GridFS(db);
     }
 
     /**
@@ -111,15 +108,6 @@ public class MongoConnection {
      */
     public DB getDB() {
         return db;
-    }
-
-    /**
-     * Returns the {@link GridFS}.
-     *
-     * @return The {@link GridFS}.
-     */
-    public GridFS getGridFS() {
-        return gridFS;
     }
 
     /**

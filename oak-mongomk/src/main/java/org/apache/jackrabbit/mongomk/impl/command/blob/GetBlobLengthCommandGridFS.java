@@ -16,7 +16,6 @@
  */
 package org.apache.jackrabbit.mongomk.impl.command.blob;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.command.BaseCommand;
 
 import com.mongodb.BasicDBObject;
@@ -29,21 +28,22 @@ import com.mongodb.gridfs.GridFSDBFile;
 public class GetBlobLengthCommandGridFS extends BaseCommand<Long> {
 
     private final String blobId;
+    private final GridFS gridFS;
 
     /**
      * Constructs the command.
      *
-     * @param mongoConnection Mongo connection.
+     * @param gridFS GridFS instance.
      * @param blobId Blob id.
      */
-    public GetBlobLengthCommandGridFS(MongoConnection mongoConnection, String blobId) {
-        super(mongoConnection);
+    public GetBlobLengthCommandGridFS(GridFS gridFS, String blobId) {
+        super();
         this.blobId = blobId;
+        this.gridFS = gridFS;
     }
 
     @Override
     public Long execute() throws Exception {
-        GridFS gridFS = mongoConnection.getGridFS();
         GridFSDBFile gridFSDBFile = gridFS.findOne(new BasicDBObject("md5", blobId));
         if (gridFSDBFile == null) {
             throw new Exception("Blob does not exist");
