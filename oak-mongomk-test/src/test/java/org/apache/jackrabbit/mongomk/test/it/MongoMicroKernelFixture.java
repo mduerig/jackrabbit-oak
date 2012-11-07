@@ -28,6 +28,8 @@ import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 import org.junit.Assert;
 
+import com.mongodb.DB;
+
 public class MongoMicroKernelFixture implements MicroKernelFixture {
 
     private static NodeStoreMongo nodeStore;
@@ -52,9 +54,10 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
     public void setUpCluster(MicroKernel[] cluster) {
         try {
             MongoConnection mongoConnection = createMongoConnection();
-            nodeStore = new NodeStoreMongo(mongoConnection);
+            DB db = mongoConnection.getDB();
+            nodeStore = new NodeStoreMongo(db);
             nodeStore.initializeDB(true);
-            BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
+            BlobStore blobStore = new BlobStoreMongoGridFS(db);
 
             MicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
             for (int i = 0; i < cluster.length; i++) {

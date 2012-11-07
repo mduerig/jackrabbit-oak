@@ -18,6 +18,8 @@ import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.mongodb.DB;
+
 /**
  * Tests for {@code MongoMicroKernel#waitForCommit(String, long)}
  */
@@ -28,8 +30,9 @@ public class MongoMKWaitForCommitTest extends BaseMongoMicroKernelTest {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
-        BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
+        DB db = mongoConnection.getDB();
+        NodeStore nodeStore = new NodeStoreMongo(db);
+        BlobStore blobStore = new BlobStoreMongoGridFS(db);
         mk2 = new MongoMicroKernel(nodeStore, blobStore);
     }
 

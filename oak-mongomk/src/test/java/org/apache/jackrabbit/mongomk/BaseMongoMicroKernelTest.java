@@ -39,6 +39,8 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import com.mongodb.DB;
+
 /**
  * Base class for {@code MongoDB} tests that need the MongoMK.
  */
@@ -54,10 +56,11 @@ public class BaseMongoMicroKernelTest {
 
     @Before
     public void setUp() throws Exception {
-        NodeStoreMongo nodeStore = new NodeStoreMongo(mongoConnection);
+        DB db = mongoConnection.getDB();
+        NodeStoreMongo nodeStore = new NodeStoreMongo(db);
         nodeStore.initializeDB(true);
         MongoAssert.setNodeStore(nodeStore);
-        BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
+        BlobStore blobStore = new BlobStoreMongoGridFS(db);
         mk = new MongoMicroKernel(nodeStore, blobStore);
     }
 

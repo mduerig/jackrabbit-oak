@@ -8,11 +8,12 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 import org.junit.Test;
+
+import com.mongodb.DB;
 
 public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest {
 
@@ -34,23 +35,17 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest
         Properties properties = new Properties();
         properties.load(is);
 
-        String host = properties.getProperty("host");
-        int port = Integer.parseInt(properties.getProperty("port"));
-        String db = properties.getProperty("db");
+        DB db = mongoConnection.getDB();
+        MongoMicroKernel mongo1 = new MongoMicroKernel(new NodeStoreMongo(db),
+                new BlobStoreMongoGridFS(db));
+        MongoMicroKernel mongo2 = new MongoMicroKernel(new NodeStoreMongo(db),
+                new BlobStoreMongoGridFS(db));
+        MongoMicroKernel mongo3 = new MongoMicroKernel(new NodeStoreMongo(db),
+                new BlobStoreMongoGridFS(db));
 
-        MongoMicroKernel mongo1 = new MongoMicroKernel(new NodeStoreMongo(
-                mongoConnection), new BlobStoreMongoGridFS(mongoConnection));
-        MongoMicroKernel mongo2 = new MongoMicroKernel(new NodeStoreMongo(
-                mongoConnection), new BlobStoreMongoGridFS(mongoConnection));
-        MongoMicroKernel mongo3 = new MongoMicroKernel(new NodeStoreMongo(
-                mongoConnection), new BlobStoreMongoGridFS(mongoConnection));
-
-        GenericWriteTask task1 = new GenericWriteTask(mongo1, diff1, 0,
-                new MongoConnection(host, port, db));
-        GenericWriteTask task2 = new GenericWriteTask(mongo2, diff2, 0,
-                new MongoConnection(host, port, db));
-        GenericWriteTask task3 = new GenericWriteTask(mongo3, diff3, 0,
-                new MongoConnection(host, port, db));
+        GenericWriteTask task1 = new GenericWriteTask(mongo1, diff1, 0);
+        GenericWriteTask task2 = new GenericWriteTask(mongo2, diff2, 0);
+        GenericWriteTask task3 = new GenericWriteTask(mongo3, diff3, 0);
 
         ExecutorService threadExecutor = Executors.newFixedThreadPool(3);
         threadExecutor.execute(task1);
@@ -95,8 +90,7 @@ class GenericWriteTask implements Runnable {
     String diff;
     int nodesPerCommit;
 
-    public GenericWriteTask(MongoMicroKernel mk, String diff,
-            int nodesPerCommit, MongoConnection mongoConnection) {
+    public GenericWriteTask(MongoMicroKernel mk, String diff, int nodesPerCommit) {
 
         this.diff = diff;
         this.mk = mk;

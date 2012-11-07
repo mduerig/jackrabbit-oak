@@ -21,12 +21,12 @@ import java.io.InputStream;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.api.command.Command;
 import org.apache.jackrabbit.mongomk.api.command.CommandExecutor;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.command.DefaultCommandExecutor;
 import org.apache.jackrabbit.mongomk.impl.command.blob.GetBlobLengthCommandGridFS;
 import org.apache.jackrabbit.mongomk.impl.command.blob.ReadBlobCommandGridFS;
 import org.apache.jackrabbit.mongomk.impl.command.blob.WriteBlobCommandGridFS;
 
+import com.mongodb.DB;
 import com.mongodb.gridfs.GridFS;
 
 /**
@@ -40,11 +40,11 @@ public class BlobStoreMongoGridFS implements BlobStore {
     /**
      * Constructs a new {@code BlobStoreMongoGridFS}
      *
-     * @param mongoConnection The mongo conneciton.
+     * @param db The DB.
      */
-    public BlobStoreMongoGridFS(MongoConnection mongoConnection) {
+    public BlobStoreMongoGridFS(DB db) {
         commandExecutor = new DefaultCommandExecutor();
-        gridFS = new GridFS(mongoConnection.getDB());
+        gridFS = new GridFS(db);
     }
 
     @Override

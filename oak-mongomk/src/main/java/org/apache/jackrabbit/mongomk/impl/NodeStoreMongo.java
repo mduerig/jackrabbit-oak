@@ -40,6 +40,7 @@ import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 
@@ -57,16 +58,16 @@ public class NodeStoreMongo implements NodeStore {
     private static final String COLLECTION_SYNC = "sync";
 
     private final CommandExecutor commandExecutor;
-    private final MongoConnection mongoConnection;
+    private final DB db;
 
     /**
      * Constructs a new {@code NodeStoreMongo}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param db Mongo DB.
      */
-    public NodeStoreMongo(MongoConnection mongoConnection) {
-        this.mongoConnection = mongoConnection;
+    public NodeStoreMongo(DB db) {
         commandExecutor = new DefaultCommandExecutor();
+        this.db = db;
     }
 
     @Override
@@ -168,7 +169,7 @@ public class NodeStoreMongo implements NodeStore {
      * @return The commit {@link DBCollection}.
      */
     public DBCollection getCommitCollection() {
-        DBCollection commitCollection = mongoConnection.getDB().getCollection(COLLECTION_COMMITS);
+        DBCollection commitCollection = db.getCollection(COLLECTION_COMMITS);
         commitCollection.setObjectClass(CommitMongo.class);
         return commitCollection;
     }
@@ -179,7 +180,7 @@ public class NodeStoreMongo implements NodeStore {
      * @return The sync {@link DBCollection}.
      */
     public DBCollection getSyncCollection() {
-        DBCollection syncCollection = mongoConnection.getDB().getCollection(COLLECTION_SYNC);
+        DBCollection syncCollection = db.getCollection(COLLECTION_SYNC);
         syncCollection.setObjectClass(SyncMongo.class);
         return syncCollection;
     }
@@ -190,13 +191,13 @@ public class NodeStoreMongo implements NodeStore {
      * @return The node {@link DBCollection}.
      */
     public DBCollection getNodeCollection() {
-        DBCollection nodeCollection = mongoConnection.getDB().getCollection(COLLECTION_NODES);
+        DBCollection nodeCollection = db.getCollection(COLLECTION_NODES);
         nodeCollection.setObjectClass(NodeMongo.class);
         return nodeCollection;
     }
 
     private void initCommitCollection(boolean force) {
-        if (!force && mongoConnection.getDB().collectionExists(COLLECTION_COMMITS)){
+        if (!force && db.collectionExists(COLLECTION_COMMITS)){
             return;
         }
         DBCollection commitCollection = getCommitCollection();
@@ -216,7 +217,7 @@ public class NodeStoreMongo implements NodeStore {
     }
 
     private void initNodeCollection(boolean force) {
-        if (!force && mongoConnection.getDB().collectionExists(COLLECTION_NODES)){
+        if (!force && db.collectionExists(COLLECTION_NODES)){
             return;
         }
         DBCollection nodeCollection = getNodeCollection();
@@ -233,7 +234,7 @@ public class NodeStoreMongo implements NodeStore {
     }
 
     private void initSyncCollection(boolean force) {
-        if (!force && mongoConnection.getDB().collectionExists(COLLECTION_SYNC)){
+        if (!force && db.collectionExists(COLLECTION_SYNC)){
             return;
         }
         DBCollection headCollection = getSyncCollection();

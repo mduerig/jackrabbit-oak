@@ -27,6 +27,7 @@ import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 
 import com.mongodb.BasicDBObjectBuilder;
+import com.mongodb.DB;
 
 /**
  * Creates a {@code MongoMicroKernel}.Initialize the mongo database for the
@@ -58,9 +59,10 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
         for (int i = 0; i < mksNumber; i++) {
             mongoConnection = new MongoConnection(conf.getHost(),
                      conf.getMongoPort() , conf.getMongoDatabase());
-            NodeStoreMongo nodeStore = new NodeStoreMongo(mongoConnection);
+            DB db = mongoConnection.getDB();
+            NodeStoreMongo nodeStore = new NodeStoreMongo(db);
             nodeStore.initializeDB(true);
-            BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
+            BlobStore blobStore = new BlobStoreMongoGridFS(db);
             mks.add(new MongoMicroKernel(nodeStore, blobStore));
         }
 

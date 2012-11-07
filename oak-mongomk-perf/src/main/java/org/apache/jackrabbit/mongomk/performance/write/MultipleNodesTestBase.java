@@ -39,7 +39,7 @@ public class MultipleNodesTestBase {
 	}
 
 	static MongoMicroKernel initMicroKernel() throws Exception {
-		NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
+		NodeStore nodeStore = new NodeStoreMongo(mongoConnection.getDB());
 		BlobStore blobStore = new BlobStoreFS(
 				System.getProperty("java.io.tmpdir"));
 		return new MongoMicroKernel(nodeStore, blobStore);

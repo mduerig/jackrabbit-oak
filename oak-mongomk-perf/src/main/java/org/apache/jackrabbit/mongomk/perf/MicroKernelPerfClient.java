@@ -147,7 +147,7 @@ public class MicroKernelPerfClient {
     }
 
     private void initMicroKernel() throws Exception {
-        NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
+        NodeStore nodeStore = new NodeStoreMongo(mongoConnection.getDB());
         BlobStore blobStore = new BlobStoreFS(System.getProperty("java.io.tmpdir"));
 
         microKernel = new MongoMicroKernel(nodeStore, blobStore);

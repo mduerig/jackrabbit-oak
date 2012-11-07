@@ -38,6 +38,8 @@ import org.osgi.service.component.annotations.Deactivate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.DB;
+
 
 @Component(metatype = true,
         label = "%oak.mongomk.label",
@@ -76,9 +78,10 @@ public class MongoMicroKernelService {
 
         logger.info("Connected to database {}", db);
 
-        NodeStoreMongo nodeStore = new NodeStoreMongo(connection);
+        DB mongoDB = connection.getDB();
+        NodeStoreMongo nodeStore = new NodeStoreMongo(mongoDB);
         nodeStore.initializeDB(false);
-        BlobStoreMongoGridFS blobStore = new BlobStoreMongoGridFS(connection);
+        BlobStoreMongoGridFS blobStore = new BlobStoreMongoGridFS(mongoDB);
         MongoMicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
 
         Properties props = new Properties();
