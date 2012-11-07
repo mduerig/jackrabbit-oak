@@ -26,8 +26,8 @@ import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.json.DefaultJsopHandler;
 import org.apache.jackrabbit.mongomk.impl.json.JsopParser;
-import org.apache.jackrabbit.mongomk.model.CommitMongo;
-import org.apache.jackrabbit.mongomk.model.SyncMongo;
+import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
+import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.log4j.Logger;
 import org.json.JSONArray;
@@ -163,7 +163,7 @@ public class MicroKernelPerfMaster {
     }
 
     private void verifyCommitOrder(CommitMongo commitMongo) throws Exception {
-        long baseRevId = commitMongo.getBaseRevId();
+        long baseRevId = commitMongo.getBaseRevisionId();
         long revId = commitMongo.getRevisionId();
         if (baseRevId != this.lastCommitRevId) {
             throw new Exception(String.format(
