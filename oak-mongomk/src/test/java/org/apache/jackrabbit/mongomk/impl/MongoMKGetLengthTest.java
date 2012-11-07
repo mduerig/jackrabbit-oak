@@ -30,16 +30,7 @@ import org.junit.Test;
 public class MongoMKGetLengthTest extends BaseMongoMicroKernelTest {
 
     @Test
-    public void getLength() throws Exception {
-        int blobLength = 100;
-        String blobId = createAndWriteBlob(blobLength);
-
-        long length = mk.getLength(blobId);
-        assertEquals(blobLength, length);
-    }
-
-    @Test
-    public void testNonExistentBlobLength() throws Exception {
+    public void nonExistent() throws Exception {
         try {
             mk.getLength("nonExistentBlob");
             fail("Exception expected");
@@ -47,9 +38,30 @@ public class MongoMKGetLengthTest extends BaseMongoMicroKernelTest {
         }
     }
 
+    @Test
+    public void small() throws Exception {
+        getLength(1024);
+    }
+
+    @Test
+    public void medium() throws Exception {
+        getLength(1024 * 1024);
+    }
+
+    @Test
+    public void large() throws Exception {
+        getLength(20 * 1024 * 1024);
+    }
+
+    private void getLength(int blobLength) throws Exception {
+        String blobId = createAndWriteBlob(blobLength);
+        long length = mk.getLength(blobId);
+        assertEquals(blobLength, length);
+    }
+
     private String createAndWriteBlob(int blobLength) {
         byte[] blob = createBlob(blobLength);
-        return writeBlob(blob);
+        return mk.write(new ByteArrayInputStream(blob));
     }
 
     private byte[] createBlob(int blobLength) {
@@ -58,9 +70,5 @@ public class MongoMKGetLengthTest extends BaseMongoMicroKernelTest {
             blob[i] = (byte)i;
         }
         return blob;
-    }
-
-    private String writeBlob(byte[] blob) {
-        return mk.write(new ByteArrayInputStream(blob));
     }
 }

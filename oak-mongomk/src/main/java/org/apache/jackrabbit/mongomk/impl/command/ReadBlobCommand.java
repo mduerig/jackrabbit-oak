@@ -74,13 +74,13 @@ public class ReadBlobCommand extends BaseCommand<Integer> {
             end = fileLength;
         }
 
-        int totalBytes = -1;
         if (start < end) {
             InputStream is = gridFile.getInputStream();
             IOUtils.skipFully(is, blobOffset);
-            totalBytes = is.read(buffer, bufferOffset, length);
+            IOUtils.readFully(is, buffer, bufferOffset, length);
             is.close();
+            return length;
         }
-        return totalBytes;
+        return -1;
     }
 }

@@ -31,15 +31,32 @@ import org.junit.Test;
 public class MongoMKWriteTest extends BaseMongoMicroKernelTest {
 
     @Test
-    public void complete() throws Exception {
-        int blobLength = 100;
-        byte[] blob = createBlob(blobLength);
+    public void small() throws Exception {
+        write(1024);
+    }
 
+    @Test
+    public void medium() throws Exception {
+        write(1024 * 1024);
+    }
+
+    @Test
+    public void large() throws Exception {
+        write(20 * 1024 * 1024);
+    }
+
+    private void write(int blobLength) throws Exception {
+        byte[] blob = createBlob(blobLength);
         String blobId = mk.write(new ByteArrayInputStream(blob));
         assertNotNull(blobId);
 
         byte[] readBlob = new byte[blobLength];
         mk.read(blobId, 0, readBlob, 0, readBlob.length);
+        for (int i = 0; i < blob.length; i++) {
+            if (blob[i] != readBlob[i]) {
+                System.out.println(i + " " + blob[i] + "==>" + readBlob[i]);
+            }
+        }
         assertTrue(Arrays.equals(blob, readBlob));
     }
 

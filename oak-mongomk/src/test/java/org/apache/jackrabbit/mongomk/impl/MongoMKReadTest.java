@@ -32,45 +32,52 @@ public class MongoMKReadTest extends BaseMongoMicroKernelTest {
     private byte[] blob;
     private String blobId;
 
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-
-        blob = new byte[100];
-        for (int i = 0; i < blob.length; i++) {
-            blob[i] = (byte) i;
-        }
-        blobId = mk.write(new ByteArrayInputStream(blob));
+    @Test
+    public void small() throws Exception {
+        read(1024);
     }
 
     @Test
-    public void complete() throws Exception {
+    public void medium() throws Exception {
+        read(1024 * 1024);
+    }
+
+    @Test
+    public void large() throws Exception {
+        read(20 * 1024 * 1024);
+    }
+
+    private void read(int blobLength) throws Exception {
+        createAndWriteBlob(blobLength);
+
+        // Complete read.
         byte[] buffer = new byte[blob.length];
         int totalBytes = mk.read(blobId, 0, buffer, 0, blob.length);
-
         Assert.assertEquals(blob.length, totalBytes);
         Assert.assertTrue(Arrays.equals(blob, buffer));
-    }
 
-    @Test
-    public void rangeEndFromEnd() throws Exception {
-        byte[] buffer = new byte[blob.length / 2];
-        int totalBytes = mk.read(blobId, (blob.length / 2) - 1, buffer, 0, blob.length / 2);
-
+        // Range end from end.
+        buffer = new byte[blob.length / 2];
+        totalBytes = mk.read(blobId, (blob.length / 2) - 1, buffer, 0, blob.length / 2);
         Assert.assertEquals(blob.length / 2, totalBytes);
         for (int i = 0; i < buffer.length; i++) {
             Assert.assertEquals(blob[((blob.length / 2) - 1) + i], buffer[i]);
         }
-    }
 
-    @Test
-    public void rangeFromStart() throws Exception {
-        byte[] buffer = new byte[blob.length / 2];
-        int totalBytes = mk.read(blobId, 0, buffer, 0, blob.length / 2);
-
+        // Range from start.
+        buffer = new byte[blob.length / 2];
+        totalBytes = mk.read(blobId, 0, buffer, 0, blob.length / 2);
         Assert.assertEquals(blob.length / 2, totalBytes);
         for (int i = 0; i < buffer.length; i++) {
             Assert.assertEquals(blob[i], buffer[i]);
         }
+    }
+
+    private void createAndWriteBlob(int blobLength) throws Exception {
+        blob = new byte[blobLength];
+        for (int i = 0; i < blob.length; i++) {
+            blob[i] = (byte)i;
+        }
+        blobId = mk.write(new ByteArrayInputStream(blob));
     }
 }
