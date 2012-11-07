@@ -42,18 +42,26 @@ import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeState;
  */
 public class MongoMicroKernel implements MicroKernel {
 
+    private final MongoConnection mongoConnection;
     private final BlobStore blobStore;
     private final NodeStore nodeStore;
 
     /**
      * Constructs a new {@code MongoMicroKernel}.
      *
+     * @param mongoConnection Connection to MongoDB.
      * @param nodeStore The {@link NodeStore}.
      * @param blobStore The {@link BlobStore}.
      */
-    public MongoMicroKernel(NodeStore nodeStore, BlobStore blobStore) {
+    public MongoMicroKernel(MongoConnection mongoConnection, NodeStore nodeStore,
+            BlobStore blobStore) {
+        this.mongoConnection = mongoConnection;
         this.nodeStore = nodeStore;
         this.blobStore = blobStore;
+    }
+
+    public void dispose() {
+        mongoConnection.close();
     }
 
     /**

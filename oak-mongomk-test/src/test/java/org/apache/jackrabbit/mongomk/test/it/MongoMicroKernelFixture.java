@@ -32,7 +32,7 @@ import com.mongodb.DB;
 
 public class MongoMicroKernelFixture implements MicroKernelFixture {
 
-    private static NodeStoreMongo nodeStore;
+    private static MongoConnection mongoConnection;
 
     private static MongoConnection createMongoConnection() {
         try {
@@ -53,13 +53,14 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
     @Override
     public void setUpCluster(MicroKernel[] cluster) {
         try {
-            MongoConnection mongoConnection = createMongoConnection();
+            mongoConnection = createMongoConnection();
             DB db = mongoConnection.getDB();
-            nodeStore = new NodeStoreMongo(db);
-            nodeStore.initializeDB(true);
-            BlobStore blobStore = new BlobStoreMongoGridFS(db);
+            dropCollections(db);
 
-            MicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
+            NodeStoreMongo nodeStore = new NodeStoreMongo(db);
+            BlobStore blobStore = new BlobStoreMongoGridFS(db);
+            MicroKernel mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
+
             for (int i = 0; i < cluster.length; i++) {
                 cluster[i] = mk;
             }
@@ -75,9 +76,16 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
     @Override
     public void tearDownCluster(MicroKernel[] cluster) {
         try {
-            nodeStore.clearDB();
+            DB db = mongoConnection.getDB();
+            dropCollections(db);
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void dropCollections(DB db) {
+        db.getCollection(NodeStoreMongo.COLLECTION_COMMITS).drop();
+        db.getCollection(NodeStoreMongo.COLLECTION_NODES).drop();
+        db.getCollection(NodeStoreMongo.COLLECTION_SYNC).drop();
     }
 }

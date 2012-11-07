@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.util.Properties;
 
 import org.apache.jackrabbit.mk.blobs.BlobStore;
-import org.apache.jackrabbit.mongomk.api.NodeStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
@@ -29,28 +28,27 @@ import org.apache.jackrabbit.mongomk.perf.Config;
 
 public class MultipleNodesTestBase {
 
+    protected static MongoConnection mongoConnection;
+    private static Config config;
 
-	protected static MongoConnection mongoConnection;
-	private static Config config;
+    static void initMongo() throws Exception {
+        mongoConnection = new MongoConnection(config.getMongoHost(),
+                config.getMongoPort(), config.getMongoDatabase());
+    }
 
-	static void initMongo() throws Exception {
-		mongoConnection = new MongoConnection(config.getMongoHost(),
-				config.getMongoPort(), config.getMongoDatabase());
-	}
+    static MongoMicroKernel initMicroKernel() throws Exception {
+        NodeStoreMongo nodeStore = new NodeStoreMongo(mongoConnection.getDB());
+        BlobStore blobStore = new BlobStoreFS(
+                System.getProperty("java.io.tmpdir"));
+        return new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
+    }
 
-	static MongoMicroKernel initMicroKernel() throws Exception {
-		NodeStore nodeStore = new NodeStoreMongo(mongoConnection.getDB());
-		BlobStore blobStore = new BlobStoreFS(
-				System.getProperty("java.io.tmpdir"));
-		return new MongoMicroKernel(nodeStore, blobStore);
-	}
-
-	static void readConfig() throws Exception {
-		InputStream is = MultipleNodesTestBase.class
-				.getResourceAsStream("/config.cfg");
-		Properties properties = new Properties();
-		properties.load(is);
-		is.close();
-		config = new Config(properties);
-	}
+    static void readConfig() throws Exception {
+        InputStream is = MultipleNodesTestBase.class
+                .getResourceAsStream("/config.cfg");
+        Properties properties = new Properties();
+        properties.load(is);
+        is.close();
+        config = new Config(properties);
+    }
 }

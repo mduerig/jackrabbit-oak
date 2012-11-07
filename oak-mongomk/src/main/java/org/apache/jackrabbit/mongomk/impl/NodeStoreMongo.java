@@ -53,9 +53,9 @@ public class NodeStoreMongo implements NodeStore {
     public static final String INITIAL_COMMIT_PATH = "";
     public static final String INITIAL_COMMIT_DIFF = "+\"/\" : {}";
 
-    private static final String COLLECTION_COMMITS = "commits";
-    private static final String COLLECTION_NODES = "nodes";
-    private static final String COLLECTION_SYNC = "sync";
+    public static final String COLLECTION_COMMITS = "commits";
+    public static final String COLLECTION_NODES = "nodes";
+    public static final String COLLECTION_SYNC = "sync";
 
     private final CommandExecutor commandExecutor;
     private final DB db;
@@ -68,6 +68,7 @@ public class NodeStoreMongo implements NodeStore {
     public NodeStoreMongo(DB db) {
         commandExecutor = new DefaultCommandExecutor();
         this.db = db;
+        init();
     }
 
     @Override
@@ -140,30 +141,6 @@ public class NodeStoreMongo implements NodeStore {
     }
 
     /**
-     * Initializes the underlying DB.
-     *
-     * @param force If true, clears the DB before initializing the collections.
-     * Use with caution.
-     */
-    public void initializeDB(boolean force) {
-        if (force) {
-            clearDB();
-        }
-        initCommitCollection(force);
-        initNodeCollection(force);
-        initSyncCollection(force);
-    }
-
-    /**
-     * Drops the collections of the underlying DB.
-     */
-    public void clearDB() {
-        getNodeCollection().drop();
-        getCommitCollection().drop();
-        getSyncCollection().drop();
-    }
-
-    /**
      * Returns the commit {@link DBCollection}.
      *
      * @return The commit {@link DBCollection}.
@@ -196,8 +173,14 @@ public class NodeStoreMongo implements NodeStore {
         return nodeCollection;
     }
 
-    private void initCommitCollection(boolean force) {
-        if (!force && db.collectionExists(COLLECTION_COMMITS)){
+    private void init() {
+        initCommitCollection();
+        initNodeCollection();
+        initSyncCollection();
+    }
+
+    private void initCommitCollection() {
+        if (db.collectionExists(COLLECTION_COMMITS)){
             return;
         }
         DBCollection commitCollection = getCommitCollection();
@@ -216,8 +199,8 @@ public class NodeStoreMongo implements NodeStore {
         commitCollection.insert(commit);
     }
 
-    private void initNodeCollection(boolean force) {
-        if (!force && db.collectionExists(COLLECTION_NODES)){
+    private void initNodeCollection() {
+        if (db.collectionExists(COLLECTION_NODES)){
             return;
         }
         DBCollection nodeCollection = getNodeCollection();
@@ -233,8 +216,8 @@ public class NodeStoreMongo implements NodeStore {
         nodeCollection.insert(root);
     }
 
-    private void initSyncCollection(boolean force) {
-        if (!force && db.collectionExists(COLLECTION_SYNC)){
+    private void initSyncCollection() {
+        if (db.collectionExists(COLLECTION_SYNC)){
             return;
         }
         DBCollection headCollection = getSyncCollection();

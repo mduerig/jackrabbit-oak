@@ -60,10 +60,11 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
             mongoConnection = new MongoConnection(conf.getHost(),
                      conf.getMongoPort() , conf.getMongoDatabase());
             DB db = mongoConnection.getDB();
+            dropCollections(db);
+
             NodeStoreMongo nodeStore = new NodeStoreMongo(db);
-            nodeStore.initializeDB(true);
             BlobStore blobStore = new BlobStoreMongoGridFS(db);
-            mks.add(new MongoMicroKernel(nodeStore, blobStore));
+            mks.add(new MongoMicroKernel(mongoConnection, nodeStore, blobStore));
         }
 
         return mks;
@@ -71,5 +72,11 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
 
     public String getType() {
         return "Mongo Microkernel implementation";
+    }
+
+    private void dropCollections(DB db) {
+        db.getCollection(NodeStoreMongo.COLLECTION_COMMITS).drop();
+        db.getCollection(NodeStoreMongo.COLLECTION_NODES).drop();
+        db.getCollection(NodeStoreMongo.COLLECTION_SYNC).drop();
     }
 }

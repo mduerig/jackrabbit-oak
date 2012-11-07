@@ -36,12 +36,12 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest
         properties.load(is);
 
         DB db = mongoConnection.getDB();
-        MongoMicroKernel mongo1 = new MongoMicroKernel(new NodeStoreMongo(db),
-                new BlobStoreMongoGridFS(db));
-        MongoMicroKernel mongo2 = new MongoMicroKernel(new NodeStoreMongo(db),
-                new BlobStoreMongoGridFS(db));
-        MongoMicroKernel mongo3 = new MongoMicroKernel(new NodeStoreMongo(db),
-                new BlobStoreMongoGridFS(db));
+        MongoMicroKernel mongo1 = new MongoMicroKernel(mongoConnection,
+                new NodeStoreMongo(db), new BlobStoreMongoGridFS(db));
+        MongoMicroKernel mongo2 = new MongoMicroKernel(mongoConnection,
+                new NodeStoreMongo(db), new BlobStoreMongoGridFS(db));
+        MongoMicroKernel mongo3 = new MongoMicroKernel(mongoConnection,
+                new NodeStoreMongo(db), new BlobStoreMongoGridFS(db));
 
         GenericWriteTask task1 = new GenericWriteTask(mongo1, diff1, 0);
         GenericWriteTask task2 = new GenericWriteTask(mongo2, diff2, 0);

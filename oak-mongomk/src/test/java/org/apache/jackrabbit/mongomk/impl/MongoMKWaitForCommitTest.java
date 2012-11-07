@@ -33,7 +33,7 @@ public class MongoMKWaitForCommitTest extends BaseMongoMicroKernelTest {
         DB db = mongoConnection.getDB();
         NodeStore nodeStore = new NodeStoreMongo(db);
         BlobStore blobStore = new BlobStoreMongoGridFS(db);
-        mk2 = new MongoMicroKernel(nodeStore, blobStore);
+        mk2 = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }
 
     @Test

@@ -64,7 +64,7 @@ public class MongoMicroKernelService {
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     private ServiceRegistration reg;
-    private MongoConnection connection;
+    private MongoMicroKernel mk;
 
     @Activate
     private void activate(BundleContext context,Map<String,?> config) throws Exception {
@@ -74,15 +74,15 @@ public class MongoMicroKernelService {
 
         logger.info("Starting MongoDB MicroKernel with host={}, port={}, db={}",
                 new Object[] {host, port, db});
-        connection = new MongoConnection(host, port, db);
 
-        logger.info("Connected to database {}", db);
-
+        MongoConnection connection = new MongoConnection(host, port, db);
         DB mongoDB = connection.getDB();
+
+        logger.info("Connected to database {}", mongoDB);
+
         NodeStoreMongo nodeStore = new NodeStoreMongo(mongoDB);
-        nodeStore.initializeDB(false);
         BlobStoreMongoGridFS blobStore = new BlobStoreMongoGridFS(mongoDB);
-        MongoMicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
+        MongoMicroKernel mk = new MongoMicroKernel(connection, nodeStore, blobStore);
 
         Properties props = new Properties();
         props.setProperty("oak.mk.type","mongo");
@@ -95,8 +95,8 @@ public class MongoMicroKernelService {
             reg.unregister();
         }
 
-        if (connection != null){
-            connection.close();
+        if (mk != null) {
+            mk.dispose();
         }
     }
 }

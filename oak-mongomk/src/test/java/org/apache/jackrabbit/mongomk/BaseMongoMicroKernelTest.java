@@ -57,16 +57,18 @@ public class BaseMongoMicroKernelTest {
     @Before
     public void setUp() throws Exception {
         DB db = mongoConnection.getDB();
+        dropCollections(db);
+
         NodeStoreMongo nodeStore = new NodeStoreMongo(db);
-        nodeStore.initializeDB(true);
         MongoAssert.setNodeStore(nodeStore);
         BlobStore blobStore = new BlobStoreMongoGridFS(db);
-        mk = new MongoMicroKernel(nodeStore, blobStore);
+        mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }
 
     @After
     public void tearDown() throws Exception {
-        getNodeStore().clearDB();
+        DB db = mongoConnection.getDB();
+        dropCollections(db);
     }
 
     @AfterClass
@@ -230,5 +232,11 @@ public class BaseMongoMicroKernelTest {
         String database = properties.getProperty("db");
 
         mongoConnection = new MongoConnection(host, port, database);
+    }
+
+    private void dropCollections(DB db) {
+        db.getCollection(NodeStoreMongo.COLLECTION_COMMITS).drop();
+        db.getCollection(NodeStoreMongo.COLLECTION_NODES).drop();
+        db.getCollection(NodeStoreMongo.COLLECTION_SYNC).drop();
     }
 }
