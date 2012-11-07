@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 
 import com.mongodb.DBCollection;
@@ -32,17 +32,17 @@ public class SaveCommitAction extends BaseAction<Boolean> {
     /**
      * Constructs a new {@code SaveCommitAction}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param commitMongo The {@link CommitMongo} to save.
      */
-    public SaveCommitAction(MongoConnection mongoConnection, CommitMongo commitMongo) {
-        super(mongoConnection);
+    public SaveCommitAction(NodeStoreMongo nodeStore, CommitMongo commitMongo) {
+        super(nodeStore);
         this.commitMongo = commitMongo;
     }
 
     @Override
     public Boolean execute() throws Exception {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         WriteResult writeResult = commitCollection.insert(commitMongo);
         if (writeResult.getError() != null) {
             throw new Exception(String.format("Insertion wasn't successful: %s", writeResult));

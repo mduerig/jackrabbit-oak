@@ -8,7 +8,7 @@ import org.apache.jackrabbit.mk.model.tree.NodeState;
 import org.apache.jackrabbit.mongomk.api.command.Command;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchBranchBaseRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
@@ -37,20 +37,20 @@ public class MergeCommand extends BaseCommand<String> {
     /**
      * Constructs a {@code MergeCommandMongo}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param branchRevisionId Branch revision id.
      * @param message Merge message.
      */
-    public MergeCommand(MongoConnection mongoConnection, String branchRevisionId,
+    public MergeCommand(NodeStoreMongo nodeStore, String branchRevisionId,
             String message) {
-        super(mongoConnection);
+        super(nodeStore);
         this.branchRevisionId = branchRevisionId;
         this.message = message;
     }
 
     @Override
     public String execute() throws Exception {
-        CommitMongo commit = new FetchCommitAction(mongoConnection,
+        CommitMongo commit = new FetchCommitAction(nodeStore,
                 MongoUtil.toMongoRepresentation(branchRevisionId)).execute();
         String branchId = commit.getBranchId();
         if (branchId == null) {
@@ -59,13 +59,13 @@ public class MergeCommand extends BaseCommand<String> {
 
         long rootNodeId = commit.getRevisionId();
 
-        FetchHeadRevisionIdAction query2 = new FetchHeadRevisionIdAction(mongoConnection);
+        FetchHeadRevisionIdAction query2 = new FetchHeadRevisionIdAction(nodeStore);
         query2.includeBranchCommits(false);
         long currentHead = query2.execute();
 
         Node ourRoot = getNode("/", rootNodeId, branchId);
 
-        FetchBranchBaseRevisionIdAction branchAction = new FetchBranchBaseRevisionIdAction(mongoConnection, branchId);
+        FetchBranchBaseRevisionIdAction branchAction = new FetchBranchBaseRevisionIdAction(nodeStore, branchId);
         long branchRootId = branchAction.execute();
 
         // Merge nodes from head to branch.
@@ -86,7 +86,7 @@ public class MergeCommand extends BaseCommand<String> {
         Commit newCommit = CommitBuilder.build("", diff,
                 MongoUtil.fromMongoRepresentation(currentHead), message);
 
-        Command<Long> command = new CommitCommand(mongoConnection, newCommit);
+        Command<Long> command = new CommitCommand(nodeStore, newCommit);
         long revision = command.execute();
         return MongoUtil.fromMongoRepresentation(revision);
     }
@@ -181,8 +181,7 @@ public class MergeCommand extends BaseCommand<String> {
     }
 
     private Node getNode(String path, long revisionId, String branchId) throws Exception {
-        GetNodesCommand command = new GetNodesCommand(mongoConnection,
-                path, revisionId);
+        GetNodesCommand command = new GetNodesCommand(nodeStore, path, revisionId);
         command.setBranchId(branchId);
         return command.execute();
     }

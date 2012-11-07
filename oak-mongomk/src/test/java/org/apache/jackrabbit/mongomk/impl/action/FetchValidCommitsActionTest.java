@@ -21,23 +21,22 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 
-import org.apache.jackrabbit.mongomk.BaseMongoTest;
-import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
+import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.junit.Test;
 
-public class FetchValidCommitsActionTest extends BaseMongoTest {
+public class FetchValidCommitsActionTest extends BaseMongoMicroKernelTest {
 
     private static final int MIN_COMMITS = 1;
     private static final int SIMPLE_SCENARIO_COMMITS = MIN_COMMITS + 1;
 
     @Test
     public void simple() throws Exception {
-        FetchCommitsAction action = new FetchCommitsAction(mongoConnection);
+        FetchCommitsAction action = new FetchCommitsAction(getNodeStore());
         List<CommitMongo> commits = action.execute();
         assertEquals(MIN_COMMITS, commits.size());
 
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
         commits = action.execute();
         assertEquals(SIMPLE_SCENARIO_COMMITS, commits.size());
@@ -50,11 +49,11 @@ public class FetchValidCommitsActionTest extends BaseMongoTest {
 
     @Test
     public void revisionId() throws Exception {
-        FetchCommitsAction action = new FetchCommitsAction(mongoConnection);
+        FetchCommitsAction action = new FetchCommitsAction(getNodeStore());
         List<CommitMongo> commits = action.execute();
         CommitMongo commit0 = commits.get(0);
 
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
         commits = action.execute();
         CommitMongo commit1 = commits.get(0);
@@ -69,13 +68,13 @@ public class FetchValidCommitsActionTest extends BaseMongoTest {
 
     @Test
     public void time() throws Exception {
-        FetchCommitsAction action = new FetchCommitsAction(mongoConnection);
+        FetchCommitsAction action = new FetchCommitsAction(getNodeStore());
         List<CommitMongo> commits = action.execute();
         CommitMongo commit0 = commits.get(0);
 
         Thread.sleep(1000);
 
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
         commits = action.execute();
         CommitMongo commit1 = commits.get(0);
@@ -92,13 +91,13 @@ public class FetchValidCommitsActionTest extends BaseMongoTest {
 
     @Test
     public void maxEntriesDefaultLimitless() throws Exception {
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
 
         int numberOfChildren = 2;
         scenario.addChildrenToA(numberOfChildren);
 
-        FetchCommitsAction query = new FetchCommitsAction(mongoConnection,
+        FetchCommitsAction query = new FetchCommitsAction(getNodeStore(),
                 0L, Long.MAX_VALUE);
         List<CommitMongo> commits = query.execute();
         assertEquals(SIMPLE_SCENARIO_COMMITS + numberOfChildren, commits.size());
@@ -106,14 +105,14 @@ public class FetchValidCommitsActionTest extends BaseMongoTest {
 
     @Test
     public void maxEntries() throws Exception {
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         scenario.create();
 
         int numberOfChildren = 2;
         scenario.addChildrenToA(numberOfChildren);
 
         int maxEntries = 2;
-        FetchCommitsAction query = new FetchCommitsAction(mongoConnection,
+        FetchCommitsAction query = new FetchCommitsAction(getNodeStore(),
                 0L, Long.MAX_VALUE);
         query.setMaxEntries(maxEntries);
         List<CommitMongo> commits = query.execute();

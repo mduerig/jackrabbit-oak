@@ -7,15 +7,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mongomk.BaseMongoTest;
+import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
-
 import org.junit.Test;
 
-public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoTest {
+public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest {
 
     @Test
     public void testConcurrency() throws NumberFormatException, Exception {
@@ -31,7 +30,7 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoTest {
         // System.out.println(diff2);
         // System.out.println(diff3);
 
-        InputStream is = BaseMongoTest.class.getResourceAsStream("/config.cfg");
+        InputStream is = BaseMongoMicroKernelTest.class.getResourceAsStream("/config.cfg");
         Properties properties = new Properties();
         properties.load(is);
 
@@ -107,7 +106,7 @@ class GenericWriteTask implements Runnable {
     public void run() {
         commit(mk, diff, 10);
     }
-    
+
     private void commit(MicroKernel mk, String diff, int nodesPerCommit) {
 
         if (nodesPerCommit == 0) {

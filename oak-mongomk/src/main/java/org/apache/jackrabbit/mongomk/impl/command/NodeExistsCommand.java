@@ -17,7 +17,7 @@
 package org.apache.jackrabbit.mongomk.impl.command;
 
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
@@ -34,13 +34,12 @@ public class NodeExistsCommand extends BaseCommand<Boolean> {
     /**
      * Constructs a new {@code NodeExistsCommandMongo}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param path The root path of the nodes to get.
      * @param revisionId The revision id or null.
      */
-    public NodeExistsCommand(MongoConnection mongoConnection, String path,
-            Long revisionId) {
-        super(mongoConnection);
+    public NodeExistsCommand(NodeStoreMongo nodeStore, String path, Long revisionId) {
+        super(nodeStore);
         this.path = path;
         this.revisionId = revisionId;
     }
@@ -78,8 +77,7 @@ public class NodeExistsCommand extends BaseCommand<Boolean> {
 
     private void readParentNode(Long revisionId, String branchId) throws Exception {
         String parentPath = PathUtils.getParentPath(path);
-        GetNodesCommand command = new GetNodesCommand(mongoConnection,
-                parentPath, revisionId);
+        GetNodesCommand command = new GetNodesCommand(nodeStore, parentPath, revisionId);
         command.setBranchId(branchId);
         parentNode = command.execute();
     }

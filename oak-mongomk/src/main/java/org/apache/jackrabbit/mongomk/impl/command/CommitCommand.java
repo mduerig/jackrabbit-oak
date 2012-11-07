@@ -24,7 +24,7 @@ import java.util.Set;
 
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.action.ReadAndIncHeadRevisionAction;
@@ -65,11 +65,11 @@ public class CommitCommand extends BaseCommand<Long> {
     /**
      * Constructs a new {@code CommitCommandMongo}.
      *
-     * @param mongoConnection {@link MongoConnection}
+     * @param nodeStore Node store.
      * @param commit {@link Commit}
      */
-    public CommitCommand(MongoConnection mongoConnection, Commit commit) {
-        super(mongoConnection);
+    public CommitCommand(NodeStoreMongo nodeStore, Commit commit) {
+        super(nodeStore);
         this.commit = (CommitMongo)commit;
     }
 
@@ -124,7 +124,7 @@ public class CommitCommand extends BaseCommand<Long> {
      * @throws Exception If an exception happens.
      */
     protected boolean saveAndSetHeadRevision() throws Exception {
-        SyncMongo syncMongo = new SaveAndSetHeadRevisionAction(mongoConnection,
+        SyncMongo syncMongo = new SaveAndSetHeadRevisionAction(nodeStore,
                 this.syncMongo.getHeadRevisionId(), revisionId).execute();
         if (syncMongo == null) {
             logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
@@ -150,7 +150,7 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private void createMongoNodes() throws Exception {
         CommitCommandInstructionVisitor visitor = new CommitCommandInstructionVisitor(
-                mongoConnection, syncMongo.getHeadRevisionId());
+                nodeStore, syncMongo.getHeadRevisionId());
         visitor.setBranchId(branchId);
 
         for (Instruction instruction : commit.getInstructions()) {
@@ -174,7 +174,7 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     private void markAsFailed() throws Exception {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start("_id").is(commit.getObjectId("_id")).get();
         DBObject update = new BasicDBObject("$set", new BasicDBObject(CommitMongo.KEY_FAILED, Boolean.TRUE));
         WriteResult writeResult = commitCollection.update(query, update);
@@ -282,12 +282,12 @@ public class CommitCommand extends BaseCommand<Long> {
             return;
         }
 
-        CommitMongo baseCommit = new FetchCommitAction(mongoConnection, baseRevisionId).execute();
+        CommitMongo baseCommit = new FetchCommitAction(nodeStore, baseRevisionId).execute();
         branchId = baseCommit.getBranchId();
     }
 
     private void readAndIncHeadRevision() throws Exception {
-        syncMongo = new ReadAndIncHeadRevisionAction(mongoConnection).execute();
+        syncMongo = new ReadAndIncHeadRevisionAction(nodeStore).execute();
     }
 
     private void readExistingNodes() {
@@ -296,17 +296,17 @@ public class CommitCommand extends BaseCommand<Long> {
             paths.add(nodeMongo.getPath());
         }
 
-        FetchNodesAction action = new FetchNodesAction(mongoConnection, paths,
+        FetchNodesAction action = new FetchNodesAction(nodeStore, paths,
                 syncMongo.getHeadRevisionId());
         action.setBranchId(branchId);
         existingNodes = action.execute();
     }
 
     private void saveCommit() throws Exception {
-        new SaveCommitAction(mongoConnection, commit).execute();
+        new SaveCommitAction(nodeStore, commit).execute();
     }
 
     private void saveNodes() throws Exception {
-        new SaveNodesAction(mongoConnection, nodeMongos).execute();
+        new SaveNodesAction(nodeStore, nodeMongos).execute();
     }
 }

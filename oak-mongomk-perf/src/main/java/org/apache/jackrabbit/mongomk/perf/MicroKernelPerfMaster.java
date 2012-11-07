@@ -223,10 +223,10 @@ public class MicroKernelPerfMaster {
         while (true) {
             LOG.debug("Waiting for commit...");
 
-            DBCollection headCollection = this.mongoConnection.getSyncCollection();
+            DBCollection headCollection = ((NodeStoreMongo)microKernel.getNodeStore()).getSyncCollection();
             SyncMongo syncMongo = (SyncMongo) headCollection.findOne();
             if (this.lastHeadRevId < syncMongo.getHeadRevisionId()) {
-                DBCollection commitCollection = this.mongoConnection.getCommitCollection();
+                DBCollection commitCollection = ((NodeStoreMongo)microKernel.getNodeStore()).getCommitCollection();
                 DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID).greaterThan(this.lastRevId)
                         .and(CommitMongo.KEY_REVISION_ID).lessThanEquals(syncMongo.getHeadRevisionId()).get();
                 DBObject sort = QueryBuilder.start(CommitMongo.KEY_REVISION_ID).is(1).get();

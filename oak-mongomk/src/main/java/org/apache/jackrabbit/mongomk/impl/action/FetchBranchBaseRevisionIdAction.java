@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 
 import com.mongodb.BasicDBObject;
@@ -35,11 +35,11 @@ public class FetchBranchBaseRevisionIdAction extends BaseAction<Long> {
     /**
      * Constructs a new {@code FetchBranchBaseRevisionIdAction}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param branchId The branch id. It should not be null.
      */
-    public FetchBranchBaseRevisionIdAction(MongoConnection mongoConnection, String branchId) {
-        super(mongoConnection);
+    public FetchBranchBaseRevisionIdAction(NodeStoreMongo nodeStore, String branchId) {
+        super(nodeStore);
         this.branchId = branchId;
     }
 
@@ -49,7 +49,7 @@ public class FetchBranchBaseRevisionIdAction extends BaseAction<Long> {
             throw new IllegalArgumentException("Branch id cannot be null");
         }
 
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         QueryBuilder queryBuilder = QueryBuilder.start(CommitMongo.KEY_FAILED)
                 .notEquals(Boolean.TRUE)
                 .and(CommitMongo.KEY_BRANCH_ID).is(branchId);

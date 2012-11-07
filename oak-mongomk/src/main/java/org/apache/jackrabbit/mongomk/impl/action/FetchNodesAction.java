@@ -25,14 +25,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
@@ -56,15 +55,15 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
      * Constructs a new {@code FetchNodesAction} to fetch a node and optionally
      * its descendants under the specified path.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param path The path.
      * @param fetchDescendants Determines whether the descendants of the path
      * will be fetched as well.
      * @param revisionId The revision id.
      */
-    public FetchNodesAction(MongoConnection mongoConnection, String path,
+    public FetchNodesAction(NodeStoreMongo nodeStore, String path,
             boolean fetchDescendants, long revisionId) {
-        super(mongoConnection);
+        super(nodeStore);
         paths = new HashSet<String>();
         paths.add(path);
         this.fetchDescendants = fetchDescendants;
@@ -75,17 +74,16 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
      * Constructs a new {@code FetchNodesAction} to fetch nodes with the exact
      * specified paths.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param path The exact paths to fetch nodes for.
      * @param revisionId The revision id.
      */
-    public FetchNodesAction(MongoConnection mongoConnection,  Set<String> paths,
+    public FetchNodesAction(NodeStoreMongo nodeStore,  Set<String> paths,
             long revisionId) {
-        super(mongoConnection);
+        super(nodeStore);
         this.paths = paths;
         this.revisionId = revisionId;
     }
-
 
     /**
      * Sets the branchId for the query.
@@ -111,7 +109,7 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
             return Collections.emptyList();
         }
         DBCursor dbCursor = performQuery();
-        List<CommitMongo> validCommits = new FetchCommitsAction(mongoConnection, revisionId).execute();
+        List<CommitMongo> validCommits = new FetchCommitsAction(nodeStore, revisionId).execute();
         return getMostRecentValidNodes(dbCursor, validCommits);
     }
 
@@ -139,7 +137,7 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
         } else {
             // Not only return nodes in the branch but also nodes in the trunk
             // before the branch was created.
-            FetchBranchBaseRevisionIdAction action = new FetchBranchBaseRevisionIdAction(mongoConnection, branchId);
+            FetchBranchBaseRevisionIdAction action = new FetchBranchBaseRevisionIdAction(nodeStore, branchId);
             long headBranchRevisionId = action.execute();
 
             DBObject branchQuery = QueryBuilder.start().or(
@@ -152,8 +150,7 @@ public class FetchNodesAction extends BaseAction<List<NodeMongo>> {
         DBObject query = queryBuilder.get();
         LOG.debug(String.format("Executing query: %s", query));
 
-        DBCollection nodeCollection = mongoConnection.getNodeCollection();
-        return nodeCollection.find(query);
+        return nodeStore.getNodeCollection().find(query);
     }
 
     private Pattern createPrefixRegExp(String path) {

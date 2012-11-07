@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.util.Configuration;
-import org.apache.jackrabbit.mongomk.api.NodeStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
@@ -46,7 +45,6 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
         // initialize the database
         // temporary workaround.Remove the sleep.
         Thread.sleep(1000);
-        mongoConnection.initializeDB(true);
         mongoConnection = new MongoConnection(conf.getHost(),
                 conf.getMongoPort(), "admin");
         // set the shard key
@@ -60,7 +58,8 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
         for (int i = 0; i < mksNumber; i++) {
             mongoConnection = new MongoConnection(conf.getHost(),
                      conf.getMongoPort() , conf.getMongoDatabase());
-            NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
+            NodeStoreMongo nodeStore = new NodeStoreMongo(mongoConnection);
+            nodeStore.initializeDB(true);
             BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
             mks.add(new MongoMicroKernel(nodeStore, blobStore));
         }

@@ -24,7 +24,7 @@ import java.util.Map;
 
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
 import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
@@ -41,11 +41,11 @@ import com.mongodb.QueryBuilder;
  */
 public class MongoAssert {
 
-    private static MongoConnection mongoConnection;
+    private static NodeStoreMongo nodeStore;
 
     public static void assertCommitContainsAffectedPaths(String revisionId,
             String... expectedPaths) throws Exception {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID)
                 .is(MongoUtil.toMongoRepresentation(revisionId)).get();
         CommitMongo result = (CommitMongo) commitCollection.findOne(query);
@@ -56,7 +56,7 @@ public class MongoAssert {
     }
 
     public static void assertCommitExists(Commit commit) {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID)
                 .is(commit.getRevisionId()).and(CommitMongo.KEY_MESSAGE)
                 .is(commit.getMessage()).and(CommitMongo.KEY_DIFF).is(commit.getDiff()).and(CommitMongo.KEY_PATH)
@@ -66,20 +66,20 @@ public class MongoAssert {
     }
 
     public static void assertHeadRevision(long revisionId) {
-        DBCollection headCollection = mongoConnection.getSyncCollection();
+        DBCollection headCollection = nodeStore.getSyncCollection();
         SyncMongo result = (SyncMongo) headCollection.findOne();
         Assert.assertEquals(revisionId, result.getHeadRevisionId());
     }
 
     public static void assertNextRevision(long revisionId) {
-        DBCollection headCollection = mongoConnection.getSyncCollection();
+        DBCollection headCollection = nodeStore.getSyncCollection();
         SyncMongo result = (SyncMongo) headCollection.findOne();
         Assert.assertEquals(revisionId, result.getNextRevisionId());
     }
 
     public static void assertNodeRevisionId(String path, String revisionId,
             boolean exists) throws Exception {
-        DBCollection nodeCollection = mongoConnection.getNodeCollection();
+        DBCollection nodeCollection = nodeStore.getNodeCollection();
         DBObject query = QueryBuilder.start(NodeMongo.KEY_PATH).is(path).and(NodeMongo.KEY_REVISION_ID)
                 .is(MongoUtil.toMongoRepresentation(revisionId)).get();
         NodeMongo nodeMongo = (NodeMongo) nodeCollection.findOne(query);
@@ -92,7 +92,7 @@ public class MongoAssert {
     }
 
     public static void assertNodesExist(Node expected) {
-        DBCollection nodeCollection = mongoConnection.getNodeCollection();
+        DBCollection nodeCollection = nodeStore.getNodeCollection();
         QueryBuilder qb = QueryBuilder.start(NodeMongo.KEY_PATH).is(expected.getPath())
                 .and(NodeMongo.KEY_REVISION_ID)
                 .is(expected.getRevisionId());
@@ -120,12 +120,8 @@ public class MongoAssert {
         }
     }
 
-    static void setMongoConnection(MongoConnection mongoConnection) {
+    static void setNodeStore(NodeStoreMongo nodeStore) {
         // must be set prior to using this class.
-        MongoAssert.mongoConnection = mongoConnection;
-    }
-
-    private MongoAssert() {
-        // no instantiation
+        MongoAssert.nodeStore = nodeStore;
     }
 }

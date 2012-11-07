@@ -28,20 +28,17 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.apache.jackrabbit.mongomk.BaseMongoTest;
+import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.apache.jackrabbit.mongomk.api.command.CommandExecutor;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
-import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
-import org.apache.jackrabbit.mongomk.impl.command.DefaultCommandExecutor;
-import org.apache.jackrabbit.mongomk.impl.command.GetNodesCommand;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.junit.Test;
 
-public class ConcurrentCommitCommandTest extends BaseMongoTest {
+public class ConcurrentCommitCommandTest extends BaseMongoMicroKernelTest {
 
     @Test
     public void testConflictingConcurrentUpdate() throws Exception {
@@ -53,7 +50,7 @@ public class ConcurrentCommitCommandTest extends BaseMongoTest {
         for (int i = 0; i < numOfConcurrentThreads; ++i) {
             Commit commit = CommitBuilder.build("/", "+\"" + i + "\" : {}",
                     "This is a concurrent commit");
-            CommitCommand command = new CommitCommand(mongoConnection, commit) {
+            CommitCommand command = new CommitCommand(getNodeStore(), commit) {
                 @Override
                 protected boolean saveAndSetHeadRevision() throws Exception {
                     try {
@@ -112,7 +109,7 @@ public class ConcurrentCommitCommandTest extends BaseMongoTest {
         List<String> lastChildren = new LinkedList<String>();
         for (int i = 0; i < numOfConcurrentThreads; ++i) {
             Long revisionId = revisionIds.get(i);
-            GetNodesCommand command2 = new GetNodesCommand(mongoConnection,
+            GetNodesCommand command2 = new GetNodesCommand(getNodeStore(),
                     "/", revisionId);
             Node root = command2.execute();
 
@@ -137,7 +134,7 @@ public class ConcurrentCommitCommandTest extends BaseMongoTest {
         }
 
         // Assert number of successful commits.
-        List<CommitMongo> commits = new FetchCommitsAction(mongoConnection).execute();
+        List<CommitMongo> commits = new FetchCommitsAction(getNodeStore()).execute();
         assertEquals(numOfConcurrentThreads + 1, commits.size());
     }
 }

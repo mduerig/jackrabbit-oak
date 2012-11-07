@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
 
 import com.mongodb.BasicDBObject;
@@ -35,20 +35,20 @@ public class SaveAndSetHeadRevisionAction extends BaseAction<SyncMongo> {
     /**
      * Constructs a new {@code SaveAndSetHeadRevisionAction}.
      *
-     * @param mongoConnection  The {@link MongoConnection}.
-     * @param oldHeadRevision
-     * @param newHeadRevision
+     * @param nodeStore Node store.
+     * @param oldHeadRevision Old head revision.
+     * @param newHeadRevision New head revision.
      */
-    public SaveAndSetHeadRevisionAction(MongoConnection mongoConnection,
+    public SaveAndSetHeadRevisionAction(NodeStoreMongo nodeStore,
             long oldHeadRevision, long newHeadRevision) {
-        super(mongoConnection);
+        super(nodeStore);
         this.oldHeadRevision = oldHeadRevision;
         this.newHeadRevision = newHeadRevision;
     }
 
     @Override
     public SyncMongo execute() throws Exception {
-        DBCollection headCollection = mongoConnection.getSyncCollection();
+        DBCollection headCollection = nodeStore.getSyncCollection();
         DBObject query = QueryBuilder.start(SyncMongo.KEY_HEAD_REVISION_ID).is(oldHeadRevision).get();
         DBObject update = new BasicDBObject("$set", new BasicDBObject(SyncMongo.KEY_HEAD_REVISION_ID, newHeadRevision));
         DBObject dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);

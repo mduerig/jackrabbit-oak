@@ -22,30 +22,58 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.InputStream;
+import java.util.Properties;
+
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
-import org.apache.jackrabbit.mongomk.api.NodeStore;
+import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
+import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 /**
  * Base class for {@code MongoDB} tests that need the MongoMK.
  */
-public class BaseMongoMicroKernelTest extends BaseMongoTest {
+public class BaseMongoMicroKernelTest {
 
     public static MicroKernel mk;
+    public static MongoConnection mongoConnection;
+
+    @BeforeClass
+    public static void setUpBeforeClass() throws Exception {
+        createDefaultMongoConnection();
+    }
 
     @Before
     public void setUp() throws Exception {
-        super.setUp();
-        NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
+        NodeStoreMongo nodeStore = new NodeStoreMongo(mongoConnection);
+        nodeStore.initializeDB(true);
+        MongoAssert.setNodeStore(nodeStore);
         BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
         mk = new MongoMicroKernel(nodeStore, blobStore);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        getNodeStore().clearDB();
+    }
+
+    @AfterClass
+    public static void tearDownAfterClass() throws Exception {
+        mongoConnection.getDB().dropDatabase();
+    }
+
+    protected NodeStoreMongo getNodeStore() {
+        MongoMicroKernel mongoMk = (MongoMicroKernel)mk;
+        return (NodeStoreMongo)mongoMk.getNodeStore();
     }
 
     protected JSONObject getObjectArrayEntry(JSONArray array, int pos) {
@@ -187,5 +215,17 @@ public class BaseMongoMicroKernelTest extends BaseMongoTest {
             val = ((JSONObject) val).get(name);
         }
         return val;
+    }
+
+    private static void createDefaultMongoConnection() throws Exception {
+        InputStream is = BaseMongoMicroKernelTest.class.getResourceAsStream("/config.cfg");
+        Properties properties = new Properties();
+        properties.load(is);
+
+        String host = properties.getProperty("host");
+        int port = Integer.parseInt(properties.getProperty("port"));
+        String database = properties.getProperty("db");
+
+        mongoConnection = new MongoConnection(host, port, database);
     }
 }

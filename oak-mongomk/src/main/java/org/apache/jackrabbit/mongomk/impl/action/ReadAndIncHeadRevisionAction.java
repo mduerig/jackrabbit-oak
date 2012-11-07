@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.SyncMongo;
 
 import com.mongodb.BasicDBObject;
@@ -31,10 +31,10 @@ public class ReadAndIncHeadRevisionAction extends BaseAction<SyncMongo> {
     /**
      * Constructs a new {@code ReadAndIncHeadRevisionQuery}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      */
-    public ReadAndIncHeadRevisionAction(MongoConnection mongoConnection) {
-        super(mongoConnection);
+    public ReadAndIncHeadRevisionAction(NodeStoreMongo nodeStore) {
+        super(nodeStore);
     }
 
     @Override
@@ -42,10 +42,10 @@ public class ReadAndIncHeadRevisionAction extends BaseAction<SyncMongo> {
         DBObject query = new BasicDBObject();
         DBObject inc = new BasicDBObject(SyncMongo.KEY_NEXT_REVISION_ID, 1L);
         DBObject update = new BasicDBObject("$inc", inc);
-        DBCollection headCollection = mongoConnection.getSyncCollection();
+        DBCollection headCollection = nodeStore.getSyncCollection();
 
         DBObject dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);
-        // Not sure why but sometimes dbObject is null. Simply retry for now.
+        // FIXME - Not sure why but sometimes dbObject is null. Simply retry for now.
         while (dbObject == null) {
             dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);
         }

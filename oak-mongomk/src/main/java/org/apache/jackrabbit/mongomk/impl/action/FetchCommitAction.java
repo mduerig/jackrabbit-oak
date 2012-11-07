@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,17 +38,17 @@ public class FetchCommitAction extends BaseAction<CommitMongo> {
     /**
      * Constructs a new {@link FetchCommitAction}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param revisionId Revision id.
      */
-    public FetchCommitAction(MongoConnection mongoConnection, long revisionId) {
-        super(mongoConnection);
+    public FetchCommitAction(NodeStoreMongo nodeStore, long revisionId) {
+        super(nodeStore);
         this.revisionId = revisionId;
     }
 
     @Override
     public CommitMongo execute() throws Exception {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start(CommitMongo.KEY_FAILED).notEquals(Boolean.TRUE)
                 .and(CommitMongo.KEY_REVISION_ID).is(revisionId)
                 .get();

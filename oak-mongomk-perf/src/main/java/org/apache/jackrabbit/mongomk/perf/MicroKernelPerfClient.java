@@ -133,8 +133,8 @@ public class MicroKernelPerfClient {
     }
 
     private void createStats(VerificationHandler handler, JSONObject result) {
-        long numOfNodes = mongoConnection.getNodeCollection().count();
-        long numOfCommits = mongoConnection.getCommitCollection().count();
+        long numOfNodes = ((NodeStoreMongo)microKernel.getNodeStore()).getNodeCollection().count();
+        long numOfCommits = ((NodeStoreMongo)microKernel.getNodeStore()).getCommitCollection().count();
 
         Stats commitStats = new Stats("commit", commitMonitor.getLastValue(), numOfCommits, numOfNodes,
                 handler.addedNodes.size() + handler.addedProperties.size());

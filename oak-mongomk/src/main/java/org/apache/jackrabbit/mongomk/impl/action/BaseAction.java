@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 
 /**
  * An abstract base class for actions performed against {@code MongoDB}.
@@ -25,15 +25,15 @@ import org.apache.jackrabbit.mongomk.impl.MongoConnection;
  */
 public abstract class BaseAction<T> {
 
-    protected MongoConnection mongoConnection;
+    protected NodeStoreMongo nodeStore;
 
     /**
      * Constructs a new {@code AbstractAction}.
      *
-     * @param mongoConnection The mongo connection.
+     * @param nodeStore Node store.
      */
-    public BaseAction(MongoConnection mongoConnection) {
-        this.mongoConnection = mongoConnection;
+    public BaseAction(NodeStoreMongo nodeStore) {
+        this.nodeStore = nodeStore;
     }
 
     /**

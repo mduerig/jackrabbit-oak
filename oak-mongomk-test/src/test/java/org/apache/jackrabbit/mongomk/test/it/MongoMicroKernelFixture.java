@@ -22,7 +22,6 @@ import java.util.Properties;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.test.MicroKernelFixture;
-import org.apache.jackrabbit.mongomk.api.NodeStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
@@ -31,7 +30,7 @@ import org.junit.Assert;
 
 public class MongoMicroKernelFixture implements MicroKernelFixture {
 
-    private static MongoConnection mongoConnection = createMongoConnection();
+    private static NodeStoreMongo nodeStore;
 
     private static MongoConnection createMongoConnection() {
         try {
@@ -52,8 +51,9 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
     @Override
     public void setUpCluster(MicroKernel[] cluster) {
         try {
-            mongoConnection.initializeDB(true);
-            NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
+            MongoConnection mongoConnection = createMongoConnection();
+            nodeStore = new NodeStoreMongo(mongoConnection);
+            nodeStore.initializeDB(true);
             BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
 
             MicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
@@ -72,7 +72,7 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
     @Override
     public void tearDownCluster(MicroKernel[] cluster) {
         try {
-            mongoConnection.clearDB();
+            nodeStore.clearDB();
         } catch (Exception e) {
             e.printStackTrace();
         }

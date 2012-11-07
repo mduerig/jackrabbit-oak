@@ -18,7 +18,7 @@ package org.apache.jackrabbit.mongomk.impl.action;
 
 import java.util.Collection;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
 
 import com.mongodb.DBCollection;
@@ -36,17 +36,17 @@ public class SaveNodesAction extends BaseAction<Boolean> {
     /**
      * Constructs a new {@code SaveNodesAction}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param nodeMongos The list of {@link NodeMongo}s.
      */
-    public SaveNodesAction(MongoConnection mongoConnection, Collection<NodeMongo> nodeMongos) {
-        super(mongoConnection);
+    public SaveNodesAction(NodeStoreMongo nodeStore, Collection<NodeMongo> nodeMongos) {
+        super(nodeStore);
         this.nodeMongos = nodeMongos;
     }
 
     @Override
     public Boolean execute() throws Exception {
-        DBCollection nodeCollection = mongoConnection.getNodeCollection();
+        DBCollection nodeCollection = nodeStore.getNodeCollection();
         DBObject[] temp = nodeMongos.toArray(new DBObject[nodeMongos.size()]);
         WriteResult writeResult = nodeCollection.insert(temp, WriteConcern.SAFE);
         if ((writeResult != null) && (writeResult.getError() != null)) {

@@ -3,7 +3,7 @@ package org.apache.jackrabbit.mongomk.impl.command;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mk.model.tree.NodeState;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
@@ -24,15 +24,15 @@ public class DiffCommand extends BaseCommand<String> {
     /**
      * Constructs a {@code DiffCommandCommandMongo}
      *
-     * @param mongoConnection Mongo connection
+     * @param nodeStore Node store.
      * @param fromRevision From revision id.
      * @param toRevision To revision id.
      * @param path Path.
      * @param depth Depth.
      */
-    public DiffCommand(MongoConnection mongoConnection, String fromRevision,
+    public DiffCommand(NodeStoreMongo nodeStore, String fromRevision,
             String toRevision, String path, int depth) {
-        super(mongoConnection);
+        super(nodeStore);
         this.fromRevision = fromRevision;
         this.toRevision = toRevision;
         this.path = path;
@@ -46,7 +46,7 @@ public class DiffCommand extends BaseCommand<String> {
 
         long fromRevisionId, toRevisionId;
         if (fromRevision == null || toRevision == null) {
-            FetchHeadRevisionIdAction query = new FetchHeadRevisionIdAction(mongoConnection);
+            FetchHeadRevisionIdAction query = new FetchHeadRevisionIdAction(nodeStore);
             query.includeBranchCommits(true);
             long head = query.execute();
             fromRevisionId = fromRevision == null? head : MongoUtil.toMongoRepresentation(fromRevision);
@@ -61,7 +61,7 @@ public class DiffCommand extends BaseCommand<String> {
         }
 
         if ("/".equals(path)) {
-            CommitMongo toCommit = new FetchCommitAction(mongoConnection, toRevisionId).execute();
+            CommitMongo toCommit = new FetchCommitAction(nodeStore, toRevisionId).execute();
             if (toCommit.getBaseRevisionId() == fromRevisionId) {
                 // Specified range spans a single commit:
                 // use diff stored in commit instead of building it dynamically
@@ -83,8 +83,7 @@ public class DiffCommand extends BaseCommand<String> {
     }
 
     private Node getNode(String path, long revisionId) throws Exception {
-        GetNodesCommand command = new GetNodesCommand(mongoConnection,
-                path, revisionId);
+        GetNodesCommand command = new GetNodesCommand(nodeStore, path, revisionId);
         return command.execute();
     }
 }

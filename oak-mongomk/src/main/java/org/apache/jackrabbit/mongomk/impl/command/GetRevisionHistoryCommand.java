@@ -7,7 +7,7 @@ import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.apache.jackrabbit.mongomk.impl.model.tree.MongoNodeStore;
@@ -26,15 +26,15 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
     /**
      * Constructs a {@code GetRevisionHistoryCommandMongo}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param since Timestamp (ms) of earliest revision to be returned
      * @param maxEntries maximum #entries to be returned; if < 0, no limit will be applied.
      * @param path optional path filter; if {@code null} or {@code ""} the
      * default ({@code "/"}) will be assumed, i.e. no filter will be applied
      */
-    public GetRevisionHistoryCommand(MongoConnection mongoConnection,
+    public GetRevisionHistoryCommand(NodeStoreMongo nodeStore,
             long since, int maxEntries, String path) {
-        super(mongoConnection);
+        super(nodeStore);
         this.since = since;
         this.maxEntries = maxEntries;
         this.path = path;
@@ -45,7 +45,7 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
         path = MongoUtil.adjustPath(path);
         maxEntries = maxEntries < 0 ? Integer.MAX_VALUE : maxEntries;
 
-        FetchCommitsAction action = new FetchCommitsAction(mongoConnection);
+        FetchCommitsAction action = new FetchCommitsAction(nodeStore);
         action.setMaxEntries(maxEntries);
         action.includeBranchCommits(false);
 
@@ -84,8 +84,6 @@ public class GetRevisionHistoryCommand extends BaseCommand<String> {
     }
 
     private Node getNode(String path, long revisionId) throws Exception {
-        GetNodesCommand command = new GetNodesCommand(mongoConnection,
-                path, revisionId);
-        return command.execute();
+        return new GetNodesCommand(nodeStore, path, revisionId).execute();
     }
 }

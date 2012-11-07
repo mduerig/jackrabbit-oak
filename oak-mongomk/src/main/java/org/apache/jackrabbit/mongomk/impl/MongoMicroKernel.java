@@ -56,13 +56,31 @@ public class MongoMicroKernel implements MicroKernel {
         this.blobStore = blobStore;
     }
 
+    /**
+     * Returns the underlying blob store.
+     *
+     * @return Blob store.
+     */
+    public BlobStore getBlobStore() {
+        return blobStore;
+    }
+
+    /**
+     * Returns the underlying node store.
+     *
+     * @return Node store.
+     */
+    public NodeStore getNodeStore() {
+        return nodeStore;
+    }
+
     @Override
     public String branch(String trunkRevisionId) throws MicroKernelException {
         String revId = trunkRevisionId == null ? getHeadRevision() : trunkRevisionId;
 
         try {
             CommitMongo commit = (CommitMongo)CommitBuilder.build("", "", revId,
-                    MongoConnection.INITIAL_COMMIT_MESSAGE);
+                    NodeStoreMongo.INITIAL_COMMIT_MESSAGE);
             commit.setBranchId(UUID.randomUUID().toString());
             return nodeStore.commit(commit);
         } catch (Exception e) {

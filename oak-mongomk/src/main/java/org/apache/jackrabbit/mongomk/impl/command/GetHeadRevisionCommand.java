@@ -16,7 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.command;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 
 /**
@@ -27,14 +27,14 @@ public class GetHeadRevisionCommand extends BaseCommand<Long> {
     /**
      * Constructs a new {@code GetHeadRevisionCommandMongo}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      */
-    public GetHeadRevisionCommand(MongoConnection mongoConnection) {
-        super(mongoConnection);
+    public GetHeadRevisionCommand(NodeStoreMongo nodeStore) {
+        super(nodeStore);
     }
 
     @Override
     public Long execute() throws Exception {
-        return new FetchHeadRevisionIdAction(mongoConnection).execute();
+        return new FetchHeadRevisionIdAction(nodeStore).execute();
     }
 }

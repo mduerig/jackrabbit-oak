@@ -17,7 +17,7 @@
 package org.apache.jackrabbit.mongomk.impl.command;
 
 import org.apache.jackrabbit.mongomk.api.command.Command;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 
 /**
  * Base {@code Command} implementation.
@@ -26,7 +26,7 @@ import org.apache.jackrabbit.mongomk.impl.MongoConnection;
  */
 public abstract class BaseCommand<T> implements Command<T> {
 
-    protected MongoConnection mongoConnection;
+    protected NodeStoreMongo nodeStore;
 
     /**
      * Constructs a base command.
@@ -37,10 +37,10 @@ public abstract class BaseCommand<T> implements Command<T> {
     /**
      * Constructs a base command with a mongo connection.
      *
-     * @param mongoConnection The mongo connection.
+     * @param nodeStore Node store.
      */
-    public BaseCommand(MongoConnection mongoConnection) {
-        this.mongoConnection = mongoConnection;
+    public BaseCommand(NodeStoreMongo nodeStore) {
+        this.nodeStore = nodeStore;
     }
 
     @Override

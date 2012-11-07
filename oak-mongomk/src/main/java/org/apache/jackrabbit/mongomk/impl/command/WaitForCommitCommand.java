@@ -1,6 +1,6 @@
 package org.apache.jackrabbit.mongomk.impl.command;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.util.MongoUtil;
 
@@ -17,13 +17,13 @@ public class WaitForCommitCommand extends BaseCommand<Long> {
     /**
      * Constructs a {@code WaitForCommitCommandMongo}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param oldHeadRevisionId Id of earlier head revision
      * @param timeout The maximum time to wait in milliseconds
      */
-    public WaitForCommitCommand(MongoConnection mongoConnection, String oldHeadRevisionId,
+    public WaitForCommitCommand(NodeStoreMongo nodeStore, String oldHeadRevisionId,
             long timeout) {
-        super(mongoConnection);
+        super(nodeStore);
         this.oldHeadRevisionId = oldHeadRevisionId;
         this.timeout = timeout;
     }
@@ -54,7 +54,7 @@ public class WaitForCommitCommand extends BaseCommand<Long> {
     }
 
     private long getHeadRevision() throws Exception {
-        FetchHeadRevisionIdAction query = new FetchHeadRevisionIdAction(mongoConnection);
+        FetchHeadRevisionIdAction query = new FetchHeadRevisionIdAction(nodeStore);
         query.includeBranchCommits(false);
         return query.execute();
     }

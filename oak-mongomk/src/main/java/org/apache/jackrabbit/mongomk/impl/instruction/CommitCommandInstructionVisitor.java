@@ -27,7 +27,7 @@ import org.apache.jackrabbit.mongomk.api.instruction.Instruction.MoveNodeInstruc
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction.RemoveNodeInstruction;
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction.SetPropertyInstruction;
 import org.apache.jackrabbit.mongomk.api.instruction.InstructionVisitor;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.command.NodeExistsCommand;
 import org.apache.jackrabbit.mongomk.impl.exception.NotFoundException;
@@ -41,7 +41,7 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
 public class CommitCommandInstructionVisitor implements InstructionVisitor {
 
     private final long headRevisionId;
-    private final MongoConnection mongoConnection;
+    private final NodeStoreMongo nodeStore;
     private final Map<String, NodeMongo> pathNodeMap;
 
     private String branchId;
@@ -49,12 +49,11 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
     /**
      * Creates {@code CommitCommandInstructionVisitor}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param headRevisionId Head revision.
      */
-    public CommitCommandInstructionVisitor(MongoConnection mongoConnection,
-            long headRevisionId) {
-        this.mongoConnection = mongoConnection;
+    public CommitCommandInstructionVisitor(NodeStoreMongo nodeStore, long headRevisionId) {
+        this.nodeStore = nodeStore;
         this.headRevisionId = headRevisionId;
         pathNodeMap = new HashMap<String, NodeMongo>();
     }
@@ -151,7 +150,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         }
 
         // First, copy the existing nodes.
-        List<NodeMongo> nodesToCopy = new FetchNodesAction(mongoConnection,
+        List<NodeMongo> nodesToCopy = new FetchNodesAction(nodeStore,
                 srcPath, true, headRevisionId).execute();
         for (NodeMongo nodeMongo : nodesToCopy) {
             String oldPath = nodeMongo.getPath();
@@ -199,7 +198,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         }
 
         // First, copy the existing nodes.
-        List<NodeMongo> nodesToCopy = new FetchNodesAction(mongoConnection,
+        List<NodeMongo> nodesToCopy = new FetchNodesAction(nodeStore,
                 srcPath, true, headRevisionId).execute();
         for (NodeMongo nodeMongo : nodesToCopy) {
             String oldPath = nodeMongo.getPath();
@@ -245,7 +244,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         }
 
         // First need to check that the path is indeed valid.
-        NodeExistsCommand existCommand = new NodeExistsCommand(mongoConnection,
+        NodeExistsCommand existCommand = new NodeExistsCommand(nodeStore,
                 path, headRevisionId);
         existCommand.setBranchId(branchId);
         boolean exists = false;
@@ -258,7 +257,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         }
 
         // Fetch the node without its descendants.
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(nodeStore,
                 path, false /*fetchDescendants*/, headRevisionId);
         query.setBranchId(branchId);
         List<NodeMongo> nodes = query.execute();

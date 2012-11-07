@@ -33,7 +33,7 @@ public class PrepareEnvironment {
 
     public void start() {
         LOG.info("Preparing environment");
-        mongoConnection.initializeDB(true);
+        //mongoConnection.initializeDB(true);
     }
 
     private void initMongo() throws Exception {

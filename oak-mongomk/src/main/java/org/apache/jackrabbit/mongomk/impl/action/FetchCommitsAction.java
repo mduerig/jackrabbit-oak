@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
 import org.apache.jackrabbit.mongomk.impl.model.NodeMongo;
 import org.slf4j.Logger;
@@ -51,33 +51,33 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
     /**
      * Constructs a new {@link FetchCommitsAction}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param toRevisionId To revision id.
      */
-    public FetchCommitsAction(MongoConnection mongoConnection) {
-        this(mongoConnection, -1L, -1L);
+    public FetchCommitsAction(NodeStoreMongo nodeStore) {
+        this(nodeStore, -1L, -1L);
     }
 
     /**
      * Constructs a new {@link FetchCommitsAction}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param toRevisionId To revision id.
      */
-    public FetchCommitsAction(MongoConnection mongoConnection, long toRevisionId) {
-        this(mongoConnection, -1L, toRevisionId);
+    public FetchCommitsAction(NodeStoreMongo nodeStore, long toRevisionId) {
+        this(nodeStore, -1L, toRevisionId);
     }
 
     /**
      * Constructs a new {@link FetchCommitsAction}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param fromRevisionId From revision id.
      * @param toRevisionId To revision id.
      */
-    public FetchCommitsAction(MongoConnection mongoConnection, long fromRevisionId,
+    public FetchCommitsAction(NodeStoreMongo nodeStore, long fromRevisionId,
             long toRevisionId) {
-        super(mongoConnection);
+        super(nodeStore);
         this.fromRevisionId = fromRevisionId;
         this.toRevisionId = toRevisionId;
     }
@@ -110,7 +110,7 @@ public class FetchCommitsAction extends BaseAction<List<CommitMongo>> {
     }
 
     private DBCursor fetchListOfValidCommits() {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = nodeStore.getCommitCollection();
         QueryBuilder queryBuilder = QueryBuilder.start(CommitMongo.KEY_FAILED).notEquals(Boolean.TRUE);
         if (toRevisionId > -1) {
             queryBuilder = queryBuilder.and(CommitMongo.KEY_REVISION_ID).lessThanEquals(toRevisionId);

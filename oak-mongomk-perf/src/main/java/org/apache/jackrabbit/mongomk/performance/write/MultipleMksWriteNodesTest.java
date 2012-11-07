@@ -45,7 +45,8 @@ public class MultipleMksWriteNodesTest extends MultipleNodesTestBase {
 
     @Before
     public void cleanDatabase() {
-        mongoConnection.initializeDB(true);
+        // FIXME
+        //mongoConnection.initializeDB(true);
     }
 
     /**

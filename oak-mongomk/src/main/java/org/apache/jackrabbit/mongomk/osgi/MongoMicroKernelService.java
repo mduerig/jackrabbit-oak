@@ -74,10 +74,10 @@ public class MongoMicroKernelService {
                 new Object[] {host, port, db});
         connection = new MongoConnection(host, port, db);
 
-        connection.initializeDB(false);
         logger.info("Connected to database {}", db);
 
         NodeStoreMongo nodeStore = new NodeStoreMongo(connection);
+        nodeStore.initializeDB(false);
         BlobStoreMongoGridFS blobStore = new BlobStoreMongoGridFS(connection);
         MongoMicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
 

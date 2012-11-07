@@ -6,7 +6,7 @@ import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
@@ -26,14 +26,14 @@ public class GetJournalCommand extends BaseCommand<String> {
     /**
      * Constructs a {@code GetJournalCommandMongo}
      *
-     * @param mongoConnection Mongo connection.
+     * @param nodeStore Node store.
      * @param fromRevisionId From revision.
      * @param toRevisionId To revision.
      * @param path Path.
      */
-    public GetJournalCommand(MongoConnection mongoConnection, String fromRevisionId,
+    public GetJournalCommand(NodeStoreMongo nodeStore, String fromRevisionId,
             String toRevisionId, String path) {
-        super(mongoConnection);
+        super(nodeStore);
         this.fromRevisionId = fromRevisionId;
         this.toRevisionId = toRevisionId;
         this.path = path;
@@ -46,7 +46,7 @@ public class GetJournalCommand extends BaseCommand<String> {
         long fromRevision = MongoUtil.toMongoRepresentation(fromRevisionId);
         long toRevision;
         if (toRevisionId == null) {
-            FetchHeadRevisionIdAction query = new FetchHeadRevisionIdAction(mongoConnection);
+            FetchHeadRevisionIdAction query = new FetchHeadRevisionIdAction(nodeStore);
             query.includeBranchCommits(true);
             toRevision = query.execute();
         } else {
@@ -112,14 +112,10 @@ public class GetJournalCommand extends BaseCommand<String> {
     }
 
     private List<CommitMongo> getCommits(long fromRevisionId, long toRevisionId) {
-        FetchCommitsAction query = new FetchCommitsAction(mongoConnection, fromRevisionId,
-                toRevisionId);
-        return query.execute();
+        return new FetchCommitsAction(nodeStore, fromRevisionId, toRevisionId).execute();
     }
 
     private Node getNode(String path, long revisionId) throws Exception {
-        GetNodesCommand command = new GetNodesCommand(mongoConnection,
-                path, revisionId);
-        return command.execute();
+        return new GetNodesCommand(nodeStore, path, revisionId).execute();
     }
 }

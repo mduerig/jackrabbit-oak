@@ -23,7 +23,7 @@ import java.util.ListIterator;
 import java.util.Map;
 
 import org.apache.jackrabbit.mongomk.api.model.Node;
-import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
@@ -57,13 +57,13 @@ public class GetNodesCommand extends BaseCommand<Node> {
     /**
      * Constructs a new {@code GetNodesCommandMongo}.
      *
-     * @param mongoConnection The {@link MongoConnection}.
+     * @param nodeStore Node store.
      * @param path The root path of the nodes to get.
      * @param revisionId The revision id or null for head revision.
      */
-    public GetNodesCommand(MongoConnection mongoConnection, String path,
+    public GetNodesCommand(NodeStoreMongo nodeStore, String path,
             Long revisionId) {
-        super(mongoConnection);
+        super(nodeStore);
         this.path = path;
         this.revisionId = revisionId;
     }
@@ -161,19 +161,19 @@ public class GetNodesCommand extends BaseCommand<Node> {
 
     private void ensureRevisionId() throws Exception {
         if (revisionId == null) {
-            revisionId = new GetHeadRevisionCommand(mongoConnection).execute();
+            revisionId = new GetHeadRevisionCommand(nodeStore).execute();
         } else {
             // Ensure that commit with revision id exists.
-            new FetchCommitAction(mongoConnection, revisionId).execute();
+            new FetchCommitAction(nodeStore, revisionId).execute();
         }
     }
 
     private void readLastCommits() throws Exception {
-        lastCommits = new FetchCommitsAction(mongoConnection, revisionId).execute();
+        lastCommits = new FetchCommitsAction(nodeStore, revisionId).execute();
     }
 
     private void readNodesByPath() {
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(nodeStore,
                 path, true, revisionId);
         query.setBranchId(branchId);
         // FIXME - This does not work for depth > 3449.

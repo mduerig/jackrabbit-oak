@@ -24,11 +24,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.jackrabbit.mongomk.BaseMongoTest;
+import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.NodeAssert;
-import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
 import org.apache.jackrabbit.mongomk.impl.model.CommitMongo;
@@ -41,7 +40,7 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 
-public class FetchNodesActionTest extends BaseMongoTest {
+public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
 
     @Test
     public void invalidFirstRevision() throws Exception {
@@ -52,7 +51,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         invalidateCommit(revisionId1);
         updateBaseRevisionId(revisionId2, 0L);
 
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 "/", true, revisionId3);
         List<Node> actuals = toNode(query.execute());
 
@@ -70,7 +69,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
         invalidateCommit(revisionId3);
 
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 "/", true, revisionId3);
         List<Node> actuals = toNode(query.execute());
 
@@ -89,7 +88,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         invalidateCommit(revisionId2);
         updateBaseRevisionId(revisionId3, revisionId1);
 
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 "/", true, revisionId3);
         List<Node> actuals = toNode(query.execute());
 
@@ -102,11 +101,11 @@ public class FetchNodesActionTest extends BaseMongoTest {
     // FIXME - Revisit this test.
     @Test
     public void fetchRootAndAllDepths() throws Exception {
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         Long firstRevisionId = scenario.create();
         Long secondRevisionId = scenario.update_A_and_add_D_and_E();
 
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 "/", true, firstRevisionId);
         query.setDepth(0);
         List<NodeMongo> result = query.execute();
@@ -116,7 +115,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         Iterator<Node> expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, secondRevisionId);
         query.setDepth(0);
         result = query.execute();
         actuals = toNode(result);
@@ -125,7 +124,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, firstRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, firstRevisionId);
         query.setDepth(1);
         result = query.execute();
         actuals = toNode(result);
@@ -134,7 +133,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, secondRevisionId);
         query.setDepth(1);
         result = query.execute();
         actuals = toNode(result);
@@ -144,7 +143,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, firstRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, firstRevisionId);
         query.setDepth(2);
         result = query.execute();
         actuals = toNode(result);
@@ -154,7 +153,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, secondRevisionId);
         query.setDepth(2);
         result = query.execute();
         actuals = toNode(result);
@@ -164,7 +163,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, firstRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, firstRevisionId);
         result = query.execute();
         actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%1$s\" : { \"int\" : 1 , \"b#%1$s\" : { \"string\" : \"foo\" } , \"c#%1$s\" : { \"bool\" : true } } } }",
@@ -173,7 +172,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection, "/", true, secondRevisionId);
+        query = new FetchNodesAction(getNodeStore(), "/", true, secondRevisionId);
         result = query.execute();
         actuals = toNode(result);
         json = String.format("{ \"/#%1$s\" : { \"a#%2$s\" : { \"int\" : 1 , \"double\" : 0.123 , \"b#%2$s\" : { \"string\" : \"foo\", \"e#%2$s\" : { \"array\" : [ 123, null, 123.456, \"for:bar\", true ] } } , \"c#%1$s\" : { \"bool\" : true }, \"d#%2$s\" : { \"null\" : null } } } }",
@@ -185,16 +184,16 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
     private Long addNode(String nodeName) throws Exception {
         Commit commit = CommitBuilder.build("/", "+\"" + nodeName + "\" : {}", "Add /" + nodeName);
-        CommitCommand command = new CommitCommand(mongoConnection, commit);
+        CommitCommand command = new CommitCommand(getNodeStore(), commit);
         return command.execute();
     }
 
     @Test
     public void fetchWithCertainPathsOneRevision() throws Exception {
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         Long revisionId = scenario.create();
 
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 getPathSet("/a", "/a/b", "/a/c", "not_existing"), revisionId);
         List<NodeMongo> nodeMongos = query.execute();
         List<Node> actuals = toNode(nodeMongos);
@@ -204,7 +203,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         Iterator<Node> expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection,
+        query = new FetchNodesAction(getNodeStore(),
                 getPathSet("/a", "not_existing"), revisionId);
         nodeMongos = query.execute();
         actuals = toNode(nodeMongos);
@@ -217,11 +216,11 @@ public class FetchNodesActionTest extends BaseMongoTest {
 
     @Test
     public void fetchWithCertainPathsTwoRevisions() throws Exception {
-        SimpleNodeScenario scenario = new SimpleNodeScenario(mongoConnection);
+        SimpleNodeScenario scenario = new SimpleNodeScenario(getNodeStore());
         Long firstRevisionId = scenario.create();
         Long secondRevisionId = scenario.update_A_and_add_D_and_E();
 
-        FetchNodesAction query = new FetchNodesAction(mongoConnection,
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(),
                 getPathSet("/a", "/a/b", "/a/c", "/a/d", "/a/b/e", "not_existing"),
                 firstRevisionId);
         List<NodeMongo> nodeMongos = query.execute();
@@ -232,7 +231,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
         Iterator<Node> expecteds = expected.getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
 
-        query = new FetchNodesAction(mongoConnection,
+        query = new FetchNodesAction(getNodeStore(),
                 getPathSet("/a", "/a/b", "/a/c", "/a/d", "/a/b/e", "not_existing"),
                 secondRevisionId);
         nodeMongos = query.execute();
@@ -249,7 +248,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
     }
 
     private void invalidateCommit(Long revisionId) {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = getNodeStore().getCommitCollection();
         DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID)
                 .is(revisionId).get();
         DBObject update = new BasicDBObject();
@@ -258,7 +257,7 @@ public class FetchNodesActionTest extends BaseMongoTest {
     }
 
     private void updateBaseRevisionId(Long revisionId2, Long baseRevisionId) {
-        DBCollection commitCollection = mongoConnection.getCommitCollection();
+        DBCollection commitCollection = getNodeStore().getCommitCollection();
         DBObject query = QueryBuilder.start(CommitMongo.KEY_REVISION_ID)
                 .is(revisionId2)
                 .get();
