@@ -14,9 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.jackrabbit.mongomk.impl.command;
+package org.apache.jackrabbit.mongomk.impl.command.blob;
 
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.command.BaseCommand;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.gridfs.GridFS;
@@ -25,7 +26,7 @@ import com.mongodb.gridfs.GridFSDBFile;
 /**
  * {@code Command} for {@code MongoMicroKernel#getLength(String)}
  */
-public class GetBlobLengthCommand extends BaseCommand<Long> {
+public class GetBlobLengthCommandGridFS extends BaseCommand<Long> {
 
     private final String blobId;
 
@@ -35,7 +36,7 @@ public class GetBlobLengthCommand extends BaseCommand<Long> {
      * @param mongoConnection Mongo connection.
      * @param blobId Blob id.
      */
-    public GetBlobLengthCommand(MongoConnection mongoConnection, String blobId) {
+    public GetBlobLengthCommandGridFS(MongoConnection mongoConnection, String blobId) {
         super(mongoConnection);
         this.blobId = blobId;
     }

@@ -22,10 +22,10 @@ import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.util.Configuration;
 import org.apache.jackrabbit.mongomk.api.NodeStore;
-import org.apache.jackrabbit.mongomk.impl.BlobStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 
 import com.mongodb.BasicDBObjectBuilder;
 
@@ -61,7 +61,7 @@ public class MongoMicroKernelInitializer implements MicroKernelInitializer {
             mongoConnection = new MongoConnection(conf.getHost(),
                      conf.getMongoPort() , conf.getMongoDatabase());
             NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
-            BlobStore blobStore = new BlobStoreMongo(mongoConnection);
+            BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
             mks.add(new MongoMicroKernel(nodeStore, blobStore));
         }
 

@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.jackrabbit.mongomk.impl.command;
+package org.apache.jackrabbit.mongomk.impl.command.blob;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -22,6 +22,7 @@ import java.io.InputStream;
 
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.command.BaseCommand;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.gridfs.GridFS;
@@ -31,7 +32,7 @@ import com.mongodb.gridfs.GridFSInputFile;
 /**
  * {@code Command} for {@code MongoMicroKernel#write(InputStream)}
  */
-public class WriteBlobCommand extends BaseCommand<String> {
+public class WriteBlobCommandGridFS extends BaseCommand<String> {
 
     private final InputStream is;
 
@@ -41,7 +42,7 @@ public class WriteBlobCommand extends BaseCommand<String> {
      * @param mongoConnection Mongo connection.
      * @param is Input stream.
      */
-    public WriteBlobCommand(MongoConnection mongoConnection, InputStream is) {
+    public WriteBlobCommandGridFS(MongoConnection mongoConnection, InputStream is) {
         super(mongoConnection);
         this.is = is;
     }

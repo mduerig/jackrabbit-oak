@@ -25,9 +25,9 @@ import static org.junit.Assert.assertTrue;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.api.NodeStore;
-import org.apache.jackrabbit.mongomk.impl.BlobStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -44,7 +44,7 @@ public class BaseMongoMicroKernelTest extends BaseMongoTest {
     public void setUp() throws Exception {
         super.setUp();
         NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
-        BlobStore blobStore = new BlobStoreMongo(mongoConnection);
+        BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
         mk = new MongoMicroKernel(nodeStore, blobStore);
     }
 

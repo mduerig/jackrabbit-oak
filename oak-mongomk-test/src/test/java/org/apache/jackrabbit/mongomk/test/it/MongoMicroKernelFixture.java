@@ -23,10 +23,10 @@ import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.test.MicroKernelFixture;
 import org.apache.jackrabbit.mongomk.api.NodeStore;
-import org.apache.jackrabbit.mongomk.impl.BlobStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 import org.junit.Assert;
 
 public class MongoMicroKernelFixture implements MicroKernelFixture {
@@ -54,7 +54,7 @@ public class MongoMicroKernelFixture implements MicroKernelFixture {
         try {
             mongoConnection.initializeDB(true);
             NodeStore nodeStore = new NodeStoreMongo(mongoConnection);
-            BlobStore blobStore = new BlobStoreMongo(mongoConnection);
+            BlobStore blobStore = new BlobStoreMongoGridFS(mongoConnection);
 
             MicroKernel mk = new MongoMicroKernel(nodeStore, blobStore);
             for (int i = 0; i < cluster.length; i++) {

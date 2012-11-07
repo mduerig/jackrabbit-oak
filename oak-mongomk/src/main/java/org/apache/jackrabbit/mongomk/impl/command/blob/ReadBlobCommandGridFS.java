@@ -14,12 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.jackrabbit.mongomk.impl.command;
+package org.apache.jackrabbit.mongomk.impl.command.blob;
 
 import java.io.InputStream;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
+import org.apache.jackrabbit.mongomk.impl.command.BaseCommand;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.gridfs.GridFS;
@@ -30,7 +31,7 @@ import com.mongodb.gridfs.GridFSDBFile;
  * FIXME - Reading from large blobs with small increments is slow in this implementation.
  * See if this could be improved with some kind of cache mechanism.
  */
-public class ReadBlobCommand extends BaseCommand<Integer> {
+public class ReadBlobCommandGridFS extends BaseCommand<Integer> {
 
     private final String blobId;
     private final long blobOffset;
@@ -48,7 +49,7 @@ public class ReadBlobCommand extends BaseCommand<Integer> {
      * @param bufferOffset Buffer offset.
      * @param length Length.
      */
-    public ReadBlobCommand(MongoConnection mongoConnection, String blobId,
+    public ReadBlobCommandGridFS(MongoConnection mongoConnection, String blobId,
             long blobOffset, byte[] buffer, int bufferOffset, int length) {
         super(mongoConnection);
         this.blobId = blobId;

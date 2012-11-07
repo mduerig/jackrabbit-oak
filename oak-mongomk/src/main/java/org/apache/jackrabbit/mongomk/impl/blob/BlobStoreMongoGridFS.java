@@ -14,43 +14,52 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.jackrabbit.mongomk.impl;
+package org.apache.jackrabbit.mongomk.impl.blob;
 
 import java.io.InputStream;
 
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.api.command.Command;
 import org.apache.jackrabbit.mongomk.api.command.CommandExecutor;
+import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.command.DefaultCommandExecutor;
-import org.apache.jackrabbit.mongomk.impl.command.GetBlobLengthCommand;
-import org.apache.jackrabbit.mongomk.impl.command.ReadBlobCommand;
-import org.apache.jackrabbit.mongomk.impl.command.WriteBlobCommand;
+import org.apache.jackrabbit.mongomk.impl.command.blob.GetBlobLengthCommandGridFS;
+import org.apache.jackrabbit.mongomk.impl.command.blob.ReadBlobCommandGridFS;
+import org.apache.jackrabbit.mongomk.impl.command.blob.WriteBlobCommandGridFS;
 
-public class BlobStoreMongo implements BlobStore {
+/**
+ * Implementation of {@link BlobStore} for the {@code MongoDB} using GridFS.
+ */
+public class BlobStoreMongoGridFS implements BlobStore {
 
     private final MongoConnection mongoConnection;
     private final CommandExecutor commandExecutor;
 
-    public BlobStoreMongo(MongoConnection mongoConnection) {
+    /**
+     * Constructs a new {@code BlobStoreMongoGridFS}
+     *
+     * @param mongoConnection The mongo conneciton.
+     */
+    public BlobStoreMongoGridFS(MongoConnection mongoConnection) {
         this.mongoConnection = mongoConnection;
         commandExecutor = new DefaultCommandExecutor();
     }
 
     @Override
     public long getBlobLength(String blobId) throws Exception {
-        Command<Long> command = new GetBlobLengthCommand(mongoConnection, blobId);
+        Command<Long> command = new GetBlobLengthCommandGridFS(mongoConnection, blobId);
         return commandExecutor.execute(command);
     }
 
     @Override
     public int readBlob(String blobId, long blobOffset, byte[] buffer, int bufferOffset, int length) throws Exception {
-        Command<Integer> command = new ReadBlobCommand(mongoConnection, blobId, blobOffset, buffer, bufferOffset, length);
+        Command<Integer> command = new ReadBlobCommandGridFS(mongoConnection, blobId, blobOffset, buffer, bufferOffset, length);
         return commandExecutor.execute(command);
     }
 
     @Override
     public String writeBlob(InputStream is) throws Exception {
-        Command<String> command = new WriteBlobCommand(mongoConnection, is);
+        Command<String> command = new WriteBlobCommandGridFS(mongoConnection, is);
         return commandExecutor.execute(command);
     }
 }

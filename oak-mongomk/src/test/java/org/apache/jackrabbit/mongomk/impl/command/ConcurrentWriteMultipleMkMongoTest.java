@@ -8,10 +8,10 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mongomk.BaseMongoTest;
-import org.apache.jackrabbit.mongomk.impl.BlobStoreMongo;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.NodeStoreMongo;
+import org.apache.jackrabbit.mongomk.impl.blob.BlobStoreMongoGridFS;
 
 import org.junit.Test;
 
@@ -40,11 +40,11 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoTest {
         String db = properties.getProperty("db");
 
         MongoMicroKernel mongo1 = new MongoMicroKernel(new NodeStoreMongo(
-                mongoConnection), new BlobStoreMongo(mongoConnection));
+                mongoConnection), new BlobStoreMongoGridFS(mongoConnection));
         MongoMicroKernel mongo2 = new MongoMicroKernel(new NodeStoreMongo(
-                mongoConnection), new BlobStoreMongo(mongoConnection));
+                mongoConnection), new BlobStoreMongoGridFS(mongoConnection));
         MongoMicroKernel mongo3 = new MongoMicroKernel(new NodeStoreMongo(
-                mongoConnection), new BlobStoreMongo(mongoConnection));
+                mongoConnection), new BlobStoreMongoGridFS(mongoConnection));
 
         GenericWriteTask task1 = new GenericWriteTask(mongo1, diff1, 0,
                 new MongoConnection(host, port, db));
