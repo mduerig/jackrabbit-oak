@@ -53,6 +53,8 @@ import org.apache.jackrabbit.oak.spi.query.Filter;
 import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a parsed query. Lifecycle: use the constructor to create a new
@@ -72,7 +74,10 @@ public class Query {
      */
     public static final String JCR_SCORE = "jcr:score";
 
+    private static final Logger LOG = LoggerFactory.getLogger(QueryEngineImpl.class);
+
     final SourceImpl source;
+    final String statement;
     final ConstraintImpl constraint;
     final HashMap<String, PropertyValue> bindVariableMap = new HashMap<String, PropertyValue>();
     final HashMap<String, Integer> selectorIndexes = new HashMap<String, Integer>();
@@ -89,8 +94,9 @@ public class Query {
     private Root root;
     private NamePathMapper namePathMapper;
 
-    Query(SourceImpl source, ConstraintImpl constraint, OrderingImpl[] orderings,
+    Query(String statement, SourceImpl source, ConstraintImpl constraint, OrderingImpl[] orderings,
           ColumnImpl[] columns) {
+        this.statement = statement;
         this.source = source;
         this.constraint = constraint;
         this.orderings = orderings;
@@ -308,6 +314,9 @@ public class Query {
                     null);
             it = Arrays.asList(r).iterator();
         } else {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("plan: " + source.getPlan(root));
+            }
             if (orderings == null) {
                 // can apply limit and offset directly
                 it = new RowIterator(root, limit, offset);
@@ -559,7 +568,7 @@ public class Query {
     }
 
     public QueryIndex getBestIndex(Filter filter) {
-        return queryEngine.getBestIndex(filter);
+        return queryEngine.getBestIndex(this, filter);
     }
 
     public void setRoot(Root root) {
@@ -608,6 +617,10 @@ public class Query {
 
     public long getSize() {
         return size;
+    }
+
+    public String getStatement() {
+        return statement;
     }
 
 }

@@ -911,6 +911,19 @@ public class RepositoryTest extends AbstractRepositoryTest {
     }
 
     @Test
+    public void setPropertyAgain() throws RepositoryException {
+        Session session = getAdminSession();
+        Property p1 = session.getProperty("/foo/stringProp");
+
+        Property p2 = p1.getParent().setProperty("stringProp", "newValue");
+        Property p3 = session.getProperty("/foo/stringProp");
+
+        assertEquals("newValue", p1.getString());
+        assertEquals("newValue", p2.getString());
+        assertEquals("newValue", p3.getString());
+    }
+
+    @Test
     public void setDoubleNaNProperty() throws RepositoryException, IOException {
         Node parentNode = getNode(TEST_PATH);
         addProperty(parentNode, "NaN", getAdminSession().getValueFactory().createValue(Double.NaN));
@@ -1025,6 +1038,18 @@ public class RepositoryTest extends AbstractRepositoryTest {
             assertFalse(session3.getNode(TEST_PATH).isModified());
         } finally {
             session3.logout();
+        }
+    }
+
+    @Test
+    public void removeNode2() throws RepositoryException {
+        Node foo = getNode("/foo");
+        getAdminSession().removeItem(foo.getPath());
+        try {
+            foo.getParent();
+            fail("Cannot retrieve the parent from a transiently removed item.");
+        } catch (InvalidItemStateException e) {
+            // success
         }
     }
 

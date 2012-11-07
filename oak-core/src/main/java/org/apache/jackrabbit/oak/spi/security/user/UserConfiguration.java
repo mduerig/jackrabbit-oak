@@ -16,7 +16,6 @@
  */
 package org.apache.jackrabbit.oak.spi.security.user;
 
-import java.util.List;
 import javax.annotation.Nonnull;
 import javax.jcr.Session;
 
@@ -24,7 +23,7 @@ import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.security.SecurityConfiguration;
-import org.apache.jackrabbit.oak.spi.security.user.action.AuthorizableAction;
+import org.apache.jackrabbit.oak.spi.security.user.action.AuthorizableActionProvider;
 
 /**
  * UserContext... TODO
@@ -32,7 +31,7 @@ import org.apache.jackrabbit.oak.spi.security.user.action.AuthorizableAction;
 public interface UserConfiguration extends SecurityConfiguration {
 
     @Nonnull
-    List<AuthorizableAction> getAuthorizableActions();
+    AuthorizableActionProvider getAuthorizableActionProvider();
 
     @Nonnull
     UserManager getUserManager(Root root, NamePathMapper namePathMapper, Session session);

@@ -20,6 +20,7 @@ package org.apache.jackrabbit.oak.query.index;
 
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.spi.query.Cursor;
+import org.apache.jackrabbit.oak.spi.query.Cursors;
 import org.apache.jackrabbit.oak.spi.query.Filter;
 import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -28,10 +29,16 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
  * An index that traverses over a given subtree.
  */
 public class TraversingIndex implements QueryIndex {
+    
+    private final String statement;
+    
+    public TraversingIndex(String statement) {
+        this.statement = statement;
+    }
 
     @Override
     public Cursor query(Filter filter, NodeState root) {
-        return new TraversingCursor(filter, root);
+        return Cursors.newTraversingCursor(statement, filter, root);
     }
 
     @Override

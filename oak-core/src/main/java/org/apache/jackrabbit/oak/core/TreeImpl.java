@@ -35,7 +35,6 @@ import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.core.RootImpl.PurgeListener;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryPropertyBuilder;
 import org.apache.jackrabbit.oak.plugins.memory.MultiStringPropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -48,7 +47,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
 
-public class TreeImpl implements Tree, PurgeListener {
+public class TreeImpl implements Tree {
 
     /** Internal and hidden property that contains the child order */
     static final String OAK_CHILD_ORDER = ":childOrder";
@@ -58,9 +57,6 @@ public class TreeImpl implements Tree, PurgeListener {
 
     /** Parent of this tree. Null for the root. */
     private TreeImpl parent;
-
-    /** Marker for removed trees */
-    private boolean removed;
 
     /** Name of this tree */
     private String name;
@@ -86,7 +82,6 @@ public class TreeImpl implements Tree, PurgeListener {
             protected synchronized NodeBuilder getNodeBuilder() {
                 if (nodeBuilder == null) {
                     nodeBuilder = root.createRootBuilder();
-                    root.addListener(this);
                 }
                 return nodeBuilder;
             }
@@ -295,7 +290,6 @@ public class TreeImpl implements Tree, PurgeListener {
         if (!isRoot() && parent.hasChild(name)) {
             NodeBuilder builder = parent.getNodeBuilder();
             builder.removeNode(name);
-            removed = true;
             if (parent.hasOrderableChildren()) {
                 builder.setProperty(
                         MemoryPropertyBuilder.create(Type.STRING, parent.internalGetProperty(OAK_CHILD_ORDER))
@@ -393,13 +387,6 @@ public class TreeImpl implements Tree, PurgeListener {
         return new NodeLocation(this);
     }
 
-    //--------------------------------------------------< RootImpl.Listener >---
-
-    @Override
-    public void purged() {
-        nodeBuilder = null;
-    }
-
     //----------------------------------------------------------< protected >---
 
     @CheckForNull
@@ -416,13 +403,8 @@ public class TreeImpl implements Tree, PurgeListener {
 
     @Nonnull
     protected synchronized NodeBuilder getNodeBuilder() {
-        if (isRemoved()) {
-            throw new IllegalStateException("Cannot get a builder for a removed tree");
-        }
-
         if (nodeBuilder == null) {
             nodeBuilder = parent.getNodeBuilder().child(name);
-            root.addListener(this);
         }
         return nodeBuilder;
     }
@@ -506,8 +488,17 @@ public class TreeImpl implements Tree, PurgeListener {
         return getNodeBuilder().getProperty(propertyName);
     }
 
+    // FIXME rely on underlying mechanism to determine whether a node has been removed. (OAK-417)
     private boolean isRemoved() {
-        return removed || (parent != null && parent.isRemoved());
+        if (parent != null && parent.isRemoved()) {
+            return true;
+        }
+        try {
+            return getNodeBuilder().getNodeState() == null;
+        }
+        catch (IllegalStateException e) {
+            return true;
+        }
     }
 
     private void buildPath(StringBuilder sb) {
@@ -623,7 +614,7 @@ public class TreeImpl implements Tree, PurgeListener {
         return !isDirty[0];
     }
 
-    //------------------------------------------------------------< TreeLocation >---
+    //-------------------------------------------------------< TreeLocation >---
 
     public class NodeLocation implements TreeLocation {
         private final TreeImpl tree;
@@ -658,7 +649,7 @@ public class TreeImpl implements Tree, PurgeListener {
             String name = PathUtils.getName(relPath);
             PropertyState property = child.internalGetProperty(name);
             if (property != null) {
-                return new PropertyLocation(new NodeLocation(child), property);
+                return new PropertyLocation(new NodeLocation(child), name);
             }
             else {
                 child = child.internalGetChild(name);
@@ -691,11 +682,11 @@ public class TreeImpl implements Tree, PurgeListener {
 
     public class PropertyLocation implements TreeLocation {
         private final NodeLocation parent;
-        private final PropertyState property;
+        private final String name;
 
-        private PropertyLocation(NodeLocation parent, PropertyState property) {
+        private PropertyLocation(NodeLocation parent, String name) {
             this.parent = checkNotNull(parent);
-            this.property = checkNotNull(property);
+            this.name = checkNotNull(name);
         }
 
         @Override
@@ -710,7 +701,7 @@ public class TreeImpl implements Tree, PurgeListener {
 
         @Override
         public String getPath() {
-            return PathUtils.concat(parent.getPath(), property.getName());
+            return PathUtils.concat(parent.getPath(), name);
         }
 
         @Override
@@ -720,6 +711,7 @@ public class TreeImpl implements Tree, PurgeListener {
 
         @Override
         public PropertyState getProperty() {
+            PropertyState property = parent.tree.internalGetProperty(name);
             return canRead(property)
                 ? property
                 : null;
@@ -727,7 +719,7 @@ public class TreeImpl implements Tree, PurgeListener {
 
         @Override
         public Status getStatus() {
-            return parent.tree.getPropertyStatus(property.getName());
+            return parent.tree.getPropertyStatus(name);
         }
 
         /**
@@ -743,7 +735,7 @@ public class TreeImpl implements Tree, PurgeListener {
          * @return  {@code true} on success false otherwise
          */
         public boolean remove() {
-            parent.tree.removeProperty(property.getName());
+            parent.tree.removeProperty(name);
             return true;
         }
     }

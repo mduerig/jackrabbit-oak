@@ -182,21 +182,24 @@ class MembershipProvider extends AuthorizableBaseProvider {
     }
 
     boolean addMember(Tree groupTree, Tree newMemberTree) {
+        return addMember(groupTree, newMemberTree.getName(), getContentID(newMemberTree));
+    }
+
+    boolean addMember(Tree groupTree, String treeName, String memberContentId) {
         if (useMemberNode(groupTree)) {
             NodeUtil groupNode = new NodeUtil(groupTree);
             NodeUtil membersNode = groupNode.getOrAddChild(REP_MEMBERS, NT_REP_MEMBERS);
-            // TODO: add implementation
+            // TODO: add implementation that allows to index group members
             throw new UnsupportedOperationException("not implemented: addMember with member-node hierarchy");
         } else {
-            String toAdd = getContentID(newMemberTree);
             PropertyState property = groupTree.getProperty(REP_MEMBERS);
             PropertyBuilder<String> propertyBuilder = property == null
                 ? MemoryPropertyBuilder.create(WEAKREFERENCE, REP_MEMBERS)
                 : MemoryPropertyBuilder.create(WEAKREFERENCE, property);
-            if (propertyBuilder.hasValue(toAdd)) {
+            if (propertyBuilder.hasValue(memberContentId)) {
                 return false;
             } else {
-                propertyBuilder.addValue(toAdd);
+                propertyBuilder.addValue(memberContentId);
             }
             groupTree.setProperty(propertyBuilder.getPropertyState(true));
         }
@@ -212,6 +215,7 @@ class MembershipProvider extends AuthorizableBaseProvider {
             }
         } else {
             String toRemove = getContentID(memberTree);
+            // FIXME: remove usage of MemoryPropertyBuilder (OAK-372)
             PropertyState property = groupTree.getProperty(REP_MEMBERS);
             PropertyBuilder<String> propertyBuilder = property == null
                 ? MemoryPropertyBuilder.create(WEAKREFERENCE, REP_MEMBERS)

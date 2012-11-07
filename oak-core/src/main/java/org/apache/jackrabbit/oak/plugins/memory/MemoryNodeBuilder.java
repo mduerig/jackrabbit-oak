@@ -209,6 +209,9 @@ public class MemoryNodeBuilder implements NodeBuilder {
                     parent.writeState.nodes.put(name, writeState);
                 }
             }
+        } else if (parent != null) {
+            // make sure that all revision numbers up to the root gets updated
+            parent.write(newRevision);
         }
         revision = newRevision;
         return writeState;
@@ -250,6 +253,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
         if (writeState != null) {
             return writeState.snapshot();
         } else {
+            // FIXME this assertion might fail when getNodeState() is called on a removed node.
             assert baseState != null; // guaranteed by read()
             return baseState;
         }

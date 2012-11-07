@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.List;
-
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.jcr.RepositoryException;
@@ -32,14 +31,18 @@ import com.google.common.collect.Lists;
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.namepath.NameMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.plugins.value.Conversions;
+import org.apache.jackrabbit.util.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.jackrabbit.oak.api.Type.BOOLEAN;
 import static org.apache.jackrabbit.oak.api.Type.DATE;
 import static org.apache.jackrabbit.oak.api.Type.LONG;
@@ -60,8 +63,8 @@ public class NodeUtil {
     private final Tree tree;
 
     public NodeUtil(Tree tree, NameMapper mapper) {
-        this.mapper = mapper;
-        this.tree = tree;
+        this.mapper = checkNotNull(mapper);
+        this.tree = checkNotNull(tree);
     }
 
     public NodeUtil(Tree tree) {
@@ -78,8 +81,13 @@ public class NodeUtil {
         return mapper.getJcrName(tree.getName());
     }
 
+    @CheckForNull
     public NodeUtil getParent() {
         return new NodeUtil(tree.getParent(), mapper);
+    }
+
+    public boolean isRoot() {
+        return tree.isRoot();
     }
 
     public boolean hasChild(String name) {
@@ -100,9 +108,39 @@ public class NodeUtil {
         return childUtil;
     }
 
+    @Nonnull
     public NodeUtil getOrAddChild(String name, String primaryTypeName) {
         NodeUtil child = getChild(name);
         return (child != null) ? child : addChild(name, primaryTypeName);
+    }
+
+    /**
+     * FIXME: workaround for OAK-426
+     */
+    @Nonnull
+    public NodeUtil getOrAddTree(String relativePath, String primaryTypeName) {
+        if (relativePath.indexOf('/') == -1) {
+            return getOrAddChild(relativePath, primaryTypeName);
+        } else {
+            TreeLocation location = LocationUtil.getTreeLocation(tree.getLocation(), relativePath);
+            if (location.getTree() == null) {
+                NodeUtil target = this;
+                for (String segment : Text.explode(relativePath, '/')) {
+                    if (PathUtils.denotesCurrent(segment)) {
+                        continue;
+                    } else if (PathUtils.denotesParent(segment)) {
+                        target = target.getParent();
+                    } else if (target.hasChild(segment)) {
+                        target = target.getChild(segment);
+                    } else {
+                        target = target.addChild(segment, primaryTypeName);
+                    }
+                }
+                return target;
+            } else {
+                return new NodeUtil(location.getTree());
+            }
+        }
     }
 
     public boolean hasPrimaryNodeTypeName(String ntName) {
@@ -123,6 +161,7 @@ public class NodeUtil {
         tree.setProperty(name, value);
     }
 
+    @CheckForNull
     public String getString(String name, String defaultValue) {
         PropertyState property = tree.getProperty(name);
         if (property != null && !property.isArray()) {
@@ -136,6 +175,7 @@ public class NodeUtil {
         tree.setProperty(name, value);
     }
 
+    @CheckForNull
     public String[] getStrings(String name) {
         PropertyState property = tree.getProperty(name);
         if (property == null) {
@@ -149,10 +189,12 @@ public class NodeUtil {
         tree.setProperty(name, Arrays.asList(values), STRINGS);
     }
 
+    @CheckForNull
     public String getName(String name) {
         return getName(name, null);
     }
 
+    @CheckForNull
     public String getName(String name, String defaultValue) {
         PropertyState property = tree.getProperty(name);
         if (property != null && !property.isArray()) {
@@ -167,6 +209,7 @@ public class NodeUtil {
         tree.setProperty(name, oakName, NAME);
     }
 
+    @CheckForNull
     public String[] getNames(String name, String... defaultValues) {
         String[] strings = getStrings(name);
         if (strings == null) {
@@ -201,6 +244,7 @@ public class NodeUtil {
         tree.setProperty(name, value);
     }
 
+    @Nonnull
     public List<NodeUtil> getNodes(String namePrefix) {
         List<NodeUtil> nodes = Lists.newArrayList();
         for (Tree child : tree.getChildren()) {
@@ -224,6 +268,7 @@ public class NodeUtil {
         tree.setProperty(name, Arrays.asList(values), STRINGS);
     }
 
+    @CheckForNull
     public Value[] getValues(String name, ValueFactory vf) {
         PropertyState property = tree.getProperty(name);
         if (property != null) {
@@ -242,6 +287,7 @@ public class NodeUtil {
         }
     }
 
+    @Nonnull
     private String getOakName(String jcrName) {
         String oakName = mapper.getOakName(jcrName);
         if (oakName == null) {

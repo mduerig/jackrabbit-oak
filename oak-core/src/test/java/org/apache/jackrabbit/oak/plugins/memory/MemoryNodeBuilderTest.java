@@ -114,4 +114,29 @@ public class MemoryNodeBuilderTest {
         assertEquals(0, child.getChildNodeCount()); // reconnect!
     }
 
+    @Test
+    public void testReset() {
+        NodeBuilder root = new MemoryNodeBuilder(BASE);
+        NodeBuilder child = root.child("x");
+        child.child("new");
+
+        assertTrue(child.hasChildNode("new"));
+        assertTrue(root.child("x").hasChildNode("new"));
+
+        root.reset(BASE);
+        assertFalse(child.hasChildNode("new"));
+        assertFalse(root.child("x").hasChildNode("new"));
+    }
+
+    @Test
+    public void testReset2() {
+        NodeBuilder root = new MemoryNodeBuilder(BASE);
+        NodeBuilder x = root.child("x");
+        NodeBuilder y = x.child("y");
+
+        root.reset(BASE);
+        assertTrue(root.hasChildNode("x"));
+        assertFalse(x.hasChildNode("y"));
+    }
+
 }
