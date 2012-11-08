@@ -21,6 +21,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 
 import com.mongodb.BasicDBObject;
@@ -59,9 +60,19 @@ public class MongoNode extends BasicDBObject {
 
         nodeImpl.setRevisionId(nodeMongo.getRevisionId());
         for (Map.Entry<String, Object> entry : nodeMongo.getProperties().entrySet()) {
-            nodeImpl.addProperty(entry.getKey(), entry.getValue());
+            nodeImpl.addProperty(entry.getKey(), convertObjectValue(entry.getValue()));
         }
         return nodeImpl;
+    }
+
+    private static String convertObjectValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return JsopBuilder.encode(value.toString());
+        }
+        return value.toString();
     }
 
     //--------------------------------------------------------------------------

@@ -62,7 +62,7 @@ public interface Node {
      *
      * @return The properties.
      */
-    Map<String, Object> getProperties();
+    Map<String, String> getProperties();
 
     /**
      * Diffs this node with the other node and calls the passed in diff handler.

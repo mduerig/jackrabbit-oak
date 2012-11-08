@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.json.JsonUtil;
 import org.apache.jackrabbit.mongomk.impl.model.NodeImpl;
@@ -119,10 +120,20 @@ public class NodeBuilder {
 
         if (properties != null) {
             for (Map.Entry<String, Object> entry : properties.entrySet()) {
-                node.addProperty(entry.getKey(), entry.getValue());
+                node.addProperty(entry.getKey(), convertObjectValue(entry.getValue()));
             }
         }
 
         return node;
+    }
+
+    private String convertObjectValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String) {
+            return JsopBuilder.encode(value.toString());
+        }
+        return value.toString();
     }
 }

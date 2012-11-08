@@ -96,9 +96,9 @@ public class MongoAssert {
         QueryBuilder qb = QueryBuilder.start(MongoNode.KEY_PATH).is(expected.getPath())
                 .and(MongoNode.KEY_REVISION_ID)
                 .is(expected.getRevisionId());
-        Map<String, Object> properties = expected.getProperties();
+        Map<String, String> properties = expected.getProperties();
         if (properties != null) {
-            for (Map.Entry<String, Object> entry : properties.entrySet()) {
+            for (Map.Entry<String, String> entry : properties.entrySet()) {
                 qb.and(MongoNode.KEY_PROPERTIES + "." + entry.getKey()).is(entry.getValue());
             }
         }

@@ -103,8 +103,8 @@ public class NodeAssert {
             Assert.assertEquals(expectedRevisionId, actualRevisionId);
         }
 
-        Map<String, Object> expectedProperties = expected.getProperties();
-        Map<String, Object> actualProperties = actual.getProperties();
+        Map<String, String> expectedProperties = expected.getProperties();
+        Map<String, String> actualProperties = actual.getProperties();
 
         if (expectedProperties == null) {
             Assert.assertNull(actualProperties);

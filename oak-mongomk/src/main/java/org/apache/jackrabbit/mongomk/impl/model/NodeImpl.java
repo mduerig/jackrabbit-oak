@@ -38,7 +38,7 @@ public class NodeImpl implements Node {
 
     private Map<String, Node> childEntries;
     private String path;
-    private Map<String, Object> properties;
+    private Map<String, String> properties;
     private Long revisionId;
 
     /**
@@ -49,7 +49,7 @@ public class NodeImpl implements Node {
     public NodeImpl(String path) {
         this.path = path;
         this.childEntries = new HashMap<String, Node>();
-        this.properties = new HashMap<String, Object>();
+        this.properties = new HashMap<String, String>();
     }
 
     /**
@@ -97,12 +97,12 @@ public class NodeImpl implements Node {
         childEntries.remove(name);
     }
 
-    public void addProperty(String key, Object value) {
+    public void addProperty(String key, String value) {
         properties.put(key, value);
     }
 
     @Override
-    public Map<String, Object> getProperties() {
+    public Map<String, String> getProperties() {
         return properties;
     }
 
@@ -127,10 +127,10 @@ public class NodeImpl implements Node {
         // the hopes that the two functionality can be consolidated at some point.
 
         // Compare properties
-        Map<String, Object> oldProps = getProperties();
-        Map<String, Object> newProps = other.getProperties();
+        Map<String, String> oldProps = getProperties();
+        Map<String, String> newProps = other.getProperties();
 
-        for (Map.Entry<String, Object> entry : oldProps.entrySet()) {
+        for (Map.Entry<String, String> entry : oldProps.entrySet()) {
             String name = entry.getKey();
             Object val = oldProps.get(name);
             Object newVal = newProps.get(name);
@@ -143,7 +143,7 @@ public class NodeImpl implements Node {
             }
         }
 
-        for (Map.Entry<String, Object> entry : newProps.entrySet()) {
+        for (Map.Entry<String, String> entry : newProps.entrySet()) {
             String name = entry.getKey();
             if (!oldProps.containsKey(name)) {
                 handler.propAdded(name, entry.getValue().toString());
