@@ -28,7 +28,6 @@ import com.mongodb.QueryBuilder;
 
 /**
  * FIXME:
- * -Use level
  * -Create commands
  * -Implement GC
  */
@@ -49,6 +48,7 @@ public class MongoBlobStore extends AbstractBlobStore {
         MongoBlob mongoBlob = new MongoBlob();
         mongoBlob.setId(id);
         mongoBlob.setData(data);
+        mongoBlob.setLevel(level);
         getBlobCollection().insert(mongoBlob);
     }
 
@@ -59,7 +59,19 @@ public class MongoBlobStore extends AbstractBlobStore {
         QueryBuilder queryBuilder = QueryBuilder.start(MongoBlob.KEY_ID).is(id);
         DBObject query = queryBuilder.get();
         MongoBlob blobMongo = (MongoBlob)blobCollection.findOne(query);
-        return blobMongo.getData();
+        byte[] data = blobMongo.getData();
+
+        if (blockId.getPos() == 0) {
+            return data;
+        }
+
+        int len = (int) (data.length - blockId.getPos());
+        if (len < 0) {
+            return new byte[0];
+        }
+        byte[] d2 = new byte[len];
+        System.arraycopy(data, (int) blockId.getPos(), d2, 0, len);
+        return d2;
     }
 
     @Override
