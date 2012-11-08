@@ -22,33 +22,13 @@ import static org.junit.Assert.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.util.Arrays;
 
-import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
-import org.apache.jackrabbit.mongomk.MongoAssert;
-import org.apache.jackrabbit.mongomk.impl.blob.MongoBlobStore;
-import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
-
-import com.mongodb.DB;
 
 /**
  * Tests for {@code MongoMicroKernel#write(java.io.InputStream)}
  */
-public class MongoMKWriteTest extends BaseMongoMicroKernelTest {
-
-    // Override to set the right blob store.
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        DB db = mongoConnection.getDB();
-        dropCollections(db);
-
-        MongoNodeStore nodeStore = new MongoNodeStore(db);
-        MongoAssert.setNodeStore(nodeStore);
-        BlobStore blobStore = new MongoBlobStore(db);
-        mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
-    }
+public class MongoMKWriteGridFSTest extends BaseMongoMicroKernelTest {
 
     @Test
     public void small() throws Exception {
@@ -61,7 +41,6 @@ public class MongoMKWriteTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME
     public void large() throws Exception {
         write(20 * 1024 * 1024);
     }
@@ -73,6 +52,11 @@ public class MongoMKWriteTest extends BaseMongoMicroKernelTest {
 
         byte[] readBlob = new byte[blobLength];
         mk.read(blobId, 0, readBlob, 0, readBlob.length);
+        for (int i = 0; i < blob.length; i++) {
+            if (blob[i] != readBlob[i]) {
+                System.out.println(i + " " + blob[i] + "==>" + readBlob[i]);
+            }
+        }
         assertTrue(Arrays.equals(blob, readBlob));
     }
 

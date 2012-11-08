@@ -32,7 +32,7 @@ import com.mongodb.gridfs.GridFS;
 /**
  * Implementation of {@link BlobStore} for the {@code MongoDB} using GridFS.
  */
-public class MongoGridFsBlobStore implements BlobStore {
+public class MongoGridFSBlobStore implements BlobStore {
 
     private final CommandExecutor commandExecutor;
     private final GridFS gridFS;
@@ -42,7 +42,7 @@ public class MongoGridFsBlobStore implements BlobStore {
      *
      * @param db The DB.
      */
-    public MongoGridFsBlobStore(DB db) {
+    public MongoGridFSBlobStore(DB db) {
         commandExecutor = new DefaultCommandExecutor();
         gridFS = new GridFS(db);
     }

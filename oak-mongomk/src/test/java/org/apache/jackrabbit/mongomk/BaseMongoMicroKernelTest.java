@@ -30,7 +30,8 @@ import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.impl.MongoConnection;
 import org.apache.jackrabbit.mongomk.impl.MongoMicroKernel;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
-import org.apache.jackrabbit.mongomk.impl.blob.MongoGridFsBlobStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoBlobStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoGridFSBlobStore;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -61,7 +62,7 @@ public class BaseMongoMicroKernelTest {
 
         MongoNodeStore nodeStore = new MongoNodeStore(db);
         MongoAssert.setNodeStore(nodeStore);
-        BlobStore blobStore = new MongoGridFsBlobStore(db);
+        BlobStore blobStore = new MongoGridFSBlobStore(db);
         mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }
 
@@ -234,7 +235,8 @@ public class BaseMongoMicroKernelTest {
         mongoConnection = new MongoConnection(host, port, database);
     }
 
-    private void dropCollections(DB db) {
+    protected void dropCollections(DB db) {
+        db.getCollection(MongoBlobStore.COLLECTION_BLOBS).drop();
         db.getCollection(MongoNodeStore.COLLECTION_COMMITS).drop();
         db.getCollection(MongoNodeStore.COLLECTION_NODES).drop();
         db.getCollection(MongoNodeStore.COLLECTION_SYNC).drop();

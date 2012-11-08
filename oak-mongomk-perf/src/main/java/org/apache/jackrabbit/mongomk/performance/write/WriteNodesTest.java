@@ -18,6 +18,7 @@ package org.apache.jackrabbit.mongomk.performance.write;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.blob.MongoBlobStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -45,6 +46,7 @@ public class WriteNodesTest extends MultipleNodesTestBase {
     }
 
     private void dropCollections(DB db) {
+        db.getCollection(MongoBlobStore.COLLECTION_BLOBS).drop();
         db.getCollection(MongoNodeStore.COLLECTION_COMMITS).drop();
         db.getCollection(MongoNodeStore.COLLECTION_NODES).drop();
         db.getCollection(MongoNodeStore.COLLECTION_SYNC).drop();

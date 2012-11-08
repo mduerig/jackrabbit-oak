@@ -21,32 +21,13 @@ import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 
-import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
-import org.apache.jackrabbit.mongomk.MongoAssert;
-import org.apache.jackrabbit.mongomk.impl.blob.MongoBlobStore;
-import org.junit.Before;
 import org.junit.Test;
-
-import com.mongodb.DB;
 
 /**
  * Tests for {@code MongoMicroKernel#getLength(String)}
  */
-public class MongoMKGetLengthTest extends BaseMongoMicroKernelTest {
-
-    // Override to set the right blob store.
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        DB db = mongoConnection.getDB();
-        dropCollections(db);
-
-        MongoNodeStore nodeStore = new MongoNodeStore(db);
-        MongoAssert.setNodeStore(nodeStore);
-        BlobStore blobStore = new MongoBlobStore(db);
-        mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
-    }
+public class MongoMKGetLengthGridFSTest extends BaseMongoMicroKernelTest {
 
     @Test
     public void nonExistent() throws Exception {

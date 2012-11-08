@@ -120,7 +120,7 @@ public class MongoAssert {
         }
     }
 
-    static void setNodeStore(MongoNodeStore nodeStore) {
+    public static void setNodeStore(MongoNodeStore nodeStore) {
         // must be set prior to using this class.
         MongoAssert.nodeStore = nodeStore;
     }
