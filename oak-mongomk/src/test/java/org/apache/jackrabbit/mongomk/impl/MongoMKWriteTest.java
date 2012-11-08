@@ -61,7 +61,7 @@ public class MongoMKWriteTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME
+    @Ignore // FIXME - Add it back when OAK-430 is fixed.
     public void large() throws Exception {
         write(20 * 1024 * 1024);
     }

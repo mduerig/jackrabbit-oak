@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.mongomk.impl.blob;
 
 import org.apache.jackrabbit.mk.blobs.AbstractBlobStore;
+import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mk.util.StringUtils;
 import org.apache.jackrabbit.mongomk.impl.model.MongoBlob;
 
@@ -27,8 +28,12 @@ import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 
 /**
+ * Implementation of {@link BlobStore} for the {@code MongoDB} extending from
+ * {@link AbstractBlobStore}. Unlike {@link MongoGridFSBlobStore}, it saves blobs
+ * into a separate collection in {@link MongoDB} instead of GridFS.
+ *
  * FIXME:
- * -Create commands
+ * -Do we need to create commands for retry etc.?
  * -Implement GC
  */
 public class MongoBlobStore extends AbstractBlobStore {
@@ -37,6 +42,11 @@ public class MongoBlobStore extends AbstractBlobStore {
 
     private final DB db;
 
+    /**
+     * Constructs a new {@code MongoBlobStore}
+     *
+     * @param db The DB.
+     */
     public MongoBlobStore(DB db) {
         this.db = db;
         initBlobCollection();

@@ -23,7 +23,6 @@ import junit.framework.Assert;
 
 import org.apache.jackrabbit.mk.blobs.BlobStore;
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
-import org.apache.jackrabbit.mongomk.MongoAssert;
 import org.apache.jackrabbit.mongomk.impl.blob.MongoBlobStore;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -47,7 +46,6 @@ public class MongoMKReadTest extends BaseMongoMicroKernelTest {
         dropCollections(db);
 
         MongoNodeStore nodeStore = new MongoNodeStore(db);
-        MongoAssert.setNodeStore(nodeStore);
         BlobStore blobStore = new MongoBlobStore(db);
         mk = new MongoMicroKernel(mongoConnection, nodeStore, blobStore);
     }
@@ -63,7 +61,7 @@ public class MongoMKReadTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME
+    @Ignore // FIXME - Add it back when OAK-430 is fixed.
     public void large() throws Exception {
         read(20 * 1024 * 1024);
     }
