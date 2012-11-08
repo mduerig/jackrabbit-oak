@@ -19,14 +19,11 @@ package org.apache.jackrabbit.mk.tests;
 import org.apache.jackrabbit.mk.util.MicroKernelOperation;
 import org.apache.jackrabbit.mk.testing.MicroKernelTestBase;
 import org.apache.jackrabbit.mk.util.Committer;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
  * Measure the time needed for writing nodes in different tree structures.All
  * the nodes are added in a single commit.
- * 
- * 
  */
 public class MkAddNodesDifferentStructuresTest extends MicroKernelTestBase {
 

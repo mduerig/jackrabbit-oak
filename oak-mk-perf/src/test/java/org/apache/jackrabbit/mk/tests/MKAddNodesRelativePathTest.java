@@ -16,19 +16,15 @@
  */
 package org.apache.jackrabbit.mk.tests;
 
-import org.apache.jackrabbit.mk.util.Committer;
 import org.apache.jackrabbit.mk.testing.MicroKernelTestBase;
-import org.junit.Ignore;
+import org.apache.jackrabbit.mk.util.Committer;
 import org.junit.Test;
 
 /**
  * Measure the time needed for writing nodes in different tree structures.Each
  * node is committed separately.Each node is also committed using the relative
  * path of the parent node.
- * 
- * 
  */
-
 public class MKAddNodesRelativePathTest extends MicroKernelTestBase {
 
     static String nodeNamePrefix = "N";

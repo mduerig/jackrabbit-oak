@@ -24,17 +24,12 @@ import java.util.concurrent.TimeUnit;
 import org.apache.jackrabbit.mk.tasks.GenericWriteTask;
 import org.apache.jackrabbit.mk.testing.ConcurrentMicroKernelTestBase;
 import org.apache.jackrabbit.mk.util.MicroKernelOperation;
-import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
-
-import com.cedarsoft.test.utils.CatchAllExceptionsRule;
 
 /**
  * Test class for microkernel concurrent writing.All the nodes are added in a
  * single commit.
  */
-
 public class MkConcurrentAddNodes1CommitTest extends ConcurrentMicroKernelTestBase {
 
     // nodes for each worker
@@ -66,7 +61,7 @@ public class MkConcurrentAddNodes1CommitTest extends ConcurrentMicroKernelTestBa
         chronometer.stop();
         System.out.println("Total time for is " + chronometer.getSeconds());
     }
-    
+
     @Test
     public void testConcurentWritingPyramid1() throws InterruptedException {
 
@@ -89,7 +84,7 @@ public class MkConcurrentAddNodes1CommitTest extends ConcurrentMicroKernelTestBa
         chronometer.stop();
         System.out.println("Total time is " + chronometer.getSeconds());
     }
-    
+
     @Test
     public void testConcurentWritingPyramid2() throws InterruptedException {
 

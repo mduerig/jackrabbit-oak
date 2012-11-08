@@ -20,7 +20,6 @@ import org.apache.jackrabbit.mk.util.MicroKernelOperation;
 import org.apache.jackrabbit.mk.testing.MicroKernelTestBase;
 import org.apache.jackrabbit.mk.util.Committer;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -32,12 +31,7 @@ import org.junit.Test;
  * Number of nodes per <b>level</b> =100^(<b>level</b>).
  * <p>
  * Each node has 100 children.
- * 
- * 
- * 
- * 
  */
-
 public class MkAddNodesMultipleCommitsTest extends MicroKernelTestBase {
 
     static String diff;
@@ -94,5 +88,4 @@ public class MkAddNodesMultipleCommitsTest extends MicroKernelTestBase {
                 .println("Total time for testWriteNodes1000NodesPerCommit is "
                         + chronometer.getSeconds());
     }
-
 }

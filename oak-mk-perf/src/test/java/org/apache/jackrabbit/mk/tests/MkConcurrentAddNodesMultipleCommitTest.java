@@ -24,17 +24,12 @@ import java.util.concurrent.TimeUnit;
 import org.apache.jackrabbit.mk.tasks.GenericWriteTask;
 import org.apache.jackrabbit.mk.testing.ConcurrentMicroKernelTestBase;
 import org.apache.jackrabbit.mk.util.MicroKernelOperation;
-import org.junit.Ignore;
-import org.junit.Rule;
 import org.junit.Test;
-
-import com.cedarsoft.test.utils.CatchAllExceptionsRule;
 
 /**
  * Test class for microkernel concurrent writing.The microkernel is adding 1000
  * nodes per commit.
  */
-
 public class MkConcurrentAddNodesMultipleCommitTest extends
         ConcurrentMicroKernelTestBase {
 
