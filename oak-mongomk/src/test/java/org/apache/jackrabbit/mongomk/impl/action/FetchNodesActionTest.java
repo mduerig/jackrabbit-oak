@@ -31,8 +31,8 @@ import org.apache.jackrabbit.mongomk.impl.NodeAssert;
 import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
 import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
-import org.apache.jackrabbit.mongomk.impl.model.NodeBuilder;
 import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
+import org.apache.jackrabbit.mongomk.util.NodeBuilder;
 import org.junit.Test;
 
 import com.mongodb.BasicDBObject;

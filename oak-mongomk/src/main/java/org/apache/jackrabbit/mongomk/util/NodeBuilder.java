@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.jackrabbit.mongomk.impl.model;
+package org.apache.jackrabbit.mongomk.util;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -24,15 +24,14 @@ import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.json.JsonUtil;
 import org.apache.jackrabbit.mongomk.impl.model.NodeImpl;
-import org.apache.jackrabbit.mongomk.util.MongoUtil;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 /**
- * A builder to create {@link Node}s from <a hred="http://en.wikipedia.org/wiki/JavaScript_Object_Notation">JSON</a>
- * strings.
+ * A builder to create {@link Node}s from JSON strings. This class is for testing
+ * purposes only.
  */
 public class NodeBuilder {
 
