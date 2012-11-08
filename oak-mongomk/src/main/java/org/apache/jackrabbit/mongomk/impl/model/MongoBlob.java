@@ -25,6 +25,7 @@ public class MongoBlob extends BasicDBObject {
 
     public static final String KEY_ID = "_id";
     public static final String KEY_DATA = "data";
+    public static final String KEY_LAST_MOD = "lastMod";
     public static final String KEY_LEVEL = "level";
 
     private static final long serialVersionUID = 5119970546251968672L;
@@ -57,5 +58,13 @@ public class MongoBlob extends BasicDBObject {
 
     public void setLevel(int level) {
         put(KEY_LEVEL, level);
+    }
+
+    public long getLastMod() {
+        return getLong(KEY_LAST_MOD);
+    }
+
+    public void setLastMod(long lastMod) {
+        put(KEY_LAST_MOD, lastMod);
     }
 }

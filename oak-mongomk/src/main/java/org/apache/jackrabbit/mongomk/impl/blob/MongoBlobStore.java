@@ -26,6 +26,7 @@ import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
+import com.mongodb.WriteResult;
 
 /**
  * Implementation of {@link BlobStore} for the {@code MongoDB} extending from
@@ -41,6 +42,7 @@ public class MongoBlobStore extends AbstractBlobStore {
     public static final String COLLECTION_BLOBS = "blobs";
 
     private final DB db;
+    private long minLastModified;
 
     /**
      * Constructs a new {@code MongoBlobStore}
@@ -55,6 +57,7 @@ public class MongoBlobStore extends AbstractBlobStore {
     @Override
     protected void storeBlock(byte[] digest, int level, byte[] data) throws Exception {
         String id = StringUtils.convertBytesToHex(digest);
+        // Check if it already exists?
         MongoBlob mongoBlob = new MongoBlob();
         mongoBlob.setId(id);
         mongoBlob.setData(data);
@@ -65,10 +68,7 @@ public class MongoBlobStore extends AbstractBlobStore {
     @Override
     protected byte[] readBlockFromBackend(BlockId blockId) throws Exception {
         String id = StringUtils.convertBytesToHex(blockId.getDigest());
-        DBCollection blobCollection = getBlobCollection();
-        QueryBuilder queryBuilder = QueryBuilder.start(MongoBlob.KEY_ID).is(id);
-        DBObject query = queryBuilder.get();
-        MongoBlob blobMongo = (MongoBlob)blobCollection.findOne(query);
+        MongoBlob blobMongo = getBlob(id, 0);
         byte[] data = blobMongo.getData();
 
         if (blockId.getPos() == 0) {
@@ -86,20 +86,42 @@ public class MongoBlobStore extends AbstractBlobStore {
 
     @Override
     public void startMark() throws Exception {
-    }
-
-    @Override
-    public int sweep() throws Exception {
-        return 0;
+        minLastModified = System.currentTimeMillis();
+        markInUse();
     }
 
     @Override
     protected boolean isMarkEnabled() {
-        return false;
+        return minLastModified != 0;
     }
 
     @Override
-    protected void mark(BlockId id) throws Exception {
+    protected void mark(BlockId blockId) throws Exception {
+        if (minLastModified == 0) {
+            return;
+        }
+        String id = StringUtils.convertBytesToHex(blockId.getDigest());
+        DBObject query = getBlobQuery(id, minLastModified);
+        DBObject update = new BasicDBObject("$set",
+                new BasicDBObject(MongoBlob.KEY_LAST_MOD, System.currentTimeMillis()));
+        WriteResult writeResult = getBlobCollection().update(query, update);
+        if (writeResult.getError() != null) {
+            // Handle
+        }
+    }
+
+    @Override
+    public int sweep() throws Exception {
+        DBObject query = getBlobQuery(null, minLastModified);
+        long beforeCount = getBlobCollection().count(query);
+        WriteResult writeResult = getBlobCollection().remove(query);
+        if (writeResult.getError() != null) {
+            // Handle
+        }
+
+        long afterCount = getBlobCollection().count(query);
+        minLastModified = 0;
+        return (int)(beforeCount - afterCount);
     }
 
     private DBCollection getBlobCollection() {
@@ -118,5 +140,21 @@ public class MongoBlobStore extends AbstractBlobStore {
         DBObject options = new BasicDBObject();
         options.put("unique", Boolean.TRUE);
         collection.ensureIndex(index, options);
+    }
+
+    private MongoBlob getBlob(String id, long lastMod) {
+        DBObject query = getBlobQuery(id, lastMod);
+        return (MongoBlob)getBlobCollection().findOne(query);
+    }
+
+    private DBObject getBlobQuery(String id, long lastMod) {
+        QueryBuilder queryBuilder = new QueryBuilder();
+        if (id != null) {
+            queryBuilder = queryBuilder.and(MongoBlob.KEY_ID).is(id);
+        }
+        if (lastMod > 0) {
+            queryBuilder = queryBuilder.and(MongoBlob.KEY_LAST_MOD).lessThan(lastMod);
+        }
+        return queryBuilder.get();
     }
 }
