@@ -33,7 +33,8 @@ import com.mongodb.WriteResult;
 /**
  * Implementation of {@link BlobStore} for the {@code MongoDB} extending from
  * {@link AbstractBlobStore}. Unlike {@link MongoGridFSBlobStore}, it saves blobs
- * into a separate collection in {@link MongoDB} instead of GridFS.
+ * into a separate collection in {@link MongoDB} instead of GridFS and it supports
+ * basic garbage collection.
  *
  * FIXME:
  * -Do we need to create commands for retry etc.?
