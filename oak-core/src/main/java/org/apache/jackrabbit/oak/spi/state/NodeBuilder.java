@@ -47,6 +47,25 @@ public interface NodeBuilder {
     NodeState getBaseState();
 
     /**
+     * Check whether this builder represents a new node, which is not present in the base state.
+     * @return  {@code true} for a new node
+     */
+    boolean isNew();
+
+    /**
+     * Check whether this builder represents a removed node, which is present in the base state.
+     * @return  {@code true} for a removed node
+     */
+    boolean isRemoved();
+
+    /**
+     * Check whether this builder represents a modified node, which has either modified properties
+     * or removed or added child nodes.
+     * @return  {@code true} for a modified node
+     */
+    boolean isModified();
+
+    /**
      * Replaces the base state of this builder and throws away all changes.
      * The effect of this method is equivalent to replacing this builder
      * (and the connected subtree) with a new builder returned by

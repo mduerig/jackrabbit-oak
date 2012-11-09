@@ -25,6 +25,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
 import javax.jcr.NamespaceRegistry;
 import javax.jcr.RepositoryException;
 import javax.xml.parsers.DocumentBuilder;
@@ -51,7 +53,8 @@ import static org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeConstant
 
 
 /**
- * Reads privilege definitions without applying any validation.
+ * Reads privilege definitions from the repository content without applying
+ * any validation.
  */
 class PrivilegeDefinitionReader {
 
@@ -65,6 +68,7 @@ class PrivilegeDefinitionReader {
         this(root.getTree(PRIVILEGES_PATH));
     }
 
+    @Nonnull
     Map<String, PrivilegeDefinition> readDefinitions() {
         Map<String, PrivilegeDefinition> definitions = new HashMap<String, PrivilegeDefinition>();
         if (privilegesTree != null) {
@@ -76,7 +80,14 @@ class PrivilegeDefinitionReader {
         return definitions;
     }
 
-    PrivilegeDefinition readDefinition(Tree definitionTree) {
+    @CheckForNull
+    PrivilegeDefinition readDefinition(String privilegeName) {
+        Tree definitionTree = privilegesTree.getChild(privilegeName);
+        return (definitionTree == null) ? null : readDefinition(definitionTree);
+    }
+
+    @Nonnull
+    static PrivilegeDefinition readDefinition(Tree definitionTree) {
         NodeUtil n = new NodeUtil(definitionTree);
         String name = n.getName();
         boolean isAbstract = n.getBoolean(REP_IS_ABSTRACT);
@@ -110,8 +121,6 @@ class PrivilegeDefinitionReader {
         }
         return definitions.values().toArray(new PrivilegeDefinition[definitions.size()]);
     }
-
-
 
     //--------------------------------------------------------------------------
     /**
