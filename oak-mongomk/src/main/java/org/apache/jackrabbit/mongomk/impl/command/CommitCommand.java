@@ -32,7 +32,6 @@ import org.apache.jackrabbit.mongomk.impl.action.SaveAndSetHeadRevisionAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveCommitAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveNodesAction;
 import org.apache.jackrabbit.mongomk.impl.command.exception.ConflictingCommitException;
-import org.apache.jackrabbit.mongomk.impl.exception.NotFoundException;
 import org.apache.jackrabbit.mongomk.impl.instruction.CommitCommandInstructionVisitor;
 import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
@@ -96,8 +95,6 @@ public class CommitCommand extends BaseCommand<Long> {
             throw new ConflictingCommitException();
         }
 
-        addRevisionId();
-
         return revisionId;
     }
 
@@ -108,9 +105,7 @@ public class CommitCommand extends BaseCommand<Long> {
 
     @Override
     public boolean needsRetry(Exception e) {
-        // In createMongoNodes step, sometimes add operations could end up with
-        // not found exceptions in high concurrency situations.
-        return e instanceof ConflictingCommitException || e instanceof NotFoundException;
+        return e instanceof ConflictingCommitException;
     }
 
     /**
@@ -132,10 +127,6 @@ public class CommitCommand extends BaseCommand<Long> {
             return false;
         }
         return true;
-    }
-
-    private void addRevisionId() {
-        commit.setRevisionId(revisionId);
     }
 
     private void prepareCommit() throws Exception {

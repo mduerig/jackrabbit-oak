@@ -39,16 +39,10 @@ public class ReadAndIncHeadRevisionAction extends BaseAction<MongoSync> {
 
     @Override
     public MongoSync execute() throws Exception {
-        DBObject query = new BasicDBObject();
-        DBObject inc = new BasicDBObject(MongoSync.KEY_NEXT_REVISION_ID, 1L);
-        DBObject update = new BasicDBObject("$inc", inc);
-        DBCollection headCollection = nodeStore.getSyncCollection();
-
-        DBObject dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);
-        // FIXME - Not sure why but sometimes dbObject is null. Simply retry for now.
-        while (dbObject == null) {
-            dbObject = headCollection.findAndModify(query, null, null, false, update, true, false);
-        }
+        DBObject update = new BasicDBObject("$inc", new BasicDBObject(MongoSync.KEY_NEXT_REVISION_ID, 1L));
+        DBCollection collection = nodeStore.getSyncCollection();
+        DBObject dbObject = collection.findAndModify(null, null/*fields*/,
+                null/*sort*/, false/*remove*/, update, true/*returnNew*/, false/*upsert*/);
         return MongoSync.fromDBObject(dbObject);
     }
 }
