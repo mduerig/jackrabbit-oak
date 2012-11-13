@@ -56,8 +56,8 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private Set<String> affectedPaths;
     private List<MongoNode> existingNodes;
-    private MongoSync syncMongo;
-    private Set<MongoNode> nodeMongos;
+    private MongoSync mongoSync;
+    private Set<MongoNode> nodes;
     private Long revisionId;
     private String branchId;
 
@@ -76,16 +76,16 @@ public class CommitCommand extends BaseCommand<Long> {
     public Long execute() throws Exception {
         logger.debug(String.format("Trying to commit: %s", commit.getDiff()));
 
-        readAndIncHeadRevision();
-        createRevision();
+        mongoSync = new ReadAndIncHeadRevisionAction(nodeStore).execute();
+        revisionId = mongoSync.getNextRevisionId() - 1;
         readBranchIdFromBaseCommit();
         createMongoNodes();
         prepareCommit();
         readExistingNodes();
         mergeNodes();
         prepareMongoNodes();
-        saveNodes();
-        saveCommit();
+        new SaveNodesAction(nodeStore, nodes).execute();
+        new SaveCommitAction(nodeStore, commit).execute();
         boolean success = saveAndSetHeadRevision();
 
         logger.debug(String.format("Success was: %b", success));
@@ -108,40 +108,27 @@ public class CommitCommand extends BaseCommand<Long> {
         return e instanceof ConflictingCommitException;
     }
 
-    /**
-     * FIXME - Currently this assumes a conflict if there's an update but it
-     * should really check the affected paths before assuming a conflict. When
-     * this is fixed, lower the number of retries.
-     *
-     * This is protected for testing purposed only.
-     *
-     * @return True if the operation was successful.
-     * @throws Exception If an exception happens.
-     */
-    protected boolean saveAndSetHeadRevision() throws Exception {
-        MongoSync syncMongo = new SaveAndSetHeadRevisionAction(nodeStore,
-                this.syncMongo.getHeadRevisionId(), revisionId).execute();
-        if (syncMongo == null) {
-            logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
-                    + " revision %s and will be retried with new revision", revisionId));
-            return false;
+    private void readBranchIdFromBaseCommit() throws Exception {
+        String commitBranchId = commit.getBranchId();
+        if (commitBranchId != null) {
+            // This is a newly created branch, so no need to check the base
+            // commit's branch id.
+            branchId = commitBranchId;
+            return;
         }
-        return true;
-    }
 
-    private void prepareCommit() throws Exception {
-        commit.setAffectedPaths(new LinkedList<String>(affectedPaths));
-        commit.setBaseRevisionId(syncMongo.getHeadRevisionId());
-        commit.setRevisionId(revisionId);
-        if (commit.getBranchId() == null && branchId != null) {
-            commit.setBranchId(branchId);
+        Long baseRevisionId = commit.getBaseRevisionId();
+        if (baseRevisionId == null) {
+            return;
         }
-        commit.removeField("_id"); // In case this is a retry.
+
+        MongoCommit baseCommit = new FetchCommitAction(nodeStore, baseRevisionId).execute();
+        branchId = baseCommit.getBranchId();
     }
 
     private void createMongoNodes() throws Exception {
         CommitCommandInstructionVisitor visitor = new CommitCommandInstructionVisitor(
-                nodeStore, syncMongo.getHeadRevisionId());
+                nodeStore, mongoSync.getHeadRevisionId());
         visitor.setBranchId(branchId);
 
         for (Instruction instruction : commit.getInstructions()) {
@@ -149,35 +136,30 @@ public class CommitCommand extends BaseCommand<Long> {
         }
 
         Map<String, MongoNode> pathNodeMap = visitor.getPathNodeMap();
-
         affectedPaths = pathNodeMap.keySet();
-        nodeMongos = new HashSet<MongoNode>(pathNodeMap.values());
-        for (MongoNode nodeMongo : nodeMongos) {
-            nodeMongo.setRevisionId(revisionId);
-            if (branchId != null) {
-                nodeMongo.setBranchId(branchId);
-            }
-        }
+        nodes = new HashSet<MongoNode>(pathNodeMap.values());
     }
 
-    private void createRevision() {
-        revisionId = syncMongo.getNextRevisionId() - 1;
+    private void prepareCommit() throws Exception {
+        commit.setAffectedPaths(new LinkedList<String>(affectedPaths));
+        commit.setBaseRevisionId(mongoSync.getHeadRevisionId());
+        commit.setRevisionId(revisionId);
+        if (commit.getBranchId() == null && branchId != null) {
+            commit.setBranchId(branchId);
+        }
+        commit.removeField("_id"); // In case this is a retry.
     }
 
-    private void markAsFailed() throws Exception {
-        DBCollection commitCollection = nodeStore.getCommitCollection();
-        DBObject query = QueryBuilder.start("_id").is(commit.getObjectId("_id")).get();
-        DBObject update = new BasicDBObject("$set", new BasicDBObject(MongoCommit.KEY_FAILED, Boolean.TRUE));
-        WriteResult writeResult = commitCollection.update(query, update);
-        if (writeResult.getError() != null) {
-            // FIXME This is potentially a bug that we need to handle.
-            throw new Exception(String.format("Update wasn't successful: %s", writeResult));
-        }
+    private void readExistingNodes() {
+        FetchNodesAction action = new FetchNodesAction(nodeStore, affectedPaths,
+                mongoSync.getHeadRevisionId());
+        action.setBranchId(branchId);
+        existingNodes = action.execute();
     }
 
     private void mergeNodes() {
         for (MongoNode existingNode : existingNodes) {
-            for (MongoNode committingNode : nodeMongos) {
+            for (MongoNode committingNode : nodes) {
                 if (existingNode.getPath().equals(committingNode.getPath())) {
                     logger.debug(String.format("Found existing node to merge: %s", existingNode.getPath()));
                     logger.debug(String.format("Existing node: %s", existingNode));
@@ -209,7 +191,7 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     private void prepareMongoNodes() {
-        for (MongoNode committingNode : nodeMongos) {
+        for (MongoNode committingNode : nodes) {
             logger.debug(String.format("Preparing children (added and removed) of %s", committingNode.getPath()));
             logger.debug(String.format("Committing node: %s", committingNode));
 
@@ -255,49 +237,44 @@ public class CommitCommand extends BaseCommand<Long> {
                 committingNode.setProperties(null);
             }
 
+            committingNode.setRevisionId(revisionId);
+            if (branchId != null) {
+                committingNode.setBranchId(branchId);
+            }
+
             logger.debug(String.format("Prepared committing node: %s", committingNode));
         }
     }
 
-    private void readBranchIdFromBaseCommit() throws Exception {
-        String commitBranchId = commit.getBranchId();
-        if (commitBranchId != null) {
-            // This is a newly created branch, so no need to check the base
-            // commit's branch id.
-            branchId = commitBranchId;
-            return;
+    /**
+     * FIXME - Currently this assumes a conflict if there's an update but it
+     * should really check the affected paths before assuming a conflict. When
+     * this is fixed, lower the number of retries.
+     *
+     * This is protected for testing purposed only.
+     *
+     * @return True if the operation was successful.
+     * @throws Exception If an exception happens.
+     */
+    protected boolean saveAndSetHeadRevision() throws Exception {
+        MongoSync mongoSync = new SaveAndSetHeadRevisionAction(nodeStore,
+                this.mongoSync.getHeadRevisionId(), revisionId).execute();
+        if (mongoSync == null) {
+            logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
+                    + " revision %s and will be retried with new revision", revisionId));
+            return false;
         }
+        return true;
+    }
 
-        Long baseRevisionId = commit.getBaseRevisionId();
-        if (baseRevisionId == null) {
-            return;
+    private void markAsFailed() throws Exception {
+        DBCollection commitCollection = nodeStore.getCommitCollection();
+        DBObject query = QueryBuilder.start("_id").is(commit.getObjectId("_id")).get();
+        DBObject update = new BasicDBObject("$set", new BasicDBObject(MongoCommit.KEY_FAILED, Boolean.TRUE));
+        WriteResult writeResult = commitCollection.update(query, update);
+        if (writeResult.getError() != null) {
+            // FIXME This is potentially a bug that we need to handle.
+            throw new Exception(String.format("Update wasn't successful: %s", writeResult));
         }
-
-        MongoCommit baseCommit = new FetchCommitAction(nodeStore, baseRevisionId).execute();
-        branchId = baseCommit.getBranchId();
-    }
-
-    private void readAndIncHeadRevision() throws Exception {
-        syncMongo = new ReadAndIncHeadRevisionAction(nodeStore).execute();
-    }
-
-    private void readExistingNodes() {
-        Set<String> paths = new HashSet<String>();
-        for (MongoNode nodeMongo : nodeMongos) {
-            paths.add(nodeMongo.getPath());
-        }
-
-        FetchNodesAction action = new FetchNodesAction(nodeStore, paths,
-                syncMongo.getHeadRevisionId());
-        action.setBranchId(branchId);
-        existingNodes = action.execute();
-    }
-
-    private void saveCommit() throws Exception {
-        new SaveCommitAction(nodeStore, commit).execute();
-    }
-
-    private void saveNodes() throws Exception {
-        new SaveNodesAction(nodeStore, nodeMongos).execute();
     }
 }
