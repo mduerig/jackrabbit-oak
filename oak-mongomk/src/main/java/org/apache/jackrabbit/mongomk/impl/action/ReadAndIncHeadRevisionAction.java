@@ -41,8 +41,13 @@ public class ReadAndIncHeadRevisionAction extends BaseAction<MongoSync> {
     public MongoSync execute() throws Exception {
         DBObject update = new BasicDBObject("$inc", new BasicDBObject(MongoSync.KEY_NEXT_REVISION_ID, 1L));
         DBCollection collection = nodeStore.getSyncCollection();
-        DBObject dbObject = collection.findAndModify(null, null/*fields*/,
-                null/*sort*/, false/*remove*/, update, true/*returnNew*/, false/*upsert*/);
+        DBObject dbObject = null;
+        // In high concurrency situations, increment does not work right away,
+        // so we need to keep retrying until it succeeds.
+        while (dbObject == null) {
+            dbObject = collection.findAndModify(null, null/*fields*/, null/*sort*/, false/*remove*/,
+                    update, true/*returnNew*/, false/*upsert*/);
+        }
         return MongoSync.fromDBObject(dbObject);
     }
 }
