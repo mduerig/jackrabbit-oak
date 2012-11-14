@@ -26,6 +26,8 @@ import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
+import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
+import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.action.ReadAndIncHeadRevisionAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveAndSetHeadRevisionAction;
@@ -247,24 +249,47 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     /**
-     * FIXME - Currently this assumes a conflict if there's an update but it
-     * should really check the affected paths before assuming a conflict. When
-     * this is fixed, lower the number of retries.
-     *
-     * This is protected for testing purposed only.
+     * Protected for testing purposed only.
      *
      * @return True if the operation was successful.
      * @throws Exception If an exception happens.
      */
     protected boolean saveAndSetHeadRevision() throws Exception {
+        long assumedHeadRevision = this.mongoSync.getHeadRevisionId();
         MongoSync mongoSync = new SaveAndSetHeadRevisionAction(nodeStore,
-                this.mongoSync.getHeadRevisionId(), revisionId).execute();
-        if (mongoSync == null) {
-            logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
-                    + " revision %s and will be retried with new revision", revisionId));
-            return false;
+                assumedHeadRevision, revisionId).execute();
+        if (mongoSync == null) { // There has been update(s) in the meantime.
+            // FIXME - Add
+            //if (conflictingCommitsExist(assumedHeadRevision)) {
+                logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
+                        + " revision %s and will be retried with new revision", revisionId));
+                return false;
+            //}
         }
         return true;
+    }
+
+    private boolean conflictingCommitsExist(long assumedHeadRevision) throws Exception {
+        // Grab the real head revision
+        long realHeadRevisionId = new FetchHeadRevisionIdAction(nodeStore).execute();
+
+        // Grab commits between assumed head revision and real head revision
+        List<MongoCommit> commits = new FetchCommitsAction(nodeStore, assumedHeadRevision,
+                realHeadRevisionId).execute();
+
+        // Check affected paths
+        for (MongoCommit commit : commits) {
+            if (commit.getRevisionId().equals(assumedHeadRevision)) {
+                // We're only interested in commits after the assumed head revision.
+                continue;
+            }
+            for (String affectedPath : commit.getAffectedPaths()) {
+                if (affectedPaths.contains(affectedPath)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void markAsFailed() throws Exception {

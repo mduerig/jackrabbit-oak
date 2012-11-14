@@ -19,6 +19,7 @@ package org.apache.jackrabbit.mongomk.impl.command;
 import static org.junit.Assert.fail;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -39,42 +40,45 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
      * Test that concurrent update to root ends up with a conflict exception.
      */
     @Test
+    @Ignore
     public void rootUpdate() throws Exception {
-        Commit commit1 = CommitBuilder.build("/", "+\"a\" : {}", null);
-        Commit commit2 = CommitBuilder.build("/", "+\"b\" : {}", null);
-        Object waitLock = new Object();
-        CommitCommand cmd1 = new WaitingCommitCommand(getNodeStore(), commit1, waitLock);
-        CommitCommand cmd2 = new NotifyingCommitCommand(getNodeStore(), commit2, waitLock);
+        int n = 2;
+        CountDownLatch latch = new CountDownLatch(n - 1);
+        CommitCommand cmd1 = new WaitingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a1\" : {}", null), latch);
+        CommitCommand cmd2 = new NotifyingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a2\" : {}", null), latch);
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        ExecutorService executorService = Executors.newFixedThreadPool(n);
         Future<Long> future1 = executorService.submit(new CommitCallable(cmd1));
         Thread.sleep(1000);
-        executorService.submit(new CommitCallable(cmd2));
+        Future<Long> future2 = executorService.submit(new CommitCallable(cmd2));
         try {
             future1.get();
-        }
-        catch (Exception expected) {
-            // commit2 updated root by adding /b, so this is expected.
+            future2.get();
+        } catch (Exception expected) {
+            // cmd2 updated root by adding /a2, so this is expected.
         }
     }
 
     /**
-     * Test that concurrent update to subpaths does not end up with a conflict
-     * exception.
+     * Test that a commit does not end up with a conflict exception when there
+     * is another concurrent commit with a disjoint affected path.
      */
     @Test
-    @Ignore // FIXME - See OAK-440
-    public void subPathUpdate() throws Exception {
-        mk.commit("/", "+\"a\" : {}", null, null);
-        mk.commit("/", "+\"b\" : {}", null, null);
+    @Ignore
+    public void subPathUpdate1() throws Exception {
+        mk.commit("/", "+\"a1\" : {}", null, null);
+        mk.commit("/", "+\"a2\" : {}", null, null);
 
-        Commit commit1 = CommitBuilder.build("/", "+\"a/c\" : {}", null);
-        Commit commit2 = CommitBuilder.build("/", "+\"b/d\" : {}", null);
-        Object waitLock = new Object();
-        CommitCommand cmd1 = new WaitingCommitCommand(getNodeStore(), commit1, waitLock);
-        CommitCommand cmd2 = new NotifyingCommitCommand(getNodeStore(), commit2, waitLock);
+        int n = 2;
+        CountDownLatch latch = new CountDownLatch(n - 1);
+        CommitCommand cmd1 = new WaitingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a1/b1\" : {}", null), latch);
+        CommitCommand cmd2 = new NotifyingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a2/b1\" : {}", null), latch);
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        ExecutorService executorService = Executors.newFixedThreadPool(n);
         Future<Long> future1 = executorService.submit(new CommitCallable(cmd1));
         Thread.sleep(1000);
         Future<Long> future2 = executorService.submit(new CommitCallable(cmd2));
@@ -87,23 +91,91 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
     }
 
     /**
+     * Test that a commit does not end up with a conflict exception when there
+     * are two concurrent commits with disjoint affected paths.
+     */
+    @Test
+    @Ignore
+    public void subPathUpdate2() throws Exception {
+        mk.commit("/", "+\"a1\" : {}", null, null);
+        mk.commit("/", "+\"a2\" : {}", null, null);
+        mk.commit("/", "+\"a3\" : {}", null, null);
+
+        int n = 3;
+        CountDownLatch latch = new CountDownLatch(n - 1);
+        CommitCommand cmd1 = new WaitingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a1/b1\" : {}", null), latch);
+        CommitCommand cmd2 = new NotifyingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a2/b1\" : {}", null), latch);
+        CommitCommand cmd3 = new NotifyingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a3/b1\" : {}", null), latch);
+
+
+        ExecutorService executorService = Executors.newFixedThreadPool(n);
+        Future<Long> future1 = executorService.submit(new CommitCallable(cmd1));
+        Thread.sleep(1000);
+        Future<Long> future2 = executorService.submit(new CommitCallable(cmd2));
+        Future<Long> future3 = executorService.submit(new CommitCallable(cmd3));
+        try {
+            future1.get();
+            future2.get();
+            future3.get();
+        } catch (Exception e) {
+            fail("Not expected: " + e);
+        }
+    }
+
+    /**
+     * Test that a commit ends up with a conflict exception when there are two
+     * concurrent commits with one disjoint but other overlapping affected path.
+     */
+    @Test
+    @Ignore
+    public void subPathUpdate3() throws Exception {
+        mk.commit("/", "+\"a1\" : {}", null, null);
+        mk.commit("/", "+\"a2\" : {}", null, null);
+
+        int n = 3;
+        CountDownLatch latch = new CountDownLatch(n - 1);
+        CommitCommand cmd1 = new WaitingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a1/b1\" : {}", null), latch);
+        CommitCommand cmd2 = new NotifyingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a2/b1\" : {}", null), latch);
+        CommitCommand cmd3 = new NotifyingCommitCommand(getNodeStore(),
+                CommitBuilder.build("/", "+\"a1/b2\" : {}", null), latch);
+
+
+        ExecutorService executorService = Executors.newFixedThreadPool(n);
+        Future<Long> future1 = executorService.submit(new CommitCallable(cmd1));
+        Thread.sleep(1000);
+        Future<Long> future2 = executorService.submit(new CommitCallable(cmd2));
+        Future<Long> future3 = executorService.submit(new CommitCallable(cmd3));
+        try {
+            future1.get();
+            future2.get();
+            future3.get();
+        } catch (Exception expected) {
+            // cmd1 and cmd3 update the same root, so this is expected.
+        }
+    }
+
+    /**
      * A CommitCommand that simply waits on the waitLock until notified.
      */
     private static class WaitingCommitCommand extends CommitCommand {
 
-        private final Object waitLock;
+        private final CountDownLatch latch;
 
-        public WaitingCommitCommand(MongoNodeStore nodeStore, Commit commit, Object waitLock) {
+        public WaitingCommitCommand(MongoNodeStore nodeStore, Commit commit,
+                CountDownLatch latch) {
             super(nodeStore, commit);
-            this.waitLock = waitLock;
+            this.latch = latch;
         }
 
         @Override
         protected boolean saveAndSetHeadRevision() throws Exception {
             try {
-                synchronized (waitLock) {
-                    waitLock.wait();
-                }
+                latch.await();
                 return super.saveAndSetHeadRevision();
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -117,20 +189,19 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
      */
     private static class NotifyingCommitCommand extends CommitCommand {
 
-        private final Object waitLock;
+        private final CountDownLatch latch;
 
-        public NotifyingCommitCommand(MongoNodeStore nodeStore, Commit commit, Object waitLock) {
+        public NotifyingCommitCommand(MongoNodeStore nodeStore, Commit commit,
+                CountDownLatch latch) {
             super(nodeStore, commit);
-            this.waitLock = waitLock;
+            this.latch = latch;
         }
 
         @Override
         protected boolean saveAndSetHeadRevision() throws Exception {
             try {
                 boolean result = super.saveAndSetHeadRevision();
-                synchronized (waitLock) {
-                    waitLock.notifyAll();
-                }
+                latch.countDown();
                 return result;
             } catch (InterruptedException e) {
                 e.printStackTrace();
