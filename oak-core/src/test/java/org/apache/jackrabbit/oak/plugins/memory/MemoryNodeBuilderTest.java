@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
@@ -120,7 +119,6 @@ public class MemoryNodeBuilderTest {
     }
 
     @Test
-    @Ignore("OAK-447")  // FIXME OAK-447
     public void testAddRemovedNodeAgain() {
         NodeBuilder root = new MemoryNodeBuilder(BASE);
 
