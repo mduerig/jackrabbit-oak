@@ -25,7 +25,7 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest
     }
 
     @Test
-    @Ignore
+    @Ignore // Ignored only because it takes a while to complete.
     public void testThousandNodes() throws Exception {
         doTest(1000);
     }
@@ -44,7 +44,7 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest
             DB db = mongoConnection.getDB();
             MongoMicroKernel mk = new MongoMicroKernel(mongoConnection,
                     new MongoNodeStore(db), new MongoGridFSBlobStore(db));
-            GenericWriteTask task = new GenericWriteTask(mk, diff, 10);
+            GenericWriteTask task = new GenericWriteTask("mk-" + i, mk, diff, 10);
             executor.execute(task);
         }
         executor.shutdown();
@@ -84,11 +84,14 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest
 
     private static class GenericWriteTask implements Runnable {
 
+        private String id;
         private MicroKernel mk;
         private String diff;
         private int nodesPerCommit;
 
-        public GenericWriteTask(MongoMicroKernel mk, String diff, int nodesPerCommit) {
+        public GenericWriteTask(String id, MongoMicroKernel mk, String diff,
+                int nodesPerCommit) {
+            this.id = id;
             this.mk = mk;
             this.diff = diff;
             this.nodesPerCommit = nodesPerCommit;
@@ -108,8 +111,9 @@ public class ConcurrentWriteMultipleMkMongoTest extends BaseMongoMicroKernelTest
                 currentCommit.append(diff);
                 i++;
                 if (i == nodesPerCommit) {
-                    mk.commit("", currentCommit.toString(), null, null);
-                    //System.out.println(currentCommit.toString());
+                    //System.out.println("[" + id + "] Committing: " + currentCommit.toString());
+                    String rev = mk.commit("", currentCommit.toString(), null, null);
+                    //System.out.println("[" + id + "] Committed-" + rev + ":" + currentCommit.toString());
                     currentCommit.setLength(0);
                     i = 0;
                 }

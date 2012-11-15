@@ -28,7 +28,6 @@ import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.model.CommitBuilder;
-import org.junit.Ignore;
 import org.junit.Test;
 
 /**
@@ -40,7 +39,6 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
      * Test that concurrent update to root ends up with a conflict exception.
      */
     @Test
-    @Ignore
     public void rootUpdate() throws Exception {
         int n = 2;
         CountDownLatch latch = new CountDownLatch(n - 1);
@@ -66,7 +64,6 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
      * is another concurrent commit with a disjoint affected path.
      */
     @Test
-    @Ignore
     public void subPathUpdate1() throws Exception {
         mk.commit("/", "+\"a1\" : {}", null, null);
         mk.commit("/", "+\"a2\" : {}", null, null);
@@ -95,7 +92,6 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
      * are two concurrent commits with disjoint affected paths.
      */
     @Test
-    @Ignore
     public void subPathUpdate2() throws Exception {
         mk.commit("/", "+\"a1\" : {}", null, null);
         mk.commit("/", "+\"a2\" : {}", null, null);
@@ -130,7 +126,6 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
      * concurrent commits with one disjoint but other overlapping affected path.
      */
     @Test
-    @Ignore
     public void subPathUpdate3() throws Exception {
         mk.commit("/", "+\"a1\" : {}", null, null);
         mk.commit("/", "+\"a2\" : {}", null, null);
@@ -201,11 +196,12 @@ public class ConcurrentConflictingCommitCommandTest extends BaseMongoMicroKernel
         protected boolean saveAndSetHeadRevision() throws Exception {
             try {
                 boolean result = super.saveAndSetHeadRevision();
-                latch.countDown();
                 return result;
             } catch (InterruptedException e) {
                 e.printStackTrace();
                 return false;
+            } finally {
+                latch.countDown();
             }
         }
     }

@@ -26,8 +26,6 @@ import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
-import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
-import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.action.ReadAndIncHeadRevisionAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveAndSetHeadRevisionAction;
@@ -43,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 import com.mongodb.WriteResult;
@@ -78,24 +77,20 @@ public class CommitCommand extends BaseCommand<Long> {
     public Long execute() throws Exception {
         logger.debug(String.format("Trying to commit: %s", commit.getDiff()));
 
-        mongoSync = new ReadAndIncHeadRevisionAction(nodeStore).execute();
-        revisionId = mongoSync.getNextRevisionId() - 1;
-        readBranchIdFromBaseCommit();
-        createMongoNodes();
-        prepareCommit();
-        readExistingNodes();
-        mergeNodes();
-        prepareMongoNodes();
-        new SaveNodesAction(nodeStore, nodes).execute();
-        new SaveCommitAction(nodeStore, commit).execute();
-        boolean success = saveAndSetHeadRevision();
-
-        logger.debug(String.format("Success was: %b", success));
-
-        if (!success) {
-            markAsFailed();
-            throw new ConflictingCommitException();
-        }
+        boolean success = false;
+        do {
+            mongoSync = new ReadAndIncHeadRevisionAction(nodeStore).execute();
+            revisionId = mongoSync.getNextRevisionId() - 1;
+            readBranchIdFromBaseCommit();
+            createMongoNodes();
+            prepareCommit();
+            readExistingNodes();
+            mergeNodes();
+            prepareMongoNodes();
+            new SaveNodesAction(nodeStore, nodes).execute();
+            new SaveCommitAction(nodeStore, commit).execute();
+            success = saveAndSetHeadRevision();
+        } while (!success);
 
         return revisionId;
     }
@@ -258,29 +253,37 @@ public class CommitCommand extends BaseCommand<Long> {
         long assumedHeadRevision = this.mongoSync.getHeadRevisionId();
         MongoSync mongoSync = new SaveAndSetHeadRevisionAction(nodeStore,
                 assumedHeadRevision, revisionId).execute();
-        if (mongoSync == null) { // There has been update(s) in the meantime.
-            // FIXME - Add
-            //if (conflictingCommitsExist(assumedHeadRevision)) {
-                logger.warn(String.format("Encounterd a conflicting update, thus can't commit"
-                        + " revision %s and will be retried with new revision", revisionId));
+        if (mongoSync == null) {
+            // There have been commit(s) in the meantime. If it's a conflicting
+            // update, retry the whole operation and count against number of retries.
+            // If not, need to retry again (in order to write commits and nodes properly)
+            // but don't count these retries against number of retries.
+            if (conflictingCommitsExist(assumedHeadRevision)) {
+                String message = String.format("Encountered a concurrent conflicting update"
+                        + ", thus can't commit revision %s and will be retried with new revision", revisionId);
+                logger.warn(message);
+                markAsFailed();
+                throw new ConflictingCommitException(message);
+            } else {
+                String message = String.format("Encountered a concurrent but non-conflicting update"
+                        + ", thus can't commit revision %s and will be retried with new revision", revisionId);
+                logger.warn(message);
+                markAsFailed();
                 return false;
-            //}
+            }
         }
         return true;
     }
 
-    private boolean conflictingCommitsExist(long assumedHeadRevision) throws Exception {
-        // Grab the real head revision
-        long realHeadRevisionId = new FetchHeadRevisionIdAction(nodeStore).execute();
-
-        // Grab commits between assumed head revision and real head revision
-        List<MongoCommit> commits = new FetchCommitsAction(nodeStore, assumedHeadRevision,
-                realHeadRevisionId).execute();
-
-        // Check affected paths
-        for (MongoCommit commit : commits) {
-            if (commit.getRevisionId().equals(assumedHeadRevision)) {
-                // We're only interested in commits after the assumed head revision.
+    private boolean conflictingCommitsExist(long baseRevisionId) {
+        QueryBuilder queryBuilder = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE);
+        queryBuilder = queryBuilder.and(MongoCommit.KEY_BASE_REVISION_ID).is(baseRevisionId);
+        DBObject query = queryBuilder.get();
+        DBCollection collection = nodeStore.getCommitCollection();
+        DBCursor dbCursor = collection.find(query);
+        while (dbCursor.hasNext()) {
+            MongoCommit commit = (MongoCommit)dbCursor.next();
+            if (this.commit.getRevisionId().equals(commit.getRevisionId())) {
                 continue;
             }
             for (String affectedPath : commit.getAffectedPaths()) {
