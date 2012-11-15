@@ -21,14 +21,20 @@ package org.apache.jackrabbit.oak.query.ast;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
 import javax.jcr.PropertyType;
-import org.apache.jackrabbit.oak.api.CoreValue;
+
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.plugins.memory.MultiPropertyState;
+import org.apache.jackrabbit.oak.query.Query;
 import org.apache.jackrabbit.oak.query.SQL2Parser;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
+
+import com.google.common.collect.Iterables;
 
 /**
  * A property expression.
@@ -67,8 +73,7 @@ public class PropertyValueImpl extends DynamicOperandImpl {
 
     @Override
     public String toString() {
-        // TODO quote property names?
-        String s = getSelectorName() + '.' + propertyName;
+        String s = quote(selectorName) + '.' + quote(propertyName);
         if (propertyType != PropertyType.UNDEFINED) {
             s = "property(" + s + ", '" +
                     PropertyType.nameFromValue(propertyType).toLowerCase(Locale.ENGLISH) +
@@ -76,13 +81,21 @@ public class PropertyValueImpl extends DynamicOperandImpl {
         }
         return s;
     }
+    
+    @Override
+    public boolean supportsRangeConditions() {
+        // the jcr:path pseudo-property doesn't support LIKE conditions,
+        // because the path doesn't might be escaped, and possibly contain
+        // expressions that would result in incorrect results (/test[1] for example)
+        return !propertyName.equals(Query.JCR_PATH);
+    }
 
     @Override
-    public PropertyState currentProperty() {
+    public PropertyValue currentProperty() {
         boolean relative = propertyName.indexOf('/') >= 0;
         boolean asterisk = propertyName.equals("*");
         if (!relative && !asterisk) {
-            PropertyState p = selector.currentProperty(propertyName);
+            PropertyValue p = selector.currentProperty(propertyName);
             return matchesPropertyType(p) ? p : null;
         }
         Tree tree = getTree(selector.currentPath());
@@ -109,23 +122,32 @@ public class PropertyValueImpl extends DynamicOperandImpl {
                 return null;
             }
             PropertyState p = tree.getProperty(name);
-            return matchesPropertyType(p) ? p : null;
+            return matchesPropertyType(p) ? PropertyValues.create(p) : null;
         }
         // asterisk - create a multi-value property
         // warning: the returned property state may have a mixed type
         // (not all values may have the same type)
-        ArrayList<CoreValue> values = new ArrayList<CoreValue>();
+
+        // TODO currently all property values are converted to strings - 
+        // this doesn't play well with the idea that the types may be different
+        List<String> values = new ArrayList<String>();
         for (PropertyState p : tree.getProperties()) {
             if (matchesPropertyType(p)) {
-                if (p.isArray()) {
-                    values.addAll(p.getValues());
-                } else {
-                    values.add(p.getValue());
-                }
+                Iterables.addAll(values, p.getValue(Type.STRINGS));
             }
         }
-        MultiPropertyState mv = new MultiPropertyState("*", values);
-        return mv;
+        // "*"
+        return PropertyValues.newString(values);
+    }
+
+    private boolean matchesPropertyType(PropertyValue value) {
+        if (value == null) {
+            return false;
+        }
+        if (propertyType == PropertyType.UNDEFINED) {
+            return true;
+        }
+        return value.getType().tag() == propertyType;
     }
 
     private boolean matchesPropertyType(PropertyState state) {
@@ -135,16 +157,7 @@ public class PropertyValueImpl extends DynamicOperandImpl {
         if (propertyType == PropertyType.UNDEFINED) {
             return true;
         }
-        if (state.isArray()) {
-            List<CoreValue> values = state.getValues();
-            if (values.isEmpty()) {
-                // TODO how to retrieve the property type of an empty multi-value property?
-                // currently it matches all property types
-                return true;
-            }
-            return values.get(0).getType() == propertyType;
-        }
-        return state.getValue().getType() == propertyType;
+        return state.getType().tag() == propertyType;
     }
 
     public void bindSelector(SourceImpl source) {
@@ -152,7 +165,7 @@ public class PropertyValueImpl extends DynamicOperandImpl {
     }
 
     @Override
-    public void apply(FilterImpl f, Operator operator, CoreValue v) {
+    public void restrict(FilterImpl f, Operator operator, PropertyValue v) {
         if (f.getSelector() == selector) {
             if (operator == Operator.NOT_EQUAL && v != null) {
                 // not supported

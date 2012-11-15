@@ -18,20 +18,15 @@
  */
 package org.apache.jackrabbit.oak.spi.query;
 
+import java.util.Iterator;
+
 /**
  * A cursor to read a number of nodes sequentially.
  */
-public interface Cursor {
+public interface Cursor extends Iterator<IndexRow> {
 
     /**
-     * Skip to the next node if one is available.
-     *
-     * @return true if another row is available
-     */
-    boolean next();
-
-    /**
-     * The current row within this index.
+     * The next row within this index.
      * <p>
      * The row may only contains the path, if a path is available. It may also
      * (or just) contain so-called "pseudo-properties" such as "jcr:score" and
@@ -53,6 +48,7 @@ public interface Cursor {
      * 
      * @return the row
      */
-    IndexRow currentRow();
-
+    @Override
+    IndexRow next();
+    
 }

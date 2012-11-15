@@ -18,24 +18,21 @@ package org.apache.jackrabbit.oak.core;
 
 import java.io.IOException;
 import java.util.Set;
-
 import javax.annotation.Nonnull;
-import javax.security.auth.login.LoginContext;
 import javax.security.auth.login.LoginException;
 
 import org.apache.jackrabbit.oak.api.AuthInfo;
 import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
 import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.api.SessionQueryEngine;
-import org.apache.jackrabbit.oak.plugins.type.NodeTypeManagerImpl;
-import org.apache.jackrabbit.oak.query.QueryEngineImpl;
-import org.apache.jackrabbit.oak.query.SessionQueryEngineImpl;
+import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
+import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
+import org.apache.jackrabbit.oak.spi.security.authentication.LoginContext;
+import org.apache.jackrabbit.oak.spi.security.authorization.AccessControlConfiguration;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * {@code MicroKernel}-based implementation of the {@link ContentSession} interface.
@@ -45,52 +42,40 @@ class ContentSessionImpl implements ContentSession {
     private static final Logger log = LoggerFactory.getLogger(ContentSessionImpl.class);
 
     private final LoginContext loginContext;
+    private final AccessControlConfiguration accConfiguration;
     private final String workspaceName;
     private final NodeStore store;
-    private final SessionQueryEngine queryEngine;
+    private final ConflictHandler conflictHandler;
+    private final QueryIndexProvider indexProvider;
 
-    private boolean initialised;
+    private volatile boolean live = true;
 
-    public ContentSessionImpl(LoginContext loginContext, String workspaceName,
-                              NodeStore store, QueryEngineImpl queryEngine) {
-
+    public ContentSessionImpl(LoginContext loginContext,
+            AccessControlConfiguration accConfiguration, String workspaceName,
+            NodeStore store, ConflictHandler conflictHandler,
+            QueryIndexProvider indexProvider) {
         this.loginContext = loginContext;
+        this.accConfiguration = accConfiguration;
         this.workspaceName = workspaceName;
         this.store = store;
-        this.queryEngine = new SessionQueryEngineImpl(this, checkNotNull(queryEngine));
+        this.conflictHandler = conflictHandler;
+        this.indexProvider = indexProvider;
     }
 
+    private void checkLive() {
+        checkState(live, "This session has been closed");
+    }
+
+    //-----------------------------------------------------< ContentSession >---
     @Nonnull
     @Override
     public AuthInfo getAuthInfo() {
+        checkLive();
         Set<AuthInfo> infoSet = loginContext.getSubject().getPublicCredentials(AuthInfo.class);
         if (infoSet.isEmpty()) {
             return AuthInfo.EMPTY;
         } else {
             return infoSet.iterator().next();
-        }
-    }
-
-    @Nonnull
-    @Override
-    public Root getLatestRoot() {
-        // TODO: improve initial repository/session. See OAK-41
-        synchronized (this) {
-            if (!initialised) {
-                initialised = true;
-                NodeTypeManagerImpl.registerBuiltInNodeTypes(this);
-            }
-        }
-
-        return new RootImpl(store, workspaceName, loginContext.getSubject());
-    }
-
-    @Override
-    public void close() throws IOException {
-        try {
-            loginContext.logout();
-        } catch (LoginException e) {
-            log.error("Error during logout.", e);
         }
     }
 
@@ -101,13 +86,29 @@ class ContentSessionImpl implements ContentSession {
 
     @Nonnull
     @Override
-    public SessionQueryEngine getQueryEngine() {
-        return queryEngine;
+    public Root getLatestRoot() {
+        checkLive();
+        RootImpl root = new RootImpl(store, workspaceName, loginContext.getSubject(), accConfiguration, indexProvider) {
+            @Override
+            protected void checkLive() {
+                ContentSessionImpl.this.checkLive();
+            }
+        };
+        if (conflictHandler != null) {
+            root.setConflictHandler(conflictHandler);
+        }
+        return root;
     }
 
-    @Nonnull
+    //-----------------------------------------------------------< Closable >---
     @Override
-    public CoreValueFactory getCoreValueFactory() {
-        return store.getValueFactory();
+    public synchronized void close() throws IOException {
+        try {
+            loginContext.logout();
+            live = false;
+        } catch (LoginException e) {
+            log.error("Error during logout.", e);
+        }
     }
+
 }

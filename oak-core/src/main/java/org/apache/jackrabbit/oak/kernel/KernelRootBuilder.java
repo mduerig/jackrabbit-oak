@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.kernel;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState.collapse;
 
 import java.util.Map;
 import java.util.Set;
@@ -24,6 +25,7 @@ import java.util.Set;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeBuilder;
+import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 import com.google.common.collect.Maps;
@@ -55,9 +57,8 @@ class KernelRootBuilder extends MemoryNodeBuilder {
     //--------------------------------------------------< MemoryNodeBuilder >---
 
     @Override
-    protected MemoryNodeBuilder createChildBuilder(
-            String name, NodeState child) {
-        return new KernelNodeBuilder(this, name, child, this);
+    protected MemoryNodeBuilder createChildBuilder(String name) {
+        return new KernelNodeBuilder(this, name, this);
     }
 
     @Override
@@ -85,6 +86,7 @@ class KernelRootBuilder extends MemoryNodeBuilder {
         private final Set<String> deleted;
 
         public CopyAndMoveAwareJsopDiff() {
+            super(kernel);
             added = Maps.newHashMap();
             deleted = Sets.newHashSet();
         }
@@ -92,7 +94,7 @@ class KernelRootBuilder extends MemoryNodeBuilder {
         private CopyAndMoveAwareJsopDiff(
                 JsopBuilder jsop, String path,
                 Map<String, NodeState> added, Set<String> deleted) {
-            super(jsop, path);
+            super(kernel, jsop, path);
             this.added = added;
             this.deleted = deleted;
         }
@@ -114,7 +116,7 @@ class KernelRootBuilder extends MemoryNodeBuilder {
 
                 if (state != kstate) {
                     state.compareAgainstBaseState(
-                            kstate, new JsopDiff(jsop, path));
+                            kstate, new JsopDiff(kernel, jsop, path));
                 }
             }
 
@@ -164,8 +166,8 @@ class KernelRootBuilder extends MemoryNodeBuilder {
         //-------------------------------------------------------< private >--
 
         private KernelNodeState getKernelBaseState(NodeState state) {
-            if (state instanceof MutableNodeState) {
-                state = ((MutableNodeState) state).getBaseState();
+            if (state instanceof ModifiedNodeState) {
+                state = collapse((ModifiedNodeState) state).getBaseState();
             }
 
             if (state instanceof KernelNodeState) {

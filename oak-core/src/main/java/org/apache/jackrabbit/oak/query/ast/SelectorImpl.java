@@ -18,37 +18,51 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
+import static org.apache.jackrabbit.oak.api.Type.STRINGS;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+import javax.annotation.CheckForNull;
+import javax.jcr.RepositoryException;
+import javax.jcr.nodetype.NodeType;
+import javax.jcr.nodetype.NodeTypeIterator;
+import javax.jcr.nodetype.NodeTypeManager;
+
 import org.apache.jackrabbit.JcrConstants;
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.oak.api.CoreValue;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Tree;
-import org.apache.jackrabbit.oak.plugins.memory.SinglePropertyState;
+import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
+import org.apache.jackrabbit.oak.plugins.nodetype.ReadOnlyNodeTypeManager;
 import org.apache.jackrabbit.oak.query.Query;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
 import org.apache.jackrabbit.oak.spi.query.Cursor;
+import org.apache.jackrabbit.oak.spi.query.Filter;
 import org.apache.jackrabbit.oak.spi.query.IndexRow;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+
+import com.google.common.collect.ImmutableSet;
 
 /**
  * A selector within a query.
  */
 public class SelectorImpl extends SourceImpl {
 
-    // TODO jcr:path isn't an official feature, support it?
-    public static final String PATH = "jcr:path";
-
-    private static final String JCR_PRIMARY_TYPE = "jcr:primaryType";
-
-    private static final String TYPE_BASE = "nt:base";
-
     // TODO possibly support using multiple indexes (using index intersection / index merge)
     protected QueryIndex index;
 
     private final String nodeTypeName, selectorName;
     private Cursor cursor;
+    private IndexRow currentRow;
     private int scanCount;
+    /**
+     * Iterable over selected node type and its subtypes
+     */
+    private Iterable<NodeType> nodeTypes;
 
     /**
      * The selector condition can be evaluated when the given selector is
@@ -64,10 +78,6 @@ public class SelectorImpl extends SourceImpl {
         this.selectorName = selectorName;
     }
 
-    public String getNodeTypeName() {
-        return nodeTypeName;
-    }
-
     public String getSelectorName() {
         return selectorName;
     }
@@ -79,12 +89,12 @@ public class SelectorImpl extends SourceImpl {
 
     @Override
     public String toString() {
-        return "[" + nodeTypeName + "] as " + selectorName;
+        return quote(nodeTypeName) + " as " + quote(selectorName);
     }
 
 
     @Override
-    public void prepare(MicroKernel mk) {
+    public void prepare() {
         if (queryConstraint != null) {
             queryConstraint.restrictPushDown(this);
         }
@@ -95,15 +105,15 @@ public class SelectorImpl extends SourceImpl {
     }
 
     @Override
-    public void execute(String revisionId, NodeState root) {
-        cursor = index.query(createFilter(), revisionId, root);
+    public void execute(NodeState root) {
+        cursor = index.query(createFilter(), root);
     }
 
     @Override
-    public String getPlan() {
+    public String getPlan(NodeState root) {
         StringBuilder buff = new StringBuilder();
         buff.append(toString());
-        buff.append(" /* ").append(index.getPlan(createFilter()));
+        buff.append(" /* ").append(index.getPlan(createFilter(), root));
         if (selectorCondition != null) {
             buff.append(" where ").append(selectorCondition);
         }
@@ -111,27 +121,42 @@ public class SelectorImpl extends SourceImpl {
         return buff.toString();
     }
 
-    private FilterImpl createFilter() {
-        FilterImpl f = new FilterImpl(this);
+    private Filter createFilter() {
+        FilterImpl f = new FilterImpl(this, query.getStatement());
         f.setNodeType(nodeTypeName);
         if (joinCondition != null) {
             joinCondition.restrict(f);
         }
-        if (!outerJoin) {
-            // for outer joins, query constraints can't be applied to the
-            // filter, because that would alter the result
-            if (queryConstraint != null) {
-                queryConstraint.restrict(f);
-            }
+        
+        // all conditions can be pushed to the selectors -
+        // except in some cases to "outer joined" selectors,
+        // but the exceptions are handled in the condition
+        // itself.
+        // An example where it *is* a problem:
+        //  "select * from a left outer join b on a.x = b.y
+        // where b.y is null" - in this case the selector b
+        // must not use an index condition on "y is null"
+        // (".. is null" must be written as "not .. is not null").
+        if (queryConstraint != null) {
+            queryConstraint.restrict(f);
         }
+
         return f;
     }
 
     @Override
     public boolean next() {
-        while (true) {
-            if (!nextNode()) {
-                return false;
+        while (cursor != null && cursor.hasNext()) {
+            scanCount++;
+            currentRow = cursor.next();
+            Tree tree = getTree(currentRow.getPath());
+            if (tree == null) {
+                continue;
+            }
+            if (nodeTypeName != null
+                    && !nodeTypeName.equals(JcrConstants.NT_BASE)
+                    && !evaluateTypeMatch(tree)) {
+                continue;
             }
             if (selectorCondition != null && !selectorCondition.evaluate()) {
                 continue;
@@ -141,52 +166,63 @@ public class SelectorImpl extends SourceImpl {
             }
             return true;
         }
+        cursor = null;
+        currentRow = null;
+        return false;
     }
 
-    private boolean nextNode() {
-        if (cursor == null) {
-            return false;
-        }
-        scanCount++;
-        while (true) {
-            boolean result = cursor.next();
-            if (!result) {
-                return false;
-            }
-            if (nodeTypeName.equals(TYPE_BASE)) {
-                return true;
-            }
-            Tree tree = getTree(cursor.currentRow().getPath());
-            if (tree == null) {
-                return false;
-            }
-            PropertyState p = tree.getProperty(JCR_PRIMARY_TYPE);
-            if (p == null) {
-                return true;
-            }
-            CoreValue v = p.getValue();
-            // TODO node type matching
-            if (nodeTypeName.equals(v.getString())) {
-                return true;
-            }
-            PropertyState m = tree.getProperty(JcrConstants.JCR_MIXINTYPES);
-            if (m != null) {
-                for (CoreValue value : m.getValues()) {
-                    if (nodeTypeName.equals(value.getString())) {
-                        return true;
-                    }
+    private boolean evaluateTypeMatch(Tree tree) {
+        Set<String> primary =
+                getStrings(tree, JcrConstants.JCR_PRIMARYTYPE);
+        Set<String> mixins =
+                getStrings(tree, JcrConstants.JCR_MIXINTYPES);
+
+        try {
+            for (NodeType type : getNodeTypes()) {
+                if (evaluateTypeMatch(type, primary, mixins)) {
+                    return true;
                 }
             }
+        } catch (RepositoryException e) {
+            throw new RuntimeException(
+                    "Unable to evaluate node type constraints", e);
+        }
+
+        return false;
+    }
+
+    private static Set<String> getStrings(Tree tree, String name) {
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        PropertyState property = tree.getProperty(name);
+        if (property != null) {
+            for (String value : property.getValue(STRINGS)) {
+                builder.add(value);
+            }
+        }
+        return builder.build();
+    }
+
+    private static boolean evaluateTypeMatch(
+            NodeType type, Set<String> primary, Set<String> mixins) {
+        String name = type.getName();
+        if (type.isMixin()) {
+            return mixins.contains(name);
+        } else {
+            return primary.contains(name);
         }
     }
 
-    @Override
+    /**
+     * Get the current absolute path (including workspace name)
+     *
+     * @return the path
+     */
     public String currentPath() {
-        return cursor == null ? null : cursor.currentRow().getPath();
+        return cursor == null ? null : currentRow.getPath();
     }
 
-    public PropertyState currentProperty(String propertyName) {
-        if (propertyName.equals(PATH)) {
+    public PropertyValue currentProperty(String propertyName) {
+        if (propertyName.equals(Query.JCR_PATH)) {
             String p = currentPath();
             if (p == null) {
                 return null;
@@ -196,13 +232,12 @@ public class SelectorImpl extends SourceImpl {
                 // not a local path
                 return null;
             }
-            CoreValue v = query.getValueFactory().createValue(local);
-            return new SinglePropertyState(PATH, v);
+            return PropertyValues.newString(local);
         }
         if (cursor == null) {
             return null;
         }
-        IndexRow r = cursor.currentRow();
+        IndexRow r = currentRow;
         if (r == null) {
             return null;
         }
@@ -213,7 +248,7 @@ public class SelectorImpl extends SourceImpl {
             return null;
         }
         Tree t = getTree(path);
-        return t == null ? null : t.getProperty(propertyName);
+        return t == null ? null : PropertyValues.create(t.getProperty(propertyName));
     }
 
     @Override
@@ -241,4 +276,24 @@ public class SelectorImpl extends SourceImpl {
         }
     }
 
+    private Iterable<NodeType> getNodeTypes() throws RepositoryException {
+        if (nodeTypes == null) {
+            List<NodeType> types = new ArrayList<NodeType>();
+            NodeTypeManager manager = new ReadOnlyNodeTypeManager() {
+                @Override @CheckForNull
+                protected Tree getTypes() {
+                    return getTree(NodeTypeConstants.NODE_TYPES_PATH);
+                }
+            };
+            NodeType type = manager.getNodeType(nodeTypeName);
+            types.add(type);
+
+            NodeTypeIterator it = type.getSubtypes();
+            while (it.hasNext()) {
+                types.add(it.nextNodeType());
+            }
+            nodeTypes = types;
+        }
+        return nodeTypes;
+    }
 }

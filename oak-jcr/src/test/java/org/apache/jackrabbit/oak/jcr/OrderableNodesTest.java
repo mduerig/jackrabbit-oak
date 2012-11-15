@@ -30,8 +30,19 @@ public class OrderableNodesTest extends AbstractRepositoryTest {
 
     @Test
     public void testSimpleOrdering() throws RepositoryException {
+        doTest("nt:unstructured");
+    }
+
+    @Test
+    public void orderableFolder() throws Exception {
+        // check ordering with node type without a residual properties definition
+        new TestContentLoader().loadTestContent(getAdminSession());
+        doTest("test:orderableFolder");
+    }
+
+    private void doTest(String nodeType) throws RepositoryException {
         Session session = getAdminSession();
-        Node root = session.getRootNode().addNode("test");
+        Node root = session.getRootNode().addNode("test", nodeType);
 
         root.addNode("a");
         root.addNode("b");
@@ -40,6 +51,7 @@ public class OrderableNodesTest extends AbstractRepositoryTest {
         NodeIterator iterator;
 
         root.orderBefore("a", "b");
+        root.orderBefore("c", null);
         iterator = root.getNodes();
         assertEquals("a", iterator.nextNode().getName());
         assertEquals("b", iterator.nextNode().getName());
@@ -59,6 +71,7 @@ public class OrderableNodesTest extends AbstractRepositoryTest {
         assertEquals("c", iterator.nextNode().getName());
         assertEquals("a", iterator.nextNode().getName());
         assertFalse(iterator.hasNext());
-    }
 
+        session.save();
+    }
 }

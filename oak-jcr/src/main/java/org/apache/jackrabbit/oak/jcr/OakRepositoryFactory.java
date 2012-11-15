@@ -16,18 +16,16 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Map;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.RepositoryFactory;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.Map;
-
 public class OakRepositoryFactory implements RepositoryFactory {
 
-    private static final String REPOSITORY_URI =
-            "org.apache.jackrabbit.repository.uri";
+    private static final String REPOSITORY_URI = "org.apache.jackrabbit.repository.uri";
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
@@ -49,7 +47,7 @@ public class OakRepositoryFactory implements RepositoryFactory {
             URI uri, Map<String, String> parameters)
             throws RepositoryException {
         // TODO correctly interpret uri
-        return new RepositoryImpl();
+        return new Jcr().createRepository();
     }
 
 }

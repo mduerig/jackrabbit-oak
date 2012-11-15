@@ -16,14 +16,9 @@
  */
 package org.apache.jackrabbit.oak.osgi;
 
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertTrue;
-import static org.ops4j.pax.exam.CoreOptions.bundle;
-import static org.ops4j.pax.exam.CoreOptions.junitBundles;
-import static org.ops4j.pax.exam.CoreOptions.mavenBundle;
-
 import java.io.File;
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.util.regex.Pattern;
 
@@ -38,28 +33,41 @@ import org.ops4j.pax.exam.CoreOptions;
 import org.ops4j.pax.exam.Option;
 import org.ops4j.pax.exam.junit.Configuration;
 import org.ops4j.pax.exam.junit.JUnit4TestRunner;
+import org.ops4j.pax.exam.options.UrlProvisionOption;
+
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertTrue;
+import static org.ops4j.pax.exam.CoreOptions.bundle;
+import static org.ops4j.pax.exam.CoreOptions.junitBundles;
+import static org.ops4j.pax.exam.CoreOptions.mavenBundle;
 
 @RunWith(JUnit4TestRunner.class)
 public class OSGiIT {
 
-    private final File TARGET = new File("target");
-
     @Configuration
     public Option[] configuration() throws IOException, URISyntaxException {
-        File base = new File(TARGET, "test-bundles");
         return CoreOptions.options(
                 junitBundles(),
                 mavenBundle("org.apache.felix", "org.apache.felix.scr", "1.6.0"),
-                bundle(new File(base, "jcr.jar").toURI().toURL().toString()),
-                bundle(new File(base, "guava.jar").toURI().toURL().toString()),
-                bundle(new File(base, "jackrabbit-api.jar").toURI().toURL().toString()),
-                bundle(new File(base, "jackrabbit-jcr-commons.jar").toURI().toURL().toString()),
-                bundle(new File(base, "oak-commons.jar").toURI().toURL().toString()),
-                bundle(new File(base, "oak-mk-api.jar").toURI().toURL().toString()),
-                bundle(new File(base, "oak-mk.jar").toURI().toURL().toString()),
-                bundle(new File(base, "oak-mk-remote.jar").toURI().toURL().toString()),
-                bundle(new File(base, "oak-core.jar").toURI().toURL().toString()),
-                bundle(new File(base, "oak-jcr.jar").toURI().toURL().toString()));
+                jarBundle("jcr.jar"),
+                jarBundle("guava.jar"),
+                jarBundle("jackrabbit-api.jar"),
+                jarBundle("jackrabbit-jcr-commons.jar"),
+                jarBundle("oak-commons.jar"),
+                jarBundle("oak-mk-api.jar"),
+                jarBundle("oak-mk.jar"),
+                jarBundle("oak-mk-remote.jar"),
+                jarBundle("oak-core.jar"),
+                jarBundle("oak-lucene.jar"),
+                jarBundle("oak-jcr.jar"),
+                jarBundle("tika-core.jar"));
+    }
+
+    private UrlProvisionOption jarBundle(String jar)
+            throws MalformedURLException {
+        File target = new File("target");
+        File bundles = new File(target, "test-bundles");
+        return bundle(new File(bundles, jar).toURI().toURL().toString());
     }
 
     @Inject

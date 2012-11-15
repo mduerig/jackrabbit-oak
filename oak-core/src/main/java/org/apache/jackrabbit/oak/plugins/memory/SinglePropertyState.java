@@ -18,59 +18,132 @@
  */
 package org.apache.jackrabbit.oak.plugins.memory;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-
-import java.util.Collections;
-import java.util.List;
-
 import javax.annotation.Nonnull;
+import javax.jcr.PropertyType;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.Collections.singleton;
 
 /**
- * Single-valued property state.
+ * Abstract base class for single valued {@code PropertyState} implementations.
  */
-public class SinglePropertyState extends EmptyPropertyState {
+abstract class SinglePropertyState<T> extends EmptyPropertyState {
 
-    public static PropertyState create(String name, boolean value) {
-        return new SinglePropertyState(name, BooleanValue.create(value));
-    }
-
-    public static PropertyState create(String name, double value) {
-        return new SinglePropertyState(name, new DoubleValue(value));
-    }
-
-    public static PropertyState create(String name, long value) {
-        return new SinglePropertyState(name, new LongValue(value));
-    }
-
-    public static PropertyState create(String name, String value) {
-        return new SinglePropertyState(name, new StringValue(value));
-    }
-
-    private final CoreValue value;
-
-    public SinglePropertyState(String name, CoreValue value) {
+    /**
+     * Create a new property state with the given {@code name}
+     * @param name  The name of the property state.
+     */
+    protected SinglePropertyState(@Nonnull String name) {
         super(name);
-        this.value = checkNotNull(value);
     }
 
+    /**
+     * @return  {@code false}
+     */
     @Override
     public boolean isArray() {
         return false;
     }
 
-    @Override
-    @Nonnull
-    public CoreValue getValue() {
-        return value;
+    /**
+     * Create a converter for converting the value of this property to other types.
+     * @return  A converter for the value of this property
+     */
+    public abstract Converter getConverter();
+
+    @SuppressWarnings("unchecked")
+    private <S> S  convertTo(Type<S> type) {
+        switch (type.tag()) {
+            case PropertyType.STRING: return (S) getConverter().toString();
+            case PropertyType.BINARY: return (S) getConverter().toBinary();
+            case PropertyType.LONG: return (S) (Long) getConverter().toLong();
+            case PropertyType.DOUBLE: return (S) (Double) getConverter().toDouble();
+            case PropertyType.DATE: return (S) getConverter().toDate();
+            case PropertyType.BOOLEAN: return (S) (Boolean) getConverter().toBoolean();
+            case PropertyType.NAME: return (S) getConverter().toString();
+            case PropertyType.PATH: return (S) getConverter().toString();
+            case PropertyType.REFERENCE: return (S) getConverter().toString();
+            case PropertyType.WEAKREFERENCE: return (S) getConverter().toString();
+            case PropertyType.URI: return (S) getConverter().toString();
+            case PropertyType.DECIMAL: return (S) getConverter().toDecimal();
+            default: throw new IllegalArgumentException("Unknown type:" + type);
+        }
     }
 
-    @Override
+    /**
+     * The value of this property
+     * @return  Value of this property
+     */
+    public abstract T getValue();
+
+    /**
+     * @throws IllegalArgumentException if {@code type} is not one of the
+     * values defined in {@link Type}.
+     */
+    @SuppressWarnings("unchecked")
     @Nonnull
-    public List<CoreValue> getValues() {
-        return Collections.singletonList(value);
+    @Override
+    public <S> S getValue(Type<S> type) {
+        if (type.isArray()) {
+            if (getType() == type.getBaseType()) {
+                return (S) singleton(getValue());
+            }
+            else {
+                return (S) singleton(convertTo(type.getBaseType()));
+            }
+        }
+        else {
+            if (getType() == type) {
+                return (S) getValue();
+            }
+            else {
+                return convertTo(type);
+            }
+        }
     }
 
+    /**
+     * @throws IllegalArgumentException  if {@code type.isArray} is {@code true}
+     * @throws IndexOutOfBoundsException  if {@code index != 0}
+     */
+    @Nonnull
+    @Override
+    public <S> S getValue(Type<S> type, int index) {
+        checkArgument(!type.isArray(), "Type must not be an array type");
+        if (index != 0) {
+            throw new IndexOutOfBoundsException(String.valueOf(index));
+        }
+        return getValue(type);
+    }
+
+    /**
+     * @return  {@code getString().length()}
+     */
+    @Override
+    public long size() {
+        return convertTo(Type.STRING).length();
+    }
+
+    /**
+     * @return  {@code size}
+     * @throws IndexOutOfBoundsException  if {@code index != 0}
+     */
+    @Override
+    public long size(int index) {
+        if (index != 0) {
+            throw new IndexOutOfBoundsException(String.valueOf(index));
+        }
+        return size();
+    }
+
+    /**
+     * @return {@code 1}
+     */
+    @Override
+    public int count() {
+        return 1;
+    }
 }

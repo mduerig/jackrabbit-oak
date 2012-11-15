@@ -13,20 +13,14 @@
  */
 package org.apache.jackrabbit.oak.query;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import javax.jcr.PropertyType;
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
-import org.apache.jackrabbit.oak.api.PropertyState;
+
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
@@ -55,9 +49,12 @@ import org.apache.jackrabbit.oak.query.ast.SameNodeJoinConditionImpl;
 import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
 import org.apache.jackrabbit.oak.query.ast.SourceImpl;
 import org.apache.jackrabbit.oak.query.ast.UpperCaseImpl;
-import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.query.Filter;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Represents a parsed query. Lifecycle: use the constructor to create a new
@@ -65,14 +62,27 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
  * re-executed, a new instance is created.
  */
 public class Query {
+    
+    /**
+     * The "jcr:path" pseudo-property.
+     */
+    // TODO jcr:path isn't an official feature, support it?
+    public static final String JCR_PATH = "jcr:path";
+
+    /**
+     * The "jcr:score" pseudo-property.
+     */
+    public static final String JCR_SCORE = "jcr:score";
+
+    private static final Logger LOG = LoggerFactory.getLogger(QueryEngineImpl.class);
 
     final SourceImpl source;
+    final String statement;
     final ConstraintImpl constraint;
-    final HashMap<String, CoreValue> bindVariableMap = new HashMap<String, CoreValue>();
+    final HashMap<String, PropertyValue> bindVariableMap = new HashMap<String, PropertyValue>();
     final HashMap<String, Integer> selectorIndexes = new HashMap<String, Integer>();
     final ArrayList<SelectorImpl> selectors = new ArrayList<SelectorImpl>();
 
-    private MicroKernel mk;
     private QueryEngineImpl queryEngine;
     private final OrderingImpl[] orderings;
     private ColumnImpl[] columns;
@@ -81,18 +91,16 @@ public class Query {
     private long offset;
     private long size = -1;
     private boolean prepared;
-    private final CoreValueFactory valueFactory;
-    private ContentSession session;
     private Root root;
     private NamePathMapper namePathMapper;
 
-    Query(SourceImpl source, ConstraintImpl constraint, OrderingImpl[] orderings,
-          ColumnImpl[] columns, CoreValueFactory valueFactory) {
+    Query(String statement, SourceImpl source, ConstraintImpl constraint, OrderingImpl[] orderings,
+          ColumnImpl[] columns) {
+        this.statement = statement;
         this.source = source;
         this.constraint = constraint;
         this.orderings = orderings;
         this.columns = columns;
-        this.valueFactory = valueFactory;
     }
 
     public void init() {
@@ -270,12 +278,8 @@ public class Query {
         return source;
     }
 
-    void bindValue(String varName, CoreValue value) {
+    void bindValue(String varName, PropertyValue value) {
         bindVariableMap.put(varName, value);
-    }
-
-    public void setMicroKernel(MicroKernel mk) {
-        this.mk = mk;
     }
 
     public void setLimit(long limit) {
@@ -286,10 +290,6 @@ public class Query {
         this.offset = offset;
     }
 
-    public CoreValueFactory getValueFactory() {
-        return valueFactory;
-    }
-
     public void setExplain(boolean explain) {
         this.explain = explain;
     }
@@ -298,38 +298,68 @@ public class Query {
         this.measure = measure;
     }
 
-    public ResultImpl executeQuery(String revisionId, NodeState root) {
-        return new ResultImpl(this, revisionId, root);
+    public ResultImpl executeQuery(NodeState root) {
+        return new ResultImpl(this, root);
     }
 
-    Iterator<ResultRowImpl> getRows(String revisionId, NodeState root) {
+    Iterator<ResultRowImpl> getRows(NodeState root) {
         prepare();
         Iterator<ResultRowImpl> it;
         if (explain) {
-            String plan = source.getPlan();
+            String plan = source.getPlan(root);
             columns = new ColumnImpl[] { new ColumnImpl("explain", "plan", "plan")};
             ResultRowImpl r = new ResultRowImpl(this,
-                    new String[0],
-                    new CoreValue[] { getValueFactory().createValue(plan) },
+                    new String[0], 
+                    new PropertyValue[] { PropertyValues.newString(plan)},
                     null);
             it = Arrays.asList(r).iterator();
         } else {
-            it = new RowIterator(revisionId, root, limit, offset);
-            long resultCount = 0;
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("plan: " + source.getPlan(root));
+            }
+            if (orderings == null) {
+                // can apply limit and offset directly
+                it = new RowIterator(root, limit, offset);
+            } else {
+                // read and order first; skip and limit afterwards
+                it = new RowIterator(root, Long.MAX_VALUE, 0);
+            }
+            long readCount = 0;
             if (orderings != null) {
                 // TODO "order by" is not necessary if the used index returns
                 // rows in the same order
+                    
+                // avoid overflow (both offset and limit could be Long.MAX_VALUE)
+                int keep = (int) (Math.min(Integer.MAX_VALUE, offset) + 
+                        Math.min(Integer.MAX_VALUE, limit));
+                
                 ArrayList<ResultRowImpl> list = new ArrayList<ResultRowImpl>();
                 while (it.hasNext()) {
+                    readCount++;
                     ResultRowImpl r = it.next();
                     list.add(r);
+                    // from time to time, sort and truncate
+                    // this should results in O(n*log(2*keep)) operations,
+                    // which is close to the optimum O(n*log(keep))
+                    if (list.size() > keep * 2) {
+                        // remove tail entries right now, to save memory
+                        Collections.sort(list);
+                        keepFirst(list, keep);
+                    }
                 }
-                resultCount = size = list.size();
                 Collections.sort(list);
+                keepFirst(list, keep);
+                
                 it = list.iterator();
+                // skip the head (this is more efficient than removing
+                // if there are many entries)
+                for (int i = 0; i < offset && it.hasNext(); i++) {
+                    it.next();
+                }
+                size = list.size() - offset;
             } else if (measure) {
                 while (it.hasNext()) {
-                    resultCount++;
+                    readCount++;
                     it.next();
                 }
             }
@@ -341,18 +371,18 @@ public class Query {
                 ArrayList<ResultRowImpl> list = new ArrayList<ResultRowImpl>();
                 ResultRowImpl r = new ResultRowImpl(this,
                         new String[0],
-                        new CoreValue[] {
-                            getValueFactory().createValue("query"),
-                            getValueFactory().createValue(resultCount),
+                        new PropertyValue[] {
+                                PropertyValues.newString("query"),
+                                PropertyValues.newLong(readCount)
                             },
                         null);
                 list.add(r);
                 for (SelectorImpl selector : selectors) {
                     r = new ResultRowImpl(this,
                             new String[0],
-                            new CoreValue[] {
-                                getValueFactory().createValue(selector.getSelectorName()),
-                                getValueFactory().createValue(selector.getScanCount()),
+                            new PropertyValue[] {
+                                    PropertyValues.newString(selector.getSelectorName()),
+                                    PropertyValues.newLong(selector.getScanCount()),
                                 },
                             null);
                     list.add(r);
@@ -362,12 +392,27 @@ public class Query {
         }
         return it;
     }
+    
+    /**
+     * Truncate a list.
+     * 
+     * @param list the list
+     * @param keep the maximum number of entries to keep
+     */
+    private static void keepFirst(ArrayList<ResultRowImpl> list, int keep) {
+        while (list.size() > keep) {
+            // remove the entries starting at the end, 
+            // to avoid n^2 performance
+            list.remove(list.size() - 1);
+        }        
+    }
 
-    public int compareRows(CoreValue[][] orderValues, CoreValue[][] orderValues2) {
+    public int compareRows(PropertyValue[] orderValues,
+            PropertyValue[] orderValues2) {
         int comp = 0;
         for (int i = 0, size = orderings.length; i < size; i++) {
-            CoreValue[] a = orderValues[i];
-            CoreValue[] b = orderValues2[i];
+            PropertyValue a = orderValues[i];
+            PropertyValue b = orderValues2[i];
             if (a == null || b == null) {
                 if (a == b) {
                     comp = 0;
@@ -378,7 +423,7 @@ public class Query {
                     comp = 1;
                 }
             } else {
-                comp = compareValues(a, b);
+                comp = a.compareTo(b);
             }
             if (comp != 0) {
                 if (orderings[i].isDescending()) {
@@ -390,134 +435,12 @@ public class Query {
         return comp;
     }
 
-    public static int compareValues(CoreValue[] orderValues, CoreValue[] orderValues2) {
-        int l1 = orderValues.length;
-        int l2 = orderValues2.length;
-        int len = Math.max(l1, l2);
-        for (int i = 0; i < len; i++) {
-            CoreValue a = i < l1 ? orderValues[i] : null;
-            CoreValue b = i < l2 ? orderValues2[i] : null;
-            int comp;
-            if (a == null) {
-                comp = 1;
-            } else if (b == null) {
-                comp = -1;
-            } else {
-                comp = a.compareTo(b);
-            }
-            if (comp != 0) {
-                return comp;
-            }
-        }
-        return 0;
-    }
-
-    public static int getType(PropertyState p, int ifUnknown) {
-        if (!p.isArray()) {
-            return p.getValue().getType();
-        }
-        Iterator<CoreValue> it = p.getValues().iterator();
-        if (it.hasNext()) {
-            return it.next().getType();
-        }
-        return ifUnknown;
-    }
-
-    /**
-     * Convert a value to the given target type, if possible.
-     * 
-     * @param v the value to convert
-     * @param targetType the target property type
-     * @return the converted value, or null if converting is not possible
-     */
-    public CoreValue convert(CoreValue v, int targetType) {
-        // TODO support full set of conversion features defined in the JCR spec
-        // at 3.6.4 Property Type Conversion
-        // re-use existing code if possible
-        int sourceType = v.getType();
-        if (sourceType == targetType) {
-            return v;
-        }
-        CoreValueFactory vf = getValueFactory();
-        switch (sourceType) {
-        case PropertyType.STRING:
-            switch(targetType) {
-            case PropertyType.BINARY:
-                try {
-                    byte[] data = v.getString().getBytes("UTF-8");
-                    return vf.createValue(new ByteArrayInputStream(data));
-                } catch (IOException e) {
-                    // I don't know in what case that could really occur
-                    // except if UTF-8 isn't supported
-                    throw new IllegalArgumentException(v.getString(), e);
-                }
-            }
-            return vf.createValue(v.getString(), targetType);
-        }
-        try {
-            switch (targetType) {
-            case PropertyType.STRING:
-                return vf.createValue(v.getString());
-            case PropertyType.BOOLEAN:
-                return vf.createValue(v.getBoolean());
-            case PropertyType.DATE:
-                return vf.createValue(v.getString(), PropertyType.DATE);
-            case PropertyType.LONG:
-                return vf.createValue(v.getLong());
-            case PropertyType.DOUBLE:
-                return vf.createValue(v.getDouble());
-            case PropertyType.DECIMAL:
-                return vf.createValue(v.getString(), PropertyType.DECIMAL);
-            case PropertyType.NAME:
-                return vf.createValue(getOakPath(v.getString()), PropertyType.NAME);
-            case PropertyType.PATH:
-                return vf.createValue(v.getString(), PropertyType.PATH);
-            case PropertyType.REFERENCE:
-                return vf.createValue(v.getString(), PropertyType.REFERENCE);
-            case PropertyType.WEAKREFERENCE:
-                return vf.createValue(v.getString(), PropertyType.WEAKREFERENCE);
-            case PropertyType.URI:
-                return vf.createValue(v.getString(), PropertyType.URI);
-            case PropertyType.BINARY:
-                try {
-                    byte[] data = v.getString().getBytes("UTF-8");
-                    return vf.createValue(new ByteArrayInputStream(data));
-                } catch (IOException e) {
-                    // I don't know in what case that could really occur
-                    // except if UTF-8 isn't supported
-                    throw new IllegalArgumentException(v.getString(), e);
-                }
-            }
-            throw new IllegalArgumentException("Unknown property type: " + targetType);
-        } catch (UnsupportedOperationException e) {
-            // TODO detect unsupported conversions, so that no exception is thrown
-            // because exceptions are slow
-            return null;
-            // throw new IllegalArgumentException("<unsupported conversion of " + 
-            //        v + " (" + PropertyType.nameFromValue(v.getType()) + ") to type " + 
-            //        PropertyType.nameFromValue(targetType) + ">");
-        }
-    }
-
-    public String getOakPath(String jcrPath) {
-        NamePathMapper m = getNamePathMapper();
-        if (m == null) {
-            // to simplify testing, a getNamePathMapper isn't required
-            return jcrPath;
-        }
-        String p = m.getOakPath(jcrPath);
-        if (p == null) {
-            throw new IllegalArgumentException("Not a valid JCR path: " + jcrPath);
-        }
-        return p;
-    }
-
     void prepare() {
         if (prepared) {
             return;
         }
         prepared = true;
-        source.prepare(mk);
+        source.prepare();
     }
 
     /**
@@ -525,14 +448,12 @@ public class Query {
      */
     class RowIterator implements Iterator<ResultRowImpl> {
 
-        private final String revisionId;
         private final NodeState root;
         private ResultRowImpl current;
         private boolean started, end;
         private long limit, offset, rowIndex;
 
-        RowIterator(String revisionId, NodeState root, long limit, long offset) {
-            this.revisionId = revisionId;
+        RowIterator(NodeState root, long limit, long offset) {
             this.root = root;
             this.limit = limit;
             this.offset = offset;
@@ -547,7 +468,7 @@ public class Query {
                 return;
             }
             if (!started) {
-                source.execute(revisionId, root);
+                source.execute(root);
                 started = true;
             }
             while (true) {
@@ -608,30 +529,19 @@ public class Query {
             paths[i] = s.currentPath();
         }
         int columnCount = columns.length;
-        CoreValue[] values = new CoreValue[columnCount];
+        PropertyValue[] values = new PropertyValue[columnCount];
         for (int i = 0; i < columnCount; i++) {
             ColumnImpl c = columns[i];
-            PropertyState p = c.currentProperty();
-            values[i] = p == null ? null : p.getValue();
+            values[i] = c.currentProperty();
         }
-        CoreValue[][] orderValues;
+        PropertyValue[] orderValues;
         if (orderings == null) {
             orderValues = null;
         } else {
             int size = orderings.length;
-            orderValues = new CoreValue[size][];
+            orderValues = new PropertyValue[size];
             for (int i = 0; i < size; i++) {
-                PropertyState p = orderings[i].getOperand().currentProperty();
-                CoreValue[] x;
-                if (p == null) {
-                    x = null;
-                } else if (p.isArray()) {
-                    List<CoreValue> list = p.getValues();
-                    x = list.toArray(new CoreValue[list.size()]);
-                } else {
-                    x = new CoreValue[] { p.getValue() };
-                }
-                orderValues[i] = x;
+                orderValues[i] = orderings[i].getOperand().currentProperty();
             }
         }
         return new ResultRowImpl(this, paths, values, orderValues);
@@ -656,8 +566,8 @@ public class Query {
         throw new IllegalArgumentException("Column not found: " + columnName);
     }
 
-    public CoreValue getBindVariableValue(String bindVariableName) {
-        CoreValue v = bindVariableMap.get(bindVariableName);
+    public PropertyValue getBindVariableValue(String bindVariableName) {
+        PropertyValue v = bindVariableMap.get(bindVariableName);
         if (v == null) {
             throw new IllegalArgumentException("Bind variable value not set: " + bindVariableName);
         }
@@ -676,14 +586,10 @@ public class Query {
         this.queryEngine = queryEngine;
     }
 
-    public QueryIndex getBestIndex(FilterImpl filter) {
-        return queryEngine.getBestIndex(filter);
+    public QueryIndex getBestIndex(Filter filter) {
+        return queryEngine.getBestIndex(this, filter);
     }
 
-    public void setSession(ContentSession session) {
-        this.session = session;
-    }
-    
     public void setRoot(Root root) {
         this.root = root;
     }
@@ -730,6 +636,10 @@ public class Query {
 
     public long getSize() {
         return size;
+    }
+
+    public String getStatement() {
+        return statement;
     }
 
 }

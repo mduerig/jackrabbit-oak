@@ -17,7 +17,6 @@
 package org.apache.jackrabbit.oak.api;
 
 import java.io.Closeable;
-
 import javax.annotation.Nonnull;
 
 /**
@@ -68,7 +67,7 @@ public interface ContentSession extends Closeable {
 
     /**
      * The current head root as seen by this content session. Use
-     * {@link Root#commit(ConflictHandler)} to atomically apply the changes made
+     * {@link Root#commit()} to atomically apply the changes made
      * in that subtree the underlying Microkernel.
      * <p>
      * The root instance gives you a stable view of the tree at the time the
@@ -82,22 +81,4 @@ public interface ContentSession extends Closeable {
      */
     @Nonnull
     Root getLatestRoot();
-
-    /**
-     * Get the query engine.
-     *
-     * @return the query engine
-     */
-    @Nonnull
-    SessionQueryEngine getQueryEngine();
-
-    /**
-     * Returns the internal value factory.
-     *
-     * @return the internal value factory.
-     */
-    @Nonnull
-    CoreValueFactory getCoreValueFactory();
-
-    // TODO : add versioning operations
 }

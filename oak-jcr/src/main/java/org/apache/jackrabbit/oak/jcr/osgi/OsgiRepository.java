@@ -22,9 +22,10 @@ import javax.jcr.Credentials;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 
+import org.apache.jackrabbit.oak.Oak;
 import org.apache.jackrabbit.oak.api.ContentRepository;
-import org.apache.jackrabbit.oak.core.ContentRepositoryImpl;
 import org.apache.jackrabbit.oak.jcr.RepositoryImpl;
+import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
 
 /**
  * Workaround to a JAAS class loading issue in OSGi environments.
@@ -33,19 +34,21 @@ import org.apache.jackrabbit.oak.jcr.RepositoryImpl;
  */
 public class OsgiRepository extends RepositoryImpl {
 
-    public OsgiRepository(
-            ContentRepository repository, ScheduledExecutorService executor) {
-        super(repository, executor);
+    public OsgiRepository(ContentRepository repository,
+                          ScheduledExecutorService executor,
+                          SecurityProvider securityProvider) {
+        super(repository, executor, securityProvider);
     }
 
     @Override
     public Session login(Credentials credentials, String workspace)
             throws RepositoryException {
+        // TODO: The context class loader hack below shouldn't be needed
+        // with a properly OSGi-compatible JAAS implementation
         Thread thread = Thread.currentThread();
         ClassLoader loader = thread.getContextClassLoader();
         try {
-            thread.setContextClassLoader(
-                    ContentRepositoryImpl.class.getClassLoader());
+            thread.setContextClassLoader(Oak.class.getClassLoader());
             return super.login(credentials, workspace);
         } finally {
             thread.setContextClassLoader(loader);

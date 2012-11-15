@@ -19,10 +19,10 @@
 package org.apache.jackrabbit.oak.query.ast;
 
 import javax.jcr.PropertyType;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.plugins.memory.SinglePropertyState;
+
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 
 /**
  * The function "length(..)".
@@ -46,44 +46,46 @@ public class LengthImpl extends DynamicOperandImpl {
 
     @Override
     public String toString() {
-        return "length(" + getPropertyValue() + ')';
+        return "length(" + propertyValue + ')';
     }
 
     @Override
-    public PropertyState currentProperty() {
-        PropertyState p = propertyValue.currentProperty();
+    public PropertyValue currentProperty() {
+        PropertyValue p = propertyValue.currentProperty();
         if (p == null) {
             return null;
         }
         if (!p.isArray()) {
-            long length = p.getValue().length();
-            CoreValue v = query.getValueFactory().createValue(length);
-            return new SinglePropertyState("LENGTH", v);
+            long length = p.size();
+            return PropertyValues.newLong(length);
         }
         // TODO what is the expected result for LENGTH(multiValueProperty)?
         throw new IllegalArgumentException("LENGTH(x) on multi-valued property is not supported");
     }
 
     @Override
-    public void apply(FilterImpl f, Operator operator, CoreValue v) {
-        switch (v.getType()) {
-        case PropertyType.LONG:
-        case PropertyType.DECIMAL:
-        case PropertyType.DOUBLE:
-            // ok - comparison with a number
-            break;
-        case PropertyType.BINARY:
-        case PropertyType.STRING:
-        case PropertyType.DATE:
-            // ok - compare with a string literal
-            break;
-        default:
-            throw new IllegalArgumentException(
-                    "Can not compare the length with a constant of type "
-                            + PropertyType.nameFromValue(v.getType()) +
-                            " and value " + v.toString());
+    public void restrict(FilterImpl f, Operator operator, PropertyValue v) {
+        if (v != null) {
+            switch (v.getType().tag()) {
+            case PropertyType.LONG:
+            case PropertyType.DECIMAL:
+            case PropertyType.DOUBLE:
+                // ok - comparison with a number
+                break;
+            case PropertyType.BINARY:
+            case PropertyType.STRING:
+            case PropertyType.DATE:
+                // ok - compare with a string literal
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "Can not compare the length with a constant of type "
+                                + PropertyType.nameFromValue(v.getType().tag()) +
+                                " and value " + v.toString());
+            }
         }
-        // TODO LENGTH(x) conditions: can use IS NOT NULL as a condition?
+        // LENGTH(x) implies x is not null
+        propertyValue.restrict(f, Operator.NOT_EQUAL, null);
     }
 
     @Override

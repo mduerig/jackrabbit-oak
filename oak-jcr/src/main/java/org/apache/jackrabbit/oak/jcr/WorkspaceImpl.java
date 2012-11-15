@@ -19,10 +19,12 @@ package org.apache.jackrabbit.oak.jcr;
 import java.io.IOException;
 import java.io.InputStream;
 
+import javax.annotation.Nonnull;
 import javax.jcr.NamespaceRegistry;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
+import javax.jcr.ValueFactory;
 import javax.jcr.lock.LockManager;
 import javax.jcr.nodetype.NodeTypeManager;
 import javax.jcr.observation.ObservationManager;
@@ -37,14 +39,16 @@ import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.jcr.lock.LockManagerImpl;
 import org.apache.jackrabbit.oak.jcr.query.QueryManagerImpl;
-import org.apache.jackrabbit.oak.jcr.security.privilege.PrivilegeManagerImpl;
 import org.apache.jackrabbit.oak.jcr.version.VersionManagerImpl;
-import org.apache.jackrabbit.oak.plugins.name.NamespaceRegistryImpl;
-import org.apache.jackrabbit.oak.plugins.type.NodeTypeManagerImpl;
+import org.apache.jackrabbit.oak.namepath.NameMapper;
+import org.apache.jackrabbit.oak.plugins.name.ReadWriteNamespaceRegistry;
+import org.apache.jackrabbit.oak.plugins.nodetype.ReadWriteNodeTypeManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.ContentHandler;
 import org.xml.sax.InputSource;
+
+import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.NODE_TYPES_PATH;
 
 /**
  * {@code WorkspaceImpl}...
@@ -92,6 +96,8 @@ public class WorkspaceImpl implements JackrabbitWorkspace {
             throw new UnsupportedRepositoryOperationException("Not implemented.");
         }
 
+        // FIXME: check for protection on src-parent and dest-parent (OAK-250)
+
         String oakPath = sessionDelegate.getOakPathKeepIndexOrThrowNotFound(destAbsPath);
         String oakName = PathUtils.getName(oakPath);
         // handle index
@@ -108,13 +114,17 @@ public class WorkspaceImpl implements JackrabbitWorkspace {
     public void clone(String srcWorkspace, String srcAbsPath, String destAbsPath, boolean removeExisting) throws RepositoryException {
         ensureIsAlive();
 
-        // TODO -> SPI
+        // TODO
+        // FIXME: check for protection on src-parent and dest-parent (OAK-250)
+
         throw new UnsupportedRepositoryOperationException("Not implemented.");
     }
 
     @Override
     public void move(String srcAbsPath, String destAbsPath) throws RepositoryException {
         ensureIsAlive();
+
+        // FIXME: check for protection on src-parent and dest-parent (OAK-250)
 
         String oakPath = sessionDelegate.getOakPathKeepIndexOrThrowNotFound(destAbsPath);
         String oakName = PathUtils.getName(oakPath);
@@ -147,11 +157,7 @@ public class WorkspaceImpl implements JackrabbitWorkspace {
 
     @Override
     public NamespaceRegistry getNamespaceRegistry() {
-        return new NamespaceRegistryImpl() {
-            @Override
-            protected void refresh() throws RepositoryException {
-                getSession().refresh(true);
-            }
+        return new ReadWriteNamespaceRegistry() {
             @Override
             protected Tree getReadTree() {
                 return sessionDelegate.getRoot().getTree("/");
@@ -160,18 +166,41 @@ public class WorkspaceImpl implements JackrabbitWorkspace {
             protected Root getWriteRoot() {
                 return sessionDelegate.getContentSession().getLatestRoot();
             }
+            @Override
+            protected void refresh() throws RepositoryException {
+                getSession().refresh(true);
+            }
         };
     }
 
     @Override
     public NodeTypeManager getNodeTypeManager() {
-        return new NodeTypeManagerImpl(
-                sessionDelegate.getContentSession(),
-                sessionDelegate.getNamePathMapper(),
-                sessionDelegate.getValueFactory()) {
+        return new ReadWriteNodeTypeManager() {
             @Override
             protected void refresh() throws RepositoryException {
                 getSession().refresh(true);
+            }
+
+            @Override
+            protected Tree getTypes() {
+                return sessionDelegate.getRoot().getTree(NODE_TYPES_PATH);
+            }
+
+            @Nonnull
+            @Override
+            protected Root getWriteRoot() {
+                return sessionDelegate.getContentSession().getLatestRoot();
+            }
+
+            @Override
+            protected ValueFactory getValueFactory() {
+                return sessionDelegate.getValueFactory();
+            }
+
+            @Nonnull
+            @Override
+            protected NameMapper getNameMapper() {
+                return sessionDelegate.getNamePathMapper();
             }
         };
     }
@@ -251,7 +280,7 @@ public class WorkspaceImpl implements JackrabbitWorkspace {
      */
     @Override
     public PrivilegeManager getPrivilegeManager() throws RepositoryException {
-        return new PrivilegeManagerImpl(sessionDelegate);
+        return sessionDelegate.getPrivilegeManager();
     }
 
     //------------------------------------------------------------< private >---

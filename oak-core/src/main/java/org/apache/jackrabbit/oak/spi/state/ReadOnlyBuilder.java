@@ -16,10 +16,10 @@
  */
 package org.apache.jackrabbit.oak.spi.state;
 
-import java.util.List;
+import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
 
 /**
  * A node builder that throws an {@link UnsupportedOperationException} on
@@ -38,8 +38,33 @@ public class ReadOnlyBuilder implements NodeBuilder {
     }
 
     @Override
+    public boolean isNew() {
+        return false;
+    }
+
+    @Override
+    public boolean isRemoved() {
+        return false;
+    }
+
+    @Override
+    public boolean isModified() {
+        return false;
+    }
+
+    @Override
     public NodeState getNodeState() {
         return state;
+    }
+
+    @Override
+    public NodeState getBaseState() {
+        return state;
+    }
+
+    @Override
+    public void reset(NodeState state) {
+        throw unsupported();
     }
 
     @Override
@@ -57,13 +82,13 @@ public class ReadOnlyBuilder implements NodeBuilder {
         return state.getChildNodeNames();
     }
 
-    @Override
-    public void setNode(String name, NodeState nodeState) {
+    @Override @Nonnull
+    public NodeBuilder setNode(String name, NodeState nodeState) {
         throw unsupported();
     }
 
-    @Override
-    public void removeNode(String name) {
+    @Override @Nonnull
+    public NodeBuilder removeNode(String name) {
         throw unsupported();
     }
 
@@ -82,23 +107,28 @@ public class ReadOnlyBuilder implements NodeBuilder {
         return state.getProperty(name);
     }
 
-    @Override
-    public void setProperty(String name, CoreValue value) {
+    @Override @Nonnull
+    public NodeBuilder removeProperty(String name) {
         throw unsupported();
     }
 
     @Override
-    public void setProperty(String name, List<CoreValue> values) {
+    public NodeBuilder setProperty(PropertyState property) {
         throw unsupported();
     }
 
     @Override
-    public void removeProperty(String name) {
+    public <T> NodeBuilder setProperty(String name, T value) {
         throw unsupported();
     }
 
     @Override
-    public ReadOnlyBuilder getChildBuilder(String name) {
+    public <T> NodeBuilder setProperty(String name, T value, Type<T> type) {
+        throw unsupported();
+    }
+
+    @Override
+    public ReadOnlyBuilder child(String name) {
         NodeState child = state.getChildNode(name);
         if (child != null) {
             return new ReadOnlyBuilder(child);

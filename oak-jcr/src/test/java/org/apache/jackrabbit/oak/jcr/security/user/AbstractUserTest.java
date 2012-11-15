@@ -19,6 +19,7 @@ package org.apache.jackrabbit.oak.jcr.security.user;
 import java.security.Principal;
 import java.util.Collections;
 import java.util.UUID;
+import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
@@ -29,15 +30,18 @@ import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.jackrabbit.oak.security.principal.PrincipalImpl;
 import org.apache.jackrabbit.test.AbstractJCRTest;
 import org.apache.jackrabbit.test.NotExecutableException;
 import org.junit.After;
 import org.junit.Before;
 
 /**
- * AbstractUserTest...
+ * Base class for user mgt related tests
  */
 public abstract class AbstractUserTest extends AbstractJCRTest {
+
+    protected String testPw = "pw";
 
     protected UserManager userMgr;
     protected User user;
@@ -50,9 +54,8 @@ public abstract class AbstractUserTest extends AbstractJCRTest {
 
         userMgr = getUserManager(superuser);
 
-        Principal p = getTestPrincipal();
-        user = userMgr.createUser(p.getName(), "pw");
-        group = userMgr.createGroup(getTestPrincipal());
+        user = userMgr.createUser(createUserId(), testPw);
+        group = userMgr.createGroup(createGroupId());
         superuser.save();
     }
 
@@ -89,19 +92,30 @@ public abstract class AbstractUserTest extends AbstractJCRTest {
         return new Subject(true, Collections.singleton(p), Collections.emptySet(), Collections.emptySet());
     }
 
+    protected static Node getNode(Authorizable authorizable, Session session) throws NotExecutableException, RepositoryException {
+        String path = authorizable.getPath();
+        if (session.nodeExists(path)) {
+            return session.getNode(path);
+        } else {
+            throw new NotExecutableException("Cannot access node for authorizable " + authorizable.getID());
+        }
+    }
+
+    protected String createUserId() throws RepositoryException {
+        return "testUser_" + UUID.randomUUID();
+    }
+
+    protected String createGroupId() throws RepositoryException {
+        return "testGroup_" + UUID.randomUUID();
+    }
+
     protected Principal getTestPrincipal() throws RepositoryException {
-        String pn = "any_principal" + UUID.randomUUID();
+        String pn = "testPrincipal_" + UUID.randomUUID();
         return getTestPrincipal(pn);
     }
 
-    protected Principal getTestPrincipal(final String name) throws RepositoryException {
-        return new Principal() {
-
-            @Override
-            public String getName() {
-                return name;
-            }
-        };
+    protected Principal getTestPrincipal(String name) throws RepositoryException {
+        return new PrincipalImpl(name);
     }
 
     protected User getTestUser(Session session) throws NotExecutableException, RepositoryException {
@@ -112,4 +126,5 @@ public abstract class AbstractUserTest extends AbstractJCRTest {
         // should never happen. An Session should always have a corresponding User.
         throw new NotExecutableException("Unable to retrieve a User.");
     }
+
 }

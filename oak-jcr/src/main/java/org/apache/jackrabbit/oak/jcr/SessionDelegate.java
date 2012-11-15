@@ -18,7 +18,6 @@ package org.apache.jackrabbit.oak.jcr;
 
 import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
-
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.jcr.ItemExistsException;
@@ -34,31 +33,29 @@ import javax.jcr.observation.ObservationManager;
 import javax.jcr.query.QueryManager;
 import javax.jcr.version.VersionManager;
 
+import org.apache.jackrabbit.api.security.authorization.PrivilegeManager;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.jackrabbit.oak.api.AuthInfo;
-import org.apache.jackrabbit.oak.api.ChangeExtractor;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.ConflictHandler;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.SessionQueryEngine;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.core.DefaultConflictHandler;
-import org.apache.jackrabbit.oak.jcr.observation.ObservationManagerImpl;
-import org.apache.jackrabbit.oak.jcr.security.user.UserManagerImpl;
-import org.apache.jackrabbit.oak.jcr.value.ValueFactoryImpl;
-import org.apache.jackrabbit.oak.namepath.AbstractNameMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapperImpl;
 import org.apache.jackrabbit.oak.plugins.identifier.IdentifierManager;
-import org.apache.jackrabbit.oak.plugins.value.AnnotatingConflictHandler;
-import org.apache.jackrabbit.oak.security.user.UserContextImpl;
-import org.apache.jackrabbit.oak.spi.security.user.UserContext;
-import org.apache.jackrabbit.oak.util.TODO;
+import org.apache.jackrabbit.oak.plugins.nodetype.DefinitionProvider;
+import org.apache.jackrabbit.oak.plugins.nodetype.EffectiveNodeTypeProvider;
+import org.apache.jackrabbit.oak.plugins.observation.ObservationManagerImpl;
+import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
+import org.apache.jackrabbit.oak.plugins.value.ValueFactoryImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 public class SessionDelegate {
     static final Logger log = LoggerFactory.getLogger(SessionDelegate.class);
@@ -71,33 +68,38 @@ public class SessionDelegate {
     private final Workspace workspace;
     private final Session session;
     private final Root root;
-    private final ConflictHandler conflictHandler;
     private final boolean autoRefresh;
+
+    private final SecurityProvider securityProvider;
 
     private final IdentifierManager idManager;
 
     private ObservationManagerImpl observationManager;
+    private PrincipalManager principalManager;
+    private UserManager userManager;
+    private PrivilegeManager privilegeManager;
     private boolean isAlive = true;
     private int sessionOpCount;
+    private int revision;
 
     SessionDelegate(
             Repository repository, ScheduledExecutorService executor,
-            ContentSession contentSession, boolean autoRefresh)
+            ContentSession contentSession, SecurityProvider securityProvider,
+            boolean autoRefresh)
             throws RepositoryException {
-        assert repository != null;
-        assert contentSession != null;
 
-        this.repository = repository;
+        this.repository = checkNotNull(repository);
         this.executor = executor;
-        this.contentSession = contentSession;
+        this.contentSession = checkNotNull(contentSession);
+        this.securityProvider = securityProvider;
+        this.autoRefresh = autoRefresh;
+
+        this.root = contentSession.getLatestRoot();
         this.workspace = new WorkspaceImpl(this);
         this.session = new SessionImpl(this);
-        this.root = contentSession.getLatestRoot();
-        this.conflictHandler = new AnnotatingConflictHandler(contentSession.getCoreValueFactory());
-        this.autoRefresh = autoRefresh;
-        this.idManager = new IdentifierManager(contentSession.getQueryEngine(), root);
-        this.namePathMapper = new NamePathMapperImpl(new SessionNameMapper(), idManager);
-        this.valueFactory = new ValueFactoryImpl(contentSession.getCoreValueFactory(), namePathMapper);
+        this.idManager = new IdentifierManager(root);
+        this.namePathMapper = new NamePathMapperImpl(new SessionNameMapper(this), idManager);
+        this.valueFactory = new ValueFactoryImpl(root.getBlobFactory(), namePathMapper);
     }
 
     /**
@@ -118,8 +120,7 @@ public class SessionDelegate {
                 refresh(true);
             }
             return sessionOperation.perform();
-        }
-        finally {
+        } finally {
             sessionOpCount--;
         }
     }
@@ -130,6 +131,16 @@ public class SessionDelegate {
         // observation events have actually been delivered
         return autoRefresh ||
                 (sessionOpCount <= 1 && observationManager != null && observationManager.hasEvents());
+    }
+
+    /**
+     * Revision of this session. The revision is incremented each time a session is refreshed or saved.
+     * This allows items to determine whether they need to re-resolve their underlying state when the
+     * revision on which an item is based does not match the revision of the session any more.
+     * @return  the current revision of this session
+     */
+    int getRevision() {
+        return revision;
     }
 
     public boolean isAlive() {
@@ -227,20 +238,20 @@ public class SessionDelegate {
 
     public void save() throws RepositoryException {
         try {
-            root.commit(conflictHandler);
-        }
-        catch (CommitFailedException e) {
+            root.commit();
+            revision++;
+        } catch (CommitFailedException e) {
             e.throwRepositoryException();
         }
     }
 
     public void refresh(boolean keepChanges) {
         if (keepChanges) {
-            root.rebase(conflictHandler);
-        }
-        else {
+            root.rebase();
+        } else {
             root.refresh();
         }
+        revision++;
     }
 
     /**
@@ -327,11 +338,6 @@ public class SessionDelegate {
         }
     }
 
-    @Nonnull
-    public ChangeExtractor getChangeExtractor() {
-        return root.getChangeExtractor();
-    }
-
     //----------------------------------------------------------< Workspace >---
 
     @Nonnull
@@ -373,7 +379,7 @@ public class SessionDelegate {
         try {
             Root currentRoot = contentSession.getLatestRoot();
             currentRoot.copy(srcPath, destPath);
-            currentRoot.commit(DefaultConflictHandler.OURS);
+            currentRoot.commit();
         }
         catch (CommitFailedException e) {
             e.throwRepositoryException();
@@ -414,10 +420,9 @@ public class SessionDelegate {
         try {
             moveRoot.move(srcPath, destPath);
             if (!transientOp) {
-                moveRoot.commit(DefaultConflictHandler.OURS);
+                moveRoot.commit();
             }
-        }
-        catch (CommitFailedException e) {
+        } catch (CommitFailedException e) {
             e.throwRepositoryException();
         }
     }
@@ -429,7 +434,7 @@ public class SessionDelegate {
 
     @Nonnull
     public SessionQueryEngine getQueryEngine() {
-        return contentSession.getQueryEngine();
+        return root.getQueryEngine();
     }
 
     @Nonnull
@@ -450,7 +455,7 @@ public class SessionDelegate {
     @Nonnull
     public ObservationManager getObservationManager() {
         if (observationManager == null) {
-            observationManager = new ObservationManagerImpl(this, executor);
+            observationManager = new ObservationManagerImpl(getRoot(), getNamePathMapper(), executor);
         }
         return observationManager;
     }
@@ -482,60 +487,49 @@ public class SessionDelegate {
         return root.getLocation(path);
     }
 
-    UserManager getUserManager() throws UnsupportedRepositoryOperationException {
-        // FIXME
-        UserContext ctx = new UserContextImpl();
-        return TODO.unimplemented().returnValue(new UserManagerImpl(getSession(), getNamePathMapper(), ctx.getUserProvider(contentSession, root), ctx.getMembershipProvider(contentSession, root), ctx.getConfig()));
+    @Nonnull
+    PrincipalManager getPrincipalManager() throws RepositoryException {
+        if (principalManager == null) {
+            if (securityProvider != null) {
+                principalManager = securityProvider.getPrincipalConfiguration().getPrincipalManager(session, root, getNamePathMapper());
+            } else {
+                throw new UnsupportedRepositoryOperationException("Principal management not supported.");
+            }
+        }
+        return principalManager;
     }
 
-    //--------------------------------------------------< SessionNameMapper >---
-
-    private class SessionNameMapper extends AbstractNameMapper {
-
-        @Override
-        @CheckForNull
-        protected String getJcrPrefix(String oakPrefix) {
-            try {
-                String ns = getWorkspace().getNamespaceRegistry().getURI(oakPrefix);
-                return session.getNamespacePrefix(ns);
-            } catch (RepositoryException e) {
-                log.debug("Could not get JCR prefix for OAK prefix " + oakPrefix);
-                return null;
+    @Nonnull
+    UserManager getUserManager() throws UnsupportedRepositoryOperationException {
+        if (userManager == null) {
+            if (securityProvider != null) {
+                userManager = securityProvider.getUserConfiguration().getUserManager(root, getNamePathMapper(), session);
+            } else {
+                throw new UnsupportedRepositoryOperationException("User management not supported.");
             }
         }
+        return userManager;
+    }
 
-        @Override
-        @CheckForNull
-        protected String getOakPrefix(String jcrPrefix) {
-            try {
-                String ns = getSession().getNamespaceURI(jcrPrefix);
-                return getWorkspace().getNamespaceRegistry().getPrefix(ns);
-            } catch (RepositoryException e) {
-                log.debug("Could not get OAK prefix for JCR prefix " + jcrPrefix);
-                return null;
+    @Nonnull
+    PrivilegeManager getPrivilegeManager() throws UnsupportedRepositoryOperationException {
+        if (privilegeManager == null) {
+            if (securityProvider != null) {
+                privilegeManager = securityProvider.getPrivilegeConfiguration().getPrivilegeManager(contentSession, root, getNamePathMapper());
+            } else {
+                throw new UnsupportedRepositoryOperationException("Privilege management not supported.");
             }
         }
+        return privilegeManager;
+    }
 
-        @Override
-        @CheckForNull
-        protected String getOakPrefixFromURI(String uri) {
-            try {
-                return getWorkspace().getNamespaceRegistry().getPrefix(uri);
-            } catch (RepositoryException e) {
-                log.debug("Could not get OAK prefix for URI " + uri);
-                return null;
-            }
-        }
+    @Nonnull
+    EffectiveNodeTypeProvider getEffectiveNodeTypeProvider() throws RepositoryException {
+        return (EffectiveNodeTypeProvider) workspace.getNodeTypeManager();
+    }
 
-        @Override
-        public boolean hasSessionLocalMappings() {
-            if (session instanceof SessionImpl) {
-                return ((SessionImpl)session).hasSessionLocalMappings();
-            }
-            else {
-                // we don't know
-                return true;
-            }
-        }
+    @Nonnull
+    DefinitionProvider getDefinitionProvider() throws RepositoryException {
+        return (DefinitionProvider) workspace.getNodeTypeManager();
     }
 }

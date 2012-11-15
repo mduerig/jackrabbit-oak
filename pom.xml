@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.jackrabbit</groupId>
     <artifactId>oak-parent</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <relativePath>oak-parent/pom.xml</relativePath>
   </parent>
 
@@ -48,6 +48,8 @@
     <module>oak-run</module>
     <module>oak-it</module>
     <module>oak-bench</module>
+    <module>oak-mk-perf</module>
+    <module>oak-lucene</module>
   </modules>
 
   <scm>
@@ -90,8 +92,6 @@
     <profile>
       <id>mongomk</id>
       <modules>
-        <module>oak-mongomk-api</module>
-        <module>oak-mongomk-impl</module>
         <module>oak-mongomk</module>
         <module>oak-mongomk-test</module>
         <module>oak-mongomk-perf</module>

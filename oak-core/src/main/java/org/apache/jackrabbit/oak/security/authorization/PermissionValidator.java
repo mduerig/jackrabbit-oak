@@ -23,11 +23,12 @@ import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.plugins.name.NamespaceConstants;
-import org.apache.jackrabbit.oak.plugins.type.NodeTypeConstants;
-import org.apache.jackrabbit.oak.security.privilege.PrivilegeConstants;
+import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.security.authorization.CompiledPermissions;
 import org.apache.jackrabbit.oak.spi.security.authorization.Permissions;
+import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeConstants;
+import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.util.NodeUtil;
 import org.apache.jackrabbit.oak.version.VersionConstants;
@@ -104,8 +105,6 @@ class PermissionValidator implements Validator {
         if (JcrConstants.JCR_PRIMARYTYPE.equals(name) || JcrConstants.JCR_MIXINTYPES.equals(name)) {
             // TODO: distinguish between autocreated and user-supplied modification (?)
             permission = Permissions.NODE_TYPE_MANAGEMENT;
-        } else if (PropertyState.OAK_CHILD_ORDER.equals(property.getName())) {
-            permission = Permissions.MODIFY_CHILD_NODE_COLLECTION;
         } else if (isLockProperty(name)) {
             permission = Permissions.LOCK_MANAGEMENT;
         } else if (isNamespaceDefinition(parentPath)) {
@@ -120,9 +119,9 @@ class PermissionValidator implements Validator {
             permission = Permissions.VERSION_MANAGEMENT;
             // FIXME: path to check for permission must be adjusted to be
             //        the one of the versionable node instead of the target parent.
+        } else if (isAuthorizableProperty(parent, property)) {
+            permission = Permissions.USER_MANAGEMENT;
         } else {
-            // TODO: identify specific permission depending on type of protection
-            // - user/group property -> user management
             permission = defaultPermission;
         }
 
@@ -145,6 +144,8 @@ class PermissionValidator implements Validator {
             permission = Permissions.VERSION_MANAGEMENT;
             // FIXME: path to check for permission must be adjusted to be
             // //     the one of the versionable node instead of the target node.
+        } else if (isAuthorizable(node)) {
+            permission = Permissions.USER_MANAGEMENT;
         } else {
             // TODO: identify specific permission depending on additional types of protection
             // - user/group -> user management
@@ -203,6 +204,7 @@ class PermissionValidator implements Validator {
     }
 
     private static boolean isVersionProperty(NodeUtil parent, PropertyState property) {
+        // TODO: review again
         if (VersionConstants.VERSION_PROPERTY_NAMES.contains(property.getName())) {
             return true;
         } else {
@@ -210,18 +212,41 @@ class PermissionValidator implements Validator {
         }
     }
 
+    private static boolean isAuthorizable(NodeUtil parent) {
+        // TODO: review again: depends on configured user-mgt
+        String ntName = parent.getName(JcrConstants.JCR_PRIMARYTYPE);
+        return UserConstants.NT_REP_GROUP.equals(ntName) || UserConstants.NT_REP_USER.equals(ntName) || UserConstants.NT_REP_MEMBERS.equals(ntName);
+    }
+
+    private static boolean isAuthorizableProperty(NodeUtil parent, PropertyState property) {
+        // TODO: review again: depends on configured user-mgt
+        String ntName = parent.getName(JcrConstants.JCR_PRIMARYTYPE);
+        if (UserConstants.NT_REP_USER.equals(ntName)) {
+            return UserConstants.USER_PROPERTY_NAMES.contains(property.getName());
+        } else if (UserConstants.NT_REP_GROUP.equals(ntName)) {
+            return UserConstants.GROUP_PROPERTY_NAMES.contains(property.getName());
+        } else if (UserConstants.NT_REP_MEMBERS.equals(ntName)) {
+            return true;
+        }
+
+        return false;
+    }
+
     private static boolean isLockProperty(String name) {
         return JcrConstants.JCR_LOCKISDEEP.equals(name) || JcrConstants.JCR_LOCKOWNER.equals(name);
     }
 
     private static boolean isNamespaceDefinition(String path) {
+        // TODO: depends on pluggable module
         return Text.isDescendant(NamespaceConstants.NAMESPACES_PATH, path);
     }
     private static boolean isNodeTypeDefinition(String path) {
+        // TODO: depends on pluggable module
         return Text.isDescendant(NodeTypeConstants.NODE_TYPES_PATH, path);
     }
 
     private static boolean isPrivilegeDefinition(String path) {
+        // TODO: depends on pluggable module
         return Text.isDescendant(PrivilegeConstants.PRIVILEGES_PATH, path);
     }
 }

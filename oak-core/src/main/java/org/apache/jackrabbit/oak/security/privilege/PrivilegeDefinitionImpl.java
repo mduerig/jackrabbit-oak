@@ -24,7 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeDefinition;
 
 /**
- * PrivilegeDefinitionImpl... TODO
+ * Default implementation of the {@code PrivilegeDefinition} interface.
  */
 class PrivilegeDefinitionImpl implements PrivilegeDefinition {
 
@@ -36,14 +36,16 @@ class PrivilegeDefinitionImpl implements PrivilegeDefinition {
                             Set<String> declaredAggregateNames) {
         this.name = name;
         this.isAbstract = isAbstract;
-        this.declaredAggregateNames = declaredAggregateNames;
+        this.declaredAggregateNames = ImmutableSet.copyOf(declaredAggregateNames);
     }
 
     PrivilegeDefinitionImpl(String name, boolean isAbstract,
                             String... declaredAggregateNames) {
-        this(name, isAbstract, (declaredAggregateNames == null) ?
+        this.name = name;
+        this.isAbstract = isAbstract;
+        this.declaredAggregateNames = (declaredAggregateNames == null) ?
                 Collections.<String>emptySet() :
-                ImmutableSet.copyOf(declaredAggregateNames));
+                ImmutableSet.copyOf(declaredAggregateNames);
     }
 
     //------------------------------------------------< PrivilegeDefinition >---

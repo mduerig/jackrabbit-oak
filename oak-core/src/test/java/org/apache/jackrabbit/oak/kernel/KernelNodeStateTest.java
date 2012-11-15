@@ -23,26 +23,47 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.jackrabbit.mk.api.MicroKernel;
+import org.apache.jackrabbit.mk.core.MicroKernelImpl;
+import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.core.AbstractCoreTest;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.apache.jackrabbit.oak.spi.state.NodeStoreBranch;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
+import static org.apache.jackrabbit.oak.api.Type.LONG;
 
-public class KernelNodeStateTest extends AbstractCoreTest {
+public class KernelNodeStateTest {
 
-    @Override
-    protected NodeState createInitialState(MicroKernel microKernel) {
-        String jsop =
-                "+\"test\":{\"a\":1,\"b\":2,\"c\":3,"
-                + "\"x\":{},\"y\":{},\"z\":{}}";
-        microKernel.commit("/", jsop, null, "test data");
-        return store.getRoot().getChildNode("test");
+    private NodeState state;
+
+    @Before
+    public void setUp() throws CommitFailedException {
+        NodeStore store = new KernelNodeStore(new MicroKernelImpl());
+        NodeStoreBranch branch = store.branch();
+
+        NodeBuilder builder = branch.getRoot().builder();
+        builder.setProperty("a", 1);
+        builder.setProperty("b", 2);
+        builder.setProperty("c", 3);
+        builder.child("x");
+        builder.child("y");
+        builder.child("z");
+        branch.setRoot(builder.getNodeState());
+
+        state = branch.merge();
+    }
+
+    @After
+    public void tearDown() {
+        state = null;
     }
 
     @Test
@@ -53,11 +74,11 @@ public class KernelNodeStateTest extends AbstractCoreTest {
     @Test
     public void testGetProperty() {
         assertEquals("a", state.getProperty("a").getName());
-        assertEquals(1, state.getProperty("a").getValue().getLong());
+        assertEquals(1, (long) state.getProperty("a").getValue(LONG));
         assertEquals("b", state.getProperty("b").getName());
-        assertEquals(2, state.getProperty("b").getValue().getLong());
+        assertEquals(2, (long) state.getProperty("b").getValue(LONG));
         assertEquals("c", state.getProperty("c").getName());
-        assertEquals(3, state.getProperty("c").getValue().getLong());
+        assertEquals(3, (long) state.getProperty("c").getValue(LONG));
         assertNull(state.getProperty("x"));
     }
 
@@ -67,7 +88,7 @@ public class KernelNodeStateTest extends AbstractCoreTest {
         List<Long> values = new ArrayList<Long>();
         for (PropertyState property : state.getProperties()) {
             names.add(property.getName());
-            values.add(property.getValue().getLong());
+            values.add(property.getValue(LONG));
         }
         Collections.sort(names);
         Collections.sort(values);

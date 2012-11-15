@@ -26,6 +26,10 @@ import javax.annotation.Nonnull;
  * <p>
  * The data returned by this class filtered for the access rights that are set
  * in the {@link ContentSession} that created this object.
+ * <p>
+ * All root instances created by a content session become invalid after the
+ * content session is closed. Any method called on an invalid root instance
+ * will throw an {@code InvalidStateException}.
  */
 public interface Root {
 
@@ -42,7 +46,7 @@ public interface Root {
      * </ul>
      * If a tree at {@code destinationPath} exists but is not accessible to the
      * editing content session this method succeeds but a subsequent
-     * {@link #commit(ConflictHandler)} will detect the violation and fail.
+     * {@link #commit()} will detect the violation and fail.
      *
      * @param sourcePath The source path
      * @param destPath The destination path
@@ -62,7 +66,7 @@ public interface Root {
      * </ul>
      * If a tree at {@code destinationPath} exists but is not accessible to the
      * editing content session this method succeeds but a subsequent
-     * {@link #commit(ConflictHandler)} will detect the violation and fail.
+     * {@link #commit()} will detect the violation and fail.
      *
      * @param sourcePath source path
      * @param destPath destination path
@@ -94,10 +98,8 @@ public interface Root {
      * Rebase this root instance to the latest revision. After a call to this method,
      * all trees obtained through {@link #getTree(String)} become invalid and fresh
      * instances must be obtained.
-     *
-     * @param conflictHandler A {@link ConflictHandler} for resolving conflicts.
      */
-    void rebase(ConflictHandler conflictHandler);
+    void rebase();
 
     /**
      * Reverts all changes made to this root and refreshed to the latest trunk.
@@ -112,10 +114,9 @@ public interface Root {
      * all trees obtained through {@link #getTree(String)} become invalid and fresh
      * instances must be obtained.
      *
-     * @param conflictHandler  {@link ConflictHandler} for resolving conflicts.
      * @throws CommitFailedException
      */
-    void commit(ConflictHandler conflictHandler) throws CommitFailedException;
+    void commit() throws CommitFailedException;
 
     /**
      * Determine whether there are changes on this tree
@@ -124,9 +125,18 @@ public interface Root {
     boolean hasPendingChanges();
 
     /**
-     * Return a {@link ChangeExtractor} for this {@code Root}.
-     * @return a {@code ChangeExtractor}.
+     * Get the query engine.
+     * 
+     * @return the query engine
      */
     @Nonnull
-    ChangeExtractor getChangeExtractor();
+    SessionQueryEngine getQueryEngine();
+
+    /**
+     * Returns the blob factory (TODO: review if that really belongs to the OAK-API. see also todos on BlobFactory)
+     *
+     * @return the blob factory.
+     */
+    @Nonnull
+    BlobFactory getBlobFactory();
 }

@@ -16,14 +16,12 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
-import java.security.AccessControlException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
 import javax.annotation.Nonnull;
 import javax.jcr.AccessDeniedException;
 import javax.jcr.Credentials;
@@ -40,6 +38,7 @@ import javax.jcr.UnsupportedRepositoryOperationException;
 import javax.jcr.ValueFactory;
 import javax.jcr.Workspace;
 import javax.jcr.retention.RetentionManager;
+import javax.jcr.security.AccessControlException;
 import javax.jcr.security.AccessControlManager;
 import javax.jcr.security.AccessControlPolicy;
 import javax.jcr.security.AccessControlPolicyIterator;
@@ -52,9 +51,7 @@ import org.apache.jackrabbit.commons.AbstractSession;
 import org.apache.jackrabbit.commons.iterator.AccessControlPolicyIteratorAdapter;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.jcr.security.principal.PrincipalManagerImpl;
 import org.apache.jackrabbit.oak.jcr.xml.XmlImportHandler;
-import org.apache.jackrabbit.oak.security.principal.TmpPrincipalProvider;
 import org.apache.jackrabbit.oak.spi.security.authentication.ImpersonationCredentials;
 import org.apache.jackrabbit.oak.util.TODO;
 import org.apache.jackrabbit.util.XMLChar;
@@ -73,6 +70,14 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
     private static final Logger log = LoggerFactory.getLogger(SessionImpl.class);
 
     private final SessionDelegate dlg;
+
+    /**
+     * Local namespace remappings. Prefixes as keys and namespace URIs as values.
+     * <p>
+     * This map is only accessed from synchronized methods (see
+     * <a href="https://issues.apache.org/jira/browse/JCR-1793">JCR-1793</a>).
+     */
+    private final Map<String, String> namespaces = new HashMap<String, String>();
 
     SessionImpl(SessionDelegate dlg) {
         this.dlg = dlg;
@@ -249,6 +254,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
     public void move(final String srcAbsPath, final String destAbsPath) throws RepositoryException {
         ensureIsAlive();
 
+        // FIXME: check for protection on src-parent and dest-parent (OAK-250)
         dlg.perform(new SessionOperation<Void>() {
             @Override
             public Void perform() throws RepositoryException {
@@ -353,11 +359,11 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
         String oakPath = dlg.getOakPathOrNull(absPath);
         if (oakPath == null) {
             // TODO should we throw an exception here?
-            return TODO.dummyImplementation().returnValue(false);
+            return TODO.unimplemented().returnValue(false);
         }
 
-        // TODO
-        return false;
+        // TODO implement hasPermission
+        return TODO.unimplemented().returnValue(true);
     }
 
     /**
@@ -382,19 +388,19 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
     @Nonnull
     public AccessControlManager getAccessControlManager()
             throws RepositoryException {
-        return TODO.dummyImplementation().returnValue(new AccessControlManager() {
+        return TODO.unimplemented().returnValue(new AccessControlManager() {
             @Override
-            public void setPolicy(String absPath, AccessControlPolicy policy) {
-                // do nothing
+            public void setPolicy(String absPath, AccessControlPolicy policy) throws AccessControlException {
+                throw new AccessControlException(policy.toString());
             }
             @Override
-            public void removePolicy(String absPath, AccessControlPolicy policy) {
-                // do nothing
+            public void removePolicy(String absPath, AccessControlPolicy policy) throws AccessControlException {
+                throw new AccessControlException(policy.toString());
             }
             @Override
             public Privilege privilegeFromName(String privilegeName)
-                    throws AccessControlException {
-                throw new AccessControlException(privilegeName);
+                    throws AccessControlException, RepositoryException {
+                return dlg.getPrivilegeManager().getPrivilege(privilegeName);
             }
             @Override
             public boolean hasPrivileges(String absPath, Privilege[] privileges) {
@@ -432,19 +438,9 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
         throw new UnsupportedRepositoryOperationException("Retention Management is not supported.");
     }
 
-    //--------------------------------------------------< Namespaces >---
-
+    //---------------------------------------------------------< Namespaces >---
     // The code below was initially copied from JCR Commons AbstractSession, but
     // provides information the "hasRemappings" information
-
-    /**
-     * Local namespace remappings. Prefixes as keys and namespace URIs as values.
-     * <p>
-     * This map is only accessed from synchronized methods (see
-     * <a href="https://issues.apache.org/jira/browse/JCR-1793">JCR-1793</a>).
-     */
-    private final Map<String, String> namespaces =
-        new HashMap<String, String>();
 
     @Override
     public void setNamespacePrefix(String prefix, String uri) throws RepositoryException {
@@ -543,8 +539,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
         }
     }
 
-    // needed for implementation of NameMapper.hasSessionLocalMappings
-    public boolean hasSessionLocalMappings() {
+    boolean hasSessionLocalMappings() {
         return !namespaces.isEmpty();
     }
 
@@ -553,8 +548,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
     @Override
     @Nonnull
     public PrincipalManager getPrincipalManager() throws RepositoryException {
-        return TODO.unimplemented().returnValue(new PrincipalManagerImpl(
-                new TmpPrincipalProvider()));
+        return dlg.getPrincipalManager();
     }
 
     @Override

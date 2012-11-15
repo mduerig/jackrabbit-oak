@@ -16,39 +16,54 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import javax.jcr.PropertyType;
 
+import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.json.JsopBuilder;
-import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import static org.apache.jackrabbit.oak.api.Type.BINARIES;
+import static org.apache.jackrabbit.oak.api.Type.BOOLEANS;
+import static org.apache.jackrabbit.oak.api.Type.LONGS;
+import static org.apache.jackrabbit.oak.api.Type.STRINGS;
 
 class JsopDiff implements NodeStateDiff {
+    private static final Logger log = LoggerFactory.getLogger(JsopDiff.class);
+
+    private final MicroKernel kernel;
 
     protected final JsopBuilder jsop;
 
     protected final String path;
 
-    public JsopDiff(JsopBuilder jsop, String path) {
+    public JsopDiff(MicroKernel kernel, JsopBuilder jsop, String path) {
+        this.kernel = kernel;
         this.jsop = jsop;
         this.path = path;
     }
 
-    public JsopDiff() {
-        this(new JsopBuilder(), "/");
+    public JsopDiff(MicroKernel kernel) {
+        this(kernel, new JsopBuilder(), "/");
     }
 
     public static void diffToJsop(
-            NodeState before, NodeState after,
+            MicroKernel kernel, NodeState before, NodeState after,
             String path, JsopBuilder jsop) {
-        after.compareAgainstBaseState(before, new JsopDiff(jsop, path));
+        after.compareAgainstBaseState(before, new JsopDiff(kernel, jsop, path));
     }
 
     protected JsopDiff createChildDiff(JsopBuilder jsop, String path) {
-        return new JsopDiff(jsop, path);
+        return new JsopDiff(kernel, jsop, path);
     }
 
     //-----------------------------------------------------< NodeStateDiff >--
@@ -100,7 +115,7 @@ class JsopDiff implements NodeStateDiff {
         return PathUtils.concat(path, name);
     }
 
-    private static void toJson(NodeState nodeState, JsopBuilder jsop) {
+    private void toJson(NodeState nodeState, JsopBuilder jsop) {
         jsop.object();
         for (PropertyState property : nodeState.getProperties()) {
             jsop.key(property.getName());
@@ -113,31 +128,54 @@ class JsopDiff implements NodeStateDiff {
         jsop.endObject();
     }
 
-    private static void toJson(PropertyState propertyState, JsopBuilder jsop) {
+    private void toJson(PropertyState propertyState, JsopBuilder jsop) {
         if (propertyState.isArray()) {
             jsop.array();
-            for (CoreValue value : propertyState.getValues()) {
-                toJson(value, jsop);
-            }
+            toJsonValue(propertyState, jsop);
             jsop.endArray();
         } else {
-            toJson(propertyState.getValue(), jsop);
+            toJsonValue(propertyState, jsop);
         }
     }
 
-    private static void toJson(CoreValue value, JsopBuilder jsop) {
-        int type = value.getType();
-        if (type == PropertyType.BOOLEAN) {
-            jsop.value(value.getBoolean());
-        } else if (type == PropertyType.LONG) {
-            jsop.value(value.getLong());
-        } else {
-            String string = value.getString();
-            if (type != PropertyType.STRING
-                    || CoreValueMapper.startsWithHint(string)) {
-                string = CoreValueMapper.getHintForType(type) + ':' + string;
-            }
-            jsop.value(string);
+    private void toJsonValue(PropertyState property, JsopBuilder jsop) {
+        int type = property.getType().tag();
+        switch (type) {
+            case PropertyType.BOOLEAN:
+                for (boolean value : property.getValue(BOOLEANS)) {
+                    jsop.value(value);
+                }
+                break;
+            case PropertyType.LONG:
+                for (long value : property.getValue(LONGS)) {
+                    jsop.value(value);
+                }
+                break;
+            case PropertyType.BINARY:
+                for (Blob value : property.getValue(BINARIES)) {
+                    InputStream is = value.getNewStream();
+                    String binId = TypeCodes.encode(type, kernel.write(is));
+                    close(is);
+                    jsop.value(binId);
+                }
+                break;
+            default:
+                for (String value : property.getValue(STRINGS)) {
+                    if (PropertyType.STRING != type || TypeCodes.split(value) != -1) {
+                        value = TypeCodes.encode(type, value);
+                    }
+                    jsop.value(value);
+                }
+                break;
+        }
+    }
+
+    private static void close(InputStream stream) {
+        try {
+            stream.close();
+        }
+        catch (IOException e) {
+            log.warn("Error closing stream", e);
         }
     }
 }

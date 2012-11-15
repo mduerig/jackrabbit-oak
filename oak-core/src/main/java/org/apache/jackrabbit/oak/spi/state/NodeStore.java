@@ -16,9 +16,12 @@
  */
 package org.apache.jackrabbit.oak.spi.state;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
+import org.apache.jackrabbit.oak.api.Blob;
 
 /**
  * Storage abstraction for trees. At any given point in time the stored
@@ -47,22 +50,11 @@ public interface NodeStore {
     NodeStoreBranch branch();
 
     /**
-     * Returns a builder for constructing a new or modified node state.
-     * The builder is initialized with all the properties and child nodes
-     * from the given base node state.
-     *
-     * @param base  base node state, or {@code null} for building new nodes
-     * @return  builder instance
+     * Create a {@link Blob} from the given input stream. The input stream
+     * is closed after this method returns.
+     * @param inputStream  The input stream for the {@code Blob}
+     * @return  The {@code Blob} representing {@code inputStream}
+     * @throws IOException  If an error occurs while reading from the stream
      */
-    @Nonnull
-    NodeBuilder getBuilder(NodeState base);
-
-    /**
-     * Returns the factory for creating values used for building node states.
-     *
-     * @return value factory
-     */
-    @Nonnull
-    CoreValueFactory getValueFactory();
-
+    Blob createBlob(InputStream inputStream) throws IOException;
 }

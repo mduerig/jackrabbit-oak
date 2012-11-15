@@ -16,15 +16,10 @@
  */
 package org.apache.jackrabbit.oak.spi.security.authorization;
 
-import java.security.Principal;
-import java.util.Set;
-
 /**
  * PermissionProvider... TODO
  */
 public interface AccessControlContext {
-
-    void initialize(Set<Principal> principals);
 
     // TODO define how permissions eval is bound to a particular revision/branch. (passing Tree?)
     CompiledPermissions getPermissions();

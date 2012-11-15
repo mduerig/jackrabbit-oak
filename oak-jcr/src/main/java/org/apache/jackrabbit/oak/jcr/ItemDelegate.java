@@ -25,6 +25,8 @@ import org.apache.jackrabbit.oak.api.Tree.Status;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * Abstract base class for {@link NodeDelegate} and {@link PropertyDelegate}
  */
@@ -35,12 +37,17 @@ public abstract class ItemDelegate {
     /** The underlying {@link org.apache.jackrabbit.oak.api.TreeLocation} of this item. */
     private TreeLocation location;
 
-    ItemDelegate(SessionDelegate sessionDelegate, TreeLocation location) {
-        assert sessionDelegate != null;
-        assert location != null;
+    /**
+     * Revision on which this item is based. The underlying state of the item
+     * is re-resolved whenever the revision of the session does not match this
+     * revision.
+     */
+    private int revision;
 
-        this.sessionDelegate = sessionDelegate;
-        this.location = location;
+    ItemDelegate(SessionDelegate sessionDelegate, TreeLocation location) {
+        this.sessionDelegate = checkNotNull(sessionDelegate);
+        this.location = checkNotNull(location);
+        this.revision = sessionDelegate.getRevision();
     }
 
     /**
@@ -76,7 +83,8 @@ public abstract class ItemDelegate {
      * @return  {@code true} iff stale
      */
     public boolean isStale() {
-        return getLocationOrNull() == null;
+        Status status = getLocationOrNull().getStatus();
+        return status == Status.REMOVED || status == null;
     }
 
     /**
@@ -85,7 +93,11 @@ public abstract class ItemDelegate {
      */
     @Nonnull
     public Status getStatus() throws InvalidItemStateException {
-        return getLocation().getStatus();  // never null
+        Status status = getLocation().getStatus();
+        if (status == null) {
+            throw new InvalidItemStateException();
+        }
+        return status;
     }
 
     /**
@@ -105,7 +117,7 @@ public abstract class ItemDelegate {
     @Nonnull
     public TreeLocation getLocation() throws InvalidItemStateException {
         TreeLocation location = getLocationOrNull();
-        if (location == null) {
+        if (location == TreeLocation.NULL) {
             throw new InvalidItemStateException("Item is stale");
         }
         return location;
@@ -121,20 +133,17 @@ public abstract class ItemDelegate {
 
     /**
      * The underlying {@link org.apache.jackrabbit.oak.api.TreeLocation} of this item.
-     * @return  tree location of the underlying item or {@code null} if stale.
+     * The location is only re-resolved when the revision of this item does not match
+     * the revision of the session.
+     * @return  tree location of the underlying item or {@link TreeLocation#NULL} if stale.
      */
-    @CheckForNull
+    @Nonnull
     private synchronized TreeLocation getLocationOrNull() {
-        if (isStale(location)) {
-            return null;
+        if (location != TreeLocation.NULL && sessionDelegate.getRevision() != revision) {
+            location = sessionDelegate.getLocation(location.getPath());
+            revision = sessionDelegate.getRevision();
         }
-
-        location = sessionDelegate.getLocation(location.getPath());
-        return isStale(location) ? null : location;
-    }
-
-    private static boolean isStale(TreeLocation location) {
-        return location.getStatus() == Status.REMOVED || location.getPath() == null;
+        return location;
     }
 
 }

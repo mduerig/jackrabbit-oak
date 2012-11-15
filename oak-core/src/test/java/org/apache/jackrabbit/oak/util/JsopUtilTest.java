@@ -19,46 +19,26 @@ package org.apache.jackrabbit.oak.util;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
+import static org.apache.jackrabbit.oak.api.Type.STRING;
 
-import org.apache.jackrabbit.oak.AbstractOakTest;
-import org.apache.jackrabbit.oak.api.ContentRepository;
-import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
+import org.apache.jackrabbit.oak.Oak;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
-import org.apache.jackrabbit.oak.core.DefaultConflictHandler;
 import org.apache.jackrabbit.oak.query.JsopUtil;
-import org.junit.Before;
 import org.junit.Test;
 
-public class JsopUtilTest extends AbstractOakTest {
-
-    protected ContentSession session;
-    protected Root root;
-    protected CoreValueFactory vf;
-
-    @Override
-    @Before
-    public void before() throws Exception {
-        super.before();
-        session = createAdminSession();
-        root = session.getLatestRoot();
-        vf = session.getCoreValueFactory();
-    }
-
-    @Override
-    protected ContentRepository createRepository() {
-        return createEmptyRepository();
-    }
+public class JsopUtilTest {
 
     @Test
     public void test() throws Exception {
+        Root root = new Oak().createRoot();
+
         Tree t = root.getTree("/");
         assertFalse(t.hasChild("test"));
 
         String add = "/ + \"test\": { \"a\": { \"id\": \"123\" }, \"b\": {} }";
-        JsopUtil.apply(root, add, vf);
-        root.commit(DefaultConflictHandler.OURS);
+        JsopUtil.apply(root, add);
+        root.commit();
 
         t = root.getTree("/");
         assertTrue(t.hasChild("test"));
@@ -73,11 +53,11 @@ public class JsopUtilTest extends AbstractOakTest {
         t = t.getChild("a");
         assertEquals(0, t.getChildrenCount());
         assertTrue(t.hasProperty("id"));
-        assertEquals("123", t.getProperty("id").getValue().getString());
+        assertEquals("123", t.getProperty("id").getValue(STRING));
 
         String rm = "/ - \"test\"";
-        JsopUtil.apply(root, rm, vf);
-        root.commit(DefaultConflictHandler.OURS);
+        JsopUtil.apply(root, rm);
+        root.commit();
 
         t = root.getTree("/");
         assertFalse(t.hasChild("test"));

@@ -18,18 +18,25 @@ package org.apache.jackrabbit.oak.security.user;
 
 import javax.jcr.nodetype.ConstraintViolationException;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.commit.DefaultValidator;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
+import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
+import org.apache.jackrabbit.oak.spi.security.user.util.PasswordUtility;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
-import org.apache.jackrabbit.oak.spi.security.user.UserConfig;
+import org.apache.jackrabbit.oak.spi.security.user.util.UserUtility;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.util.NodeUtil;
 import org.apache.jackrabbit.util.Text;
 
 /**
- * UserValidator... TODO
+ * Validator that enforces user management specific constraints. Please note that
+ * is this validator is making implementation specific assumptions; if the
+ * user management implementation is replace it is most probably necessary to
+ * provide a custom validator as well.
  */
 class UserValidator extends DefaultValidator implements UserConstants {
 
@@ -48,10 +55,55 @@ class UserValidator extends DefaultValidator implements UserConstants {
     //----------------------------------------------------------< Validator >---
 
     @Override
+    public void propertyAdded(PropertyState after) throws CommitFailedException {
+        if (!isAuthorizable(parentAfter)) {
+            return;
+        }
+
+        String name = after.getName();
+        if (REP_DISABLED.equals(name) && isAdminUser(parentAfter)) {
+            String msg = "Admin user cannot be disabled.";
+            fail(msg);
+        }
+
+        if (JcrConstants.JCR_UUID.equals(name) && !isValidUUID(after.getValue(Type.STRING))) {
+            String msg = "Invalid jcr:uuid for authorizable " + parentAfter.getName();
+            fail(msg);
+        }
+    }
+
+    @Override
     public void propertyChanged(PropertyState before, PropertyState after) throws CommitFailedException {
+        if (!isAuthorizable(parentAfter)) {
+            return;
+        }
+
         String name = before.getName();
         if (REP_PRINCIPAL_NAME.equals(name) || REP_AUTHORIZABLE_ID.equals(name)) {
-            throw new CommitFailedException("Authorizable property " + name + " may not be altered after user/group creation.");
+            String msg = "Authorizable property " + name + " may not be altered after user/group creation.";
+            fail(msg);
+        } else if (JcrConstants.JCR_UUID.equals(name) && !isValidUUID(after.getValue(Type.STRING))) {
+            String msg = "Invalid jcr:uuid for authorizable " + parentAfter.getName();
+            fail(msg);
+        }
+
+        if (isUser(parentBefore) && REP_PASSWORD.equals(name) && PasswordUtility.isPlainTextPassword(after.getValue(Type.STRING))) {
+            String msg = "Password may not be plain text.";
+            fail(msg);
+        }
+    }
+
+
+    @Override
+    public void propertyDeleted(PropertyState before) throws CommitFailedException {
+        if (!isAuthorizable(parentAfter)) {
+            return;
+        }
+
+        String name = before.getName();
+        if (REP_PASSWORD.equals(name) || REP_PRINCIPAL_NAME.equals(name) || REP_AUTHORIZABLE_ID.equals(name)) {
+            String msg = "Authorizable property " + name + " may not be removed.";
+            fail(msg);
         }
     }
 
@@ -60,12 +112,17 @@ class UserValidator extends DefaultValidator implements UserConstants {
         NodeUtil node = parentAfter.getChild(name);
         String authRoot = null;
         if (node.hasPrimaryNodeTypeName(NT_REP_USER)) {
-            authRoot = provider.getConfig().getConfigValue(UserConfig.PARAM_USER_PATH, DEFAULT_USER_PATH);
+            authRoot = provider.getConfig().getConfigValue(PARAM_USER_PATH, DEFAULT_USER_PATH);
         } else if (node.hasPrimaryNodeTypeName(UserConstants.NT_REP_GROUP)) {
-            authRoot = provider.getConfig().getConfigValue(UserConfig.PARAM_GROUP_PATH, DEFAULT_GROUP_PATH);
+            authRoot = provider.getConfig().getConfigValue(PARAM_GROUP_PATH, DEFAULT_GROUP_PATH);
         }
         if (authRoot != null) {
             assertHierarchy(node, authRoot);
+            // assert rep:principalName is present (that should actually by covered
+            // by node type validator)
+            if (node.getString(REP_PRINCIPAL_NAME, null) == null) {
+                fail("Mandatory property rep:principalName missing.");
+            }
         }
         return new UserValidator(null, node, provider);
     }
@@ -74,6 +131,16 @@ class UserValidator extends DefaultValidator implements UserConstants {
     public Validator childNodeChanged(String name, NodeState before, NodeState after) throws CommitFailedException {
         // TODO: anything to do here?
         return new UserValidator(parentBefore.getChild(name), parentAfter.getChild(name), provider);
+    }
+
+    @Override
+    public Validator childNodeDeleted(String name, NodeState before) throws CommitFailedException {
+        NodeUtil node = parentBefore.getChild(name);
+        if (isAdminUser(node)) {
+            String msg = "The admin user cannot be removed.";
+            fail(msg);
+        }
+        return null;
     }
 
     //------------------------------------------------------------< private >---
@@ -86,20 +153,46 @@ class UserValidator extends DefaultValidator implements UserConstants {
      * @param pathConstraint
      * @throws CommitFailedException
      */
-    void assertHierarchy(NodeUtil userNode, String pathConstraint) throws CommitFailedException {
+    private void assertHierarchy(NodeUtil userNode, String pathConstraint) throws CommitFailedException {
         if (!Text.isDescendant(pathConstraint, userNode.getTree().getPath())) {
-            Exception e = new ConstraintViolationException("Attempt to create user/group outside of configured scope " + pathConstraint);
-            throw new CommitFailedException(e);
+            String msg = "Attempt to create user/group outside of configured scope " + pathConstraint;
+            fail(msg);
         }
 
         NodeUtil parent = userNode.getParent();
         while (!parent.getTree().isRoot()) {
             if (!parent.hasPrimaryNodeTypeName(NT_REP_AUTHORIZABLE_FOLDER)) {
                 String msg = "Cannot create user/group: Intermediate folders must be of type rep:AuthorizableFolder.";
-                Exception e = new ConstraintViolationException(msg);
-                throw new CommitFailedException(e);
+                fail(msg);
             }
             parent = parent.getParent();
         }
+    }
+
+
+    // FIXME: copied from UserProvider#isAdminUser
+    private boolean isAdminUser(NodeUtil userNode) {
+        String id = (userNode.getString(REP_AUTHORIZABLE_ID, Text.unescapeIllegalJcrChars(userNode.getName())));
+        return isUser(userNode) && UserUtility.getAdminId(provider.getConfig()).equals(id);
+    }
+
+    private boolean isValidUUID(String uuid) {
+        String id = UserProvider.getAuthorizableId(parentAfter.getTree());
+        return uuid.equals(UserProvider.getContentID(id));
+    }
+
+    private static boolean isAuthorizable(NodeUtil node) {
+        return UserUtility.isType(node.getTree(), AuthorizableType.AUTHORIZABLE);
+    }
+
+    private static boolean isUser(NodeUtil node) {
+        return UserUtility.isType(node.getTree(), AuthorizableType.USER);
+    }
+
+
+
+    private static void fail(String msg) throws CommitFailedException {
+        Exception e = new ConstraintViolationException(msg);
+        throw new CommitFailedException(e);
     }
 }

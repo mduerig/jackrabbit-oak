@@ -18,8 +18,6 @@
  */
 package org.apache.jackrabbit.oak.api;
 
-import java.util.List;
-
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
@@ -30,6 +28,13 @@ import javax.annotation.Nonnull;
  * which point an outdated snapshot will start throwing
  * {@code IllegalStateException}s to indicate that the snapshot is no
  * longer available.
+ * <p/>
+ * The children of a {@code Tree} are generally unordered. That is, the
+ * sequence of the children returned by {@link #getChildren()} may change over
+ * time as this Tree is modified either directly or through some other session.
+ * Calling {@link #orderBefore(String)} will persist the current order and
+ * maintain the order as new children are added or removed. In this case a new
+ * child will be inserted after the last child as seen by {@link #getChildren()}.
  * <p>
  * A tree instance belongs to the client and its state is only modified
  * in response to method calls made by the client. The various accessors
@@ -46,6 +51,10 @@ import javax.annotation.Nonnull;
  * The data returned by this class and intermediary objects such as
  * {@link PropertyState} is filtered for the access rights that are set in the
  * {@link ContentSession} that created the {@link Root} of this object.
+ * <p>
+ * All tree instances created in the context of a content session become invalid
+ * after the content session is closed. Any method called on an invalid tree instance
+ * will throw an {@code InvalidStateException}.
  */
 public interface Tree {
 
@@ -219,24 +228,43 @@ public interface Tree {
     Tree addChild(String name);
 
     /**
-     * Set a single valued property state
+     * Orders this {@code Tree} before the sibling tree with the given
+     * {@code name}. Calling this method for the first time on this
+     * {@code Tree} or any of its siblings will persist the current order
+     * of siblings and maintain it from this point on.
      *
-     * @param name The name of this property
-     * @param value The value of this property
-     * @return the affected property state
+     * @param name the name of the sibling node where this tree is ordered
+     *             before. This tree will become the last sibling if
+     *             {@code name} is {@code null}.
+     * @return {@code false} if there is no sibling with the given
+     *         {@code name} and no reordering was performed;
+     *         {@code true} otherwise.
      */
-    @Nonnull
-    PropertyState setProperty(String name, @Nonnull CoreValue value);
+    boolean orderBefore(String name);
 
     /**
-     * Set a multivalued valued property state
-     *
-     * @param name The name of this property
-     * @param values The value of this property
-     * @return the affected property state
+     * Set a property state
+     * @param property  The property state to set
      */
-    @Nonnull
-    PropertyState setProperty(String name, @Nonnull List<CoreValue> values);
+    void setProperty(PropertyState property);
+
+    /**
+     * Set a property state
+     * @param name  The name of this property
+     * @param value  The value of this property
+     * @param <T>  The type of this property. Must be one of {@code String, Blob, byte[], Long, Integer, Double, Boolean, BigDecimal}
+     * @throws IllegalArgumentException if {@code T} is not one of the above types.
+     */
+    <T> void setProperty(String name, T value);
+
+    /**
+     * Set a property state
+     * @param name  The name of this property
+     * @param value  The value of this property
+     * @param type The type of this property.
+     * @param <T>  The type of this property.
+     */
+    <T> void setProperty(String name, T value, Type<T> type);
 
     /**
      * Remove the property with the given name. This method has no effect if a

@@ -19,70 +19,148 @@
 package org.apache.jackrabbit.oak.plugins.memory;
 
 import java.util.Collections;
-import java.util.List;
 
 import javax.annotation.Nonnull;
+import javax.jcr.PropertyType;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
+import com.google.common.collect.Iterables;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.jackrabbit.oak.api.Type.BINARIES;
+import static org.apache.jackrabbit.oak.api.Type.STRING;
+import static org.apache.jackrabbit.oak.api.Type.STRINGS;
 
 /**
- * Property state that contains an empty array of values. Used as a base
- * class for {@link SinglePropertyState} and {@link MultiPropertyState}.
+ * Abstract base class for {@link PropertyState} implementations
+ * providing default implementation which correspond to a property
+ * without any value.
  */
-class EmptyPropertyState implements PropertyState {
-
+public abstract class EmptyPropertyState implements PropertyState {
     private final String name;
 
-    public EmptyPropertyState(String name) {
+    /**
+     * Create a new property state with the given {@code name}
+     * @param name  The name of the property state.
+     */
+    protected EmptyPropertyState(@Nonnull String name) {
         this.name = checkNotNull(name);
     }
 
+    /**
+     * Create an empty {@code PropertyState}
+     * @param name  The name of the property state
+     * @param type  The type of the property state
+     * @return  The new property state
+     */
+    public static PropertyState emptyProperty(String name, final Type<?> type) {
+        if (!type.isArray()) {
+            throw new IllegalArgumentException("Not an array type:" + type);
+        }
+        return new EmptyPropertyState(name) {
+            @Override
+            public Type<?> getType() {
+                return type;
+            }
+        };
+    }
+
+    @Nonnull
     @Override
     public String getName() {
         return name;
     }
 
+    /**
+     * @return {@code true}
+     */
     @Override
     public boolean isArray() {
         return true;
     }
 
-    @Override
+    /**
+     * @return An empty list if {@code type.isArray()} is {@code true}.
+     * @throws IllegalArgumentException {@code type.isArray()} is {@code false}.
+     */
+    @SuppressWarnings("unchecked")
     @Nonnull
-    public CoreValue getValue() {
+    @Override
+    public <T> T getValue(Type<T> type) {
+        checkArgument(type.isArray(), "Type must be an array type");
+        return (T) Collections.emptyList();
+    }
+
+    /**
+     * @throws IndexOutOfBoundsException always
+     */
+    @Nonnull
+    @Override
+    public <T> T getValue(Type<T> type, int index) {
+        throw new IndexOutOfBoundsException(String.valueOf(index));
+    }
+
+    /**
+     * @throws IllegalStateException always
+     */
+    @Override
+    public long size() {
         throw new IllegalStateException("Not a single valued property");
     }
 
+    /**
+     * @throws IndexOutOfBoundsException always
+     */
     @Override
-    @Nonnull
-    public List<CoreValue> getValues() {
-        return Collections.emptyList();
+    public long size(int index) {
+        throw new IndexOutOfBoundsException(String.valueOf(index));
+    }
+
+    /**
+     * @return {@code 0}
+     */
+    @Override
+    public int count() {
+        return 0;
     }
 
     //------------------------------------------------------------< Object >--
 
     /**
      * Checks whether the given object is equal to this one. Two property
-     * states are considered equal if both their names and encoded values
-     * match. Subclasses may override this method with a more efficient
+     * states are considered equal if their names and types match and
+     * their string representation of their values are equal.
+     * Subclasses may override this method with a more efficient
      * equality check if one is available.
      *
-     * @param that target of the comparison
+     * @param other target of the comparison
      * @return {@code true} if the objects are equal, {@code false} otherwise
      */
     @Override
-    public boolean equals(Object that) {
-        if (this == that) {
+    public boolean equals(Object other) {
+        if (this == other) {
             return true;
-        } else if (that instanceof PropertyState) {
-            PropertyState other = (PropertyState) that;
-            return getName().equals(other.getName())
-                    && isArray() == other.isArray()
-                    && getValues().equals(other.getValues());
-        } else {
+        }
+        else if (other instanceof PropertyState) {
+            PropertyState that = (PropertyState) other;
+            if (!getName().equals(that.getName())) {
+                return false;
+            }
+            if (!getType().equals(that.getType())) {
+                return false;
+            }
+            if (getType().tag() == PropertyType.BINARY) {
+                return Iterables.elementsEqual(
+                        getValue(BINARIES), that.getValue(BINARIES));
+            }
+            else {
+                return Iterables.elementsEqual(
+                        getValue(STRINGS), that.getValue(STRINGS));
+            }
+        }
+        else {
             return false;
         }
     }
@@ -103,7 +181,12 @@ class EmptyPropertyState implements PropertyState {
 
     @Override
     public String toString() {
-        return getName() + '=' + getValues();
+        if (isArray()) {
+            return getName() + '=' + getValue(STRINGS);
+        }
+        else {
+            return getName() + '=' + getValue(STRING);
+        }
     }
 
 }

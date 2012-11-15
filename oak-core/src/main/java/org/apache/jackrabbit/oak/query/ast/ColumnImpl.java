@@ -18,9 +18,8 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.plugins.memory.SinglePropertyState;
+import org.apache.jackrabbit.oak.api.PropertyValue;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 
 /**
  * A result column expression.
@@ -35,17 +34,9 @@ public class ColumnImpl extends AstElement {
         this.propertyName = propertyName;
         this.columnName = columnName;
     }
-
+    
     public String getColumnName() {
         return columnName;
-    }
-
-    public String getPropertyName() {
-        return propertyName;
-    }
-
-    public String getSelectorName() {
-        return selectorName;
     }
 
     @Override
@@ -56,22 +47,21 @@ public class ColumnImpl extends AstElement {
     @Override
     public String toString() {
         if (propertyName != null) {
-            return getSelectorName() + '.' + getPropertyName()
-                    + " as [" + columnName + "]";
+            return quote(selectorName) + '.' + quote(propertyName) + 
+                    " as " + quote(columnName);
         } else {
-            return getSelectorName() + ".*";
+            return quote(selectorName) + ".*";
         }
     }
 
-    public PropertyState currentProperty() {
+    public PropertyValue currentProperty() {
         if (propertyName == null) {
             // TODO for SELECT * FROM queries, currently return the path (for testing only)
             String p = selector.currentPath();
             if (p == null) {
                 return null;
             }
-            CoreValue v = query.getValueFactory().createValue(p);
-            return new SinglePropertyState(SelectorImpl.PATH, v);
+            return PropertyValues.newString(p);
         }
         return selector.currentProperty(propertyName);
     }

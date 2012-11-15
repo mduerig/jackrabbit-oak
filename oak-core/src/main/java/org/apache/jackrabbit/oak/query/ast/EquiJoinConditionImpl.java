@@ -18,10 +18,9 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.query.Query;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 
 /**
  * The "a.x = b.y" join condition.
@@ -43,22 +42,6 @@ public class EquiJoinConditionImpl extends JoinConditionImpl {
         this.property2Name = property2Name;
     }
 
-    public String getSelector1Name() {
-        return selector1Name;
-    }
-
-    public String getProperty1Name() {
-        return property1Name;
-    }
-
-    public String getSelector2Name() {
-        return selector2Name;
-    }
-
-    public String getProperty2Name() {
-        return property2Name;
-    }
-
     @Override
     boolean accept(AstVisitor v) {
         return v.visit(this);
@@ -66,9 +49,8 @@ public class EquiJoinConditionImpl extends JoinConditionImpl {
 
     @Override
     public String toString() {
-        // TODO quote property names?
-        return getSelector1Name() + '.' + getProperty1Name()
-                + " = " + getSelector2Name() + '.' + getProperty2Name();
+        return quote(selector1Name) + '.' + quote(property1Name) +
+                " = " + quote(selector2Name) + '.' + quote(property2Name);
     }
 
     public void bindSelector(SourceImpl source) {
@@ -78,61 +60,57 @@ public class EquiJoinConditionImpl extends JoinConditionImpl {
 
     @Override
     public boolean evaluate() {
-        PropertyState p1 = selector1.currentProperty(property1Name);
+        PropertyValue p1 = selector1.currentProperty(property1Name);
         if (p1 == null) {
             return false;
         }
-        PropertyState p2 = selector2.currentProperty(property2Name);
+        PropertyValue p2 = selector2.currentProperty(property2Name);
         if (p2 == null) {
             return false;
         }
         if (!p1.isArray() && !p2.isArray()) {
             // both are single valued
-            return p1.getValue().equals(p2.getValue());
+            return PropertyValues.match(p1, p2);
         }
         // TODO what is the expected result of an equi join for multi-valued properties?
         if (!p1.isArray() && p2.isArray()) {
-            CoreValue x = p1.getValue();
-            for (CoreValue y : p2.getValues()) {
-                if (y.getType() != x.getType()) {
-                    y = query.convert(y, x.getType());
-                }
-                if (y != null && x.equals(y)) {
-                    return true;
-                }
+            if (p1.getType().tag() != p2.getType().tag()) {
+                p1 = PropertyValues.convert(p1, p2.getType().tag(), query.getNamePathMapper());
+            }
+            if (p1 != null && PropertyValues.match(p1, p2)) {
+                return true;
             }
             return false;
         } else if (p1.isArray() && !p2.isArray()) {
-            CoreValue x = p2.getValue();
-            for (CoreValue y : p1.getValues()) {
-                if (y.getType() != x.getType()) {
-                    y = query.convert(y, x.getType());
-                }
-                if (x.equals(y)) {
-                    return true;
-                }
+            if (p1.getType().tag() != p2.getType().tag()) {
+                p2 = PropertyValues.convert(p2, p1.getType().tag(), query.getNamePathMapper());
+            }
+            if (p2 != null && PropertyValues.match(p1, p2)) {
+                return true;
             }
             return false;
         }
-        CoreValue[] l1 = p1.getValues().toArray(new CoreValue[p1.getValues().size()]);
-        CoreValue[] l2 = p2.getValues().toArray(new CoreValue[p2.getValues().size()]);
-        return Query.compareValues(l1, l2) == 0;
+        return PropertyValues.match(p1, p2);
     }
 
     @Override
     public void restrict(FilterImpl f) {
-        PropertyState p1 = selector1.currentProperty(property1Name);
-        PropertyState p2 = selector2.currentProperty(property2Name);
-        if (f.getSelector() == selector1 && p2 != null) {
-            if (!p2.isArray()) {
-                // TODO support join on multi-valued properties
-                f.restrictProperty(property1Name, Operator.EQUAL, p2.getValue());
+        if (f.getSelector() == selector1) {
+            PropertyValue p2 = selector2.currentProperty(property2Name);
+            if (p2 != null) {
+                if (!p2.isArray()) {
+                    // TODO support join on multi-valued properties
+                    f.restrictProperty(property1Name, Operator.EQUAL, p2);
+                }
             }
         }
-        if (f.getSelector() == selector2 && p1 != null) {
-            if (!p1.isArray()) {
-                // TODO support join on multi-valued properties
-                f.restrictProperty(property2Name, Operator.EQUAL, p1.getValue());
+        if (f.getSelector() == selector2) {
+            PropertyValue p1 = selector1.currentProperty(property1Name);
+            if (p1 != null) {
+                if (!p1.isArray()) {
+                    // TODO support join on multi-valued properties
+                    f.restrictProperty(property2Name, Operator.EQUAL, p1);
+                }
             }
         }
     }

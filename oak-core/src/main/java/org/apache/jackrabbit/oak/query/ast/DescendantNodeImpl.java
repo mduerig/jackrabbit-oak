@@ -36,19 +36,14 @@ public class DescendantNodeImpl extends ConstraintImpl {
         this.ancestorPath = ancestorPath;
     }
 
-    public String getSelectorName() {
-        return selectorName;
-    }
-
-    public String getAncestorPath() {
-        return ancestorPath;
-    }
-
     @Override
     public boolean evaluate() {
         String p = selector.currentPath();
+        if (p == null) {
+            return false;
+        }
         String path = getAbsolutePath(ancestorPath);
-        if (p == null || path == null) {
+        if (path == null) {
             return false;
         }
         return PathUtils.isAncestor(path, p);
@@ -61,7 +56,8 @@ public class DescendantNodeImpl extends ConstraintImpl {
 
     @Override
     public String toString() {
-        return "isdescendantnode(" + getSelectorName() + ", " + quotePath(ancestorPath) + ')';
+        return "isdescendantnode(" + quote(selectorName) + 
+                ", " +  quote(ancestorPath) + ')';
     }
 
     public void bindSelector(SourceImpl source) {

@@ -27,7 +27,6 @@ import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -172,6 +171,34 @@ public class RepositoryTest extends AbstractRepositoryTest {
     }
 
     @Test
+    public void getNode2() throws RepositoryException {
+        Node node = getNode("/foo");
+        Node same = node.getNode(".");
+        assertNotNull(same);
+        assertEquals("foo", same.getName());
+        assertTrue(same.isSame(node));
+    }
+
+    @Ignore("OAK-369") // FIXME: OAK-369
+    @Test
+    public void getNode3() throws RepositoryException {
+        Node node = getNode("/foo");
+        Node root = node.getNode("..");
+        assertNotNull(root);
+        assertEquals("", root.getName());
+        assertTrue("/".equals(root.getPath()));
+    }
+
+    @Ignore("OAK-369") // FIXME: OAK-369
+    @Test
+    public void testAddNode() throws RepositoryException {
+        Node node = getNode("/foo");
+        // add a node with '..' should fail...
+        Node invalid = node.addNode("..");
+        assertTrue(node.getParent().isSame(node.getNode("..")));
+    }
+
+    @Test
     public void getNode() throws RepositoryException {
         Node node = getNode("/foo");
         assertNotNull(node);
@@ -185,6 +212,22 @@ public class RepositoryTest extends AbstractRepositoryTest {
         String id = node.getIdentifier();
         Node node2 = getAdminSession().getNodeByIdentifier(id);
         assertTrue(node.isSame(node2));
+    }
+
+    @Ignore("OAK-343") // FIXME: OAK-343
+    @Test
+    public void getNodeByUUID() throws RepositoryException {
+        Node node = getNode("/foo").addNode("boo");
+        node.addMixin(JcrConstants.MIX_REFERENCEABLE);
+
+        assertTrue(node.isNodeType(JcrConstants.MIX_REFERENCEABLE));
+        String uuid = node.getUUID();
+        assertNotNull(uuid);
+        assertEquals(uuid, node.getIdentifier());
+
+        Node nAgain = node.getSession().getNodeByUUID(uuid);
+        assertTrue(nAgain.isSame(node));
+        assertTrue(nAgain.isSame(node.getSession().getNodeByIdentifier(uuid)));
     }
 
     @Test
@@ -213,12 +256,19 @@ public class RepositoryTest extends AbstractRepositoryTest {
         root.getNode("bar").remove();  // transiently removed and...
         root.addNode("bar");           // ... added again
         NodeIterator nodes = root.getNodes();
-        // TODO: use a test subtree to avoid excluding default content
-        int expected = 3 + (root.hasNode("jcr:system") ? 1 : 0)  + (root.hasNode("oak-index") ? 1 : 0);
+        // FIXME: use a test subtree to avoid excluding default content
+        int expected = 3
+                + (root.hasNode("jcr:system") ? 1 : 0)
+                + (root.hasNode("rep:security") ? 1 : 0)
+                + (root.hasNode("oak-index") ? 1 : 0)
+                + (root.hasNode("oak:index") ? 1 : 0);
         assertEquals(expected, nodes.getSize());
         while (nodes.hasNext()) {
             String name = nodes.nextNode().getName();
-            if (!name.equals("jcr:system") && !name.equals("oak-index")) {
+            if (!name.equals("jcr:system")
+                    && !name.equals("rep:security")
+                    && !name.equals("oak-index")
+                    && !name.equals("oak:index")) {
                 assertTrue(nodeNames.remove(name));
             }
         }
@@ -870,6 +920,19 @@ public class RepositoryTest extends AbstractRepositoryTest {
     }
 
     @Test
+    public void setPropertyAgain() throws RepositoryException {
+        Session session = getAdminSession();
+        Property p1 = session.getProperty("/foo/stringProp");
+
+        Property p2 = p1.getParent().setProperty("stringProp", "newValue");
+        Property p3 = session.getProperty("/foo/stringProp");
+
+        assertEquals("newValue", p1.getString());
+        assertEquals("newValue", p2.getString());
+        assertEquals("newValue", p3.getString());
+    }
+
+    @Test
     public void setDoubleNaNProperty() throws RepositoryException, IOException {
         Node parentNode = getNode(TEST_PATH);
         addProperty(parentNode, "NaN", getAdminSession().getValueFactory().createValue(Double.NaN));
@@ -988,6 +1051,18 @@ public class RepositoryTest extends AbstractRepositoryTest {
     }
 
     @Test
+    public void removeNode2() throws RepositoryException {
+        Node foo = getNode("/foo");
+        getAdminSession().removeItem(foo.getPath());
+        try {
+            foo.getParent();
+            fail("Cannot retrieve the parent from a transiently removed item.");
+        } catch (InvalidItemStateException e) {
+            // success
+        }
+    }
+
+    @Test
     public void accessRemovedItem() throws RepositoryException {
         Node foo = getNode("/foo");
         Node bar = foo.addNode("bar");
@@ -999,6 +1074,19 @@ public class RepositoryTest extends AbstractRepositoryTest {
         }
         catch (InvalidItemStateException expected) {
         }
+        try {
+            p.getPath();
+            fail("Expected InvalidItemStateException");
+        }
+        catch (InvalidItemStateException expected) {
+        }
+    }
+
+    @Test
+    public void accessRemovedProperty() throws RepositoryException {
+        Node foo = getNode("/foo");
+        Property p = foo.setProperty("name", "value");
+        p.remove();
         try {
             p.getPath();
             fail("Expected InvalidItemStateException");
@@ -1315,10 +1403,31 @@ public class RepositoryTest extends AbstractRepositoryTest {
         node.addNode("target");
         session.save();
 
-        Node sourceNode = session.getNode(TEST_PATH + "/source/node");
         session.refresh(true);
         session.move(TEST_PATH + "/source/node", TEST_PATH + "/target/moved");
-        assertEquals("/test_node/target/moved", sourceNode.getPath());
+
+        assertFalse(node.hasNode("source/node"));
+        assertTrue(node.hasNode("source"));
+        assertTrue(node.hasNode("target/moved"));
+
+        session.save();
+
+        assertFalse(node.hasNode("source/node"));
+        assertTrue(node.hasNode("source"));
+        assertTrue(node.hasNode("target/moved"));
+    }
+
+    @Test
+    public void moveReferenceable() throws RepositoryException {
+        Session session = getAdminSession();
+
+        Node node = getNode(TEST_PATH);
+        node.addNode("source").addNode("node").addMixin("mix:referenceable");
+        node.addNode("target");
+        session.save();
+
+        session.refresh(true);
+        session.move(TEST_PATH + "/source/node", TEST_PATH + "/target/moved");
 
         assertFalse(node.hasNode("source/node"));
         assertTrue(node.hasNode("source"));
@@ -1814,26 +1923,6 @@ public class RepositoryTest extends AbstractRepositoryTest {
         assertTrue(n2.hasProperty("p2"));
         assertFalse(c2.hasProperty("pc1"));
         assertTrue(c2.hasProperty("pc2"));
-    }
-
-    @Test
-    public void testUniqueness() throws RepositoryException {
-        Session session = getAdminSession();
-
-        Node node = getNode("/foo");
-        node.addMixin("mix:referenceable");
-        node.setProperty("jcr:uuid", UUID.randomUUID().toString());
-        session.save();
-
-        Node node2 = node.addNode("foo2");
-        node2.addMixin("mix:referenceable");
-        node2.setProperty("jcr:uuid", node.getProperty("jcr:uuid").getValue());
-        try {
-            session.save();
-            fail();
-        } catch (RepositoryException e) {
-            // expected
-        }
     }
 
     //------------------------------------------------------------< private >---

@@ -16,7 +16,6 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
 import javax.jcr.Credentials;
@@ -27,25 +26,9 @@ import javax.jcr.Value;
 import javax.security.auth.login.LoginException;
 
 import org.apache.jackrabbit.commons.SimpleValueFactory;
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.mk.core.MicroKernelImpl;
 import org.apache.jackrabbit.oak.api.ContentRepository;
 import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.core.ContentRepositoryImpl;
-import org.apache.jackrabbit.oak.plugins.name.NameValidatorProvider;
-import org.apache.jackrabbit.oak.plugins.name.NamespaceValidatorProvider;
-import org.apache.jackrabbit.oak.plugins.type.TypeValidatorProvider;
-import org.apache.jackrabbit.oak.plugins.unique.UniqueIndexHook;
-import org.apache.jackrabbit.oak.plugins.value.ConflictValidatorProvider;
-import org.apache.jackrabbit.oak.security.authorization.AccessControlValidatorProvider;
-import org.apache.jackrabbit.oak.security.authorization.PermissionValidatorProvider;
-import org.apache.jackrabbit.oak.security.privilege.PrivilegeValidatorProvider;
-import org.apache.jackrabbit.oak.security.user.UserValidatorProvider;
-import org.apache.jackrabbit.oak.spi.commit.CompositeHook;
-import org.apache.jackrabbit.oak.spi.commit.CompositeValidatorProvider;
-import org.apache.jackrabbit.oak.spi.commit.ValidatingHook;
-import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
-import org.apache.jackrabbit.oak.spi.security.user.UserConfig;
+import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,48 +42,20 @@ public class RepositoryImpl implements Repository {
      */
     private static final Logger log = LoggerFactory.getLogger(RepositoryImpl.class);
 
-    private static final ValidatorProvider DEFAULT_VALIDATOR =
-            new CompositeValidatorProvider(
-                    new NameValidatorProvider(),
-                    new NamespaceValidatorProvider(),
-                    new TypeValidatorProvider(),
-                    new ConflictValidatorProvider(),
-                    new PermissionValidatorProvider(),
-                    new AccessControlValidatorProvider(),
-                    // FIXME: retrieve from user context
-                    new UserValidatorProvider(new UserConfig("admin")),
-                    new PrivilegeValidatorProvider());
-
     private final Descriptors descriptors = new Descriptors(new SimpleValueFactory());
     private final ContentRepository contentRepository;
 
     private final ScheduledExecutorService executor;
 
+    private final SecurityProvider securityProvider;
+
     public RepositoryImpl(
             ContentRepository contentRepository,
-            ScheduledExecutorService executor) {
+            ScheduledExecutorService executor,
+            SecurityProvider securityProvider) {
         this.contentRepository = contentRepository;
         this.executor = executor;
-    }
-
-    public RepositoryImpl(
-            MicroKernel kernel, ScheduledExecutorService executor) {
-        this(new ContentRepositoryImpl(
-                kernel, null, new CompositeHook(
-                        new ValidatingHook(DEFAULT_VALIDATOR),
-                        new UniqueIndexHook())),
-                executor);
-    }
-
-    /**
-     * Utility constructor that creates a new in-memory repository for use
-     * mostly in test cases. The executor service is initialized with an
-     * empty thread pool, so things like observation won't work by default.
-     * Use the other constructor with a properly managed executor service
-     * if such features are needed.
-     */
-    public RepositoryImpl() {
-        this(new MicroKernelImpl(), Executors.newScheduledThreadPool(0));
+        this.securityProvider = securityProvider;
     }
 
     //---------------------------------------------------------< Repository >---
@@ -130,8 +85,7 @@ public class RepositoryImpl implements Repository {
             return v == null
                     ? null
                     : v.getString();
-        }
-        catch (RepositoryException e) {
+        } catch (RepositoryException e) {
             log.debug("Error converting value for descriptor with key {} to string", key);
             return null;
         }
@@ -169,7 +123,7 @@ public class RepositoryImpl implements Repository {
         // TODO: needs complete refactoring
         try {
             ContentSession contentSession = contentRepository.login(credentials, workspaceName);
-            return new SessionDelegate(this, executor, contentSession, false).getSession();
+            return new SessionDelegate(this, executor, contentSession, securityProvider, false).getSession();
         } catch (LoginException e) {
             throw new javax.jcr.LoginException(e.getMessage(), e);
         }
@@ -212,4 +166,5 @@ public class RepositoryImpl implements Repository {
     public Session login(String workspace) throws RepositoryException {
         return login(null, workspace);
     }
+
 }

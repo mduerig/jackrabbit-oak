@@ -19,9 +19,12 @@
 package org.apache.jackrabbit.oak.spi.query;
 
 import java.util.Collection;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
 import javax.jcr.PropertyType;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 
 /**
  * The filter for an index lookup.
@@ -65,6 +68,23 @@ public interface Filter {
     String getPath();
 
     /**
+     * Get the node type.
+     * 
+     * @return the node type restriction or <code>null</code> if none is set.
+     */
+    @CheckForNull
+    String getNodeType();
+    
+    /**
+     * Get the complete query statement. The statement should only be used for
+     * logging purposes.
+     * 
+     * @return the query statement (possibly null)
+     */
+    @Nullable
+    String getQueryStatement();
+
+    /**
      * A restriction for a property.
      */
     class PropertyRestriction {
@@ -77,7 +97,7 @@ public interface Filter {
         /**
          * The first value to read, or null to read from the beginning.
          */
-        public CoreValue first;
+        public PropertyValue first;
 
         /**
          * Whether values that match the first should be returned.
@@ -87,12 +107,18 @@ public interface Filter {
         /**
          * The last value to read, or null to read until the end.
          */
-        public CoreValue last;
+        public PropertyValue last;
 
         /**
          * Whether values that match the last should be returned.
          */
         public boolean lastIncluding;
+
+        /**
+         * Whether this is a like constraint. in this case only the 'first'
+         * value should be taken into consideration
+         */
+        public boolean isLike;
 
         /**
          * The property type, if restricted.

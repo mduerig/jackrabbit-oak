@@ -22,15 +22,23 @@ import java.util.List;
 import javax.jcr.Node;
 import javax.jcr.RepositoryException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.xml.sax.Attributes;
 import org.xml.sax.SAXException;
 import org.xml.sax.helpers.DefaultHandler;
 
 public class XmlImportHandler extends DefaultHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(XmlImportHandler.class);
+
     private Node node;
 
-    private String name;
+    private String nodeName;
+
+    private String propertyName;
+
+    private final List<String> mixinNames = new ArrayList<String>();
 
     private final List<String> values = new ArrayList<String>();
 
@@ -47,13 +55,10 @@ public class XmlImportHandler extends DefaultHandler {
         if ("http://www.jcp.org/jcr/sv/1.0".equals(uri)) {
             String value = atts.getValue("sv:name");
             if ("node".equals(localName)) {
-                try {
-                    node = node.addNode(value);
-                } catch (RepositoryException e) {
-                    throw new SAXException(e);
-                }
+                // create node on jcr:primaryType sv:property
+                nodeName = value;
             } else if (value != null) {
-                name = value;
+                propertyName = value;
             }
             builder.setLength(0);
         } else {
@@ -78,24 +83,56 @@ public class XmlImportHandler extends DefaultHandler {
         } else if ("property".equals(localName)) {
             try {
                 if (values.size() == 1) {
-                    if (name.equals("jcr:primaryType")) {
-                        node.setPrimaryType(values.get(0));
-                    } else if (name.equals("jcr:mixinTypes")) {
-                        node.addMixin(values.get(0));
+                    if (propertyName.equals("jcr:primaryType")) {
+                        try {
+                            log.debug(node.getPath() + " adding child " + nodeName + " with jcr:primaryType " + values.get(0));
+                            node = node.addNode(nodeName, values.get(0));
+                            for (String mixin : mixinNames) {
+                                node.addMixin(mixin);
+                            }
+                            mixinNames.clear();
+                        } catch (RepositoryException e) {
+                            throw new SAXException(e);
+                        }
+                    } else if (propertyName.equals("jcr:mixinTypes")) {
+                        if (node.getName().equals(nodeName)) {
+                            log.debug(node.getPath() + " adding mixinType " + values.get(0));
+                            node.addMixin(values.get(0));
+                        } else {
+                            // remember mixin and add when jcr:primaryType is known
+                            mixinNames.addAll(values);
+                        }
                     } else {
-                        node.setProperty(name, values.get(0));
+                        node.setProperty(propertyName, values.get(0));
                     }
-                } else if (name.equals("jcr:mixinTypes")) {
-                    for (String value : values) {
-                        node.addMixin(value);
+                } else if (propertyName.equals("jcr:mixinTypes")) {
+                    if (node.getName().equals(nodeName)) {
+                        for (String value : values) {
+                            log.debug(node.getPath() + " adding mixinType " + value);
+                            node.addMixin(value);
+                        }
+                    } else {
+                        // remember mixin and add when jcr:primaryType is known
+                        mixinNames.addAll(values);
                     }
                 } else {
-                    node.setProperty(name, values.toArray(new String[values.size()]));
+                    node.setProperty(propertyName, values.toArray(new String[values.size()]));
                 }
             } catch (RepositoryException e) {
                 throw new SAXException(e);
             }
             values.clear();
+        } else if ("node".equals(localName)) {
+            try {
+                // any mixins we missed?
+                for (String mixin : mixinNames) {
+                    node.addMixin(mixin);
+                }
+                mixinNames.clear();
+                node = node.getParent();
+            } catch (RepositoryException e) {
+                throw new SAXException(e);
+            }
         }
     }
 

@@ -16,17 +16,18 @@
  */
 package org.apache.jackrabbit.oak.jcr.security.user;
 
-import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.Group;
-import org.apache.jackrabbit.oak.spi.security.principal.EveryonePrincipal;
-import org.apache.jackrabbit.test.NotExecutableException;
-import org.junit.Test;
-
-import javax.jcr.RepositoryException;
 import java.security.Principal;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
+import javax.jcr.RepositoryException;
+
+import org.apache.jackrabbit.api.security.user.Authorizable;
+import org.apache.jackrabbit.api.security.user.Group;
+import org.apache.jackrabbit.oak.security.principal.PrincipalImpl;
+import org.apache.jackrabbit.oak.spi.security.principal.EveryonePrincipal;
+import org.apache.jackrabbit.test.NotExecutableException;
+import org.junit.Test;
 
 /**
  * Tests for the group associated with {@code EveryonePrincipal}
@@ -65,17 +66,15 @@ public class EveryoneGroupTest extends AbstractUserTest {
 
     @Test
     public void testGroupPrincipal() throws Exception {
-        Principal everonePrincipal = everyone.getPrincipal();
-        assertTrue(everonePrincipal instanceof java.security.acl.Group);
+        Principal everyonePrincipal = everyone.getPrincipal();
+        assertTrue(everyonePrincipal instanceof java.security.acl.Group);
+        assertTrue(everyonePrincipal.equals(EveryonePrincipal.getInstance()));
+        assertTrue(EveryonePrincipal.getInstance().equals(everyonePrincipal));
 
-        java.security.acl.Group gr = (java.security.acl.Group) everonePrincipal;
-        assertFalse(gr.isMember(everonePrincipal));
+        java.security.acl.Group gr = (java.security.acl.Group) everyonePrincipal;
+        assertFalse(gr.isMember(everyonePrincipal));
         assertTrue(gr.isMember(getTestUser(superuser).getPrincipal()));
-        assertTrue(gr.isMember(new Principal() {
-            public String getName() {
-                return "test";
-            }
-        }));
+        assertTrue(gr.isMember(new PrincipalImpl("test")));
     }
 
     @Test

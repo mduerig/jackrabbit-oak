@@ -16,49 +16,57 @@
  */
 package org.apache.jackrabbit.oak.security.authentication;
 
-import org.apache.jackrabbit.oak.api.ContentRepository;
-import org.apache.jackrabbit.oak.security.principal.TmpPrincipalProvider;
+import java.security.AccessController;
+import javax.annotation.Nonnull;
+import javax.jcr.Credentials;
+import javax.security.auth.Subject;
+import javax.security.auth.callback.CallbackHandler;
+import javax.security.auth.login.Configuration;
+import javax.security.auth.login.LoginException;
+
+import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
+import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
+import org.apache.jackrabbit.oak.spi.security.authentication.JaasLoginContext;
+import org.apache.jackrabbit.oak.spi.security.authentication.LoginContext;
 import org.apache.jackrabbit.oak.spi.security.authentication.LoginContextProvider;
-import org.apache.jackrabbit.oak.spi.security.principal.PrincipalProvider;
+import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.jcr.Credentials;
-import javax.security.auth.Subject;
-import javax.security.auth.login.Configuration;
-import javax.security.auth.login.LoginContext;
-import javax.security.auth.login.LoginException;
-import java.security.AccessController;
-
 /**
- * LoginContextProviderImpl...  TODO
+ * {@code LoginContextProvider}
  */
 public class LoginContextProviderImpl implements LoginContextProvider {
 
     private static final Logger log = LoggerFactory.getLogger(LoginContextProviderImpl.class);
 
-    private static final String APP_NAME = "jackrabbit.oak";
+    private final String appName;
+    private final Configuration configuration;
+    private final NodeStore nodeStore;
+    private final QueryIndexProvider indexProvider;
+    private final SecurityProvider securityProvider;
 
-    private final Configuration authConfig;
-    private final PrincipalProvider principalProvider;
-
-    public LoginContextProviderImpl(ContentRepository repository) {
-        // TODO: use configurable authentication config and principal provider
-        authConfig = new ConfigurationImpl();
-        principalProvider = new TmpPrincipalProvider();
+    public LoginContextProviderImpl(String appName, Configuration configuration,
+                                    NodeStore nodeStore, QueryIndexProvider indexProvider,
+                                    SecurityProvider securityProvider) {
+        this.appName = appName;
+        this.configuration = configuration;
+        this.nodeStore = nodeStore;
+        this.indexProvider = indexProvider;
+        this.securityProvider = securityProvider;
     }
 
     @Override
-    public LoginContext getLoginContext(Credentials credentials, String workspaceName) throws LoginException {
-        // TODO: add proper implementation
-        // TODO  - authentication against configurable spi-authentication
-        // TODO  - validation of workspace name (including access rights for the given 'user')
+    @Nonnull
+    public LoginContext getLoginContext(Credentials credentials, String workspaceName)
+            throws LoginException {
         Subject subject = getSubject();
-        return new LoginContext(APP_NAME, subject, new CallbackHandlerImpl(credentials, principalProvider), authConfig);
+        CallbackHandler handler = getCallbackHandler(credentials, workspaceName);
+        return new JaasLoginContext(appName, subject, handler, configuration);
     }
 
-    //-------------------------------------------------===--------< private >---
-    private Subject getSubject() {
+    //------------------------------------------------------------< private >---
+    private static Subject getSubject() {
         Subject subject = null;
         try {
             subject = Subject.getSubject(AccessController.getContext());
@@ -69,5 +77,9 @@ public class LoginContextProviderImpl implements LoginContextProvider {
             subject = new Subject();
         }
         return subject;
+    }
+
+    private CallbackHandler getCallbackHandler(Credentials credentials, String workspaceName) {
+        return new CallbackHandlerImpl(credentials, workspaceName, nodeStore, indexProvider, securityProvider);
     }
 }

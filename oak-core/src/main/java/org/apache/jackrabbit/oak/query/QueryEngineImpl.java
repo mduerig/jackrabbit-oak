@@ -22,17 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.query.index.FilterImpl;
 import org.apache.jackrabbit.oak.query.index.TraversingIndex;
+import org.apache.jackrabbit.oak.spi.query.Filter;
 import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
-import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The query engine implementation.
@@ -44,15 +43,13 @@ public class QueryEngineImpl {
     static final String XPATH = "xpath";
     static final String JQOM = "JCR-JQOM";
 
-    private final NodeStore store;
-    private final MicroKernel mk;
-    private final CoreValueFactory vf;
+    private static final Logger LOG = LoggerFactory.getLogger(QueryEngineImpl.class);
+
+    private final NodeState root;
     private final QueryIndexProvider indexProvider;
 
-    public QueryEngineImpl(NodeStore store, MicroKernel mk, QueryIndexProvider indexProvider) {
-        this.store = store;
-        this.mk = mk;
-        this.vf = store.getValueFactory();
+    public QueryEngineImpl(NodeState root, QueryIndexProvider indexProvider) {
+        this.root = root;
         this.indexProvider = indexProvider;
     }
 
@@ -75,18 +72,28 @@ public class QueryEngineImpl {
 
     private Query parseQuery(String statement, String language) throws ParseException {
         Query q;
+        if (LOG.isDebugEnabled()) {
+            LOG.debug(language + ": " + statement);
+        }
         if (SQL2.equals(language) || JQOM.equals(language)) {
-            SQL2Parser parser = new SQL2Parser(vf);
+            SQL2Parser parser = new SQL2Parser();
             q = parser.parse(statement);
         } else if (SQL.equals(language)) {
-            SQL2Parser parser = new SQL2Parser(vf);
+            SQL2Parser parser = new SQL2Parser();
             parser.setSupportSQL1(true);
             q = parser.parse(statement);
         } else if (XPATH.equals(language)) {
             XPathToSQL2Converter converter = new XPathToSQL2Converter();
             String sql2 = converter.convert(statement);
-            SQL2Parser parser = new SQL2Parser(vf);
-            q = parser.parse(sql2);
+            SQL2Parser parser = new SQL2Parser();
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("XPath > SQL2: " + sql2);
+            }
+            try {
+                q = parser.parse(sql2);
+            } catch (ParseException e) {
+                throw new ParseException(statement + " converted to SQL-2 " + e.getMessage(), 0);
+            }
         } else {
             throw new ParseException("Unsupported language: " + language, 0);
         }
@@ -94,46 +101,48 @@ public class QueryEngineImpl {
     }
 
     public ResultImpl executeQuery(String statement, String language, 
-            long limit, long offset, Map<String, ? extends CoreValue> bindings,
-            ContentSession session, Root root,
+            long limit, long offset, Map<String, ? extends PropertyValue> bindings,
+            Root root,
             NamePathMapper namePathMapper) throws ParseException {
         Query q = parseQuery(statement, language);
-        q.setSession(session);
         q.setRoot(root);
         q.setNamePathMapper(namePathMapper);
         q.setLimit(limit);
         q.setOffset(offset);
-        q.setMicroKernel(mk);
         if (bindings != null) {
-            for (Entry<String, ? extends CoreValue> e : bindings.entrySet()) {
+            for (Entry<String, ? extends PropertyValue> e : bindings.entrySet()) {
                 q.bindValue(e.getKey(), e.getValue());
             }
         }
         q.setQueryEngine(this);
         q.prepare();
-        // TODO which revision to use? Root does not provide this info
-        // TODO which node state to use? it should come from the Root
-        String revision = mk.getHeadRevision();
-        return q.executeQuery(revision, store.getRoot());
+        return q.executeQuery(this.root);
     }
 
-    public QueryIndex getBestIndex(FilterImpl filter) {
+    public QueryIndex getBestIndex(Query query, Filter filter) {
         QueryIndex best = null;
         double bestCost = Double.MAX_VALUE;
         for (QueryIndex index : getIndexes()) {
-            double cost = index.getCost(filter);
+            double cost = index.getCost(filter, root);
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("cost for " + index.getIndexName() + " is " + cost);
+            }
             if (cost < bestCost) {
+                bestCost = cost;
                 best = index;
             }
         }
         if (best == null) {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("no indexes found - using TraversingIndex; indexProvider: " + indexProvider);
+            }
             best = new TraversingIndex();
         }
         return best;
     }
 
     private List<? extends QueryIndex> getIndexes() {
-        return indexProvider.getQueryIndexes(store);
+        return indexProvider.getQueryIndexes(root);
     }
 
 }

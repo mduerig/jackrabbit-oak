@@ -16,31 +16,40 @@
  */
 package org.apache.jackrabbit.oak.util;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 import java.util.List;
-
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
-import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.ValueFactory;
 
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.jackrabbit.JcrConstants;
-import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.TreeLocation;
+import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.namepath.NameMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.plugins.memory.MemoryValueFactory;
-import org.apache.jackrabbit.util.ISO8601;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
+import org.apache.jackrabbit.oak.plugins.value.Conversions;
+import org.apache.jackrabbit.util.Text;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.jackrabbit.oak.api.Type.BOOLEAN;
+import static org.apache.jackrabbit.oak.api.Type.DATE;
+import static org.apache.jackrabbit.oak.api.Type.LONG;
+import static org.apache.jackrabbit.oak.api.Type.NAME;
+import static org.apache.jackrabbit.oak.api.Type.NAMES;
+import static org.apache.jackrabbit.oak.api.Type.STRING;
+import static org.apache.jackrabbit.oak.api.Type.STRINGS;
 
 /**
  * Utility class for accessing and writing typed content of a tree.
@@ -49,28 +58,17 @@ public class NodeUtil {
 
     private static final Logger log = LoggerFactory.getLogger(NodeUtil.class);
 
-    private final CoreValueFactory factory;
-
     private final NameMapper mapper;
 
     private final Tree tree;
 
-    public NodeUtil(Tree tree, CoreValueFactory factory, NameMapper mapper) {
-        this.factory = factory;
-        this.mapper = mapper;
-        this.tree = tree;
-    }
-
-    public NodeUtil(Tree tree, CoreValueFactory factory) {
-        this(tree, factory, NamePathMapper.DEFAULT);
-    }
-
-    public NodeUtil(Tree tree, ContentSession contentSession) {
-        this(tree, contentSession.getCoreValueFactory());
+    public NodeUtil(Tree tree, NameMapper mapper) {
+        this.mapper = checkNotNull(mapper);
+        this.tree = checkNotNull(tree);
     }
 
     public NodeUtil(Tree tree) {
-        this(tree, MemoryValueFactory.INSTANCE);
+        this(tree, NamePathMapper.DEFAULT);
     }
 
     @Nonnull
@@ -83,8 +81,13 @@ public class NodeUtil {
         return mapper.getJcrName(tree.getName());
     }
 
+    @CheckForNull
     public NodeUtil getParent() {
-        return new NodeUtil(tree.getParent(), factory, mapper);
+        return new NodeUtil(tree.getParent(), mapper);
+    }
+
+    public boolean isRoot() {
+        return tree.isRoot();
     }
 
     public boolean hasChild(String name) {
@@ -94,24 +97,59 @@ public class NodeUtil {
     @CheckForNull
     public NodeUtil getChild(String name) {
         Tree child = tree.getChild(name);
-        return (child == null) ? null : new NodeUtil(child, factory, mapper);
+        return (child == null) ? null : new NodeUtil(child, mapper);
     }
 
     @Nonnull
     public NodeUtil addChild(String name, String primaryNodeTypeName) {
         Tree child = tree.addChild(name);
-        NodeUtil childUtil = new NodeUtil(child, factory, mapper);
+        NodeUtil childUtil = new NodeUtil(child, mapper);
         childUtil.setName(JcrConstants.JCR_PRIMARYTYPE, primaryNodeTypeName);
         return childUtil;
     }
 
+    @Nonnull
     public NodeUtil getOrAddChild(String name, String primaryTypeName) {
         NodeUtil child = getChild(name);
         return (child != null) ? child : addChild(name, primaryTypeName);
     }
 
+    /**
+     * FIXME: workaround for OAK-426
+     */
+    @Nonnull
+    public NodeUtil getOrAddTree(String relativePath, String primaryTypeName) {
+        if (relativePath.indexOf('/') == -1) {
+            return getOrAddChild(relativePath, primaryTypeName);
+        } else {
+            TreeLocation location = LocationUtil.getTreeLocation(tree.getLocation(), relativePath);
+            if (location.getTree() == null) {
+                NodeUtil target = this;
+                for (String segment : Text.explode(relativePath, '/')) {
+                    if (PathUtils.denotesCurrent(segment)) {
+                        continue;
+                    } else if (PathUtils.denotesParent(segment)) {
+                        target = target.getParent();
+                    } else if (target.hasChild(segment)) {
+                        target = target.getChild(segment);
+                    } else {
+                        target = target.addChild(segment, primaryTypeName);
+                    }
+                }
+                return target;
+            } else {
+                return new NodeUtil(location.getTree());
+            }
+        }
+    }
+
     public boolean hasPrimaryNodeTypeName(String ntName) {
-        return ntName.equals(getString(JcrConstants.JCR_PRIMARYTYPE, null));
+        return ntName.equals(getPrimaryNodeTypeName());
+    }
+
+    @CheckForNull
+    public String getPrimaryNodeTypeName() {
+        return getString(JcrConstants.JCR_PRIMARYTYPE, null);
     }
 
     public void removeProperty(String name) {
@@ -121,56 +159,51 @@ public class NodeUtil {
     public boolean getBoolean(String name) {
         PropertyState property = tree.getProperty(name);
         return property != null && !property.isArray()
-                && property.getValue().getBoolean();
+                && property.getValue(BOOLEAN);
     }
 
     public void setBoolean(String name, boolean value) {
-        tree.setProperty(name, factory.createValue(value));
+        tree.setProperty(name, value);
     }
 
+    @CheckForNull
     public String getString(String name, String defaultValue) {
         PropertyState property = tree.getProperty(name);
         if (property != null && !property.isArray()) {
-            return property.getValue().getString();
+            return property.getValue(Type.STRING);
         } else {
             return defaultValue;
         }
     }
 
     public void setString(String name, String value) {
-        tree.setProperty(name, factory.createValue(value));
+        tree.setProperty(name, value);
     }
 
+    @CheckForNull
     public String[] getStrings(String name) {
         PropertyState property = tree.getProperty(name);
         if (property == null) {
             return null;
         }
 
-        List<CoreValue> values = property.getValues();
-        String[] strings = new String[values.size()];
-        for (int i = 0; i < strings.length; i++) {
-            strings[i] = values.get(i).getString();
-        }
-        return strings;
+        return Iterables.toArray(property.getValue(STRINGS), String.class);
     }
 
     public void setStrings(String name, String... values) {
-        List<CoreValue> cvs = new ArrayList<CoreValue>(values.length);
-        for (String value : values) {
-            cvs.add(factory.createValue(value));
-        }
-        tree.setProperty(name, cvs);
+        tree.setProperty(name, Arrays.asList(values), STRINGS);
     }
 
+    @CheckForNull
     public String getName(String name) {
         return getName(name, null);
     }
 
+    @CheckForNull
     public String getName(String name, String defaultValue) {
         PropertyState property = tree.getProperty(name);
         if (property != null && !property.isArray()) {
-            return mapper.getJcrName(property.getValue().getString());
+            return mapper.getJcrName(property.getValue(STRING));
         } else {
             return defaultValue;
         }
@@ -178,9 +211,10 @@ public class NodeUtil {
 
     public void setName(String name, String value) {
         String oakName = getOakName(value);
-        tree.setProperty(name, factory.createValue(oakName, PropertyType.NAME));
+        tree.setProperty(name, oakName, NAME);
     }
 
+    @CheckForNull
     public String[] getNames(String name, String... defaultValues) {
         String[] strings = getStrings(name);
         if (strings == null) {
@@ -193,69 +227,61 @@ public class NodeUtil {
     }
 
     public void setNames(String name, String... values) {
-        List<CoreValue> cvs = new ArrayList<CoreValue>(values.length);
-        for (String value : values) {
-            cvs.add(factory.createValue(getOakName(value), PropertyType.NAME));
-        }
-        tree.setProperty(name, cvs);
+        tree.setProperty(name, Arrays.asList(values), NAMES);
     }
 
     public void setDate(String name, long time) {
         Calendar cal = GregorianCalendar.getInstance();
         cal.setTimeInMillis(time);
-        tree.setProperty(name, factory.createValue(ISO8601.format(cal), PropertyType.DATE));
+        tree.setProperty(name, Conversions.convert(cal).toDate(), DATE);
     }
 
     public long getLong(String name, long defaultValue) {
         PropertyState property = tree.getProperty(name);
         if (property != null && !property.isArray()) {
-            return property.getValue().getLong();
+            return property.getValue(LONG);
         } else {
             return defaultValue;
         }
     }
 
     public void setLong(String name, long value) {
-        tree.setProperty(name, factory.createValue(value));
+        tree.setProperty(name, value);
     }
 
+    @Nonnull
     public List<NodeUtil> getNodes(String namePrefix) {
         List<NodeUtil> nodes = Lists.newArrayList();
         for (Tree child : tree.getChildren()) {
             if (child.getName().startsWith(namePrefix)) {
-                nodes.add(new NodeUtil(child, factory, mapper));
+                nodes.add(new NodeUtil(child, mapper));
             }
         }
         return nodes;
     }
 
     public void setValues(String name, Value[] values) {
-        List<CoreValue> cvs = Lists.newArrayList();
-        for (Value value : values) {
-            try {
-                cvs.add(factory.createValue(value.getString(), value.getType()));
-            } catch (RepositoryException e) {
-                log.warn("Unable to convert a default value", e);
-            }
+        try {
+            tree.setProperty(PropertyStates.createProperty(name, Arrays.asList(values)));
         }
-        tree.setProperty(name, cvs);
+        catch (RepositoryException e) {
+            log.warn("Unable to convert a default value", e);
+        }
     }
 
     public void setValues(String name, String[] values, int type) {
-        List<CoreValue> cvs = Lists.newArrayList();
-        for (String value : values) {
-            cvs.add(factory.createValue(value, type));
-        }
-        tree.setProperty(name, cvs);
+        tree.setProperty(name, Arrays.asList(values), STRINGS);
     }
 
+    @CheckForNull
     public Value[] getValues(String name, ValueFactory vf) {
         PropertyState property = tree.getProperty(name);
         if (property != null) {
+            int type = property.getType().tag();
             List<Value> values = Lists.newArrayList();
-            for (CoreValue value : property.getValues()) {
+            for (String value : property.getValue(STRINGS)) {
                 try {
-                    values.add(vf.createValue(value.getString(), value.getType()));
+                    values.add(vf.createValue(value, type));
                 } catch (RepositoryException e) {
                     log.warn("Unable to convert a default value", e);
                 }
@@ -266,6 +292,7 @@ public class NodeUtil {
         }
     }
 
+    @Nonnull
     private String getOakName(String jcrName) {
         String oakName = mapper.getOakName(jcrName);
         if (oakName == null) {

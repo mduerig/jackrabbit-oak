@@ -16,29 +16,24 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.jcr.InvalidItemStateException;
 import javax.jcr.ItemNotFoundException;
+import javax.jcr.RepositoryException;
+import javax.jcr.Value;
 import javax.jcr.ValueFormatException;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.api.TreeLocation;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 
 /**
  * {@code NodeDelegate} serve as internal representations of {@code Node}s.
@@ -132,15 +127,13 @@ public class NodeDelegate extends ItemDelegate {
      */
     @CheckForNull
     public NodeDelegate getChild(String relPath) throws InvalidItemStateException {
-        TreeLocation childLocation = getChildLocation(relPath);
-        return create(sessionDelegate, childLocation);
+        return create(sessionDelegate, getChildLocation(relPath));
     }
 
     /**
      * Returns an iterator for traversing all the children of this node.
-     * If the node is orderable (there is an {@link PropertyState#OAK_CHILD_ORDER}
-     * property) then the iterator will return child nodes in the specified
-     * order. Otherwise the ordering of the iterator is undefined.
+     * If the node is orderable then the iterator will return child nodes in the
+     * specified order. Otherwise the ordering of the iterator is undefined.
      *
      * @return child nodes of the node
      */
@@ -161,44 +154,7 @@ public class NodeDelegate extends ItemDelegate {
                 return Collections.<NodeDelegate>emptySet().iterator();
             }
         } else {
-            PropertyState order = tree.getProperty(PropertyState.OAK_CHILD_ORDER);
-            if (order == null || !order.isArray()) {
-                // No specified ordering
-                return nodeDelegateIterator(tree.getChildren().iterator());
-            } else {
-                // Collect child nodes in the specified order
-                final Map<String, NodeDelegate> ordered =
-                        new LinkedHashMap<String, NodeDelegate>();
-
-                for (CoreValue value : order.getValues()) {
-                    String name = value.getString();
-                    Tree child = tree.getChild(name);
-                    if (child != null && !name.startsWith(":")) {
-                        ordered.put(name, new NodeDelegate(sessionDelegate, child));
-                    }
-                }
-
-                if (ordered.size() == count) {
-                    // We have all the child nodes
-                    return ordered.values().iterator();
-                } else {
-                    // The specified ordering didn't cover all the children,
-                    // so return a combined iterator that first iterates
-                    // through the ordered subset and then all the remaining
-                    // children in an undefined order
-                    Iterator<Tree> remaining = Iterators.filter(
-                            tree.getChildren().iterator(),
-                            new Predicate<Tree>() {
-                                @Override
-                                public boolean apply(Tree tree) {
-                                    return !ordered.containsKey(tree.getName());
-                                }
-                            });
-                    return Iterators.concat(
-                            ordered.values().iterator(),
-                            nodeDelegateIterator(remaining));
-                }
-            }
+            return nodeDelegateIterator(tree.getChildren().iterator());
         }
     }
 
@@ -210,35 +166,7 @@ public class NodeDelegate extends ItemDelegate {
         } else if (target != null && tree.getChild(target) == null) {
             throw new ItemNotFoundException("Not a child: " + target);
         } else {
-            List<CoreValue> order = new ArrayList<CoreValue>();
-            Set<String> added = new HashSet<String>();
-            CoreValueFactory factory =
-                    sessionDelegate.getContentSession().getCoreValueFactory();
-
-            PropertyState property = tree.getProperty(PropertyState.OAK_CHILD_ORDER);
-            if (property != null) {
-                for (CoreValue value : property.getValues()) {
-                    String name = value.getString();
-                    if (!name.equals(source) && !added.contains(property)
-                            && !name.startsWith(":")) {
-                        if (name.equals(target)) {
-                            order.add(factory.createValue(source));
-                            added.add(source);
-                        }
-                        order.add(factory.createValue(name));
-                        added.add(name);
-                    }
-                }
-            }
-
-            if (!added.contains(source)) {
-                order.add(factory.createValue(source));
-            }
-            if (target != null && !added.contains(target)) {
-                order.add(factory.createValue(source));
-            }
-
-            tree.setProperty(PropertyState.OAK_CHILD_ORDER, order);
+            tree.getChild(source).orderBefore(target);
         }
     }
 
@@ -249,14 +177,13 @@ public class NodeDelegate extends ItemDelegate {
      * @return  the set property
      */
     @Nonnull
-    public PropertyDelegate setProperty(String name, CoreValue value)
-            throws InvalidItemStateException, ValueFormatException {
+    public PropertyDelegate setProperty(String name, Value value) throws RepositoryException {
         Tree tree = getTree();
         PropertyState old = tree.getProperty(name);
         if (old != null && old.isArray()) {
             throw new ValueFormatException("Attempt to set a single value to multi-valued property.");
         }
-        tree.setProperty(name, value);
+        tree.setProperty(PropertyStates.createProperty(name, value));
         return new PropertyDelegate(sessionDelegate, tree.getLocation().getChild(name));
     }
 
@@ -267,18 +194,17 @@ public class NodeDelegate extends ItemDelegate {
     /**
      * Set a multi valued property
      * @param name  oak name
-     * @param value
+     * @param values
      * @return  the set property
      */
     @Nonnull
-    public PropertyDelegate setProperty(String name, List<CoreValue> value)
-            throws InvalidItemStateException, ValueFormatException {
+    public PropertyDelegate setProperty(String name, Iterable<Value> values) throws RepositoryException {
         Tree tree = getTree();
         PropertyState old = tree.getProperty(name);
         if (old != null && ! old.isArray()) {
             throw new ValueFormatException("Attempt to set multiple values to single valued property.");
         }
-        tree.setProperty(name, value);
+        tree.setProperty(PropertyStates.createProperty(name, values));
         return new PropertyDelegate(sessionDelegate, tree.getLocation().getChild(name));
     }
 
@@ -308,7 +234,7 @@ public class NodeDelegate extends ItemDelegate {
     Tree getTree() throws InvalidItemStateException {
         Tree tree = getLocation().getTree();
         if (tree == null) {
-            throw new InvalidItemStateException("Node is stale");
+            throw new InvalidItemStateException();
         }
         return tree;
     }

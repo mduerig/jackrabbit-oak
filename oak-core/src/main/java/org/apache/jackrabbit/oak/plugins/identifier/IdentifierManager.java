@@ -16,10 +16,8 @@
  */
 package org.apache.jackrabbit.oak.plugins.identifier;
 
-import java.io.UnsupportedEncodingException;
 import java.text.ParseException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -29,23 +27,28 @@ import javax.annotation.Nonnull;
 import javax.jcr.PropertyType;
 import javax.jcr.query.Query;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.apache.jackrabbit.JcrConstants;
-import org.apache.jackrabbit.oak.api.CoreValue;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Result;
 import org.apache.jackrabbit.oak.api.ResultRow;
 import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.api.SessionQueryEngine;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.plugins.memory.StringValue;
+import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static org.apache.jackrabbit.oak.api.Type.STRING;
+import static org.apache.jackrabbit.oak.api.Type.STRINGS;
 
 /**
  * IdentifierManager...
@@ -55,11 +58,9 @@ public class IdentifierManager {
     private static final Logger log = LoggerFactory.getLogger(IdentifierManager.class);
 
     private final Root root;
-    private final SessionQueryEngine queryEngine;
 
-    public IdentifierManager(SessionQueryEngine queryEngine, Root root) {
+    public IdentifierManager(Root root) {
         this.root = root;
-        this.queryEngine = queryEngine;
     }
 
     @Nonnull
@@ -69,12 +70,8 @@ public class IdentifierManager {
 
     @Nonnull
     public static String generateUUID(String hint) {
-        try {
-            UUID uuid = UUID.nameUUIDFromBytes(hint.getBytes("UTF-8"));
-            return uuid.toString();
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException("Unexpected error while creating uuid", e);
-        }
+        UUID uuid = UUID.nameUUIDFromBytes(hint.getBytes(Charsets.UTF_8));
+        return uuid.toString();
     }
 
     public static boolean isValidUUID(String uuid) {
@@ -103,7 +100,7 @@ public class IdentifierManager {
             // TODO and a relative path irrespective of the accessibility of the parent node(s)
             return tree.getPath();
         } else {
-            return property.getValue().getString();
+            return property.getValue(STRING);
         }
     }
 
@@ -149,15 +146,15 @@ public class IdentifierManager {
 
     /**
      * Returns the path of the tree references by the specified (weak)
-     * reference {@code CoreValue value}.
+     * reference {@code PropertyState}.
      *
      * @param referenceValue A (weak) reference value.
      * @return The tree with the given {@code identifier} or {@code null} if no
      * such tree exists or isn't accessible to the content session.
      */
     @CheckForNull
-    public String getPath(CoreValue referenceValue) {
-        int type = referenceValue.getType();
+    public String getPath(PropertyState referenceValue) {
+        int type = referenceValue.getType().tag();
         if (type == PropertyType.REFERENCE || type == PropertyType.WEAKREFERENCE) {
             return resolveUUID(referenceValue);
         } else {
@@ -188,22 +185,22 @@ public class IdentifierManager {
                 final String uuid = getIdentifier(tree);
                 String reference = weak ? PropertyType.TYPENAME_WEAKREFERENCE : PropertyType.TYPENAME_REFERENCE;
                 String pName = propertyName == null ? "*" : propertyName;   // TODO: sanitize against injection attacks!?
-                Map<String, ? extends CoreValue> bindings = Collections.singletonMap("uuid", new StringValue(uuid));
+                Map<String, ? extends PropertyValue> bindings = Collections.singletonMap("uuid", PropertyValues.newString(uuid));
 
-                Result result = queryEngine.executeQuery(
+                Result result = root.getQueryEngine().executeQuery(
                         "SELECT * FROM [nt:base] WHERE PROPERTY([" + pName + "], '" + reference + "') = $uuid",
-                        Query.JCR_SQL2, Long.MAX_VALUE, 0, bindings, root, new NamePathMapper.Default());
+                        Query.JCR_SQL2, Long.MAX_VALUE, 0, bindings, new NamePathMapper.Default());
 
                 Iterable<String> paths = Iterables.transform(result.getRows(),
                         new Function<ResultRow, String>() {
                             @Override
                             public String apply(ResultRow row) {
                                 String pName = propertyName == null
-                                    ? findProperty(row.getPath(), uuid)
-                                    : propertyName;
+                                        ? findProperty(row.getPath(), uuid)
+                                        : propertyName;
                                 return PathUtils.concat(row.getPath(), pName);
                             }
-                });
+                        });
 
                 if (nodeTypeNames.length > 0) {
                     paths = Iterables.filter(paths, new Predicate<String>() {
@@ -223,8 +220,7 @@ public class IdentifierManager {
                 }
 
                 return Sets.newHashSet(paths);
-            }
-            catch (ParseException e) {
+            } catch (ParseException e) {
                 log.error("query failed", e);
                 return Collections.emptySet();
             }
@@ -239,15 +235,15 @@ public class IdentifierManager {
             @Override
             public boolean apply(PropertyState pState) {
                 if (pState.isArray()) {
-                    for (CoreValue value : pState.getValues()) {
-                        if (uuid.equals(value.getString())) {
+                    for (String value : pState.getValue(Type.STRINGS)) {
+                        if (uuid.equals(value)) {
                             return true;
                         }
                     }
                     return false;
                 }
                 else {
-                    return uuid.equals(pState.getValue().getString());
+                    return uuid.equals(pState.getValue(STRING));
                 }
             }
         });
@@ -259,7 +255,7 @@ public class IdentifierManager {
         // TODO use NodeType.isNodeType to determine type membership instead of equality on type names
         PropertyState pType = tree.getProperty(JcrConstants.JCR_PRIMARYTYPE);
         if (pType != null) {
-            String primaryType = pType.getValue().getString();
+            String primaryType = pType.getValue(STRING);
             if (ntName.equals(primaryType)) {
                 return true;
             }
@@ -267,9 +263,8 @@ public class IdentifierManager {
 
         PropertyState pMixin = tree.getProperty(JcrConstants.JCR_MIXINTYPES);
         if (pMixin != null) {
-            List<CoreValue> mixinTypes = pMixin.getValues();
-            for (CoreValue mixinType : mixinTypes) {
-                if (ntName.equals(mixinType.getString())) {
+            for (String mixinType : pMixin.getValue(STRINGS)) {
+                if (ntName.equals(mixinType)) {
                     return true;
                 }
             }
@@ -285,15 +280,15 @@ public class IdentifierManager {
 
     @CheckForNull
     private String resolveUUID(String uuid) {
-        return resolveUUID(new StringValue(uuid));
+        return resolveUUID(StringPropertyState.stringProperty("", uuid));
     }
 
-    private String resolveUUID(CoreValue uuid) {
+    private String resolveUUID(PropertyState uuid) {
         try {
-            Map<String, CoreValue> bindings = Collections.singletonMap("id", uuid);
-            Result result = queryEngine.executeQuery(
+            Map<String, PropertyValue> bindings = Collections.singletonMap("id", PropertyValues.create(uuid));
+            Result result = root.getQueryEngine().executeQuery(
                     "SELECT * FROM [nt:base] WHERE [jcr:uuid] = $id", Query.JCR_SQL2,
-                    Long.MAX_VALUE, 0, bindings, root, new NamePathMapper.Default());
+                    Long.MAX_VALUE, 0, bindings, new NamePathMapper.Default());
 
             String path = null;
             for (ResultRow rr : result.getRows()) {

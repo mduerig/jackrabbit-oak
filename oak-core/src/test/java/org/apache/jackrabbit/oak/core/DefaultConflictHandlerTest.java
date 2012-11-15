@@ -18,84 +18,101 @@
  */
 package org.apache.jackrabbit.oak.core;
 
-import org.apache.jackrabbit.mk.api.MicroKernel;
-import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.api.Tree;
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.junit.Test;
-
+import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-public class DefaultConflictHandlerTest extends AbstractCoreTest {
-    private Root ourRoot;
+import org.apache.jackrabbit.oak.Oak;
+import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.api.ContentSession;
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Root;
+import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.plugins.commit.DefaultConflictHandler;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+public class DefaultConflictHandlerTest {
+
+    private static final String OUR_VALUE = "foo";
+    private static final String THEIR_VALUE = "bar";
+
+    private RootImpl ourRoot;
     private Root theirRoot;
-    private CoreValue ourValue;
-    private CoreValue theirValue;
 
-    @Override
-    protected NodeState createInitialState(MicroKernel microKernel) {
-        String jsop = "^\"a\":1 ^\"b\":2 ^\"c\":3 +\"x\":{} +\"y\":{} +\"z\":{}";
-        microKernel.commit("/", jsop, microKernel.getHeadRevision(), "test data");
+    @Before
+    public void setUp() throws CommitFailedException {
+        ContentSession session = new Oak().createContentSession();
 
-        ourRoot = createRootImpl("");
-        theirRoot = createRootImpl("");
+        // Add test content
+        Root root = session.getLatestRoot();
+        Tree tree = root.getTree("/");
+        tree.setProperty("a", 1);
+        tree.setProperty("b", 2);
+        tree.setProperty("c", 3);
+        tree.addChild("x");
+        tree.addChild("y");
+        tree.addChild("z");
+        root.commit();
 
-        ourValue = valueFactory.createValue("foo");
-        theirValue = valueFactory.createValue("bar");
-        return store.getRoot();
+        ourRoot = (RootImpl) session.getLatestRoot();
+        theirRoot = session.getLatestRoot();
+    }
+
+    @After
+    public void tearDown() {
+        ourRoot = null;
+        theirRoot = null;
     }
 
     @Test
     public void testAddExistingPropertyOurs() throws CommitFailedException {
-        theirRoot.getTree("/").setProperty("p", theirValue);
-        ourRoot.getTree("/").setProperty("p", ourValue);
+        theirRoot.getTree("/").setProperty("p", THEIR_VALUE);
+        ourRoot.getTree("/").setProperty("p", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("p");
         assertNotNull(p);
-        assertEquals(ourValue, p.getValue());
+        assertEquals(OUR_VALUE, p.getValue(STRING));
     }
 
     @Test
     public void testChangeDeletedPropertyOurs() throws CommitFailedException {
         theirRoot.getTree("/").removeProperty("a");
-        ourRoot.getTree("/").setProperty("a", ourValue);
+        ourRoot.getTree("/").setProperty("a", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("a");
         assertNotNull(p);
-        assertEquals(ourValue, p.getValue());
+        assertEquals(OUR_VALUE, p.getValue(STRING));
     }
 
     @Test
     public void testChangeChangedPropertyOurs() throws CommitFailedException {
-        theirRoot.getTree("/").setProperty("a", theirValue);
-        ourRoot.getTree("/").setProperty("a", ourValue);
+        theirRoot.getTree("/").setProperty("a", THEIR_VALUE);
+        ourRoot.getTree("/").setProperty("a", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("a");
         assertNotNull(p);
-        assertEquals(ourValue, p.getValue());
+        assertEquals(OUR_VALUE, p.getValue(STRING));
     }
 
     @Test
     public void testDeleteChangedPropertyOurs() throws CommitFailedException {
-        theirRoot.getTree("/").setProperty("a", theirValue);
+        theirRoot.getTree("/").setProperty("a", THEIR_VALUE);
         ourRoot.getTree("/").removeProperty("a");
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("a");
         assertNull(p);
@@ -103,37 +120,37 @@ public class DefaultConflictHandlerTest extends AbstractCoreTest {
 
     @Test
     public void testAddExistingNodeOurs() throws CommitFailedException {
-        theirRoot.getTree("/").addChild("n").setProperty("p", theirValue);
-        ourRoot.getTree("/").addChild("n").setProperty("p", ourValue);
+        theirRoot.getTree("/").addChild("n").setProperty("p", THEIR_VALUE);
+        ourRoot.getTree("/").addChild("n").setProperty("p", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         Tree n = ourRoot.getTree("/n");
         assertNotNull(n);
-        assertEquals(ourValue, n.getProperty("p").getValue());
+        assertEquals(OUR_VALUE, n.getProperty("p").getValue(STRING));
     }
 
     @Test
     public void testChangeDeletedNodeOurs() throws CommitFailedException {
         theirRoot.getTree("/x").remove();
-        ourRoot.getTree("/x").setProperty("p", ourValue);
+        ourRoot.getTree("/x").setProperty("p", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         Tree n = ourRoot.getTree("/x");
         assertNotNull(n);
-        assertEquals(ourValue, n.getProperty("p").getValue());
+        assertEquals(OUR_VALUE, n.getProperty("p").getValue(STRING));
     }
 
     @Test
     public void testDeleteChangedNodeOurs() throws CommitFailedException {
-        theirRoot.getTree("/x").setProperty("p", theirValue);
+        theirRoot.getTree("/x").setProperty("p", THEIR_VALUE);
         ourRoot.getTree("/x").remove();
 
-        theirRoot.commit(DefaultConflictHandler.OURS);
-        ourRoot.commit(DefaultConflictHandler.OURS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         Tree n = ourRoot.getTree("/x");
         assertNull(n);
@@ -141,24 +158,26 @@ public class DefaultConflictHandlerTest extends AbstractCoreTest {
 
     @Test
     public void testAddExistingPropertyTheirs() throws CommitFailedException {
-        theirRoot.getTree("/").setProperty("p", theirValue);
-        ourRoot.getTree("/").setProperty("p", ourValue);
+        theirRoot.getTree("/").setProperty("p", THEIR_VALUE);
+        ourRoot.getTree("/").setProperty("p", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.setConflictHandler(DefaultConflictHandler.THEIRS);
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("p");
         assertNotNull(p);
-        assertEquals(theirValue, p.getValue());
+        assertEquals(THEIR_VALUE, p.getValue(STRING));
     }
 
     @Test
     public void testChangeDeletedPropertyTheirs() throws CommitFailedException {
         theirRoot.getTree("/").removeProperty("a");
-        ourRoot.getTree("/").setProperty("a", ourValue);
+        ourRoot.getTree("/").setProperty("a", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.setConflictHandler(DefaultConflictHandler.THEIRS);
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("a");
         assertNull(p);
@@ -166,50 +185,54 @@ public class DefaultConflictHandlerTest extends AbstractCoreTest {
 
     @Test
     public void testChangeChangedPropertyTheirs() throws CommitFailedException {
-        theirRoot.getTree("/").setProperty("a", theirValue);
-        ourRoot.getTree("/").setProperty("a", ourValue);
+        theirRoot.getTree("/").setProperty("a", THEIR_VALUE);
+        ourRoot.getTree("/").setProperty("a", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.setConflictHandler(DefaultConflictHandler.THEIRS);
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("a");
         assertNotNull(p);
-        assertEquals(theirValue, p.getValue());
+        assertEquals(THEIR_VALUE, p.getValue(STRING));
     }
 
     @Test
     public void testDeleteChangedPropertyTheirs() throws CommitFailedException {
-        theirRoot.getTree("/").setProperty("a", theirValue);
+        theirRoot.getTree("/").setProperty("a", THEIR_VALUE);
         ourRoot.getTree("/").removeProperty("a");
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.setConflictHandler(DefaultConflictHandler.THEIRS);
+        ourRoot.commit();
 
         PropertyState p = ourRoot.getTree("/").getProperty("a");
         assertNotNull(p);
-        assertEquals(theirValue, p.getValue());
+        assertEquals(THEIR_VALUE, p.getValue(STRING));
     }
 
     @Test
     public void testAddExistingNodeTheirs() throws CommitFailedException {
-        theirRoot.getTree("/").addChild("n").setProperty("p", theirValue);
-        ourRoot.getTree("/").addChild("n").setProperty("p", ourValue);
+        theirRoot.getTree("/").addChild("n").setProperty("p", THEIR_VALUE);
+        ourRoot.getTree("/").addChild("n").setProperty("p", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.setConflictHandler(DefaultConflictHandler.THEIRS);
+        ourRoot.commit();
 
         Tree n = ourRoot.getTree("/n");
         assertNotNull(n);
-        assertEquals(theirValue, n.getProperty("p").getValue());
+        assertEquals(THEIR_VALUE, n.getProperty("p").getValue(STRING));
     }
 
     @Test
     public void testChangeDeletedNodeTheirs() throws CommitFailedException {
         theirRoot.getTree("/x").remove();
-        ourRoot.getTree("/x").setProperty("p", ourValue);
+        ourRoot.getTree("/x").setProperty("p", OUR_VALUE);
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.setConflictHandler(DefaultConflictHandler.THEIRS);
+        ourRoot.commit();
 
         Tree n = ourRoot.getTree("/x");
         assertNull(n);
@@ -217,15 +240,15 @@ public class DefaultConflictHandlerTest extends AbstractCoreTest {
 
     @Test
     public void testDeleteChangedNodeTheirs() throws CommitFailedException {
-        theirRoot.getTree("/x").setProperty("p", theirValue);
+        theirRoot.getTree("/x").setProperty("p", THEIR_VALUE);
         ourRoot.getTree("/").remove();
 
-        theirRoot.commit(DefaultConflictHandler.THEIRS);
-        ourRoot.commit(DefaultConflictHandler.THEIRS);
+        theirRoot.commit();
+        ourRoot.commit();
 
         Tree n = ourRoot.getTree("/x");
         assertNotNull(n);
-        assertEquals(theirValue, n.getProperty("p").getValue());
+        assertEquals(THEIR_VALUE, n.getProperty("p").getValue(STRING));
     }
 
 }

@@ -13,7 +13,6 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.oak.query.Query;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
@@ -32,7 +31,6 @@ public class JoinImpl extends SourceImpl {
     private boolean foundJoinedRow;
     private boolean end;
     private NodeState root;
-    private String revisionId;
 
     public JoinImpl(SourceImpl left, SourceImpl right, JoinType joinType,
             JoinConditionImpl joinCondition) {
@@ -44,10 +42,6 @@ public class JoinImpl extends SourceImpl {
 
     public JoinConditionImpl getJoinCondition() {
         return joinCondition;
-    }
-
-    public String getJoinType() {
-        return joinType.toString();
     }
 
     public SourceImpl getLeft() {
@@ -64,9 +58,9 @@ public class JoinImpl extends SourceImpl {
     }
 
     @Override
-    public String getPlan() {
-        return left.getPlan() + ' ' + joinType +
-                " " + right.getPlan() + " on " + joinCondition;
+    public String getPlan(NodeState root) {
+        return left.getPlan(root) + ' ' + joinType +
+                " " + right.getPlan(root) + " on " + joinCondition;
     }
 
     @Override
@@ -107,9 +101,9 @@ public class JoinImpl extends SourceImpl {
     }
 
     @Override
-    public void prepare(MicroKernel mk) {
-        left.prepare(mk);
-        right.prepare(mk);
+    public void prepare() {
+        left.prepare();
+        right.prepare();
     }
 
     @Override
@@ -122,9 +116,8 @@ public class JoinImpl extends SourceImpl {
     }
 
     @Override
-    public void execute(String revisionId, NodeState root) {
+    public void execute(NodeState root) {
         this.root = root;
-        this.revisionId = revisionId;
         leftNeedExecute = true;
         end = false;
     }
@@ -135,7 +128,7 @@ public class JoinImpl extends SourceImpl {
             return false;
         }
         if (leftNeedExecute) {
-            left.execute(revisionId, root);
+            left.execute(root);
             leftNeedExecute = false;
             leftNeedNext = true;
         }
@@ -149,7 +142,7 @@ public class JoinImpl extends SourceImpl {
                 rightNeedExecute = true;
             }
             if (rightNeedExecute) {
-                right.execute(revisionId, root);
+                right.execute(root);
                 foundJoinedRow = false;
                 rightNeedExecute = false;
             }
@@ -167,12 +160,6 @@ public class JoinImpl extends SourceImpl {
                 return true;
             }
         }
-    }
-
-    @Override
-    public String currentPath() {
-        // TODO join: what is the path of a join? it this method ever called?
-        return left.currentPath();
     }
 
 }

@@ -16,19 +16,19 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
-import java.io.IOException;
 import java.security.Principal;
 import java.util.Properties;
 import java.util.concurrent.Executors;
-
 import javax.jcr.Credentials;
 import javax.jcr.GuestCredentials;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.UnsupportedRepositoryOperationException;
+import javax.security.auth.login.Configuration;
 
 import org.apache.jackrabbit.mk.core.MicroKernelImpl;
+import org.apache.jackrabbit.oak.security.OakConfiguration;
 import org.apache.jackrabbit.test.NotExecutableException;
 import org.apache.jackrabbit.test.RepositoryStub;
 
@@ -41,15 +41,17 @@ public class OakRepositoryStub extends RepositoryStub {
      * 
      * @param settings repository settings
      * @throws javax.jcr.RepositoryException If an error occurs.
-     * @throws java.io.IOException
      */
-    public OakRepositoryStub(Properties settings) throws RepositoryException, IOException {
+    public OakRepositoryStub(Properties settings) throws RepositoryException {
         super(settings);
 
+        // TODO: OAK-17. workaround for missing test configuration
+        Configuration.setConfiguration(new OakConfiguration());
+
         String dir = "target/mk-tck-" + System.currentTimeMillis();
-        repository = new RepositoryImpl(
-                new MicroKernelImpl(dir),
-                Executors.newScheduledThreadPool(1));
+        repository = new Jcr(new MicroKernelImpl(dir))
+            .with(Executors.newScheduledThreadPool(1))
+            .createRepository();
 
         Session session = repository.login(superuser);
         try {
@@ -61,7 +63,6 @@ public class OakRepositoryStub extends RepositoryStub {
             session.logout();
         }
     }
-
 
     /**
      * Returns the configured repository instance.

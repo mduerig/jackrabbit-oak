@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.jackrabbit</groupId>
     <artifactId>oak-parent</artifactId>
-    <version>0.5-SNAPSHOT</version>
+    <version>0.6-SNAPSHOT</version>
     <relativePath>../oak-parent/pom.xml</relativePath>
   </parent>
 
@@ -39,27 +39,34 @@
         <configuration>
           <instructions>
             <Export-Package>
-              org.apache.jackrabbit.oak.api,
-              org.apache.jackrabbit.oak.core,
-              org.apache.jackrabbit.oak.util,
-              org.apache.jackrabbit.oak.namepath,
-              org.apache.jackrabbit.oak.plugins.identifier,
-              org.apache.jackrabbit.oak.plugins.name,
-              org.apache.jackrabbit.oak.plugins.type,
-              org.apache.jackrabbit.oak.plugins.unique,
-              org.apache.jackrabbit.oak.plugins.value,
-              org.apache.jackrabbit.oak.spi.query,
-              org.apache.jackrabbit.oak.spi.commit,
-              org.apache.jackrabbit.oak.spi.state,
-              org.apache.jackrabbit.oak.spi.security.authentication,
-              org.apache.jackrabbit.oak.spi.security.principal,
-              org.apache.jackrabbit.oak.spi.security.privilege,
-              org.apache.jackrabbit.oak.spi.security.user,
-              org.apache.jackrabbit.oak.spi.security.user.action,
-              org.apache.jackrabbit.oak.security.authorization,
-              org.apache.jackrabbit.oak.security.principal,
-              org.apache.jackrabbit.oak.security.privilege,
-              org.apache.jackrabbit.oak.security.user
+                org.apache.jackrabbit.oak,
+                org.apache.jackrabbit.oak.api,
+                org.apache.jackrabbit.oak.core,
+                org.apache.jackrabbit.oak.kernel,
+                org.apache.jackrabbit.oak.util,
+                org.apache.jackrabbit.oak.namepath,
+                org.apache.jackrabbit.oak.plugins.value,
+                org.apache.jackrabbit.oak.plugins.commit,
+                org.apache.jackrabbit.oak.plugins.identifier,
+                org.apache.jackrabbit.oak.plugins.index,
+                org.apache.jackrabbit.oak.plugins.index.nodetype,
+                org.apache.jackrabbit.oak.plugins.index.property,
+                org.apache.jackrabbit.oak.plugins.memory,
+                org.apache.jackrabbit.oak.plugins.name,
+                org.apache.jackrabbit.oak.plugins.nodetype,
+                org.apache.jackrabbit.oak.plugins.observation,
+                org.apache.jackrabbit.oak.spi.query,
+                org.apache.jackrabbit.oak.spi.commit,
+                org.apache.jackrabbit.oak.spi.lifecycle,
+                org.apache.jackrabbit.oak.spi.state,
+                org.apache.jackrabbit.oak.spi.security,
+                org.apache.jackrabbit.oak.spi.security.authentication,
+                org.apache.jackrabbit.oak.spi.security.principal,
+                org.apache.jackrabbit.oak.spi.security.privilege,
+                org.apache.jackrabbit.oak.spi.security.user,
+                org.apache.jackrabbit.oak.spi.security.user.action,
+                org.apache.jackrabbit.oak.spi.security.user.util,
+                org.apache.jackrabbit.oak.security
             </Export-Package>
             <Bundle-Activator>
               org.apache.jackrabbit.oak.osgi.Activator
@@ -70,6 +77,17 @@
       <plugin>
         <groupId>org.apache.felix</groupId>
         <artifactId>maven-scr-plugin</artifactId>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
     <pluginManagement>
@@ -93,13 +111,11 @@
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.core</artifactId>
       <scope>provided</scope>
-      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.compendium</artifactId>
       <scope>provided</scope>
-      <optional>true</optional>
     </dependency>
     <dependency>
       <groupId>biz.aQute</groupId>
@@ -165,26 +181,6 @@
       <groupId>org.apache.jackrabbit</groupId>
       <artifactId>jackrabbit-jcr-commons</artifactId>
       <version>${jackrabbit.version}</version>
-    </dependency>
-
-    <!-- Optional Lucene dependency -->
-    <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-core</artifactId>
-      <version>4.0.0-BETA</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.lucene</groupId>
-      <artifactId>lucene-analyzers-common</artifactId>
-      <version>4.0.0-BETA</version>
-      <optional>true</optional>
-    </dependency>
-    <dependency>
-      <groupId>org.apache.tika</groupId>
-      <artifactId>tika-core</artifactId>
-      <version>1.2</version>
-      <optional>true</optional>
     </dependency>
 
     <!-- Logging -->

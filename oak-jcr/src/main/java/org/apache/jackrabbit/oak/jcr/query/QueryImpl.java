@@ -34,7 +34,7 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.jcr.NodeDelegate;
 import org.apache.jackrabbit.oak.jcr.NodeImpl;
 import org.apache.jackrabbit.oak.jcr.SessionDelegate;
-import org.apache.jackrabbit.oak.jcr.value.ValueFactoryImpl;
+import org.apache.jackrabbit.oak.plugins.value.ValueFactoryImpl;
 
 /**
  * The implementation of the corresponding JCR interface.
@@ -138,8 +138,8 @@ public class QueryImpl implements Query {
         if (node == null) {
             throw new ItemExistsException("Node already exists: " + absPath);
         }
-        node.setProperty("statement", vf.getCoreValue(vf.createValue(statement)));
-        node.setProperty("language", vf.getCoreValue(vf.createValue(language)));
+        node.setProperty("statement", vf.createValue(statement));
+        node.setProperty("language", vf.createValue(language));
         NodeImpl n = new NodeImpl(node);
         n.setPrimaryType(NodeType.NT_QUERY);
         storedQueryPath = oakPath;

@@ -18,18 +18,21 @@
  */
 package org.apache.jackrabbit.oak.query.index;
 
-import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.query.ast.Operator;
-import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
-import org.apache.jackrabbit.oak.spi.query.Filter;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map.Entry;
+
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
 import javax.jcr.PropertyType;
+
+import org.apache.jackrabbit.oak.api.PropertyValue;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.query.ast.Operator;
+import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
+import org.apache.jackrabbit.oak.spi.query.Filter;
 
 /**
  * A filter or lookup condition.
@@ -40,6 +43,8 @@ public class FilterImpl implements Filter {
      * The selector this filter applies to.
      */
     private final SelectorImpl selector;
+    
+    private final String queryStatement;
 
     /**
      * Whether the filter is always false.
@@ -73,8 +78,9 @@ public class FilterImpl implements Filter {
 
     // TODO support "order by"
 
-    public FilterImpl(SelectorImpl selector) {
+    public FilterImpl(SelectorImpl selector, String queryStatement) {
         this.selector = selector;
+        this.queryStatement = queryStatement;
     }
 
     /**
@@ -96,6 +102,8 @@ public class FilterImpl implements Filter {
         this.path = path;
     }
 
+    @Override
+    @CheckForNull
     public String getNodeType() {
         return nodeType;
     }
@@ -181,44 +189,48 @@ public class FilterImpl implements Filter {
         x.propertyType = propertyType;
     }
 
-    public void restrictProperty(String propertyName, Operator op, CoreValue value) {
+    public void restrictProperty(String propertyName, Operator op, PropertyValue v) {
         PropertyRestriction x = propertyRestrictions.get(propertyName);
         if (x == null) {
             x = new PropertyRestriction();
             x.propertyName = propertyName;
             propertyRestrictions.put(propertyName, x);
         }
-        CoreValue oldFirst = x.first, oldLast = x.last;
+        PropertyValue oldFirst = x.first;
+        PropertyValue oldLast = x.last;
         switch (op) {
         case EQUAL:
-            x.first = maxValue(oldFirst, value);
+            x.first = maxValue(oldFirst, v);
             x.firstIncluding = x.first == oldFirst ? x.firstIncluding : true;
-            x.last = minValue(oldLast, value);
+            x.last = minValue(oldLast, v);
             x.lastIncluding = x.last == oldLast ? x.lastIncluding : true;
             break;
         case NOT_EQUAL:
-            if (value != null) {
+            if (v != null) {
                 throw new IllegalArgumentException("NOT_EQUAL only supported for NOT_EQUAL NULL");
             }
             break;
         case GREATER_THAN:
-            x.first = maxValue(oldFirst, value);
+            x.first = maxValue(oldFirst, v);
             x.firstIncluding = false;
             break;
         case GREATER_OR_EQUAL:
-            x.first = maxValue(oldFirst, value);
+            x.first = maxValue(oldFirst, v);
             x.firstIncluding = x.first == oldFirst ? x.firstIncluding : true;
             break;
         case LESS_THAN:
-            x.last = minValue(oldLast, value);
+            x.last = minValue(oldLast, v);
             x.lastIncluding = false;
             break;
         case LESS_OR_EQUAL:
-            x.last = minValue(oldLast, value);
+            x.last = minValue(oldLast, v);
             x.lastIncluding = x.last == oldLast ? x.lastIncluding : true;
             break;
         case LIKE:
-            throw new IllegalArgumentException("LIKE is not supported");
+            // LIKE is handled in the fulltext index
+            x.isLike = true;
+            x.first = v;
+            break;
         }
         if (x.first != null && x.last != null) {
             if (x.first.compareTo(x.last) > 0) {
@@ -229,23 +241,26 @@ public class FilterImpl implements Filter {
         }
     }
 
-    static CoreValue maxValue(CoreValue a, CoreValue b) {
+    static PropertyValue maxValue(PropertyValue a, PropertyValue b) {
         if (a == null) {
             return b;
         }
         return a.compareTo(b) < 0 ? b : a;
     }
 
-    static CoreValue minValue(CoreValue a, CoreValue b) {
+    static PropertyValue minValue(PropertyValue a, PropertyValue b) {
         if (a == null) {
             return b;
         }
-        return a.compareTo(b) < 0 ? a : b;
+        return a.compareTo(b) <= 0 ? a : b;
     }
 
     @Override
     public String toString() {
         StringBuilder buff = new StringBuilder();
+        if (queryStatement != null) {
+            buff.append("query ").append(queryStatement).append('\n');
+        }
         if (alwaysFalse) {
             return "(always false)";
         }
@@ -367,6 +382,12 @@ public class FilterImpl implements Filter {
 
     public void restrictFulltextCondition(String condition) {
         fulltextConditions.add(condition);
+    }
+
+    @Override
+    @Nullable
+    public String getQueryStatement() {
+        return queryStatement;
     }
 
 }

@@ -18,10 +18,11 @@
  */
 package org.apache.jackrabbit.oak.query.ast;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.plugins.memory.SinglePropertyState;
+import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
+import org.apache.jackrabbit.oak.spi.query.PropertyValues;
+
+import static org.apache.jackrabbit.oak.api.Type.STRING;
 
 /**
  * The function "lower(..)".
@@ -49,22 +50,21 @@ public class LowerCaseImpl extends DynamicOperandImpl {
     }
 
     @Override
-    public PropertyState currentProperty() {
-        PropertyState p = operand.currentProperty();
+    public PropertyValue currentProperty() {
+        PropertyValue p = operand.currentProperty();
         if (p == null) {
             return null;
         }
         // TODO what is the expected result of LOWER(x) for an array property?
         // currently throws an exception
-        String value = p.getValue().getString();
-        CoreValue v = query.getValueFactory().createValue(value.toLowerCase());
-        return new SinglePropertyState(p.getName(), v);
+        String value = p.getValue(STRING);
+        return PropertyValues.newString(value.toLowerCase());
     }
 
     @Override
-    public void apply(FilterImpl f, Operator operator, CoreValue v) {
-        // ignore
-        // TODO UPPER(x) conditions: can use IS NOT NULL?
+    public void restrict(FilterImpl f, Operator operator, PropertyValue v) {
+        // LOWER(x) implies x is not null
+        operand.restrict(f, Operator.NOT_EQUAL, null);
     }
 
     @Override

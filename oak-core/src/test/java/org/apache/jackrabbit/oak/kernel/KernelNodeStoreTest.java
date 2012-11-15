@@ -21,17 +21,15 @@ package org.apache.jackrabbit.oak.kernel;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.core.MicroKernelImpl;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeState;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.spi.state.NodeStoreBranch;
 import org.junit.Before;
 import org.junit.Test;
 
+import static org.apache.jackrabbit.oak.api.Type.LONG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -71,20 +69,19 @@ public class KernelNodeStoreTest {
     public void branch() throws CommitFailedException {
         NodeStoreBranch branch = store.branch();
 
-        NodeBuilder rootBuilder = store.getBuilder(branch.getRoot());
-        NodeBuilder testBuilder = rootBuilder.getChildBuilder("test");
-        NodeBuilder newNodeBuilder = testBuilder.getChildBuilder("newNode");
+        NodeBuilder rootBuilder = branch.getRoot().builder();
+        NodeBuilder testBuilder = rootBuilder.child("test");
+        NodeBuilder newNodeBuilder = testBuilder.child("newNode");
 
         testBuilder.removeNode("x");
 
-        CoreValue fortyTwo = store.getValueFactory().createValue(42);
-        newNodeBuilder.setProperty("n", fortyTwo);
+        newNodeBuilder.setProperty("n", 42);
 
         // Assert changes are present in the builder
         NodeState testState = rootBuilder.getNodeState().getChildNode("test");
         assertNotNull(testState.getChildNode("newNode"));
         assertNull(testState.getChildNode("x"));
-        assertEquals(fortyTwo, testState.getChildNode("newNode").getProperty("n").getValue());
+        assertEquals(42, (long) testState.getChildNode("newNode").getProperty("n").getValue(LONG));
 
         // Assert changes are not yet present in the branch
         testState = branch.getRoot().getChildNode("test");
@@ -97,7 +94,7 @@ public class KernelNodeStoreTest {
         testState = branch.getRoot().getChildNode("test");
         assertNotNull(testState.getChildNode("newNode"));
         assertNull(testState.getChildNode("x"));
-        assertEquals(fortyTwo, testState.getChildNode("newNode").getProperty("n").getValue());
+        assertEquals(42, (long) testState.getChildNode("newNode").getProperty("n").getValue(LONG));
 
         // Assert changes are not yet present in the trunk
         testState = store.getRoot().getChildNode("test");
@@ -110,7 +107,7 @@ public class KernelNodeStoreTest {
         testState = store.getRoot().getChildNode("test");
         assertNotNull(testState.getChildNode("newNode"));
         assertNull(testState.getChildNode("x"));
-        assertEquals(fortyTwo, testState.getChildNode("newNode").getProperty("n").getValue());
+        assertEquals(42, (long) testState.getChildNode("newNode").getProperty("n").getValue(LONG));
     }
 
     @Test
@@ -118,20 +115,18 @@ public class KernelNodeStoreTest {
         final NodeState[] states = new NodeState[2]; // { before, after }
         store.setObserver(new Observer() {
             @Override
-            public void contentChanged(
-                    NodeStore store, NodeState before, NodeState after) {
+            public void contentChanged(NodeState before, NodeState after) {
                 states[0] = before;
                 states[1] = after;
             }
         });
 
         NodeState root = store.getRoot();
-        NodeBuilder rootBuilder= store.getBuilder(root);
-        NodeBuilder testBuilder = rootBuilder.getChildBuilder("test");
-        NodeBuilder newNodeBuilder = testBuilder.getChildBuilder("newNode");
+        NodeBuilder rootBuilder= root.builder();
+        NodeBuilder testBuilder = rootBuilder.child("test");
+        NodeBuilder newNodeBuilder = testBuilder.child("newNode");
 
-        CoreValue fortyTwo = store.getValueFactory().createValue(42);
-        newNodeBuilder.setProperty("n", fortyTwo);
+        newNodeBuilder.setProperty("n", 42);
 
         testBuilder.removeNode("a");
 
@@ -150,7 +145,7 @@ public class KernelNodeStoreTest {
         assertNull(before.getChildNode("test").getChildNode("newNode"));
         assertNotNull(after.getChildNode("test").getChildNode("newNode"));
         assertNull(after.getChildNode("test").getChildNode("a"));
-        assertEquals(fortyTwo, after.getChildNode("test").getChildNode("newNode").getProperty("n").getValue());
+        assertEquals(42, (long) after.getChildNode("test").getChildNode("newNode").getProperty("n").getValue(LONG));
         assertEquals(newRoot, after);
     }
 
@@ -158,23 +153,20 @@ public class KernelNodeStoreTest {
     public void beforeCommitHook() throws CommitFailedException {
         store.setHook(new CommitHook() {
             @Override
-            public NodeState processCommit(
-                    NodeStore store, NodeState before, NodeState after) {
-                NodeBuilder rootBuilder = store.getBuilder(after);
-                NodeBuilder testBuilder = store.getBuilder(after.getChildNode("test"));
-                testBuilder.setNode("fromHook", MemoryNodeState.EMPTY_NODE);
-                rootBuilder.setNode("test", testBuilder.getNodeState());
+            public NodeState processCommit(NodeState before, NodeState after) {
+                NodeBuilder rootBuilder = after.builder();
+                NodeBuilder testBuilder = rootBuilder.child("test");
+                testBuilder.child("fromHook");
                 return rootBuilder.getNodeState();
             }
         });
 
         NodeState root = store.getRoot();
-        NodeBuilder rootBuilder = store.getBuilder(root);
-        NodeBuilder testBuilder = rootBuilder.getChildBuilder("test");
-        NodeBuilder newNodeBuilder = testBuilder.getChildBuilder("newNode");
+        NodeBuilder rootBuilder = root.builder();
+        NodeBuilder testBuilder = rootBuilder.child("test");
+        NodeBuilder newNodeBuilder = testBuilder.child("newNode");
 
-        final CoreValue fortyTwo = store.getValueFactory().createValue(42);
-        newNodeBuilder.setProperty("n", fortyTwo);
+        newNodeBuilder.setProperty("n", 42);
 
         testBuilder.removeNode("a");
 
@@ -188,7 +180,7 @@ public class KernelNodeStoreTest {
         assertNotNull(test.getChildNode("newNode"));
         assertNotNull(test.getChildNode("fromHook"));
         assertNull(test.getChildNode("a"));
-        assertEquals(fortyTwo, test.getChildNode("newNode").getProperty("n").getValue());
+        assertEquals(42, (long) test.getChildNode("newNode").getProperty("n").getValue(LONG));
         assertEquals(test, store.getRoot().getChildNode("test"));
     }
 

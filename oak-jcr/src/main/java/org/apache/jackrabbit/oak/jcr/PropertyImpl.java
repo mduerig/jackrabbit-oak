@@ -16,13 +16,13 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
-import static javax.jcr.PropertyType.UNDEFINED;
-
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.List;
+
 import javax.annotation.Nonnull;
 import javax.jcr.AccessDeniedException;
 import javax.jcr.Binary;
@@ -35,14 +35,16 @@ import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.ValueFormatException;
-import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.PropertyDefinition;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterables;
 import org.apache.jackrabbit.oak.api.Tree.Status;
-import org.apache.jackrabbit.oak.jcr.value.ValueConverter;
 import org.apache.jackrabbit.value.ValueHelper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * {@code PropertyImpl}...
@@ -127,6 +129,7 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
     @Override
     public void remove() throws RepositoryException {
         checkStatus();
+        checkProtected();
 
         sessionDelegate.perform(new SessionOperation<Void>() {
             @Override
@@ -352,7 +355,7 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
                     throw new ValueFormatException(this + " is multi-valued.");
                 }
 
-                return ValueConverter.toValue(dlg.getValue(), sessionDelegate);
+                return dlg.getValue();
             }
         });
     }
@@ -369,7 +372,7 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
                     throw new ValueFormatException(this + " is not multi-valued.");
                 }
 
-                return ValueConverter.toValues(dlg.getValues(), sessionDelegate);
+                return Iterables.toArray(dlg.getValues(), Value.class);
             }
         });
     }
@@ -546,45 +549,7 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
     @Override
     @Nonnull
     public PropertyDefinition getDefinition() throws RepositoryException {
-        String name = getName();
-        int type = UNDEFINED;
-        if (isMultiple()) {
-            Value[] values = getValues();
-            if (values.length > 0) {
-                type = values[0].getType();
-            }
-        } else {
-            type = getValue().getType();
-        }
-
-        // TODO: This may need to be optimized
-        for (NodeType nt : getAllNodeTypes(getParent())) {
-            for (PropertyDefinition def : nt.getDeclaredPropertyDefinitions()) {
-                String defName = def.getName();
-                int defType = def.getRequiredType();
-                if ((name.equals(defName) || "*".equals(defName))
-                        && (type == defType
-                            || UNDEFINED == type || UNDEFINED == defType)
-                        && isMultiple() == def.isMultiple()) {
-                    return def;
-                }
-            }
-        }
-
-        // FIXME: Shouldn't be needed
-        for (NodeType nt : getAllNodeTypes(getParent())) {
-            for (PropertyDefinition def : nt.getDeclaredPropertyDefinitions()) {
-                String defName = def.getName();
-                if ((name.equals(defName) || "*".equals(defName))
-                        && type == PropertyType.STRING
-                        && isMultiple() == def.isMultiple()) {
-                    return def;
-                }
-            }
-        }
-
-        throw new RepositoryException(
-                "No matching property definition found for " + this);
+        return dlg.sessionDelegate.getDefinitionProvider().getDefinition(getParent(), this);
     }
 
     /**
@@ -663,7 +628,8 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
      * @throws RepositoryException
      */
     private void setValue(Value value, int requiredType) throws RepositoryException {
-        assert (requiredType != PropertyType.UNDEFINED);
+        checkArgument(requiredType != PropertyType.UNDEFINED);
+        checkProtected();
 
         // TODO check again if definition validation should be respected here.
         if (isMultiple()) {
@@ -673,7 +639,7 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
             dlg.remove();
         } else {
             Value targetValue = ValueHelper.convert(value, requiredType, sessionDelegate.getValueFactory());
-            dlg.setValue(ValueConverter.toCoreValue(targetValue, sessionDelegate));
+            dlg.setValue(targetValue);
         }
     }
 
@@ -683,7 +649,8 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
      * @throws RepositoryException
      */
     private void setValues(Value[] values, int requiredType) throws RepositoryException {
-        assert (requiredType != PropertyType.UNDEFINED);
+        checkArgument(requiredType != PropertyType.UNDEFINED);
+        checkProtected();
 
         // TODO check again if definition validation should be respected here.
         if (!isMultiple()) {
@@ -693,7 +660,11 @@ public class PropertyImpl extends ItemImpl<PropertyDelegate> implements Property
             dlg.remove();
         } else {
             Value[] targetValues = ValueHelper.convert(values, requiredType, sessionDelegate.getValueFactory());
-            dlg.setValues(ValueConverter.toCoreValues(targetValues, sessionDelegate));
+            Iterable<Value> nonNullValues = Iterables.filter(
+                    Arrays.asList(targetValues),
+                    Predicates.notNull());
+
+            dlg.setValues(nonNullValues);
         }
     }
 

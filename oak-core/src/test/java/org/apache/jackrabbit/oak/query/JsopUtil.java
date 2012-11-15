@@ -16,17 +16,25 @@
  */
 package org.apache.jackrabbit.oak.query;
 
-import java.util.ArrayList;
-import java.util.Iterator;
+import static org.apache.jackrabbit.oak.plugins.memory.PropertyStates.createProperty;
+
 import java.util.List;
 
+import javax.jcr.PropertyType;
+
+import org.apache.jackrabbit.mk.json.JsopReader;
 import org.apache.jackrabbit.mk.json.JsopTokenizer;
-import org.apache.jackrabbit.oak.api.CoreValue;
-import org.apache.jackrabbit.oak.api.CoreValueFactory;
+import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.kernel.CoreValueMapper;
+import org.apache.jackrabbit.oak.kernel.TypeCodes;
+import org.apache.jackrabbit.oak.plugins.memory.BooleanPropertyState;
+import org.apache.jackrabbit.oak.plugins.memory.StringPropertyState;
+import org.apache.jackrabbit.oak.plugins.value.Conversions;
+
+import com.google.common.collect.Lists;
 
 /**
  * Utility class for working with jsop string diffs
@@ -54,10 +62,9 @@ public class JsopUtil {
      * 
      * @param root
      * @param commit the commit string
-     * @param vf the value factory
      * @throws UnsupportedOperationException if the operation is not supported
      */
-    public static void apply(Root root, String commit, CoreValueFactory vf)
+    public static void apply(Root root, String commit)
             throws UnsupportedOperationException {
         int index = commit.indexOf(' ');
         String path = commit.substring(0, index).trim();
@@ -71,7 +78,7 @@ public class JsopUtil {
         if (tokenizer.matches('-')) {
             removeTree(c, tokenizer);
         } else if (tokenizer.matches('+')) {
-            addTree(c, tokenizer, vf);
+            addTree(c, tokenizer);
         } else {
             throw new UnsupportedOperationException(
                     "Unsupported " + (char) tokenizer.read() + 
@@ -81,9 +88,7 @@ public class JsopUtil {
 
     private static void removeTree(Tree t, JsopTokenizer tokenizer) {
         String path = tokenizer.readString();
-        Iterator<String> pathIterator = PathUtils.elements(path).iterator();
-        while (pathIterator.hasNext()) {
-            String p = pathIterator.next();
+        for (String p : PathUtils.elements(path)) {
             if (!t.hasChild(p)) {
                 return;
             }
@@ -92,27 +97,102 @@ public class JsopUtil {
         t.remove();
     }
 
-    private static void addTree(Tree t, JsopTokenizer tokenizer, CoreValueFactory vf) {
+    private static void addTree(Tree t, JsopTokenizer tokenizer) {
         do {
             String key = tokenizer.readString();
             tokenizer.read(':');
             if (tokenizer.matches('{')) {
                 Tree c = t.addChild(key);
                 if (!tokenizer.matches('}')) {
-                    addTree(c, tokenizer, vf);
+                    addTree(c, tokenizer);
                     tokenizer.read('}');
                 }
             } else if (tokenizer.matches('[')) {
-                List<CoreValue> mvp = new ArrayList<CoreValue>();
-                do {
-                    mvp.add(CoreValueMapper.fromJsopReader(tokenizer, vf));
-                } while (tokenizer.matches(','));
-                tokenizer.read(']');
-                t.setProperty(key, mvp);
+                t.setProperty(readArrayProperty(key, tokenizer));
             } else {
-                t.setProperty(key, 
-                        CoreValueMapper.fromJsopReader(tokenizer, vf));
+                t.setProperty(readProperty(key, tokenizer));
             }
         } while (tokenizer.matches(','));
     }
+
+    /**
+     * Read a {@code PropertyState} from a {@link JsopReader}
+     * @param name  The name of the property state
+     * @param reader  The reader
+     * @return new property state
+     */
+    private static PropertyState readProperty(String name, JsopReader reader) {
+        if (reader.matches(JsopReader.NUMBER)) {
+            String number = reader.getToken();
+            return createProperty(name, number, PropertyType.LONG);
+        } else if (reader.matches(JsopReader.TRUE)) {
+            return BooleanPropertyState.booleanProperty(name, true);
+        } else if (reader.matches(JsopReader.FALSE)) {
+            return BooleanPropertyState.booleanProperty(name, false);
+        } else if (reader.matches(JsopReader.STRING)) {
+            String jsonString = reader.getToken();
+            int split = TypeCodes.split(jsonString);
+            if (split != -1) {
+                int type = TypeCodes.decodeType(split, jsonString);
+                String value = TypeCodes.decodeName(split, jsonString);
+                if (type == PropertyType.BINARY) {
+                    throw new UnsupportedOperationException();
+                } else {
+                    return createProperty(name, value, type);
+                }
+            } else {
+                return StringPropertyState.stringProperty(name, jsonString);
+            }
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + reader.getToken());
+        }
+    }
+
+    /**
+     * Read a multi valued {@code PropertyState} from a {@link JsopReader}
+     * @param name  The name of the property state
+     * @param reader  The reader
+     * @return new property state
+     */
+    private static PropertyState readArrayProperty(String name, JsopReader reader) {
+        int type = PropertyType.STRING;
+        List<Object> values = Lists.newArrayList();
+        while (!reader.matches(']')) {
+            if (reader.matches(JsopReader.NUMBER)) {
+                String number = reader.getToken();
+                type = PropertyType.LONG;
+                values.add(Conversions.convert(number).toLong());
+            } else if (reader.matches(JsopReader.TRUE)) {
+                type = PropertyType.BOOLEAN;
+                values.add(true);
+            } else if (reader.matches(JsopReader.FALSE)) {
+                type = PropertyType.BOOLEAN;
+                values.add(false);
+            } else if (reader.matches(JsopReader.STRING)) {
+                String jsonString = reader.getToken();
+                int split = TypeCodes.split(jsonString);
+                if (split != -1) {
+                    type = TypeCodes.decodeType(split, jsonString);
+                    String value = TypeCodes.decodeName(split, jsonString);
+                    if (type == PropertyType.BINARY) {
+                        throw new UnsupportedOperationException();
+                    } else if(type == PropertyType.DOUBLE) {
+                        values.add(Conversions.convert(value).toDouble());
+                    } else if(type == PropertyType.DECIMAL) {
+                        values.add(Conversions.convert(value).toDecimal());
+                    } else {
+                        values.add(value);
+                    }
+                } else {
+                    type = PropertyType.STRING;
+                    values.add(jsonString);
+                }
+            } else {
+                throw new IllegalArgumentException("Unexpected token: " + reader.getToken());
+            }
+            reader.matches(',');
+        }
+        return createProperty(name, values, Type.fromTag(type, true));
+    }
+
 }

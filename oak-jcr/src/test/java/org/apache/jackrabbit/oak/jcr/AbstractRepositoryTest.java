@@ -16,16 +16,18 @@
  */
 package org.apache.jackrabbit.oak.jcr;
 
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-
 import javax.jcr.GuestCredentials;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.SimpleCredentials;
+import javax.security.auth.login.Configuration;
 
-import org.apache.jackrabbit.mk.core.MicroKernelImpl;
+import org.apache.jackrabbit.oak.security.OakConfiguration;
 import org.junit.After;
+import org.junit.Before;
 
 /**
  * Abstract base class for repository tests providing methods for accessing
@@ -40,6 +42,12 @@ public abstract class AbstractRepositoryTest {
 
     private Repository repository = null;
     private Session adminSession = null;
+
+    @Before
+    public void before() throws Exception {
+        // TODO: OAK-17. workaround for missing test configuration
+        Configuration.setConfiguration(new OakConfiguration());
+    }
 
     @After
     public void logout() throws RepositoryException {
@@ -59,13 +67,13 @@ public abstract class AbstractRepositoryTest {
 
     protected Repository getRepository() throws RepositoryException {
         if (repository == null) {
-            if (executor != null) {
-                repository = new RepositoryImpl(new MicroKernelImpl(), executor);
-            } else {
-                repository = new RepositoryImpl();
-            }
+            repository  = new Jcr().with(getExecutor()).createRepository();
         }
         return repository;
+    }
+
+    private ScheduledExecutorService getExecutor() {
+        return (executor == null) ? Executors.newScheduledThreadPool(0) : executor;
     }
 
     protected Session getAdminSession() throws RepositoryException {

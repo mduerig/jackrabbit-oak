@@ -54,15 +54,14 @@ public interface SessionQueryEngine {
      * @param limit the maximum result set size
      * @param offset the number of rows to skip
      * @param bindings the bind variable value bindings
-     * @param root the root to use
      * @param namePathMapper the name and path mapper to use
      * @return the result
      * @throws ParseException if the statement could not be parsed
      * @throws IllegalArgumentException if there was an error executing the query
      */
     Result executeQuery(String statement, String language,
-            long limit, long offset, Map<String, ? extends CoreValue> bindings,
-            Root root, NamePathMapper namePathMapper) throws ParseException;
+            long limit, long offset, Map<String, ? extends PropertyValue> bindings,
+            NamePathMapper namePathMapper) throws ParseException;
 
     // TODO pass namespace mapping
     // TODO pass node type information (select * from [xyz] is supposed to return at least the mandatory columns for xyz)

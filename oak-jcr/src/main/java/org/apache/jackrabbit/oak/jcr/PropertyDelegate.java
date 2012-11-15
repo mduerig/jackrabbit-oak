@@ -20,16 +20,14 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 import javax.jcr.InvalidItemStateException;
-import javax.jcr.UnsupportedRepositoryOperationException;
+import javax.jcr.RepositoryException;
 import javax.jcr.Value;
-import javax.jcr.nodetype.NodeType;
-import javax.jcr.nodetype.PropertyDefinition;
 
-import org.apache.jackrabbit.oak.api.CoreValue;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.core.TreeImpl.PropertyLocation;
-import org.apache.jackrabbit.oak.util.TODO;
+import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
+import org.apache.jackrabbit.oak.plugins.value.ValueFactoryImpl;
 
 /**
  * {@code PropertyDelegate} serve as internal representations of {@code Property}s.
@@ -46,22 +44,21 @@ public class PropertyDelegate extends ItemDelegate {
     /**
      * Get the value of the property
      * @return  the value of the property
-     * @throws IllegalStateException  if {@code isMultivalue()} is {@code true}.
-     *
+     * @throws InvalidItemStateException
      */
     @Nonnull
-    public CoreValue getValue() throws InvalidItemStateException {
-        return getPropertyState().getValue();
+    public Value getValue() throws InvalidItemStateException {
+        return ValueFactoryImpl.createValue(getPropertyState(), sessionDelegate.getNamePathMapper());
     }
 
     /**
-     * Get the value of the property
+     * Get the values of the property
      * @return  the values of the property
-     * @throws IllegalStateException  if {@code isMultivalue()} is {@code false}.
+     * @throws InvalidItemStateException
      */
     @Nonnull
-    public Iterable<CoreValue> getValues() throws InvalidItemStateException {
-        return getPropertyState().getValues();
+    public List<Value> getValues() throws InvalidItemStateException {
+        return ValueFactoryImpl.createValues(getPropertyState(), sessionDelegate.getNamePathMapper());
     }
 
     /**
@@ -73,143 +70,44 @@ public class PropertyDelegate extends ItemDelegate {
     }
 
     /**
-     * Get the property definition of the property
-     * @return
-     */
-    @Nonnull
-    public PropertyDefinition getDefinition() {
-        try {
-            return TODO.dummyImplementation().returnValue(
-                new PropertyDefinition() {
-
-                    @Override
-                    public int getRequiredType() {
-                        return 0;
-                    }
-
-                    @Override
-                    public String[] getValueConstraints() {
-                        // TODO
-                        return new String[0];
-                    }
-
-                    @Override
-                    public Value[] getDefaultValues() {
-                        // TODO
-                        return new Value[0];
-                    }
-
-                    @Override
-                    public boolean isMultiple() {
-                        // TODO
-                        try {
-                            return getPropertyState().isArray();
-                        }
-                        catch (InvalidItemStateException e) {
-                            return false;  // todo implement catch e
-                        }
-                    }
-
-                    @Override
-                    public String[] getAvailableQueryOperators() {
-                        // TODO
-                        return new String[0];
-                    }
-
-                    @Override
-                    public boolean isFullTextSearchable() {
-                        // TODO
-                        return false;
-                    }
-
-                    @Override
-                    public boolean isQueryOrderable() {
-                        // TODO
-                        return false;
-                    }
-
-                    @Override
-                    public NodeType getDeclaringNodeType() {
-                        // TODO
-                        return null;
-                    }
-
-                    @Override
-                    public String getName() {
-                        // TODO
-                        try {
-                            return getPropertyState().getName();
-                        }
-                        catch (InvalidItemStateException e) {
-                            return null;  // todo implement catch e
-                        }
-                    }
-
-                    @Override
-                    public boolean isAutoCreated() {
-                        // TODO
-                        return false;
-                    }
-
-                    @Override
-                    public boolean isMandatory() {
-                        // TODO
-                        return false;
-                    }
-
-                    @Override
-                    public int getOnParentVersion() {
-                        // TODO
-                        return 0;
-                    }
-
-                    @Override
-                    public boolean isProtected() {
-                        // TODO
-                        return false;
-                    }
-                });
-        }
-        catch (UnsupportedRepositoryOperationException e) {
-            throw new UnsupportedOperationException(e);
-        }
-    }
-
-    /**
      * Set the value of the property
      * @param value
      */
-    public void setValue(CoreValue value) throws InvalidItemStateException {
-        getLocation().setValue(value);
+    public void setValue(Value value) throws RepositoryException {
+        getPropertyLocation().set(PropertyStates.createProperty(getName(), value));
     }
 
     /**
      * Set the values of the property
      * @param values
      */
-    public void setValues(List<CoreValue> values) throws InvalidItemStateException {
-        getLocation().setValues(values);
+    public void setValues(Iterable<Value> values) throws RepositoryException {
+        getPropertyLocation().set(PropertyStates.createProperty(getName(), values));
     }
 
     /**
      * Remove the property
      */
     public void remove() throws InvalidItemStateException {
-        getLocation().remove();
+        getPropertyLocation().remove();
     }
 
     //------------------------------------------------------------< private >---
 
     @Nonnull
     private PropertyState getPropertyState() throws InvalidItemStateException {
-        return getLocation().getProperty();  // Not null
+        PropertyState property = getPropertyLocation().getProperty();
+        if (property == null) {
+            throw new InvalidItemStateException();
+        }
+        return property;
     }
 
-    @Override
-    public PropertyLocation getLocation() throws InvalidItemStateException {
-        TreeLocation location = super.getLocation();
-        if (location.getProperty() == null) {
-            throw new InvalidItemStateException("Property is stale");
+    @Nonnull
+    private PropertyLocation getPropertyLocation() throws InvalidItemStateException {
+        TreeLocation location = getLocation();
+        if (!(location instanceof PropertyLocation)) {
+            throw new InvalidItemStateException();
         }
         return (PropertyLocation) location;
     }
