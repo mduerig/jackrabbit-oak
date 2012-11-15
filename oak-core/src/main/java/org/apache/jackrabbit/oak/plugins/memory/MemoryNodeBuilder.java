@@ -154,7 +154,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     private NodeState read() {
         if (revision != root.revision) {
-            assert(parent != null); // root never gets here
+            assert(!isRoot()); // root never gets here
             parent.read();
 
             // The builder could have been reset, need to re-get base state
@@ -194,7 +194,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     private MutableNodeState write(long newRevision) {
         if (writeState == null || revision != root.revision) {
-            assert(parent != null); // root never gets here
+            assert(!isRoot()); // root never gets here
             parent.write(newRevision);
 
             // The builder could have been reset, need to re-get base state
@@ -220,7 +220,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
                     parent.writeState.nodes.put(name, writeState);
                 }
             }
-        } else if (parent != null) {
+        } else if (!isRoot()) {
             // make sure that all revision numbers up to the root gets updated
             parent.write(newRevision);
         }
@@ -261,7 +261,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Override
     public boolean isNew() {
         assert classInvariants();
-        return this != root && parent.isNew(name);
+        return !isRoot() && parent.isNew(name);
     }
 
     private boolean isNew(String name) {
@@ -271,7 +271,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Override
     public boolean isRemoved() {
         assert classInvariants();
-        return this != root && (parent.isRemoved() || parent.isRemoved(name));
+        return !isRoot() && (parent.isRemoved() || parent.isRemoved(name));
     }
 
     private boolean isRemoved(String name) {
@@ -333,7 +333,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Override
     public void reset(NodeState newBase) {
         assert classInvariants();
-        if (this == root) {
+        if (isRoot()) {
             baseState = checkNotNull(newBase);
             writeState = new MutableNodeState(baseState);
             revision++;
