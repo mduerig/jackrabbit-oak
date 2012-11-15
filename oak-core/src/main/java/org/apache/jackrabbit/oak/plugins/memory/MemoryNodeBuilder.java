@@ -173,7 +173,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
         } else if (baseState != null) {
             return baseState;
         } else {
-            return NULL_STATE;
+            // FIXME double check we never get here
+            throw new IllegalStateException();
         }
     }
 
@@ -300,8 +301,10 @@ public class MemoryNodeBuilder implements NodeBuilder {
         if (writeState != null) {
             return writeState.snapshot();
         } else {
-            // FIXME this assertion might fail when getNodeState() is called on a removed node.
-            assert baseState != null; // guaranteed by read()
+            if (baseState == null) {
+                // FIXME double check we never get here
+                throw new IllegalStateException();
+            }
             return baseState;
         }
     }
