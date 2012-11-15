@@ -152,6 +152,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
         return this == root;
     }
 
+    @Nonnull
     private NodeState read() {
         if (revision != root.revision) {
             assert(!isRoot()); // root never gets here
@@ -192,6 +193,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
         return write(root.revision + 1);
     }
 
+    @Nonnull
     private MutableNodeState write(long newRevision) {
         if (writeState == null || revision != root.revision) {
             assert(!isRoot()); // root never gets here
@@ -225,6 +227,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
             parent.write(newRevision);
         }
         revision = newRevision;
+        assert writeState != null;
         return writeState;
     }
 
