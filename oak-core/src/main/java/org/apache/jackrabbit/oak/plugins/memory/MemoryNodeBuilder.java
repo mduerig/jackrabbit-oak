@@ -162,6 +162,16 @@ public class MemoryNodeBuilder implements NodeBuilder {
         }
     }
 
+    /**
+     * Determine whether the base state has a child of the given name.
+     * Assumes {@code read()} needs not be called.
+     * @param name  name of the child
+     * @return  {@code true} iff the base state has a child of the given name.
+     */
+    private boolean hasBaseState(String name) {
+        return baseState != null && baseState.hasChildNode(name);
+    }
+
     @Nonnull
     private NodeState read() {
         if (revision != root.revision) {
@@ -261,7 +271,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     private boolean isNew(String name) {
         read();
-        return (baseState == null || !baseState.hasChildNode(name)) && hasChildNode(name);
+        return !hasBaseState(name) && hasChildNode(name);
     }
 
     @Override
@@ -272,7 +282,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     private boolean isRemoved(String name) {
         read();
-        return baseState != null && baseState.hasChildNode(name) && !hasChildNode(name);
+        return hasBaseState(name) && !hasChildNode(name);
     }
 
     @Override
@@ -287,7 +297,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
                 if (n.getValue() == null) {
                     return true;
                 }
-                if (baseState == null || !baseState.hasChildNode(n.getKey())) {
+                if (!(hasBaseState(n.getKey()))) {
                     return true;
                 }
             }
@@ -441,11 +451,9 @@ public class MemoryNodeBuilder implements NodeBuilder {
     public NodeBuilder child(String name) {
         assert classInvariants();
         read(); // shortcut when dealing with a read-only child node
-        if (baseState != null
-                && baseState.hasChildNode(name)
+        if (hasBaseState(name)
                 && (writeState == null
-                    || (writeState.base == baseState
-                        && !writeState.nodes.containsKey(name)))) {
+                    || (writeState.base == baseState && !writeState.nodes.containsKey(name)))) {
             return createChildBuilder(name);
         }
 
