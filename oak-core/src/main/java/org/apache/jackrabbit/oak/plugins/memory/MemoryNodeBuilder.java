@@ -154,6 +154,19 @@ public class MemoryNodeBuilder implements NodeBuilder {
         return this == root;
     }
 
+    /**
+     * Return the base state of the named child. Assumes {@code read()} has been called.
+     * @param name  name of the child
+     * @return  base state of the child
+     */
+    private NodeState getBaseState(String name) {
+        if (baseState != null) {
+            return baseState.getChildNode(name);
+        } else {
+            return null;
+        }
+    }
+
     @Nonnull
     private NodeState read() {
         if (revision != root.revision) {
@@ -161,11 +174,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
             parent.read();
 
             // The builder could have been reset, need to re-get base state
-            if (parent.baseState != null) {
-                baseState = parent.baseState.getChildNode(name);
-            } else {
-                baseState = null;
-            }
+            baseState = parent.getBaseState(name);
 
             // ... same for the write state
             if (parent.writeState != null) {
@@ -203,11 +212,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
             assert(!isRoot()); // root never gets here since writeState of root is never null
 
             // The builder could have been reset, need to re-get base state
-            if (parent.baseState != null) {
-                baseState = parent.baseState.getChildNode(name);
-            } else {
-                baseState = null;
-            }
+            baseState = parent.getBaseState(name);
 
             assert parent.writeState != null; // we just called parent.write()
             writeState = parent.writeState.nodes.get(name);
@@ -463,11 +468,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
                 // prevent the previous child state from re-surfacing.
                 childBase = null;
             }
-            else if (baseState == null) {
-                childBase = null;
-            }
             else {
-                childBase = baseState.getChildNode(name);
+                childBase = getBaseState(name);
             }
 
             mstate.nodes.put(name, new MutableNodeState(childBase));
