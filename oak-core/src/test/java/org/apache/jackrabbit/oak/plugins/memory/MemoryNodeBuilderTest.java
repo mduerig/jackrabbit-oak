@@ -102,13 +102,30 @@ public class MemoryNodeBuilderTest {
     }
 
     @Test
-    public void testConnectOnRemoveNode() {
+    public void testReadOnRemoveNode() {
         NodeBuilder root = new MemoryNodeBuilder(BASE);
         NodeBuilder child = root.child("x");
 
         root.removeNode("x");
         try {
             child.getChildNodeCount();
+            fail();
+        } catch (IllegalStateException e) {
+            // expected
+        }
+
+        root.child("x");
+        assertEquals(0, child.getChildNodeCount()); // reconnect!
+    }
+
+    @Test
+    public void testWriteOnRemoveNode() {
+        NodeBuilder root = new MemoryNodeBuilder(BASE);
+        NodeBuilder child = root.child("x");
+
+        root.removeNode("x");
+        try {
+            child.setProperty("q", "w");
             fail();
         } catch (IllegalStateException e) {
             // expected
