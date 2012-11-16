@@ -141,8 +141,9 @@ public class MemoryNodeBuilder implements NodeBuilder {
     private boolean classInvariants() {
         boolean rootHasNoParent = isRoot() == (parent == null);
         boolean rootHasWriteState = root.writeState != null;
+        boolean baseStateOrWriteStateNotNull = baseState != null || writeState != null;
 
-        return rootHasNoParent && rootHasWriteState;
+        return rootHasNoParent && rootHasWriteState && baseStateOrWriteStateNotNull;
     }
 
     private boolean isRoot() {
@@ -213,11 +214,11 @@ public class MemoryNodeBuilder implements NodeBuilder {
             revision = root.revision;
         }
 
+        assert classInvariants();
+
         if (writeState != null) {
             return writeState;
         } else {
-            // TODO: double check whether this assertion holds for all cases
-            assert baseState != null;
             return baseState;
         }
     }
@@ -255,6 +256,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
         }
 
         revision = newRevision;
+        assert classInvariants();
         assert writeState != null;
         return writeState;
     }
@@ -291,7 +293,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public boolean isNew() {
-        assert classInvariants();
         return !isRoot() && parent.isNew(name);
     }
 
@@ -302,7 +303,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public boolean isRemoved() {
-        assert classInvariants();
         return !isRoot() && (parent.isRemoved() || parent.isRemoved(name));
     }
 
@@ -313,7 +313,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public boolean isModified() {
-        assert classInvariants();
         read();
         if (writeState == null) {
             return false;
@@ -342,12 +341,10 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public NodeState getNodeState() {
-        assert classInvariants();
         read();
         if (writeState != null) {
             return writeState.snapshot();
         } else {
-            // TODO: double check whether this assertion holds for all cases
             assert baseState != null;
             return baseState;
         }
@@ -355,7 +352,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public NodeState getBaseState() {
-        assert classInvariants();
         read();
         return baseState;
     }
@@ -363,7 +359,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Override
     public void reset(NodeState newBase) {
         checkState(isRoot(), "Cannot reset a non-root builder");
-        assert classInvariants();
         baseState = checkNotNull(newBase);
         writeState = new MutableNodeState(baseState);
         revision++;
@@ -371,25 +366,21 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public long getChildNodeCount() {
-        assert classInvariants();
         return read().getChildNodeCount();
     }
 
     @Override
     public boolean hasChildNode(String name) {
-        assert classInvariants();
         return read().hasChildNode(name);
     }
 
     @Override
     public Iterable<String> getChildNodeNames() {
-        assert classInvariants();
         return read().getChildNodeNames();
     }
 
     @Override @Nonnull
     public NodeBuilder setNode(String name, NodeState state) {
-        assert classInvariants();
         write();
 
         MutableNodeState childState = getWriteState(name);
@@ -405,7 +396,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override @Nonnull
     public NodeBuilder removeNode(String name) {
-        assert classInvariants();
         write();
 
         if (writeState.base.getChildNode(name) != null) {
@@ -420,25 +410,21 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public long getPropertyCount() {
-        assert classInvariants();
         return read().getPropertyCount();
     }
 
     @Override
     public Iterable<? extends PropertyState> getProperties() {
-        assert classInvariants();
         return read().getProperties();
     }
 
     @Override
     public PropertyState getProperty(String name) {
-        assert classInvariants();
         return read().getProperty(name);
     }
 
     @Override @Nonnull
     public NodeBuilder removeProperty(String name) {
-        assert classInvariants();
         write();
 
         if (writeState.base.getProperty(name) != null) {
@@ -453,7 +439,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public NodeBuilder setProperty(PropertyState property) {
-        assert classInvariants();
         write();
         writeState.properties.put(property.getName(), property);
         updated();
@@ -474,7 +459,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public NodeBuilder child(String name) {
-        assert classInvariants();
         read();
         MemoryNodeBuilder builder = createChildBuilder(name);
 
