@@ -181,11 +181,10 @@ public class MemoryNodeBuilder implements NodeBuilder {
         }
         if (writeState != null) {
             return writeState;
-        } else if (baseState != null) {
-            return baseState;
         } else {
-            // FIXME double check we never get here
-            throw new IllegalStateException();
+            // TODO: double check whether this assertion holds for all cases
+            assert baseState != null;
+            return baseState;
         }
     }
 
@@ -318,10 +317,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
         if (writeState != null) {
             return writeState.snapshot();
         } else {
-            if (baseState == null) {
-                // FIXME double check we never get here
-                throw new IllegalStateException();
-            }
+            // TODO: double check whether this assertion holds for all cases
+            assert baseState != null;
             return baseState;
         }
     }
