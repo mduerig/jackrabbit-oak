@@ -196,9 +196,13 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Nonnull
     private MutableNodeState write(long newRevision) {
-        if (writeState == null || revision != root.revision) {
-            assert(!isRoot()); // root never gets here
+        // make sure that all revision numbers up to the root gets updated
+        if (!isRoot()) {
             parent.write(newRevision);
+        }
+
+        if (writeState == null || revision != root.revision) {
+            assert(!isRoot()); // root never gets here since writeState of root is never null
 
             // The builder could have been reset, need to re-get base state
             if (parent.baseState != null) {
@@ -223,10 +227,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
                     parent.writeState.nodes.put(name, writeState);
                 }
             }
-        } else if (!isRoot()) {
-            // make sure that all revision numbers up to the root gets updated
-            parent.write(newRevision);
         }
+
         revision = newRevision;
         assert writeState != null;
         return writeState;
