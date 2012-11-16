@@ -455,18 +455,21 @@ public class MemoryNodeBuilder implements NodeBuilder {
         // no read-only child node found, switch to write mode
         MutableNodeState mstate = write();
 
-        NodeState childBase = null;
-        if (baseState != null) {
-            childBase = baseState.getChildNode(name);
-        }
-
         if (mstate.nodes.get(name) == null) {
+            NodeState childBase;
             if (mstate.nodes.containsKey(name)) {
                 // The child node was removed earlier and we're creating
                 // a new child with the same name. Use the null state to
                 // prevent the previous child state from re-surfacing.
                 childBase = null;
             }
+            else if (baseState == null) {
+                childBase = null;
+            }
+            else {
+                childBase = baseState.getChildNode(name);
+            }
+
             mstate.nodes.put(name, new MutableNodeState(childBase));
         }
 
