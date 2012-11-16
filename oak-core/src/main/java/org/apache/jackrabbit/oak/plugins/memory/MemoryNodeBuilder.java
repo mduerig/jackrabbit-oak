@@ -365,11 +365,11 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Override @Nonnull
     public NodeBuilder setNode(String name, NodeState state) {
         assert classInvariants();
-        write();
+        MutableNodeState mstate = write();
 
-        MutableNodeState childState = writeState.nodes.get(name);
+        MutableNodeState childState = mstate.nodes.get(name);
         if (childState == null) {
-            writeState.nodes.remove(name);
+            mstate.nodes.remove(name);
             childState = createChildBuilder(name).write();
         }
         childState.reset(state);
@@ -461,22 +461,21 @@ public class MemoryNodeBuilder implements NodeBuilder {
         }
 
         // no read-only child node found, switch to write mode
-        write();
-        assert writeState != null; // guaranteed by write()
+        MutableNodeState mstate = write();
 
         NodeState childBase = null;
         if (baseState != null) {
             childBase = baseState.getChildNode(name);
         }
 
-        if (writeState.nodes.get(name) == null) {
-            if (writeState.nodes.containsKey(name)) {
+        if (mstate.nodes.get(name) == null) {
+            if (mstate.nodes.containsKey(name)) {
                 // The child node was removed earlier and we're creating
                 // a new child with the same name. Use the null state to
                 // prevent the previous child state from re-surfacing.
                 childBase = null;
             }
-            writeState.nodes.put(name, new MutableNodeState(childBase));
+            mstate.nodes.put(name, new MutableNodeState(childBase));
         }
 
         MemoryNodeBuilder builder = createChildBuilder(name);
