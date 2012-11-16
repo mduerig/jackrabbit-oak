@@ -22,7 +22,6 @@ import java.util.Map.Entry;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
@@ -69,10 +68,6 @@ import static org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState.withPro
  * </dl>
  */
 public class MemoryNodeBuilder implements NodeBuilder {
-
-    private static final NodeState NULL_STATE = new MemoryNodeState(
-            ImmutableMap.<String, PropertyState>of(),
-            ImmutableMap.<String, NodeState>of());
 
     /**
      * Parent builder, or {@code null} for a root builder.
@@ -218,11 +213,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
             writeState = parent.writeState.nodes.get(name);
             if (writeState == null) {
                 checkState(!parent.writeState.nodes.containsKey(name), "This node has been removed");
-                NodeState base = baseState;
-                if (base == null) {
-                    base = NULL_STATE;
-                }
-                writeState = new MutableNodeState(base);
+                writeState = new MutableNodeState(baseState);
                 parent.writeState.nodes.put(name, writeState);
             }
         }
@@ -511,7 +502,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
             if (base != null) {
                 this.base = base;
             } else {
-                this.base = MemoryNodeBuilder.NULL_STATE;
+                this.base = MemoryNodeState.EMPTY_NODE;
             }
         }
 
