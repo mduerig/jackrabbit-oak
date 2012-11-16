@@ -150,7 +150,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
     }
 
     /**
-     * Return the base state of the named child. Assumes {@code read()} has been called.
+     * Return the base state of the named child. Assumes {@code read()} needs not be called.
      * @param name  name of the child
      * @return  base state of the child
      */
@@ -260,7 +260,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
     }
 
     private boolean isNew(String name) {
-        return (getBaseState() == null || !getBaseState().hasChildNode(name)) && hasChildNode(name);
+        read();
+        return (baseState == null || !baseState.hasChildNode(name)) && hasChildNode(name);
     }
 
     @Override
@@ -270,18 +271,18 @@ public class MemoryNodeBuilder implements NodeBuilder {
     }
 
     private boolean isRemoved(String name) {
-        return getBaseState() != null && getBaseState().hasChildNode(name) && !hasChildNode(name);
+        read();
+        return baseState != null && baseState.hasChildNode(name) && !hasChildNode(name);
     }
 
     @Override
     public boolean isModified() {
         assert classInvariants();
-        NodeState baseState = getBaseState();
+        read();
         if (writeState == null) {
             return false;
         }
         else {
-            Map<String, MutableNodeState> nodes = writeState.nodes;
             for (Entry<String, MutableNodeState> n : writeState.nodes.entrySet()) {
                 if (n.getValue() == null) {
                     return true;
