@@ -200,7 +200,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Nonnull
     private NodeState read() {
         if (revision != root.revision) {
-            assert(!isRoot()); // root never gets here
+            assert(!isRoot()); // root never gets here since revision == root.revision
+            checkState(!parent.removed(name));
             parent.read();
 
             // The builder could have been reset, need to re-get base state
@@ -208,12 +209,10 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
             // ... same for the write state
             writeState = parent.getWriteState(name);
-            if (writeState == null) {
-                checkState(!parent.removed(name), "This node has been removed");
-            }
 
             revision = root.revision;
         }
+
         if (writeState != null) {
             return writeState;
         } else {
@@ -225,27 +224,32 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Nonnull
     private MutableNodeState write() {
-        return write(root.revision + 1);
+        return write(root.revision + 1, false);
     }
 
     @Nonnull
-    private MutableNodeState write(long newRevision) {
+    private MutableNodeState write(long newRevision, boolean skipRemovedCheck) {
         // make sure that all revision numbers up to the root gets updated
         if (!isRoot()) {
-            parent.write(newRevision);
+            checkState(skipRemovedCheck || !parent.removed(name));
+            parent.write(newRevision, skipRemovedCheck);
         }
 
         if (writeState == null || revision != root.revision) {
-            assert(!isRoot()); // root never gets here since writeState of root is never null
+            assert(!isRoot()); // root never gets here since revision == root.revision
 
             // The builder could have been reset, need to re-get base state
             baseState = parent.getBaseState(name);
 
-            assert parent.writeState != null; // we just called parent.write()
             writeState = parent.getWriteState(name);
             if (writeState == null) {
-                checkState(!parent.removed(name), "This node has been removed");
-                writeState = new MutableNodeState(baseState);
+                if (parent.removed(name)) {
+                    writeState = new MutableNodeState(null);
+                }
+                else {
+                    writeState = new MutableNodeState(baseState);
+                }
+                assert parent.writeState != null; // guaranteed by called parent.write()
                 parent.writeState.nodes.put(name, writeState);
             }
         }
@@ -426,7 +430,6 @@ public class MemoryNodeBuilder implements NodeBuilder {
         return read().getProperties();
     }
 
-
     @Override
     public PropertyState getProperty(String name) {
         assert classInvariants();
@@ -472,33 +475,13 @@ public class MemoryNodeBuilder implements NodeBuilder {
     @Override
     public NodeBuilder child(String name) {
         assert classInvariants();
-        read(); // shortcut when dealing with a read-only child node
-        if (hasBaseState(name)
-                && (writeState == null
-                    || (writeState.base == baseState && !writeState.nodes.containsKey(name)))) {
-            return createChildBuilder(name);
-        }
-
-        // no read-only child node found, switch to write mode
-        write();
-
-        if (getWriteState(name) == null) {
-            NodeState childBase;
-            if (removed(name)) {
-                // The child node was removed earlier and we're creating
-                // a new child with the same name. Use the null state to
-                // prevent the previous child state from re-surfacing.
-                childBase = null;
-            }
-            else {
-                childBase = getBaseState(name);
-            }
-
-            writeState.nodes.put(name, new MutableNodeState(childBase));
-        }
-
+        read();
         MemoryNodeBuilder builder = createChildBuilder(name);
-        builder.write();
+
+        boolean modified = writeState != null && (writeState.base != baseState || writeState.nodes.containsKey(name));
+        if (!hasBaseState(name) || modified) {
+            builder.write(root.revision + 1, true);
+        }
         return builder;
     }
 
