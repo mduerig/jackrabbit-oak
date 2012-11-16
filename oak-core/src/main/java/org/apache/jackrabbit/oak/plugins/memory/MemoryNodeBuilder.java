@@ -143,9 +143,10 @@ public class MemoryNodeBuilder implements NodeBuilder {
     }
 
     private boolean classInvariants() {
-        boolean rootInvariant = isRoot() == (parent == null);
+        boolean rootHasNoParent = isRoot() == (parent == null);
+        boolean rootHasWriteState = root.writeState != null;
 
-        return rootInvariant;
+        return rootHasNoParent && rootHasWriteState;
     }
 
     private boolean isRoot() {
@@ -188,6 +189,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
         }
     }
 
+    @Nonnull
     private MutableNodeState write() {
         return write(root.revision + 1);
     }
@@ -436,14 +438,12 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public <T> NodeBuilder setProperty(String name, T value) {
-        assert classInvariants();
         setProperty(PropertyStates.createProperty(name, value));
         return this;
     }
 
     @Override
     public <T> NodeBuilder setProperty(String name, T value, Type<T> type) {
-        assert classInvariants();
         setProperty(PropertyStates.createProperty(name, value, type));
         return this;
     }
