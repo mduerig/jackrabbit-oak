@@ -172,6 +172,31 @@ public class MemoryNodeBuilder implements NodeBuilder {
         return baseState != null && baseState.hasChildNode(name);
     }
 
+    /**
+     * Return the write state of the named child. Assumes {@code read()}, {@code write()} needs not be called.
+     * @param name  name of the child
+     * @return  base state of the child
+     */
+    private MutableNodeState getWriteState(String name) {
+        if (writeState != null) {
+            return writeState.nodes.get(name);
+        }
+        else {
+            return null;
+        }
+    }
+
+    /**
+     * Determine whether the named child has been removed. This is the
+     * case when the write state has a corresponding {@code null} entry.
+     * Assumes {@code read()}, {@code write()} needs not be called.
+     * @param name  name of the child
+     * @return  {@code true} iff a child with the given name has been removed
+     */
+    private boolean removed(String name) {
+        return writeState != null && writeState.isRemoved(name);
+    }
+
     @Nonnull
     private NodeState read() {
         if (revision != root.revision) {
@@ -182,12 +207,9 @@ public class MemoryNodeBuilder implements NodeBuilder {
             baseState = parent.getBaseState(name);
 
             // ... same for the write state
-            if (parent.writeState != null) {
-                writeState = parent.writeState.nodes.get(name);
-                checkState(writeState != null || !parent.writeState.nodes.containsKey(name),
-                        "This node has been removed");
-            } else {
-                writeState = null;
+            writeState = parent.getWriteState(name);
+            if (writeState == null) {
+                checkState(!parent.removed(name), "This node has been removed");
             }
 
             revision = root.revision;
@@ -220,9 +242,9 @@ public class MemoryNodeBuilder implements NodeBuilder {
             baseState = parent.getBaseState(name);
 
             assert parent.writeState != null; // we just called parent.write()
-            writeState = parent.writeState.nodes.get(name);
+            writeState = parent.getWriteState(name);
             if (writeState == null) {
-                checkState(!parent.writeState.nodes.containsKey(name), "This node has been removed");
+                checkState(!parent.removed(name), "This node has been removed");
                 writeState = new MutableNodeState(baseState);
                 parent.writeState.nodes.put(name, writeState);
             }
@@ -366,7 +388,7 @@ public class MemoryNodeBuilder implements NodeBuilder {
         assert classInvariants();
         write();
 
-        MutableNodeState childState = writeState.nodes.get(name);
+        MutableNodeState childState = getWriteState(name);
         if (childState == null) {
             writeState.nodes.remove(name);
             childState = createChildBuilder(name).write();
@@ -460,9 +482,9 @@ public class MemoryNodeBuilder implements NodeBuilder {
         // no read-only child node found, switch to write mode
         write();
 
-        if (writeState.nodes.get(name) == null) {
+        if (getWriteState(name) == null) {
             NodeState childBase;
-            if (writeState.nodes.containsKey(name)) {
+            if (removed(name)) {
                 // The child node was removed earlier and we're creating
                 // a new child with the same name. Use the null state to
                 // prevent the previous child state from re-surfacing.
@@ -506,6 +528,15 @@ public class MemoryNodeBuilder implements NodeBuilder {
          */
         private final Map<String, MutableNodeState> nodes =
                 Maps.newHashMap();
+
+        /**
+         * Determine whether the a node with the given name was removed
+         * @param name  name of the node
+         * @return  {@code true}  iff a node with the given name was removed
+         */
+        private boolean isRemoved(String name) {
+            return nodes.containsKey(name) && nodes.get(name) == null;
+        }
 
         public MutableNodeState(NodeState base) {
             if (base != null) {
