@@ -32,6 +32,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState.with;
 import static org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState.withNodes;
 import static org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState.withProperties;
@@ -169,11 +170,8 @@ public class MemoryNodeBuilder implements NodeBuilder {
             // ... same for the write state
             if (parent.writeState != null) {
                 writeState = parent.writeState.nodes.get(name);
-                if (writeState == null
-                        && parent.writeState.nodes.containsKey(name)) {
-                    throw new IllegalStateException(
-                            "This node has been removed");
-                }
+                checkState(writeState != null || !parent.writeState.nodes.containsKey(name),
+                        "This node has been removed");
             } else {
                 writeState = null;
             }
@@ -214,18 +212,13 @@ public class MemoryNodeBuilder implements NodeBuilder {
             assert parent.writeState != null; // we just called parent.write()
             writeState = parent.writeState.nodes.get(name);
             if (writeState == null) {
-                if (parent.writeState.nodes.containsKey(name)) {
-                    throw new IllegalStateException(
-                            "This node has been removed");
-                } else {
-                    // need to make this node writable
-                    NodeState base = baseState;
-                    if (base == null) {
-                        base = NULL_STATE;
-                    }
-                    writeState = new MutableNodeState(base);
-                    parent.writeState.nodes.put(name, writeState);
+                checkState(!parent.writeState.nodes.containsKey(name), "This node has been removed");
+                NodeState base = baseState;
+                if (base == null) {
+                    base = NULL_STATE;
                 }
+                writeState = new MutableNodeState(base);
+                parent.writeState.nodes.put(name, writeState);
             }
         }
 
@@ -336,14 +329,11 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public void reset(NodeState newBase) {
+        checkState(isRoot(), "Cannot reset a non-root builder");
         assert classInvariants();
-        if (isRoot()) {
-            baseState = checkNotNull(newBase);
-            writeState = new MutableNodeState(baseState);
-            revision++;
-        } else {
-            throw new IllegalStateException("Cannot reset a non-root builder");
-        }
+        baseState = checkNotNull(newBase);
+        writeState = new MutableNodeState(baseState);
+        revision++;
     }
 
     @Override
