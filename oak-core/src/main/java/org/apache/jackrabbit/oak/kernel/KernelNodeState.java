@@ -126,9 +126,9 @@ public final class KernelNodeState extends AbstractNodeState {
                     }
                     childPaths.put(name, childPath);
                 } else if (reader.matches('[')) {
-                    properties.put(name, readArrayProperty(name, reader));
+                    properties.put(name, readArrayProperty(name, reader, kernel));
                 } else {
-                    properties.put(name, readProperty(name, reader));
+                    properties.put(name, readProperty(name, reader, kernel));
                 }
             } while (reader.matches(','));
             reader.read('}');
@@ -391,12 +391,13 @@ public final class KernelNodeState extends AbstractNodeState {
     }
 
     /**
+     * FIXME move to a common utility class or make private
      * Read a {@code PropertyState} from a {@link JsopReader}
      * @param name  The name of the property state
      * @param reader  The reader
      * @return new property state
      */
-    private PropertyState readProperty(String name, JsopReader reader) {
+    static PropertyState readProperty(String name, JsopReader reader, MicroKernel kernel) {
         if (reader.matches(JsopReader.NUMBER)) {
             String number = reader.getToken();
             return createProperty(name, number, PropertyType.LONG);
@@ -411,7 +412,7 @@ public final class KernelNodeState extends AbstractNodeState {
                 int type = TypeCodes.decodeType(split, jsonString);
                 String value = TypeCodes.decodeName(split, jsonString);
                 if (type == PropertyType.BINARY) {
-                    return  BinaryPropertyState.binaryProperty(
+                    return BinaryPropertyState.binaryProperty(
                             name, new KernelBlob(new String(value), kernel));
                 } else {
                     return createProperty(name, StringCache.get(value), type);
@@ -426,12 +427,13 @@ public final class KernelNodeState extends AbstractNodeState {
     }
 
     /**
+     * FIXME move to a common utility class or make private
      * Read a multi valued {@code PropertyState} from a {@link JsopReader}
      * @param name  The name of the property state
      * @param reader  The reader
      * @return new property state
      */
-    private PropertyState readArrayProperty(String name, JsopReader reader) {
+    static PropertyState readArrayProperty(String name, JsopReader reader, MicroKernel kernel) {
         int type = PropertyType.STRING;
         List<Object> values = Lists.newArrayList();
         while (!reader.matches(']')) {

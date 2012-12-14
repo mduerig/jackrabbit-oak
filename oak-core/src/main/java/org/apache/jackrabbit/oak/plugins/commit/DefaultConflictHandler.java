@@ -16,84 +16,77 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.jackrabbit.oak.plugins.commit;
 
+import org.apache.jackrabbit.oak.kernel.JsopOp.Add;
+import org.apache.jackrabbit.oak.kernel.JsopOp.Copy;
+import org.apache.jackrabbit.oak.kernel.JsopOp.Move;
+import org.apache.jackrabbit.oak.kernel.JsopOp.Remove;
+import org.apache.jackrabbit.oak.kernel.JsopOp.Set;
 import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
-import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * This implementation of a {@link ConflictHandler} always returns the same resolution.
- * It can be used to implement default behaviour or as a base class for more specialised
- * implementations.
+ * This default implementation of {@code ConflictHandler} skips all conflicting
+ * operations.
  */
 public class DefaultConflictHandler implements ConflictHandler {
+    public static final ConflictHandler INSTANCE = new DefaultConflictHandler();
 
-    /**
-     * A {@code ConflictHandler} which always return {@link Resolution#OURS}.
-     */
-    public static final ConflictHandler OURS = new DefaultConflictHandler(Resolution.OURS);
-
-    /**
-     * A {@code ConflictHandler} which always return {@link Resolution#THEIRS}.
-     */
-    public static final ConflictHandler THEIRS = new DefaultConflictHandler(Resolution.THEIRS);
-
-    private final Resolution resolution;
-
-    /**
-     * Create a new {@code ConflictHandler} which always returns {@code resolution}.
-     *
-     * @param resolution  the resolution to return from all methods of this
-     * {@code ConflictHandler} instance.
-     */
-    public DefaultConflictHandler(Resolution resolution) {
-        this.resolution = resolution;
+    @Override
+    public void parentNotFound(Add add, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution addExistingProperty(NodeBuilder parent, PropertyState ours, PropertyState theirs) {
-        return resolution;
+    public void nodeExists(Add add, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution changeDeletedProperty(NodeBuilder parent, PropertyState ours) {
-        return resolution;
+    public void nodeNotFound(Remove remove, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution changeChangedProperty(NodeBuilder parent, PropertyState ours, PropertyState theirs) {
-        return resolution;
+    public void parentNotFound(Set set, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution deleteChangedProperty(NodeBuilder parent, PropertyState theirs) {
-        return resolution;
+    public void propertyValueConflict(Set set, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution deleteDeletedProperty(NodeBuilder parent, PropertyState ours) {
-        return resolution;
+    public void sourceNotFound(Move move, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution addExistingNode(NodeBuilder parent, String name, NodeState ours, NodeState theirs) {
-        return resolution;
+    public void targetParentNotFound(Move move, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution changeDeletedNode(NodeBuilder parent, String name, NodeState ours) {
-        return resolution;
+    public void targetNodeExists(Move move, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution deleteChangedNode(NodeBuilder parent, String name, NodeState theirs) {
-        return resolution;
+    public void sourceNotFound(Copy copy, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 
     @Override
-    public Resolution deleteDeletedNode(NodeBuilder parent, String name) {
-        return resolution;
+    public void targetParentNotFound(Copy copy, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
+    }
+
+    @Override
+    public void targetNodeExists(Copy copy, NodeState base, NodeBuilder rootBuilder) {
+        // ignore
     }
 }

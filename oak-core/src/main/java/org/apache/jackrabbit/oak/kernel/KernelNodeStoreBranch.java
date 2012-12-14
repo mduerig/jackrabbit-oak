@@ -16,14 +16,24 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.core.TreeImpl;
+import org.apache.jackrabbit.oak.kernel.JsopOp.Set;
+import org.apache.jackrabbit.oak.plugins.commit.ConflictHandlerWrapper;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
+import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStoreBranch;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.skip;
 import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getName;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getParentPath;
@@ -41,13 +51,13 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
     /** Base state of this branch */
     private final NodeState base;
 
-    /** Revision from which to branch */
-    private final String headRevision;
+    /** Revision of the base state of this branch */
+    private final String baseRevision;
 
-    /** Revision of this branch in the Microkernel, null if not yet branched */
-    private String branchRevision;
+    /** Head revision of this branch, null if not yet branched */
+    private String headRevision;
 
-    /** Current root state of this branch */
+    /** Root state of the head revision of this branch */
     private NodeState currentRoot;
 
     /** Last state which was committed to this branch */
@@ -55,9 +65,9 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
 
     KernelNodeStoreBranch(KernelNodeStore store, KernelNodeState root) {
         this.store = store;
-        this.headRevision = root.getRevision();
+        this.baseRevision = root.getRevision();
         this.currentRoot = root;
-        this.base = currentRoot;
+        this.base = root;
         this.committed = currentRoot;
     }
 
@@ -68,11 +78,13 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
 
     @Override
     public NodeState getRoot() {
+        checkNotMerged();
         return currentRoot;
     }
 
     @Override
     public void setRoot(NodeState newRoot) {
+        checkNotMerged();
         if (!currentRoot.equals(newRoot)) {
             currentRoot = newRoot;
             JsopDiff diff = new JsopDiff(store.getKernel());
@@ -83,6 +95,7 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
 
     @Override
     public boolean move(String source, String target) {
+        checkNotMerged();
         if (getNode(source) == null) {
             // source does not exist
             return false;
@@ -103,6 +116,7 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
 
     @Override
     public boolean copy(String source, String target) {
+        checkNotMerged();
         if (getNode(source) == null) {
             // source does not exist
             return false;
@@ -123,22 +137,23 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
 
     @Override
     public NodeState merge() throws CommitFailedException {
+        checkNotMerged();
         CommitHook commitHook = store.getHook();
         NodeState toCommit = commitHook.processCommit(base, currentRoot);
         NodeState oldRoot = currentRoot;
         setRoot(toCommit);
 
         try {
-            if (branchRevision == null) {
+            if (headRevision == null) {
                 // Nothing was written to this branch: return initial node state.
-                branchRevision = null;
+                headRevision = null;
                 currentRoot = null;
                 return committed;
             }
             else {
                 MicroKernel kernel = store.getKernel();
-                String mergedRevision = kernel.merge(branchRevision, null);
-                branchRevision = null;
+                String mergedRevision = kernel.merge(headRevision, null);
+                headRevision = null;
                 currentRoot = null;
                 return store.getRootState(mergedRevision);
             }
@@ -149,7 +164,39 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
         }
     }
 
+    @Override
+    public NodeStoreBranch rebase(ConflictHandler conflictHandler) {
+        checkNotMerged();
+
+        NodeStoreBranch rebasedBranch = store.branch();
+        if (headRevision != null) {  // Nothing has been written to this branch if null
+            NodeBuilder rootBuilder = rebasedBranch.getRoot().builder();
+            for (JsopOp jsopOp : getJsopOps(store.getKernel(), baseRevision, headRevision)) {
+                jsopOp.apply(getBase(), rootBuilder, new ChildOrderConflictHandler(conflictHandler));
+            }
+            rebasedBranch.setRoot(rootBuilder.getNodeState());
+        }
+
+        return rebasedBranch;
+    }
+
+    private static Iterable<JsopOp> getJsopOps(final MicroKernel kernel, String fromRevision, String toRevision) {
+        String journal = kernel.getJournal(fromRevision, toRevision, null);
+        Iterable<String> changes = skip(JournalIterator.getChanges(journal), 1);  // skip fromRevision
+
+        return Iterables.concat(Iterables.transform(changes, new Function<String, Iterable<JsopOp>>() {
+            @Override
+            public Iterable<JsopOp> apply(String entry) {
+                return JsopIterator.getJsopOps(kernel, entry);
+            }
+        }));
+    }
+
     //------------------------------------------------------------< private >---
+
+    private void checkNotMerged() {
+        checkState(currentRoot != null, "Branch has already been merged");
+    }
 
     private NodeState getNode(String path) {
         checkArgument(path.startsWith("/"));
@@ -164,15 +211,40 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
         return node;
     }
 
+    //------------------------------------------------------------< ChildOrderConflictHandler >---
+
     private void commit(String jsop) {
         MicroKernel kernel = store.getKernel();
-        if (branchRevision == null) {
+        if (headRevision == null) {
             // create the branch if this is the first commit
-            branchRevision = kernel.branch(headRevision);
+            headRevision = kernel.branch(baseRevision);
         }
 
-        branchRevision = kernel.commit("", jsop, branchRevision, null);
-        currentRoot = store.getRootState(branchRevision);
+        headRevision = kernel.commit("", jsop, headRevision, null);
+        currentRoot = store.getRootState(headRevision);
         committed = currentRoot;
+    }
+
+    private static class ChildOrderConflictHandler extends ConflictHandlerWrapper {
+        public ChildOrderConflictHandler(ConflictHandler conflictHandler) {
+            super(conflictHandler);
+        }
+
+        @Override
+        public void parentNotFound(Set set, NodeState base, NodeBuilder rootBuilder) {
+            if (!TreeImpl.OAK_CHILD_ORDER.equals(PathUtils.getName(set.path))) {
+                // Node has been removed, conflict on child order is irrelevant: ignore
+                super.propertyValueConflict(set, base, rootBuilder);
+            }
+        }
+
+        @Override
+        public void propertyValueConflict(Set set, NodeState base, NodeBuilder rootBuilder) {
+            if (!TreeImpl.OAK_CHILD_ORDER.equals(PathUtils.getName(set.path))) {
+                // concurrent orderBefore(), other changes win
+                super.propertyValueConflict(set, base, rootBuilder);
+            }
+        }
+
     }
 }

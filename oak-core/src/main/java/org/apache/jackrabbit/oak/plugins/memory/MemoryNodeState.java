@@ -16,16 +16,16 @@
  */
 package org.apache.jackrabbit.oak.plugins.memory;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Basic in-memory node state implementation.
@@ -43,6 +43,12 @@ public class MemoryNodeState extends AbstractNodeState {
     private final Map<String, PropertyState> properties;
 
     private final Map<String, NodeState> nodes;
+
+    public static NodeState create(Map<String, PropertyState> properties, Map<String, NodeState> nodes) {
+        return properties.isEmpty() && nodes.isEmpty()
+            ? EMPTY_NODE
+            : new MemoryNodeState(properties, nodes);
+    }
 
     /**
      * Creates a new node state with the given properties and child nodes.
