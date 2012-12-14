@@ -78,6 +78,7 @@ import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.JCR_I
 import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.JCR_IS_QUERY_ORDERABLE;
 import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.JCR_NODE_TYPES;
 import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.NODE_TYPES_PATH;
+import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.RESIDUAL_NAME;
 
 /**
  * {@code ReadWriteNodeTypeManager} extends the {@link ReadOnlyNodeTypeManager}
@@ -100,7 +101,7 @@ import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.NODE_
  * {@link ReadOnlyNodeTypeManager} for the following methods:
  * <ul>
  *     <li>{@link #getValueFactory()}</li>
- *     <li>{@link #getNameMapper()}</li>
+ *     <li>{@link ReadOnlyNodeTypeManager#getNamePathMapper()}</li>
  * </ul>
  */
 public abstract class ReadWriteNodeTypeManager extends ReadOnlyNodeTypeManager {
@@ -243,16 +244,18 @@ public abstract class ReadWriteNodeTypeManager extends ReadOnlyNodeTypeManager {
             if (allowUpdate) {
                 type.remove();
             } else {
-                throw new NodeTypeExistsException(
-                        "Node type " + jcrName + " already exists");
+                throw new NodeTypeExistsException("Node type " + jcrName + " already exists");
             }
         }
         type = types.addChild(oakName);
 
-        NodeUtil node = new NodeUtil(type, getNameMapper());
+        NodeUtil node = new NodeUtil(type, getNamePathMapper());
         node.setName(JCR_PRIMARYTYPE, NT_NODETYPE);
         node.setName(JCR_NODETYPENAME, jcrName);
-        node.setNames(JCR_SUPERTYPES, ntd.getDeclaredSupertypeNames());
+        String[] superTypeNames = ntd.getDeclaredSupertypeNames();
+        if (superTypeNames != null && superTypeNames.length > 0) {
+            node.setNames(JCR_SUPERTYPES, ntd.getDeclaredSupertypeNames());
+        }
         node.setBoolean(JCR_IS_ABSTRACT, ntd.isAbstract());
         node.setBoolean(JCR_IS_QUERYABLE, ntd.isQueryable());
         node.setBoolean(JCR_ISMIXIN, ntd.isMixin());
@@ -291,7 +294,7 @@ public abstract class ReadWriteNodeTypeManager extends ReadOnlyNodeTypeManager {
     private static void internalRegisterItemDefinition(
             NodeUtil node, ItemDefinition def) {
         String name = def.getName();
-        if (!"*".equals(name)) {
+        if (!RESIDUAL_NAME.equals(name)) {
             node.setName(JCR_NAME, name);
         }
 
@@ -314,7 +317,7 @@ public abstract class ReadWriteNodeTypeManager extends ReadOnlyNodeTypeManager {
         node.setBoolean(JCR_MULTIPLE, def.isMultiple());
         node.setBoolean(JCR_IS_FULLTEXT_SEARCHABLE, def.isFullTextSearchable());
         node.setBoolean(JCR_IS_QUERY_ORDERABLE, def.isQueryOrderable());
-        node.setStrings(JCR_AVAILABLE_QUERY_OPERATORS, def.getAvailableQueryOperators());
+        node.setNames(JCR_AVAILABLE_QUERY_OPERATORS, def.getAvailableQueryOperators());
 
         String[] constraints = def.getValueConstraints();
         if (constraints != null) {
@@ -395,5 +398,4 @@ public abstract class ReadWriteNodeTypeManager extends ReadOnlyNodeTypeManager {
             throw new RepositoryException("Failed to unregister node types", e);
         }
     }
-
 }

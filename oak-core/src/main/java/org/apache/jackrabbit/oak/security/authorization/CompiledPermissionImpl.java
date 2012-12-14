@@ -23,13 +23,14 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.spi.security.authorization.CompiledPermissions;
 import org.apache.jackrabbit.oak.spi.security.authorization.Permissions;
+import org.apache.jackrabbit.oak.spi.state.NodeStore;
 
 /**
  * TODO
  */
 class CompiledPermissionImpl implements CompiledPermissions {
 
-    CompiledPermissionImpl(Set<Principal> principals) {
+    CompiledPermissionImpl(NodeStore nodeStore, Set<Principal> principals) {
 
     }
 

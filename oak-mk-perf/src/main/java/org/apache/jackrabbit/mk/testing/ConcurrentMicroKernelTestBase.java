@@ -32,23 +32,18 @@ public class ConcurrentMicroKernelTestBase {
     static MicroKernelInitializer initializator;
     static Configuration conf;
 
-
     /**
      * Loads the corresponding microkernel initialization class and the
      * microkernel configuration.The method searches for the <b>mk.type</b>
      * system property in order to initialize the proper microkernel.By default,
      * the oak microkernel will be instantiated.
-     *
+     * 
      * @throws Exception
      */
     @BeforeClass
     public static void beforeSuite() throws Exception {
 
-        // FIXME - Add back
         initializator = new OakMicroKernelInitializer();
-        //String mktype = System.getProperty("mk.type");
-        //initializator = (mktype == null || mktype.equals("oakmk")) ? new OakMicroKernelInitializer()
-        //        : new MongoMicroKernelInitializer();
         System.out.println("Tests will run against ***"
                 + initializator.getType() + "***");
         conf = MicroKernelConfigProvider.readConfig();
@@ -56,7 +51,7 @@ public class ConcurrentMicroKernelTestBase {
 
     /**
      * Creates a microkernel collection with only one microkernel.
-     *
+     * 
      * @throws Exception
      */
     @Before

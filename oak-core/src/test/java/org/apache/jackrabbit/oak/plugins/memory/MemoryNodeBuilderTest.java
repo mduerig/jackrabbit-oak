@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
@@ -103,7 +102,7 @@ public class MemoryNodeBuilderTest {
     }
 
     @Test
-    public void testConnectOnRemoveNode() {
+    public void testReadOnRemoveNode() {
         NodeBuilder root = new MemoryNodeBuilder(BASE);
         NodeBuilder child = root.child("x");
 
@@ -120,7 +119,23 @@ public class MemoryNodeBuilderTest {
     }
 
     @Test
-    @Ignore("OAK-447")  // FIXME OAK-447
+    public void testWriteOnRemoveNode() {
+        NodeBuilder root = new MemoryNodeBuilder(BASE);
+        NodeBuilder child = root.child("x");
+
+        root.removeNode("x");
+        try {
+            child.setProperty("q", "w");
+            fail();
+        } catch (IllegalStateException e) {
+            // expected
+        }
+
+        root.child("x");
+        assertEquals(0, child.getChildNodeCount()); // reconnect!
+    }
+
+    @Test
     public void testAddRemovedNodeAgain() {
         NodeBuilder root = new MemoryNodeBuilder(BASE);
 
@@ -149,7 +164,7 @@ public class MemoryNodeBuilderTest {
     public void testReset2() {
         NodeBuilder root = new MemoryNodeBuilder(BASE);
         NodeBuilder x = root.child("x");
-        NodeBuilder y = x.child("y");
+        x.child("y");
 
         root.reset(BASE);
         assertTrue(root.hasChildNode("x"));

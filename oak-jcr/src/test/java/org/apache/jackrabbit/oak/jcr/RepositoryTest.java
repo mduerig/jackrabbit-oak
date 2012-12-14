@@ -21,6 +21,8 @@ package org.apache.jackrabbit.oak.jcr;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -39,6 +41,7 @@ import javax.jcr.Binary;
 import javax.jcr.GuestCredentials;
 import javax.jcr.InvalidItemStateException;
 import javax.jcr.Item;
+import javax.jcr.ItemExistsException;
 import javax.jcr.NamespaceException;
 import javax.jcr.NamespaceRegistry;
 import javax.jcr.NoSuchWorkspaceException;
@@ -64,6 +67,8 @@ import javax.jcr.observation.ObservationManager;
 
 import com.google.common.collect.Sets;
 import org.apache.jackrabbit.JcrConstants;
+import org.apache.jackrabbit.commons.cnd.CndImporter;
+import org.apache.jackrabbit.commons.cnd.ParseException;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -170,8 +175,36 @@ public class RepositoryTest extends AbstractRepositoryTest {
         assertEquals("/", root.getPath());
     }
 
+    @Test(expected = PathNotFoundException.class)
+    public void getPropertyDot() throws RepositoryException {
+        Node node = getNode("/foo");
+        node.getProperty(".");
+    }
+
+    @Test(expected = PathNotFoundException.class)
+    public void getPropertyDotDot() throws RepositoryException {
+        Node node = getNode("/foo");
+        node.getProperty("..");
+    }
+
     @Test
-    public void getNode2() throws RepositoryException {
+    public void hasPropertyDot() throws RepositoryException {
+        Node root = getNode("/");
+        assertFalse((root.hasProperty(".")));
+        Node node = getNode("/foo");
+        assertFalse((node.hasProperty(".")));
+    }
+
+    @Test
+    public void hasPropertyDotDot() throws RepositoryException {
+        Node root = getNode("/");
+        assertFalse((root.hasProperty("..")));
+        Node node = getNode("/foo");
+        assertFalse((node.hasProperty("..")));
+    }
+
+    @Test
+    public void getNodeDot() throws RepositoryException {
         Node node = getNode("/foo");
         Node same = node.getNode(".");
         assertNotNull(same);
@@ -179,23 +212,49 @@ public class RepositoryTest extends AbstractRepositoryTest {
         assertTrue(same.isSame(node));
     }
 
-    @Ignore("OAK-369") // FIXME: OAK-369
     @Test
-    public void getNode3() throws RepositoryException {
+    public void getNodeDotDot() throws RepositoryException {
         Node node = getNode("/foo");
         Node root = node.getNode("..");
         assertNotNull(root);
         assertEquals("", root.getName());
-        assertTrue("/".equals(root.getPath()));
+        assertTrue(root.isSame(node.getParent()));
     }
 
-    @Ignore("OAK-369") // FIXME: OAK-369
+    @Test(expected = PathNotFoundException.class)
+    public void getRootGetDotDot() throws RepositoryException {
+        Node root = getNode("/");
+        assertNotNull(root);
+        root.getNode("..");
+    }
+
     @Test
-    public void testAddNode() throws RepositoryException {
+    public void hasNodeDot() throws RepositoryException {
+        Node root = getNode("/");
+        assertTrue(root.hasNode("."));
+        Node node = getNode("/foo");
+        assertTrue(node.hasNode("."));
+    }
+
+    @Test
+    public void hasNodeDotDot() throws RepositoryException {
+        Node root = getNode("/");
+        assertFalse(root.hasNode(".."));
+        Node node = getNode("/foo");
+        assertTrue(node.hasNode(".."));
+    }
+
+    @Test(expected = ItemExistsException.class)
+    public void testAddNodeDot() throws RepositoryException {
         Node node = getNode("/foo");
         // add a node with '..' should fail...
-        Node invalid = node.addNode("..");
-        assertTrue(node.getParent().isSame(node.getNode("..")));
+        node.addNode("..");
+    }
+
+    @Test(expected = ItemExistsException.class)
+    public void testAddNodeDotDot() throws RepositoryException {
+        Node node = getNode("/foo");
+        node.addNode(".");
     }
 
     @Test
@@ -204,6 +263,12 @@ public class RepositoryTest extends AbstractRepositoryTest {
         assertNotNull(node);
         assertEquals("foo", node.getName());
         assertEquals("/foo", node.getPath());
+    }
+
+    @Test(expected = RepositoryException.class)
+    public void getNodeAbsolutePath() throws RepositoryException {
+        Node root = getNode("/");
+        root.getNode("/foo");
     }
 
     @Test
@@ -641,6 +706,29 @@ public class RepositoryTest extends AbstractRepositoryTest {
         Value[] values = new Value[2];
         values[0] = getAdminSession().getValueFactory().createValue("jcr:foo", PropertyType.NAME);
         values[1] = getAdminSession().getValueFactory().createValue("bar", PropertyType.NAME);
+
+        parentNode.setProperty("multi name", values);
+        parentNode.getSession().save();
+
+        Session session2 = createAnonymousSession();
+        try {
+            Property property = session2.getProperty(TEST_PATH + "/multi name");
+            assertTrue(property.isMultiple());
+            assertEquals(PropertyType.NAME, property.getType());
+            Value[] values2 = property.getValues();
+            assertEquals(values.length, values2.length);
+            assertEquals(values[0], values2[0]);
+            assertEquals(values[1], values2[1]);
+        } finally {
+            session2.logout();
+        }
+    }
+
+    @Ignore("OAK-510") // FIXME: OAK-510
+    @Test
+    public void addEmptyMultiValueName() throws RepositoryException {
+        Node parentNode = getNode(TEST_PATH);
+        Value[] values = new Value[0];
 
         parentNode.setProperty("multi name", values);
         parentNode.getSession().save();
@@ -1577,6 +1665,23 @@ public class RepositoryTest extends AbstractRepositoryTest {
         }
     }
 
+    @Test  // Regression test for OAK-299
+    public void importNodeType() throws RepositoryException, IOException, ParseException {
+        Session session = getAdminSession();
+        NodeTypeManager manager = session.getWorkspace().getNodeTypeManager();
+        if (!manager.hasNodeType("myNodeType")) {
+            StringBuilder defs = new StringBuilder();
+            defs.append("[\"myNodeType\"]\n");
+            defs.append("  - prop1\n");
+            defs.append("  + * (nt:base) = nt:unstructured \n");
+            Reader cndReader = new InputStreamReader(new ByteArrayInputStream(defs.toString().getBytes()));
+            CndImporter.registerNodeTypes(cndReader, session);
+        }
+
+        NodeType myNodeType = manager.getNodeType("myNodeType");
+        assertTrue(myNodeType.isNodeType("nt:base"));
+    }
+
     @Test
     public void mixin() throws RepositoryException {
         NodeTypeManager ntMgr = getAdminSession().getWorkspace().getNodeTypeManager();
@@ -1860,8 +1965,8 @@ public class RepositoryTest extends AbstractRepositoryTest {
             };
 
             obsMgr.addEventListener(listener, Event.NODE_ADDED | Event.NODE_REMOVED | Event.NODE_MOVED |
-                Event.PROPERTY_ADDED | Event.PROPERTY_REMOVED | Event.PROPERTY_CHANGED | Event.PERSIST,
-                "/", true, null, null, false);
+                    Event.PROPERTY_ADDED | Event.PROPERTY_REMOVED | Event.PROPERTY_CHANGED | Event.PERSIST,
+                    "/", true, null, null, false);
 
             // Generate two events
             Node n = getNode(TEST_PATH);

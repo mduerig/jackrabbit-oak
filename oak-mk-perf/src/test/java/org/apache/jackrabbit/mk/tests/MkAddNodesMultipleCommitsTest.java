@@ -17,8 +17,8 @@
 package org.apache.jackrabbit.mk.tests;
 
 import org.apache.jackrabbit.mk.util.MicroKernelOperation;
+import org.apache.jackrabbit.mk.scenarios.MicroKernelMultipleCommits;
 import org.apache.jackrabbit.mk.testing.MicroKernelTestBase;
-import org.apache.jackrabbit.mk.util.Committer;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -31,7 +31,12 @@ import org.junit.Test;
  * Number of nodes per <b>level</b> =100^(<b>level</b>).
  * <p>
  * Each node has 100 children.
+ * 
+ * 
+ * 
+ * 
  */
+
 public class MkAddNodesMultipleCommitsTest extends MicroKernelTestBase {
 
     static String diff;
@@ -46,46 +51,26 @@ public class MkAddNodesMultipleCommitsTest extends MicroKernelTestBase {
 
     @Test
     public void testWriteNodesAllNodes1Commit() {
-
-        Committer commiter = new Committer();
-        chronometer.start();
-        commiter.addNodes(mk, diff, 0);
-        chronometer.stop();
-        System.out.println("Total time for testWriteNodesAllNodes1Commit is "
-                + chronometer.getSeconds());
+        MicroKernelMultipleCommits.writeNodesAllNodes1Commit(mk, diff,
+                chronometer);
     }
 
     @Test
     public void testWriteNodes1NodePerCommit() {
-
-        Committer commiter = new Committer();
-        chronometer.start();
-        commiter.addNodes(mk, diff, 1);
-        chronometer.stop();
-        System.out.println("Total time for testWriteNodes1NodePerCommit is "
-                + chronometer.getSeconds());
+        MicroKernelMultipleCommits.writeNodes1NodePerCommit(mk, diff,
+                chronometer);
     }
 
     @Test
     public void testWriteNodes50NodesPerCommit() {
-
-        Committer commiter = new Committer();
-        chronometer.start();
-        commiter.addNodes(mk, diff, 50);
-        chronometer.stop();
-        System.out.println("Total time for testWriteNodes50NodesPerCommit is "
-                + chronometer.getSeconds());
+        MicroKernelMultipleCommits.writeNodes50NodesPerCommit(mk, diff,
+                chronometer);
     }
 
     @Test
     public void testWriteNodes1000NodesPerCommit() {
-
-        Committer commiter = new Committer();
-        chronometer.start();
-        commiter.addNodes(mk, diff, 10);
-        chronometer.stop();
-        System.out
-                .println("Total time for testWriteNodes1000NodesPerCommit is "
-                        + chronometer.getSeconds());
+        MicroKernelMultipleCommits.writeNodes1000NodesPerCommit(mk, diff,
+                chronometer);
     }
+
 }

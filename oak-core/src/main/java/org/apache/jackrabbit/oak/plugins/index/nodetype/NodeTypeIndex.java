@@ -40,10 +40,10 @@ import com.google.common.collect.Sets;
 
 /**
  * <code>NodeTypeIndex</code> implements a {@link QueryIndex} using
- * {@link PropertyIndexLookup}s on <code>jcr:primaryType</code> and
+ * {@link Property2IndexLookup}s on <code>jcr:primaryType</code> and
  * <code>jcr:mixinTypes</code> to evaluate a node type restriction on
  * {@link Filter}. The cost for this index is the sum of the costs of the
- * {@link PropertyIndexLookup} for queries on <code>jcr:primaryType</code> and
+ * {@link Property2IndexLookup} for queries on <code>jcr:primaryType</code> and
  * <code>jcr:mixinTypes</code>.
  */
 class NodeTypeIndex implements QueryIndex, JcrConstants {
@@ -53,13 +53,13 @@ class NodeTypeIndex implements QueryIndex, JcrConstants {
         if (!hasNodeTypeRestriction(filter)) {
             // this is not an appropriate index if the filter
             // doesn't have a node type restriction
-            return Double.MAX_VALUE;
+            return Double.POSITIVE_INFINITY;
         }
         NodeTypeIndexLookup lookup = new NodeTypeIndexLookup(root);
         if (lookup.isIndexed(filter.getPath())) {
             return lookup.getCost(resolveNodeType(root, filter.getNodeType()));
         } else {
-            return Double.MAX_VALUE;
+            return Double.POSITIVE_INFINITY;
         }
     }
 
@@ -67,7 +67,8 @@ class NodeTypeIndex implements QueryIndex, JcrConstants {
     public Cursor query(Filter filter, NodeState root) {
         NodeTypeIndexLookup lookup = new NodeTypeIndexLookup(root);
         if (!hasNodeTypeRestriction(filter) || !lookup.isIndexed(filter.getPath())) {
-            return Cursors.newTraversingCursor(filter, root);
+            throw new IllegalStateException(
+                    "NodeType index is used even when no index is available for filter " + filter);
         }
         return Cursors.newPathCursor(lookup.find(
                 resolveNodeType(root, filter.getNodeType())));

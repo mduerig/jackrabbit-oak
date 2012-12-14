@@ -18,15 +18,11 @@ package org.apache.jackrabbit.oak.spi.security;
 
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
-import org.apache.jackrabbit.oak.spi.security.authentication.LoginContextProvider;
-import org.apache.jackrabbit.oak.spi.security.authentication.token.TokenProvider;
+import org.apache.jackrabbit.oak.spi.security.authentication.AuthenticationConfiguration;
 import org.apache.jackrabbit.oak.spi.security.authorization.AccessControlConfiguration;
 import org.apache.jackrabbit.oak.spi.security.principal.PrincipalConfiguration;
 import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeConfiguration;
 import org.apache.jackrabbit.oak.spi.security.user.UserConfiguration;
-import org.apache.jackrabbit.oak.spi.state.NodeStore;
 
 /**
  * SecurityProvider... TODO
@@ -36,15 +32,11 @@ public interface SecurityProvider {
     @Nonnull
     Iterable<SecurityConfiguration> getSecurityConfigurations();
 
-    // TODO review again
     @Nonnull
-    LoginContextProvider getLoginContextProvider(NodeStore nodeStore, QueryIndexProvider indexProvider);
+    AuthenticationConfiguration getAuthenticationConfiguration();
 
     @Nonnull
-    TokenProvider getTokenProvider(Root root);
-
-    @Nonnull
-    AccessControlConfiguration getAccessControlProvider();
+    AccessControlConfiguration getAccessControlConfiguration();
 
     @Nonnull
     PrivilegeConfiguration getPrivilegeConfiguration();

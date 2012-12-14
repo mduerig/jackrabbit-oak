@@ -23,6 +23,7 @@ import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
+import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
 import static org.apache.jackrabbit.oak.plugins.memory.MemoryNodeState.EMPTY_NODE;
 
@@ -150,6 +151,9 @@ public class ValidatingHook implements CommitHook {
 
         @Override
         public void childNodeAdded(String name, NodeState after) {
+            if (NodeStateUtils.isHidden(name)) {
+                return;
+            }
             if (exception == null) {
                 try {
                     Validator v = validator.childNodeAdded(name, after);
@@ -165,6 +169,9 @@ public class ValidatingHook implements CommitHook {
         @Override
         public void childNodeChanged(
                 String name, NodeState before, NodeState after) {
+            if (NodeStateUtils.isHidden(name)) {
+                return;
+            }
             if (exception == null) {
                 try {
                     Validator v =
@@ -180,6 +187,9 @@ public class ValidatingHook implements CommitHook {
 
         @Override
         public void childNodeDeleted(String name, NodeState before) {
+            if (NodeStateUtils.isHidden(name)) {
+                return;
+            }
             if (exception == null) {
                 try {
                     Validator v = validator.childNodeDeleted(name, before);

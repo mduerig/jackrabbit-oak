@@ -22,6 +22,11 @@ import org.apache.jackrabbit.mk.core.MicroKernelImpl;
 public class MicroKernelImplFixture implements MicroKernelFixture {
 
     @Override
+    public boolean isAvailable() {
+        return true;
+    }
+
+    @Override
     public void setUpCluster(MicroKernel[] cluster) {
         MicroKernel mk = new MicroKernelImpl();
         for (int i = 0; i < cluster.length; i++) {

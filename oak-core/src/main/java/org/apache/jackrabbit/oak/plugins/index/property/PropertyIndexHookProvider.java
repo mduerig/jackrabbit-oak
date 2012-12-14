@@ -24,19 +24,22 @@ import org.apache.felix.scr.annotations.Component;
 import org.apache.felix.scr.annotations.Service;
 import org.apache.jackrabbit.oak.plugins.index.IndexHook;
 import org.apache.jackrabbit.oak.plugins.index.IndexHookProvider;
+import org.apache.jackrabbit.oak.plugins.index.p2.Property2IndexHookProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 
 import com.google.common.collect.ImmutableList;
 
 /**
- * Service that provides PropertyIndex based IndexHooks
+ * Service that provides PropertyIndex based IndexHooks.
  * 
  * @see PropertyIndexDiff
  * @see IndexHookProvider
+ * @deprecated please use the {@link Property2IndexHookProvider} instead
  * 
  */
 @Component
 @Service(IndexHookProvider.class)
+@Deprecated
 public class PropertyIndexHookProvider implements IndexHookProvider {
 
     @Override

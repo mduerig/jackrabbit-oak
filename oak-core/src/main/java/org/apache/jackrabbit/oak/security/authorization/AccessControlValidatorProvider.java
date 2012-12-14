@@ -16,11 +16,21 @@
  */
 package org.apache.jackrabbit.oak.security.authorization;
 
+import java.util.Map;
 import javax.annotation.Nonnull;
 
+import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.core.ReadOnlyTree;
+import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
+import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
+import org.apache.jackrabbit.oak.spi.security.authorization.AccessControlConfiguration;
+import org.apache.jackrabbit.oak.spi.security.authorization.restriction.RestrictionProvider;
+import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeDefinition;
+import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeDefinitionReader;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.util.NodeUtil;
 
 /**
  * {@code AccessControlValidatorProvider} aimed to provide a root validator
@@ -30,9 +40,25 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
  */
 class AccessControlValidatorProvider implements ValidatorProvider {
 
+    private SecurityProvider securityProvider;
+
+    AccessControlValidatorProvider(SecurityProvider securityProvider) {
+        this.securityProvider = securityProvider;
+    }
+
+    //--------------------------------------------------< ValidatorProvider >---
     @Nonnull
     @Override
     public Validator getRootValidator(NodeState before, NodeState after) {
-        return new AccessControlValidator();
+        Tree treeBefore = new ReadOnlyTree(before);
+        NodeUtil rootBefore = new NodeUtil(treeBefore);
+        NodeUtil rootAfter = new NodeUtil(new ReadOnlyTree(after));
+
+        PrivilegeDefinitionReader reader = securityProvider.getPrivilegeConfiguration().getPrivilegeDefinitionReader(treeBefore);
+        Map<String, PrivilegeDefinition> privilegeDefinitions = reader.readDefinitions();
+        AccessControlConfiguration acConfig = securityProvider.getAccessControlConfiguration();
+        RestrictionProvider restrictionProvider = acConfig.getRestrictionProvider(NamePathMapper.DEFAULT);
+        return new AccessControlValidator(rootBefore, rootAfter, privilegeDefinitions, restrictionProvider);
     }
+
 }

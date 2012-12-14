@@ -48,17 +48,25 @@ public class FetchCommitAction extends BaseAction<MongoCommit> {
 
     @Override
     public MongoCommit execute() throws Exception {
+        MongoCommit commit = nodeStore.getFromCache(revisionId);
+        if (commit != null) {
+            return commit;
+        }
+
         DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE)
                 .and(MongoCommit.KEY_REVISION_ID).is(revisionId)
                 .get();
 
-        LOG.debug(String.format("Executing query: %s", query));
+        LOG.debug("Executing query: {}", query);
 
         DBObject dbObject = commitCollection.findOne(query);
         if (dbObject == null) {
             throw new Exception(String.format("Commit with revision %d could not be found", revisionId));
         }
-        return (MongoCommit)dbObject;
+
+        commit = (MongoCommit)dbObject;
+        nodeStore.cache(commit);
+        return commit;
     }
 }

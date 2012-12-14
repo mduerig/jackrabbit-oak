@@ -105,15 +105,15 @@ public class SelectorImpl extends SourceImpl {
     }
 
     @Override
-    public void execute(NodeState root) {
-        cursor = index.query(createFilter(), root);
+    public void execute(NodeState rootState) {
+        cursor = index.query(createFilter(), rootState);
     }
 
     @Override
-    public String getPlan(NodeState root) {
+    public String getPlan(NodeState rootState) {
         StringBuilder buff = new StringBuilder();
         buff.append(toString());
-        buff.append(" /* ").append(index.getPlan(createFilter(), root));
+        buff.append(" /* ").append(index.getPlan(createFilter(), rootState));
         if (selectorCondition != null) {
             buff.append(" where ").append(selectorCondition);
         }
@@ -123,6 +123,7 @@ public class SelectorImpl extends SourceImpl {
 
     private Filter createFilter() {
         FilterImpl f = new FilterImpl(this, query.getStatement());
+        validateNodeType(nodeTypeName);
         f.setNodeType(nodeTypeName);
         if (joinCondition != null) {
             joinCondition.restrict(f);
@@ -142,6 +143,13 @@ public class SelectorImpl extends SourceImpl {
         }
 
         return f;
+    }
+    
+    private void validateNodeType(String nodeType) {
+        // this looks a bit weird, but it should be correct - the code
+        // assumes that paths and node type names have the same format
+        // restrictions (characters such as "[" are not allowed and so on)
+        query.validatePath(nodeType);
     }
 
     @Override

@@ -161,7 +161,7 @@ class MembershipProvider extends AuthorizableBaseProvider {
                 Tree membersTree = groupTree.getChild(REP_MEMBERS);
                 if (membersTree != null) {
                     // FIXME: fix.. testing for property name in jr2 wasn't correct.
-                    // TODO: add implementation
+                    // TODO OAK-482: add implementation
                     throw new UnsupportedOperationException("not implemented: isMembers determined from member-node hierarchy");
                 }
             } else {
@@ -189,13 +189,10 @@ class MembershipProvider extends AuthorizableBaseProvider {
         if (useMemberNode(groupTree)) {
             NodeUtil groupNode = new NodeUtil(groupTree);
             NodeUtil membersNode = groupNode.getOrAddChild(REP_MEMBERS, NT_REP_MEMBERS);
-            // TODO: add implementation that allows to index group members
+            // TODO OAK-482: add implementation that allows to index group members
             throw new UnsupportedOperationException("not implemented: addMember with member-node hierarchy");
         } else {
-            PropertyState property = groupTree.getProperty(REP_MEMBERS);
-            PropertyBuilder<String> propertyBuilder = property == null
-                ? MemoryPropertyBuilder.array(WEAKREFERENCE, REP_MEMBERS)
-                : MemoryPropertyBuilder.copy(WEAKREFERENCE, property);
+            PropertyBuilder<String> propertyBuilder = getMembersPropertyBuilder(groupTree);
             if (propertyBuilder.hasValue(memberContentId)) {
                 return false;
             } else {
@@ -210,16 +207,12 @@ class MembershipProvider extends AuthorizableBaseProvider {
         if (useMemberNode(groupTree)) {
             Tree membersTree = groupTree.getChild(REP_MEMBERS);
             if (membersTree != null) {
-                // TODO: add implementation
+                // TODO OAK-482: add implementation
                 throw new UnsupportedOperationException("not implemented: remove member from member-node hierarchy");
             }
         } else {
             String toRemove = getContentID(memberTree);
-            // FIXME: remove usage of MemoryPropertyBuilder (OAK-372)
-            PropertyState property = groupTree.getProperty(REP_MEMBERS);
-            PropertyBuilder<String> propertyBuilder = property == null
-                ? MemoryPropertyBuilder.array(WEAKREFERENCE, REP_MEMBERS)
-                : MemoryPropertyBuilder.copy(WEAKREFERENCE, property);
+            PropertyBuilder<String> propertyBuilder = getMembersPropertyBuilder(groupTree);
             if (propertyBuilder.hasValue(toRemove)) {
                 propertyBuilder.removeValue(toRemove);
                 if (propertyBuilder.isEmpty()) {
@@ -237,6 +230,16 @@ class MembershipProvider extends AuthorizableBaseProvider {
     }
 
     //-----------------------------------------< private MembershipProvider >---
+
+    private PropertyBuilder<String> getMembersPropertyBuilder(Tree groupTree) {
+        // FIXME: remove usage of MemoryPropertyBuilder (OAK-372)
+        PropertyState property = groupTree.getProperty(REP_MEMBERS);
+        if (property == null) {
+            return MemoryPropertyBuilder.array(WEAKREFERENCE, REP_MEMBERS);
+        } else {
+            return MemoryPropertyBuilder.copy(WEAKREFERENCE, property);
+        }
+    }
 
     private boolean useMemberNode(Tree groupTree) {
         return splitSize >= 4 && !groupTree.hasProperty(REP_MEMBERS);

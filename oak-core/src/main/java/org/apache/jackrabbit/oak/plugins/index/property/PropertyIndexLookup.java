@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.index.IndexConstants;
 import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -48,7 +49,10 @@ import com.google.common.collect.Sets;
  * }
  * </code>
  * </pre>
+ * 
+ * @deprecated please use the {@link Property2IndexLookup} instead
  */
+@Deprecated
 public class PropertyIndexLookup {
 
     private final NodeState root;
@@ -58,17 +62,20 @@ public class PropertyIndexLookup {
     }
 
     /**
-     * Checks whether the named properties are indexed somewhere
-     * along the given path.
-     *
+     * Checks whether the named property is indexed somewhere along the given
+     * path. Lookup starts at the current path (at the root of this object) and
+     * traverses down the path.
+     * 
      * @param name property name
      * @param path lookup path
+     * @return true if the property is indexed
      */
     public boolean isIndexed(String name, String path) {
         if (getIndexDefinitionNode(name) != null) {
             return true;
         }
 
+        // TODO use PathUtils
         if (path.startsWith("/")) {
             path = path.substring(1);
         }
@@ -85,12 +92,11 @@ public class PropertyIndexLookup {
     /**
      * Searches for a given <code>String<code> value within this index.
      * 
-     * <p><b>Note</b> if the property you are looking for is not of type <code>String<code>, the converted key value might not match the index key, and there will be no hits on the index.</p>
+     * <p><b>Note</b> if the property you are looking for is not of type <code>String<code>, 
+     * the converted key value might not match the index key, and there will be no hits on the index.</p>
      * 
-     * @param name
-     *            the property name
-     * @param value
-     *            the property value
+     * @param name the property name
+     * @param value the property value
      * @return the set of matched paths
      */
     public Set<String> find(String name, String value) {
@@ -170,16 +176,27 @@ public class PropertyIndexLookup {
                 }
             }
         } else {
-            cost = Double.MAX_VALUE;
+            cost = Double.POSITIVE_INFINITY;
         }
         return cost;
     }
 
+    /**
+     * Get the node with the index definition node for the given property.
+     * 
+     * @param name the property name
+     * @return the node where the index definition is stored, or null if no
+     *         index definition node was found
+     */
     @Nullable
     private NodeState getIndexDefinitionNode(String name) {
         NodeState state = root.getChildNode(INDEX_DEFINITIONS_NAME);
         if (state != null) {
             for (ChildNodeEntry entry : state.getChildNodeEntries()) {
+                PropertyState type = entry.getNodeState().getProperty(IndexConstants.TYPE_PROPERTY_NAME);
+                if(type == null || type.isArray() || !PropertyIndex.TYPE.equals(type.getValue(Type.STRING))){
+                    continue;
+                }
                 PropertyState names = entry.getNodeState().getProperty("propertyNames");
                 if (names != null) {
                     for (int i = 0; i < names.count(); i++) {

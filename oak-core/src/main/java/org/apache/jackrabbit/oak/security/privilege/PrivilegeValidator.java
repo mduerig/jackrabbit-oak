@@ -29,7 +29,6 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.core.ReadOnlyTree;
 import org.apache.jackrabbit.oak.plugins.name.NamespaceConstants;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
-import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeConstants;
 import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeDefinition;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.util.Text;
@@ -41,17 +40,13 @@ import org.apache.jackrabbit.util.Text;
 class PrivilegeValidator implements PrivilegeConstants, Validator {
 
     private final Map<String, PrivilegeDefinition> definitions;
-    private final PrivilegeDefinitionReader reader;
+    private final PrivilegeDefinitionReaderImpl reader;
 
-    PrivilegeValidator(Tree rootBefore) {
-        Tree privilegesBefore = null;
-        Tree system = rootBefore.getChild(JcrConstants.JCR_SYSTEM);
-        if (system != null) {
-            privilegesBefore = system.getChild(REP_PRIVILEGES);
-        }
-
-        if (privilegesBefore != null) {
-            reader = new PrivilegeDefinitionReader(privilegesBefore);
+    PrivilegeValidator(NodeState before, NodeState after) {
+        NodeState privRootState = getPrivilegesRoot(before);
+        if (privRootState != null) {
+            Tree privilegesBefore = new ReadOnlyTree(privRootState);
+            reader = new PrivilegeDefinitionReaderImpl(privilegesBefore);
             definitions = reader.readDefinitions();
         } else {
             reader = null;
@@ -209,5 +204,13 @@ class PrivilegeValidator implements PrivilegeConstants, Validator {
         if (reader == null || definitions == null) {
             throw new CommitFailedException(new IllegalStateException("Mandatory privileges root is missing."));
         }
+    }
+
+    private static NodeState getPrivilegesRoot(NodeState rootState) {
+        NodeState system = rootState.getChildNode(JcrConstants.JCR_SYSTEM);
+        if (system != null) {
+            return system.getChildNode(REP_PRIVILEGES);
+        }
+        return null;
     }
 }

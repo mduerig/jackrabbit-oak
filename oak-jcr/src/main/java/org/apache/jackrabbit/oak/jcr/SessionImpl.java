@@ -17,11 +17,11 @@
 package org.apache.jackrabbit.oak.jcr;
 
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
 import javax.jcr.AccessDeniedException;
 import javax.jcr.Credentials;
@@ -54,6 +54,7 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.jcr.xml.XmlImportHandler;
 import org.apache.jackrabbit.oak.spi.security.authentication.ImpersonationCredentials;
 import org.apache.jackrabbit.oak.util.TODO;
+import org.apache.jackrabbit.util.Text;
 import org.apache.jackrabbit.util.XMLChar;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,10 +78,11 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
      * This map is only accessed from synchronized methods (see
      * <a href="https://issues.apache.org/jira/browse/JCR-1793">JCR-1793</a>).
      */
-    private final Map<String, String> namespaces = new HashMap<String, String>();
+    private final Map<String, String> namespaces;
 
-    SessionImpl(SessionDelegate dlg) {
+    SessionImpl(SessionDelegate dlg, Map<String, String> namespaces) {
         this.dlg = dlg;
+        this.namespaces = namespaces;
     }
 
     //------------------------------------------------------------< Session >---
@@ -140,7 +142,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
                 if (nd == null) {
                     throw new AccessDeniedException("Root node is not accessible.");
                 } else {
-                    return new NodeImpl(nd);
+                    return new NodeImpl<NodeDelegate>(nd);
                 }
             }
         });
@@ -164,7 +166,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
                 if (d == null) {
                     throw new ItemNotFoundException("Node with id " + id + " does not exist.");
                 }
-                return new NodeImpl(d);
+                return new NodeImpl<NodeDelegate>(d);
             }
         });
     }
@@ -195,7 +197,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
                 if (d == null) {
                     throw new PathNotFoundException("Node with path " + absPath + " does not exist.");
                 }
-                return new NodeImpl(d);
+                return new NodeImpl<NodeDelegate>(d);
             }
         });
     }
@@ -254,10 +256,10 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
     public void move(final String srcAbsPath, final String destAbsPath) throws RepositoryException {
         ensureIsAlive();
 
-        // FIXME: check for protection on src-parent and dest-parent (OAK-250)
         dlg.perform(new SessionOperation<Void>() {
             @Override
             public Void perform() throws RepositoryException {
+                dlg.checkProtectedNodes(Text.getRelativeParent(srcAbsPath, 1), Text.getRelativeParent(destAbsPath, 1));
                 String oakPath = dlg.getOakPathKeepIndexOrThrowNotFound(destAbsPath);
                 String oakName = PathUtils.getName(oakPath);
                 // handle index
@@ -381,7 +383,7 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
         ensureIsAlive();
 
         // TODO
-        return false;
+        return TODO.unimplemented().returnValue(false);
     }
 
     @Override
@@ -537,10 +539,6 @@ public class SessionImpl extends AbstractSession implements JackrabbitSession {
             }
             return prefix;
         }
-    }
-
-    boolean hasSessionLocalMappings() {
-        return !namespaces.isEmpty();
     }
 
     //--------------------------------------------------< JackrabbitSession >---

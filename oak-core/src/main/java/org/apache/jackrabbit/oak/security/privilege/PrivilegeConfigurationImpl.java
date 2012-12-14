@@ -21,31 +21,36 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.api.security.authorization.PrivilegeManager;
-import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.Root;
+import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
+import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
 import org.apache.jackrabbit.oak.spi.lifecycle.RepositoryInitializer;
+import org.apache.jackrabbit.oak.spi.security.Context;
 import org.apache.jackrabbit.oak.spi.security.SecurityConfiguration;
 import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeConfiguration;
+import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeDefinitionReader;
 
 /**
- * PrivilegeConfigurationImpl... TODO
+ * Configuration for the privilege management component.
  */
 public class PrivilegeConfigurationImpl extends SecurityConfiguration.Default implements PrivilegeConfiguration {
 
+    //---------------------------------------------< PrivilegeConfiguration >---
     @Nonnull
     @Override
     public PrivilegeManager getPrivilegeManager(Root root, NamePathMapper namePathMapper) {
-        return new ReadOnlyPrivilegeManager(root, namePathMapper);
+        return new PrivilegeManagerImpl(root, namePathMapper);
     }
 
     @Nonnull
     @Override
-    public PrivilegeManager getPrivilegeManager(ContentSession contentSession, Root root, NamePathMapper namePathMapper) {
-        return new PrivilegeManagerImpl(root, namePathMapper, contentSession);
+    public PrivilegeDefinitionReader getPrivilegeDefinitionReader(Tree tree) {
+        return new PrivilegeDefinitionReaderImpl(tree);
     }
 
+    //----------------------------------------------< SecurityConfiguration >---
     @Nonnull
     @Override
     public RepositoryInitializer getRepositoryInitializer() {
@@ -54,8 +59,20 @@ public class PrivilegeConfigurationImpl extends SecurityConfiguration.Default im
 
     @Nonnull
     @Override
+    public List<CommitHook> getCommitHooks() {
+        return Collections.<CommitHook>singletonList(new JcrAllCommitHook());
+    }
+
+    @Nonnull
+    @Override
     public List<ValidatorProvider> getValidatorProviders() {
         ValidatorProvider vp = new PrivilegeValidatorProvider();
         return Collections.singletonList(vp);
+    }
+
+    @Nonnull
+    @Override
+    public Context getContext() {
+        return PrivilegeContext.INSTANCE;
     }
 }

@@ -120,19 +120,40 @@ public interface UserConstants {
      * </ul>
      */
     String PARAM_GROUP_MEMBERSHIP_SPLIT_SIZE = "groupMembershipSplitSize";
+
     /**
      * Configuration parameter to change the default algorithm used to generate
      * password hashes.
      */
     String PARAM_PASSWORD_HASH_ALGORITHM = "passwordHashAlgorithm";
+
     /**
      * Configuration parameter to change the number of iterations used for
      * password hash generation.
      */
     String PARAM_PASSWORD_HASH_ITERATIONS = "passwordHashIterations";
+
     /**
      * Configuration parameter to change the number of iterations used for
      * password hash generation.
      */
     String PARAM_PASSWORD_SALT_SIZE = "passwordSaltSize";
+
+    /**
+     * Optional configuration parameter defining how to generate the name of the
+     * authorizable node from the ID of the new authorizable that is being created.
+     * The value is expected to be an instance of {@link AuthorizableNodeName}.
+     * By default {@link AuthorizableNodeName#DEFAULT} is used.
+     */
+    String PARAM_AUTHORIZABLE_NODE_NAME = "authorizableNodeName";
+
+    /**
+     * Optional configuration parameter to set the
+     * {@link org.apache.jackrabbit.oak.spi.security.user.action.AuthorizableActionProvider}
+     * to be used with the given user management implementation.
+     * Unless otherwise specified in the configuration
+     * {@link org.apache.jackrabbit.oak.spi.security.user.action.DefaultAuthorizableActionProvider}
+     * is used.
+     */
+    String PARAM_AUTHORIZABLE_ACTION_PROVIDER = "authorizableActionProvider";
 }

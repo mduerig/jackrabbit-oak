@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.namepath.JcrPathParser;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.query.ast.AstVisitorBase;
 import org.apache.jackrabbit.oak.query.ast.BindVariableValueImpl;
@@ -91,7 +92,8 @@ public class Query {
     private long offset;
     private long size = -1;
     private boolean prepared;
-    private Root root;
+    private Root rootTree;
+    private NodeState rootState;
     private NamePathMapper namePathMapper;
 
     Query(String statement, SourceImpl source, ConstraintImpl constraint, OrderingImpl[] orderings,
@@ -298,15 +300,15 @@ public class Query {
         this.measure = measure;
     }
 
-    public ResultImpl executeQuery(NodeState root) {
-        return new ResultImpl(this, root);
+    public ResultImpl executeQuery() {
+        return new ResultImpl(this);
     }
 
-    Iterator<ResultRowImpl> getRows(NodeState root) {
+    Iterator<ResultRowImpl> getRows() {
         prepare();
         Iterator<ResultRowImpl> it;
         if (explain) {
-            String plan = source.getPlan(root);
+            String plan = source.getPlan(rootState);
             columns = new ColumnImpl[] { new ColumnImpl("explain", "plan", "plan")};
             ResultRowImpl r = new ResultRowImpl(this,
                     new String[0], 
@@ -315,14 +317,14 @@ public class Query {
             it = Arrays.asList(r).iterator();
         } else {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("plan: " + source.getPlan(root));
+                LOG.debug("plan: " + source.getPlan(rootState));
             }
             if (orderings == null) {
                 // can apply limit and offset directly
-                it = new RowIterator(root, limit, offset);
+                it = new RowIterator(rootState, limit, offset);
             } else {
                 // read and order first; skip and limit afterwards
-                it = new RowIterator(root, Long.MAX_VALUE, 0);
+                it = new RowIterator(rootState, Long.MAX_VALUE, 0);
             }
             long readCount = 0;
             if (orderings != null) {
@@ -330,7 +332,8 @@ public class Query {
                 // rows in the same order
                     
                 // avoid overflow (both offset and limit could be Long.MAX_VALUE)
-                int keep = (int) (Math.min(Integer.MAX_VALUE, offset) + 
+                int keep = (int) Math.min(Integer.MAX_VALUE, 
+                        Math.min(Integer.MAX_VALUE, offset) + 
                         Math.min(Integer.MAX_VALUE, limit));
                 
                 ArrayList<ResultRowImpl> list = new ArrayList<ResultRowImpl>();
@@ -448,13 +451,13 @@ public class Query {
      */
     class RowIterator implements Iterator<ResultRowImpl> {
 
-        private final NodeState root;
+        private final NodeState rootState;
         private ResultRowImpl current;
         private boolean started, end;
         private long limit, offset, rowIndex;
 
-        RowIterator(NodeState root, long limit, long offset) {
-            this.root = root;
+        RowIterator(NodeState rootState, long limit, long offset) {
+            this.rootState = rootState;
             this.limit = limit;
             this.offset = offset;
         }
@@ -468,7 +471,7 @@ public class Query {
                 return;
             }
             if (!started) {
-                source.execute(root);
+                source.execute(rootState);
                 started = true;
             }
             while (true) {
@@ -587,11 +590,15 @@ public class Query {
     }
 
     public QueryIndex getBestIndex(Filter filter) {
-        return queryEngine.getBestIndex(this, filter);
+        return queryEngine.getBestIndex(this, rootState, filter);
     }
 
-    public void setRoot(Root root) {
-        this.root = root;
+    public void setRootTree(Root rootTree) {
+        this.rootTree = rootTree;
+    }
+    
+    public void setRootState(NodeState rootState) {
+        this.rootState = rootState;
     }
 
     public void setNamePathMapper(NamePathMapper namePathMapper) {
@@ -603,7 +610,18 @@ public class Query {
     }
 
     public Tree getTree(String path) {
-        return root.getTree(path);
+        return rootTree.getTree(path);
+    }
+    
+    /**
+     * Validate a path is syntactically correct.
+     * 
+     * @param path the path to validate
+     */
+    public void validatePath(String path) {
+        if (!JcrPathParser.validate(path)) {
+            throw new IllegalArgumentException("Invalid path: " + path);
+        }
     }
 
     @Override

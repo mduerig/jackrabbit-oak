@@ -21,6 +21,8 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.namepath.JcrPathParser.Listener;
 import org.apache.jackrabbit.oak.plugins.identifier.IdentifierManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,40 +77,20 @@ public class NamePathMapperImpl implements NamePathMapper {
         return getOakPath(jcrPath, true);
     }
 
+
     @Override
     @Nonnull
-    public String getJcrPath(String oakPath) {
-        final List<String> elements = new ArrayList<String>();
-
+    public String getJcrPath(final String oakPath) {
         if ("/".equals(oakPath)) {
             // avoid the need to special case the root path later on
             return "/";
         }
 
-        JcrPathParser.Listener listener = new JcrPathParser.Listener() {
-            @Override
-            public boolean root() {
-                if (!elements.isEmpty()) {
-                    throw new IllegalArgumentException("/ on non-empty path");
-                }
-                elements.add("");
-                return true;
-            }
-
+        PathListener listener = new PathListener() {
             @Override
             public boolean current() {
                 // nothing to do here
                 return false;
-            }
-
-            @Override
-            public boolean parent() {
-                if (elements.isEmpty() || "..".equals(elements.get(elements.size() - 1))) {
-                    elements.add("..");
-                    return true;
-                }
-                elements.remove(elements.size() - 1);
-                return true;
             }
 
             @Override
@@ -119,7 +101,7 @@ public class NamePathMapperImpl implements NamePathMapper {
             @Override
             public boolean name(String name, int index) {
                 if (index > 1) {
-                    throw new IllegalArgumentException("index > 1");
+                    error("index > 1");
                 }
                 String p = nameMapper.getJcrName(name);
                 elements.add(p);
@@ -130,12 +112,12 @@ public class NamePathMapperImpl implements NamePathMapper {
         JcrPathParser.parse(oakPath, listener);
 
         // empty path: map to "."
-        if (elements.isEmpty()) {
+        if (listener.elements.isEmpty()) {
             return ".";
         }
 
         StringBuilder jcrPath = new StringBuilder();
-        for (String element : elements) {
+        for (String element : listener.elements) {
             if (element.isEmpty()) {
                 // root
                 jcrPath.append('/');
@@ -150,7 +132,7 @@ public class NamePathMapperImpl implements NamePathMapper {
         return jcrPath.toString();
     }
 
-    private String getOakPath(String jcrPath, final boolean keepIndex) {
+    private String getOakPath(final String jcrPath, final boolean keepIndex) {
         if ("/".equals(jcrPath)) {
             // avoid the need to special case the root path later on
             return "/";
@@ -214,37 +196,9 @@ public class NamePathMapperImpl implements NamePathMapper {
             }
         }
 
-        final List<String> elements = new ArrayList<String>();
         final StringBuilder parseErrors = new StringBuilder();
 
-        JcrPathParser.Listener listener = new JcrPathParser.Listener() {
-
-            @Override
-            public boolean root() {
-                if (!elements.isEmpty()) {
-                    parseErrors.append("/ on non-empty path");
-                    return false;
-                }
-                elements.add("");
-                return true;
-            }
-
-            @Override
-            public boolean current() {
-                // nothing to do here
-                return true;
-            }
-
-            @Override
-            public boolean parent() {
-                if (elements.isEmpty() || "..".equals(elements.get(elements.size() - 1))) {
-                    elements.add("..");
-                    return true;
-                }
-                elements.remove(elements.size() - 1);
-                return true;
-            }
-
+        PathListener listener = new PathListener() {
             @Override
             public void error(String message) {
                 parseErrors.append(message);
@@ -253,12 +207,12 @@ public class NamePathMapperImpl implements NamePathMapper {
             @Override
             public boolean name(String name, int index) {
                 if (!keepIndex && index > 1) {
-                    parseErrors.append("index > 1");
+                    error("index > 1");
                     return false;
                 }
                 String p = nameMapper.getOakName(name);
                 if (p == null) {
-                    parseErrors.append("Invalid name: ").append(name);
+                    error("Invalid name: " + name);
                     return false;
                 }
                 if (keepIndex && index > 0) {
@@ -276,12 +230,12 @@ public class NamePathMapperImpl implements NamePathMapper {
         }
 
         // Empty path maps to ""
-        if (elements.isEmpty()) {
+        if (listener.elements.isEmpty()) {
             return "";
         }
 
         StringBuilder oakPath = new StringBuilder();
-        for (String element : elements) {
+        for (String element : listener.elements) {
             if (element.isEmpty()) {
                 // root
                 oakPath.append('/');
@@ -296,6 +250,46 @@ public class NamePathMapperImpl implements NamePathMapper {
         // be considered here
         oakPath.deleteCharAt(oakPath.length() - 1);
         return oakPath.toString();
+    }
+
+    //------------------------------------------------------------< PathListener >---
+
+    private abstract static class PathListener implements Listener {
+        final List<String> elements = new ArrayList<String>();
+
+        @Override
+        public boolean root() {
+            if (!elements.isEmpty()) {
+                error("/ on non-empty path");
+                return false;
+            }
+            elements.add("");
+            return true;
+        }
+
+        @Override
+        public boolean current() {
+            // nothing to do here
+            return true;
+        }
+
+        @Override
+        public boolean parent() {
+            int prevIdx = elements.size() - 1;
+            String prevElem = prevIdx >= 0 ? elements.get(prevIdx) : null;
+
+            if (prevElem == null || PathUtils.denotesParent(prevElem)) {
+                elements.add("..");
+                return true;
+            }
+            if (prevElem.isEmpty()) {
+                error("Absolute path escapes root");
+                return false;
+            }
+
+            elements.remove(prevElem);
+            return true;
+        }
     }
 
 }

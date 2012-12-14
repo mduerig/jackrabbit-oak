@@ -25,7 +25,7 @@ import java.util.Set;
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
-import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
+import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
 import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.action.ReadAndIncHeadRevisionAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveAndSetHeadRevisionAction;
@@ -41,7 +41,6 @@ import org.slf4j.LoggerFactory;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
 import com.mongodb.WriteResult;
@@ -56,7 +55,8 @@ public class CommitCommand extends BaseCommand<Long> {
     private final MongoCommit commit;
 
     private Set<String> affectedPaths;
-    private List<MongoNode> existingNodes;
+    private Map<String, MongoNode> existingNodes;
+    private List<MongoCommit> validCommits;
     private MongoSync mongoSync;
     private Set<MongoNode> nodes;
     private Long revisionId;
@@ -75,12 +75,12 @@ public class CommitCommand extends BaseCommand<Long> {
 
     @Override
     public Long execute() throws Exception {
-        logger.debug(String.format("Trying to commit: %s", commit.getDiff()));
-
         boolean success = false;
         do {
             mongoSync = new ReadAndIncHeadRevisionAction(nodeStore).execute();
             revisionId = mongoSync.getNextRevisionId() - 1;
+            logger.debug("Committing @{} with diff: {}", revisionId, commit.getDiff());
+            readValidCommits();
             readBranchIdFromBaseCommit();
             createMongoNodes();
             prepareCommit();
@@ -92,12 +92,17 @@ public class CommitCommand extends BaseCommand<Long> {
             success = saveAndSetHeadRevision();
         } while (!success);
 
+        logger.debug("Commit @{}: success", revisionId);
         return revisionId;
+    }
+
+    private void readValidCommits() {
+        validCommits = new FetchCommitsAction(nodeStore, mongoSync.getHeadRevisionId()).execute();
     }
 
     @Override
     public int getNumOfRetries() {
-        return 20;
+        return 100;
     }
 
     @Override
@@ -119,13 +124,16 @@ public class CommitCommand extends BaseCommand<Long> {
             return;
         }
 
-        MongoCommit baseCommit = new FetchCommitAction(nodeStore, baseRevisionId).execute();
-        branchId = baseCommit.getBranchId();
+        for (MongoCommit commit : validCommits) {
+            if (baseRevisionId.equals(commit.getRevisionId())) {
+                branchId = commit.getBranchId();
+            }
+        }
     }
 
     private void createMongoNodes() throws Exception {
         CommitCommandInstructionVisitor visitor = new CommitCommandInstructionVisitor(
-                nodeStore, mongoSync.getHeadRevisionId());
+                nodeStore, mongoSync.getHeadRevisionId(), validCommits);
         visitor.setBranchId(branchId);
 
         for (Instruction instruction : commit.getInstructions()) {
@@ -151,35 +159,35 @@ public class CommitCommand extends BaseCommand<Long> {
         FetchNodesAction action = new FetchNodesAction(nodeStore, affectedPaths,
                 mongoSync.getHeadRevisionId());
         action.setBranchId(branchId);
+        action.setValidCommits(validCommits);
         existingNodes = action.execute();
     }
 
     private void mergeNodes() {
-        for (MongoNode existingNode : existingNodes) {
+        for (MongoNode existingNode : existingNodes.values()) {
             for (MongoNode committingNode : nodes) {
                 if (existingNode.getPath().equals(committingNode.getPath())) {
-                    logger.debug(String.format("Found existing node to merge: %s", existingNode.getPath()));
-                    logger.debug(String.format("Existing node: %s", existingNode));
-                    logger.debug(String.format("Committing node: %s", committingNode));
-
+                    if(logger.isDebugEnabled()){
+                        logger.debug("Found existing node to merge: {}", existingNode.getPath());
+                        logger.debug("Existing node: {}", existingNode);
+                        logger.debug("Committing node: {}", committingNode);
+                    }
                     Map<String, Object> existingProperties = existingNode.getProperties();
                     if (!existingProperties.isEmpty()) {
                         committingNode.setProperties(existingProperties);
 
-                        logger.debug(String.format("Merged properties for %s: %s", existingNode.getPath(),
-                                existingProperties));
+                        logger.debug("Merged properties for {}: {}", existingNode.getPath(),
+                                existingProperties);
                     }
 
                     List<String> existingChildren = existingNode.getChildren();
                     if (existingChildren != null) {
                         committingNode.setChildren(existingChildren);
 
-                        logger.debug(String.format("Merged children for %s: %s", existingNode.getPath(), existingChildren));
+                        logger.debug("Merged children for {}: {}", existingNode.getPath(), existingChildren);
                     }
 
-                    committingNode.setBaseRevisionId(existingNode.getRevisionId());
-
-                    logger.debug(String.format("Merged node for %s: %s", existingNode.getPath(), committingNode));
+                    logger.debug("Merged node for {}: {}", existingNode.getPath(), committingNode);
 
                     break;
                 }
@@ -189,8 +197,8 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private void prepareMongoNodes() {
         for (MongoNode committingNode : nodes) {
-            logger.debug(String.format("Preparing children (added and removed) of %s", committingNode.getPath()));
-            logger.debug(String.format("Committing node: %s", committingNode));
+            logger.debug("Preparing children (added and removed) of {}", committingNode.getPath());
+            logger.debug("Committing node: {}", committingNode);
 
             List<String> children = committingNode.getChildren();
             if (children == null) {
@@ -239,7 +247,7 @@ public class CommitCommand extends BaseCommand<Long> {
                 committingNode.setBranchId(branchId);
             }
 
-            logger.debug(String.format("Prepared committing node: %s", committingNode));
+            logger.debug("Prepared committing node: {}", committingNode);
         }
     }
 
@@ -259,15 +267,14 @@ public class CommitCommand extends BaseCommand<Long> {
             // If not, need to retry again (in order to write commits and nodes properly)
             // but don't count these retries against number of retries.
             if (conflictingCommitsExist(assumedHeadRevision)) {
-                String message = String.format("Encountered a concurrent conflicting update"
-                        + ", thus can't commit revision %s and will be retried with new revision", revisionId);
+                String message = String.format("Commit @%s: failed due to a conflicting commit."
+                        + " Affected paths: %s", revisionId, commit.getAffectedPaths());
                 logger.warn(message);
                 markAsFailed();
                 throw new ConflictingCommitException(message);
             } else {
-                String message = String.format("Encountered a concurrent but non-conflicting update"
-                        + ", thus can't commit revision %s and will be retried with new revision", revisionId);
-                logger.warn(message);
+                logger.warn("Commit @{}: failed due to a conflicting commit."
+                        + " Affected paths: {}", revisionId, commit.getAffectedPaths());
                 markAsFailed();
                 return false;
             }
@@ -276,20 +283,16 @@ public class CommitCommand extends BaseCommand<Long> {
     }
 
     private boolean conflictingCommitsExist(long baseRevisionId) {
-        QueryBuilder queryBuilder = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE);
-        queryBuilder = queryBuilder.and(MongoCommit.KEY_BASE_REVISION_ID).is(baseRevisionId);
+        QueryBuilder queryBuilder = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE)
+                .and(MongoCommit.KEY_BASE_REVISION_ID).is(baseRevisionId)
+                .and(MongoCommit.KEY_REVISION_ID).greaterThan(0L)
+                .and(MongoCommit.KEY_REVISION_ID).notEquals(revisionId);
         DBObject query = queryBuilder.get();
         DBCollection collection = nodeStore.getCommitCollection();
-        DBCursor dbCursor = collection.find(query);
-        while (dbCursor.hasNext()) {
-            MongoCommit commit = (MongoCommit)dbCursor.next();
-            if (this.commit.getRevisionId().equals(commit.getRevisionId())) {
-                continue;
-            }
-            for (String affectedPath : commit.getAffectedPaths()) {
-                if (affectedPaths.contains(affectedPath)) {
-                    return true;
-                }
+        MongoCommit conflictingCommit = (MongoCommit)collection.findOne(query);
+        for (String affectedPath : conflictingCommit.getAffectedPaths()) {
+            if (affectedPaths.contains(affectedPath)) {
+                return true;
             }
         }
         return false;

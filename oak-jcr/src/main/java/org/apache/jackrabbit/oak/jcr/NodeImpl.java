@@ -54,6 +54,7 @@ import javax.jcr.nodetype.NodeTypeManager;
 import javax.jcr.nodetype.PropertyDefinition;
 import javax.jcr.version.Version;
 import javax.jcr.version.VersionHistory;
+import javax.jcr.version.VersionManager;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
@@ -74,6 +75,7 @@ import org.apache.jackrabbit.oak.api.Tree.Status;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.identifier.IdentifierManager;
 import org.apache.jackrabbit.oak.plugins.nodetype.DefinitionProvider;
+import org.apache.jackrabbit.oak.plugins.nodetype.EffectiveNodeType;
 import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
 import org.apache.jackrabbit.oak.util.TODO;
 import org.apache.jackrabbit.value.ValueHelper;
@@ -86,14 +88,14 @@ import static javax.jcr.Property.JCR_LOCK_OWNER;
 /**
  * {@code NodeImpl}...
  */
-public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
+public class NodeImpl<T extends NodeDelegate> extends ItemImpl<T> implements Node {
 
     /**
      * logger instance
      */
     private static final Logger log = LoggerFactory.getLogger(NodeImpl.class);
 
-    public NodeImpl(NodeDelegate dlg) {
+    public NodeImpl(T dlg) {
         super(dlg.getSessionDelegate(), dlg);
     }
 
@@ -115,9 +117,9 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
     public Node getParent() throws RepositoryException {
         checkStatus();
 
-        return sessionDelegate.perform(new SessionOperation<NodeImpl>() {
+        return sessionDelegate.perform(new SessionOperation<NodeImpl<NodeDelegate>>() {
             @Override
-            public NodeImpl perform() throws RepositoryException {
+            public NodeImpl<NodeDelegate> perform() throws RepositoryException {
                 if (dlg.isRoot()) {
                     throw new ItemNotFoundException("Root has no parent");
                 } else {
@@ -125,7 +127,7 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
                     if (parent == null) {
                         throw new AccessDeniedException();
                     }
-                    return new NodeImpl(parent);
+                    return new NodeImpl<NodeDelegate>(parent);
                 }
             }
         });
@@ -249,8 +251,9 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
                 if (ntName == null) {
                     DefinitionProvider dp = sessionDelegate.getDefinitionProvider();
                     try {
-                        ntName = dp.getDefinition(new NodeImpl(parent),
-                                PathUtils.getName(relPath)).getDefaultPrimaryTypeName();
+                        String childName = sessionDelegate.getOakNameOrThrow(PathUtils.getName(relPath));
+                        NodeDefinition def = dp.getDefinition(new NodeImpl<NodeDelegate>(parent), childName);
+                        ntName = def.getDefaultPrimaryTypeName();
                     } catch (RepositoryException e) {
                         throw new ConstraintViolationException(
                                 "no matching child node definition found for " + relPath);
@@ -270,7 +273,7 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
                     throw new ItemExistsException();
                 }
 
-                NodeImpl childNode = new NodeImpl(added);
+                NodeImpl childNode = new NodeImpl<NodeDelegate>(added);
                 childNode.internalSetPrimaryType(ntName);
                 childNode.autoCreateItems();
                 return childNode;
@@ -479,7 +482,7 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
                 if (nd == null) {
                     throw new PathNotFoundException(relPath);
                 } else {
-                    return new NodeImpl(nd);
+                    return new NodeImpl<NodeDelegate>(nd);
                 }
             }
         });
@@ -816,13 +819,13 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
         return sessionDelegate.perform(new SessionOperation<NodeType>() {
             @Override
             public NodeType perform() throws RepositoryException {
-                // TODO: check if transient changes to mixin-types are reflected here
                 NodeTypeManager ntMgr = sessionDelegate.getNodeTypeManager();
                 String primaryNtName;
-                primaryNtName = hasProperty(Property.JCR_PRIMARY_TYPE)
-                        ? getProperty(Property.JCR_PRIMARY_TYPE).getString()
-                        : NodeType.NT_UNSTRUCTURED;
-
+                if (hasProperty(Property.JCR_PRIMARY_TYPE)) {
+                    primaryNtName = getProperty(Property.JCR_PRIMARY_TYPE).getString();
+                } else {
+                    throw new RepositoryException("Node " + getPath() + " doesn't have primary type set.");
+                }
                 return ntMgr.getNodeType(primaryNtName);
             }
         });
@@ -859,24 +862,8 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
     public boolean isNodeType(final String nodeTypeName) throws RepositoryException {
         checkStatus();
 
-        // TODO: figure out the right place for this check
-        NodeTypeManager ntm = sessionDelegate.getNodeTypeManager();
-        NodeType ntToCheck = ntm.getNodeType(nodeTypeName); // throws on not found
-        String nameToCheck = ntToCheck.getName();
-
-        NodeType currentPrimaryType = getPrimaryNodeType();
-        if (currentPrimaryType.isNodeType(nameToCheck)) {
-            return true;
-        }
-
-        for (NodeType mixin : getMixinNodeTypes()) {
-            if (mixin.isNodeType(nameToCheck)) {
-                return true;
-            }
-        }
-        // TODO: END
-
-        return false;
+        String oakName = sessionDelegate.getOakNameOrThrow(nodeTypeName);
+        return sessionDelegate.getEffectiveNodeTypeProvider().isNodeType(dlg.getTree(), oakName);
     }
 
     @Override
@@ -953,7 +940,9 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
                 ntm.getNodeType(mixinName); // throws on not found
                 // TODO: END
 
-                return isSupportedMixinName(mixinName);
+                VersionManager vMgr = sessionDelegate.getVersionManager();
+                String path = toJcrPath(dlg.getPath());
+                return isSupportedMixinName(mixinName) && vMgr.isCheckedOut(path);
             }
         });
     }
@@ -1290,7 +1279,7 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
                 new Function<NodeDelegate, Node>() {
                     @Override
                     public Node apply(NodeDelegate nodeDelegate) {
-                        return new NodeImpl(nodeDelegate);
+                        return new NodeImpl<NodeDelegate>(nodeDelegate);
                     }
                 });
     }
@@ -1330,23 +1319,19 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
     }
 
     private void autoCreateItems() throws RepositoryException {
-        Iterable<NodeType> types = dlg.sessionDelegate.getEffectiveNodeTypeProvider().getEffectiveNodeTypes(this);
-        for (NodeType nt : types) {
-            for (PropertyDefinition pd : nt.getPropertyDefinitions()) {
-                if (pd.isAutoCreated() && dlg.getProperty(pd.getName()) == null) {
-                    if (pd.isMultiple()) {
-                        dlg.setProperty(pd.getName(), getAutoCreatedValues(pd));
-                    } else {
-                        dlg.setProperty(pd.getName(), getAutoCreatedValue(pd));
-                    }
+        EffectiveNodeType effective = dlg.sessionDelegate.getEffectiveNodeTypeProvider().getEffectiveNodeType(this);
+        for (PropertyDefinition pd : effective.getAutoCreatePropertyDefinitions()) {
+            if (dlg.getProperty(pd.getName()) == null) {
+                if (pd.isMultiple()) {
+                    dlg.setProperty(pd.getName(), getAutoCreatedValues(pd));
+                } else {
+                    dlg.setProperty(pd.getName(), getAutoCreatedValue(pd));
                 }
             }
         }
-        for (NodeType nt : types) {
-            for (NodeDefinition nd : nt.getChildNodeDefinitions()) {
-                if (nd.isAutoCreated() && dlg.getChild(nd.getName()) == null) {
-                    autoCreateNode(nd);
-                }
+        for (NodeDefinition nd : effective.getAutoCreateNodeDefinitions()) {
+            if (dlg.getChild(nd.getName()) == null) {
+                autoCreateNode(nd);
             }
         }
     }
@@ -1415,7 +1400,7 @@ public class NodeImpl extends ItemImpl<NodeDelegate> implements Node {
         addNode(definition.getName(), definition.getDefaultPrimaryTypeName());
     }
 
-    // FIXME: hack to filter for a subset of supported mixins for now
+    // FIXME OAK-505: hack to filter for a subset of supported mixins for now
     // this allows only harmless mixin types so that other code like addMixin gets test coverage
     private boolean isSupportedMixinName(String mixinName) throws RepositoryException {
         String oakName = sessionDelegate.getOakPathOrThrow(mixinName);

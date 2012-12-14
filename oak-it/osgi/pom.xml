@@ -36,6 +36,15 @@
   </properties>
 
   <build>
+      <resources>
+          <resource>
+              <directory>src/test/config</directory>
+              <includes>
+                  <include>*.cfg</include>
+              </includes>
+              <targetPath>${project.build.directory}/test-config</targetPath>
+          </resource>
+      </resources>
     <plugins>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
@@ -103,6 +112,12 @@
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-lucene</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
 
     <dependency>
       <groupId>org.ops4j.pax.exam</groupId>
@@ -125,7 +140,7 @@
     <dependency>
       <groupId>org.apache.felix</groupId>
       <artifactId>org.apache.felix.framework</artifactId>
-      <version>4.0.1</version>
+      <version>4.0.2</version>
       <scope>test</scope>
     </dependency>
     <dependency>

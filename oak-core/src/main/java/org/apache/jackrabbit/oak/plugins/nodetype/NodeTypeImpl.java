@@ -27,7 +27,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
-
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
@@ -56,6 +55,7 @@ import static org.apache.jackrabbit.JcrConstants.JCR_PROPERTYDEFINITION;
 import static org.apache.jackrabbit.JcrConstants.JCR_SUPERTYPES;
 import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.JCR_IS_ABSTRACT;
 import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.JCR_IS_QUERYABLE;
+import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.RESIDUAL_NAME;
 
 /**
  * <pre>
@@ -87,6 +87,7 @@ class NodeTypeImpl implements NodeType {
         this.node = node;
     }
 
+    //-----------------------------------------------------------< NodeType >---
     @Override
     public String getName() {
         String name = node.getName(JCR_NODETYPENAME);
@@ -98,7 +99,7 @@ class NodeTypeImpl implements NodeType {
 
     @Override
     public String[] getDeclaredSupertypeNames() {
-        return node.getNames(JCR_SUPERTYPES);
+        return node.getNames(JCR_SUPERTYPES, new String[0]);
     }
 
     @Override
@@ -151,8 +152,7 @@ class NodeTypeImpl implements NodeType {
     public NodeType[] getSupertypes() {
         Collection<NodeType> types = new ArrayList<NodeType>();
         Set<String> added = new HashSet<String>();
-        Queue<String> queue = new LinkedList<String>(Arrays.asList(
-                getDeclaredSupertypeNames()));
+        Queue<String> queue = new LinkedList<String>(Arrays.asList(getDeclaredSupertypeNames()));
         while (!queue.isEmpty()) {
             String name = queue.remove();
             if (added.add(name)) {
@@ -225,42 +225,19 @@ class NodeTypeImpl implements NodeType {
 
     @Override
     public boolean isNodeType(String nodeTypeName) {
-        if (nodeTypeName.equals(getName())) {
-            return true;
-        }
-
-        for (NodeType type : getDeclaredSupertypes()) {
-            if (type.isNodeType(nodeTypeName)) {
-                return true;
-            }
-        }
-
-        return false;
+        String oakName = node.getNameMapper().getOakName(nodeTypeName);
+        return internalIsNodeType(oakName);
     }
 
     @Override
     public PropertyDefinition[] getPropertyDefinitions() {
-        // TODO distinguish between additive and overriding property definitions. See 3.7.6.8 Item Definitions in Subtypes
-        Collection<PropertyDefinition> definitions =
-                new ArrayList<PropertyDefinition>();
-        for (NodeType type : getSupertypes()) {
-            definitions.addAll(Arrays.asList(
-                    type.getDeclaredPropertyDefinitions()));
-        }
-        definitions.addAll(Arrays.asList(getDeclaredPropertyDefinitions()));
+        Collection<PropertyDefinition> definitions = internalGetPropertyDefinitions();
         return definitions.toArray(new PropertyDefinition[definitions.size()]);
     }
 
     @Override
     public NodeDefinition[] getChildNodeDefinitions() {
-        // TODO distinguish between additive and overriding node definitions. See 3.7.6.8 Item Definitions in Subtypes
-        Collection<NodeDefinition> definitions =
-                new ArrayList<NodeDefinition>();
-        for (NodeType type : getSupertypes()) {
-            definitions.addAll(Arrays.asList(
-                    type.getDeclaredChildNodeDefinitions()));
-        }
-        definitions.addAll(Arrays.asList(getDeclaredChildNodeDefinitions()));
+        Collection<NodeDefinition> definitions = internalGetChildDefinitions();
         return definitions.toArray(new NodeDefinition[definitions.size()]);
     }
 
@@ -301,112 +278,12 @@ class NodeTypeImpl implements NodeType {
         }
     }
 
-    private static boolean meetsTypeConstraints(Value value, int requiredType) {
-        try {
-            switch (requiredType) {
-                case PropertyType.STRING:
-                    value.getString();
-                    return true;
-                case PropertyType.BINARY:
-                    value.getBinary();
-                    return true;
-                case PropertyType.LONG:
-                    value.getLong();
-                    return true;
-                case PropertyType.DOUBLE:
-                    value.getDouble();
-                    return true;
-                case PropertyType.DATE:
-                    value.getDate();
-                    return true;
-                case PropertyType.BOOLEAN:
-                    value.getBoolean();
-                    return true;
-                case PropertyType.NAME: {
-                    int type = value.getType();
-                    return type != PropertyType.DOUBLE &&
-                           type != PropertyType.LONG &&
-                           type != PropertyType.BOOLEAN &&
-                           JcrNameParser.validate(value.getString());
-                }
-                case PropertyType.PATH: {
-                    int type = value.getType();
-                    return type != PropertyType.DOUBLE &&
-                           type != PropertyType.LONG &&
-                           type != PropertyType.BOOLEAN &&
-                           JcrPathParser.validate(value.getString());
-                }
-                case PropertyType.REFERENCE:
-                case PropertyType.WEAKREFERENCE:
-                    return IdentifierManager.isValidUUID(value.getString());
-                case PropertyType.URI:
-                    new URI(value.getString());
-                    return true;
-                case PropertyType.DECIMAL:
-                    value.getDecimal();
-                    return true;
-                case PropertyType.UNDEFINED:
-                    return true;
-                default:
-                    log.warn("Invalid property type value: " + requiredType);
-                    return false;
-            }
-        }
-        catch (RepositoryException e) {
-            return false;
-        }
-        catch (URISyntaxException e) {
-            return false;
-        }
-    }
-
-    private static boolean meetsTypeConstraints(Value[] values, int requiredType) {
-        // Constraints must be met by all values
-        for (Value value : values) {
-            if (!meetsTypeConstraints(value, requiredType)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static boolean meetsValueConstraints(Value value, String[] constraints) {
-        if (constraints == null || constraints.length == 0) {
-            return true;
-        }
-
-        // Any of the constraints must be met
-        for (String constraint : constraints) {
-            if (Constraints.valueConstraint(value.getType(), constraint).apply(value)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean meetsValueConstraints(Value[] values, String[] constraints) {
-        if (constraints == null || constraints.length == 0) {
-            return true;
-        }
-
-        // Constraints must be met by all values
-        for (Value value : values) {
-            if (!meetsValueConstraints(value, constraints)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    @Override
+        @Override
     public boolean canAddChildNode(String childNodeName) {
         // FIXME: properly calculate matching definition
         for (NodeDefinition definition : getChildNodeDefinitions()) {
             String name = definition.getName();
-            if (matches(childNodeName, name) || "*".equals(name)) {
+            if (matches(childNodeName, name) || RESIDUAL_NAME.equals(name)) {
                 return !definition.isProtected() && definition.getDefaultPrimaryType() != null;
             }
         }
@@ -430,7 +307,7 @@ class NodeTypeImpl implements NodeType {
         // FIXME: properly calculate matching definition
         for (NodeDefinition definition : getChildNodeDefinitions()) {
             String name = definition.getName();
-            if (matches(childNodeName, name) || "*".equals(name)) {
+            if (matches(childNodeName, name) || RESIDUAL_NAME.equals(name)) {
                 if (definition.isProtected()) {
                     return false;
                 }
@@ -479,9 +356,153 @@ class NodeTypeImpl implements NodeType {
         return propertyDefinitions.length > 0;
     }
 
-    private static boolean matches(String childNodeName, String name) {
+    //-------------------------------------------------------------< Object >---
+    @Override
+    public String toString() {
+        return getName();
+    }
+
+    //-----------------------------------------------------------< internal >---
+    String getOakName() {
+        return node.getTree().getName();
+    }
+
+    boolean internalIsNodeType(String oakName) {
+        if (getOakName().equals(oakName)) {
+            return true;
+        }
+        for (NodeType type : getDeclaredSupertypes()) {
+            if (((NodeTypeImpl) type).internalIsNodeType(oakName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Collection<NodeDefinition> internalGetChildDefinitions() {
+        // TODO distinguish between additive and overriding node definitions. See 3.7.6.8 Item Definitions in Subtypes
+        Collection<NodeDefinition> definitions = new ArrayList<NodeDefinition>();
+        definitions.addAll(Arrays.asList(getDeclaredChildNodeDefinitions()));
+        for (NodeType type : getSupertypes()) {
+            definitions.addAll(Arrays.asList(type.getDeclaredChildNodeDefinitions()));
+        }
+        return definitions;
+    }
+
+    Collection<PropertyDefinition> internalGetPropertyDefinitions() {
+        // TODO distinguish between additive and overriding property definitions. See 3.7.6.8 Item Definitions in Subtypes
+        Collection<PropertyDefinition> definitions = new ArrayList<PropertyDefinition>();
+        definitions.addAll(Arrays.asList(getDeclaredPropertyDefinitions()));
+        for (NodeType type : getSupertypes()) {
+            definitions.addAll(Arrays.asList(type.getDeclaredPropertyDefinitions()));
+        }
+        return definitions;
+    }
+
+    //--------------------------------------------------------------------------
+    private static boolean meetsTypeConstraints(Value value, int requiredType) {
+        try {
+            switch (requiredType) {
+                case PropertyType.STRING:
+                    value.getString();
+                    return true;
+                case PropertyType.BINARY:
+                    value.getBinary();
+                    return true;
+                case PropertyType.LONG:
+                    value.getLong();
+                    return true;
+                case PropertyType.DOUBLE:
+                    value.getDouble();
+                    return true;
+                case PropertyType.DATE:
+                    value.getDate();
+                    return true;
+                case PropertyType.BOOLEAN:
+                    value.getBoolean();
+                    return true;
+                case PropertyType.NAME: {
+                    int type = value.getType();
+                    return type != PropertyType.DOUBLE &&
+                            type != PropertyType.LONG &&
+                            type != PropertyType.BOOLEAN &&
+                            JcrNameParser.validate(value.getString());
+                }
+                case PropertyType.PATH: {
+                    int type = value.getType();
+                    return type != PropertyType.DOUBLE &&
+                            type != PropertyType.LONG &&
+                            type != PropertyType.BOOLEAN &&
+                            JcrPathParser.validate(value.getString());
+                }
+                case PropertyType.REFERENCE:
+                case PropertyType.WEAKREFERENCE:
+                    return IdentifierManager.isValidUUID(value.getString());
+                case PropertyType.URI:
+                    new URI(value.getString());
+                    return true;
+                case PropertyType.DECIMAL:
+                    value.getDecimal();
+                    return true;
+                case PropertyType.UNDEFINED:
+                    return true;
+                default:
+                    log.warn("Invalid property type value: " + requiredType);
+                    return false;
+            }
+        } catch (RepositoryException e) {
+            return false;
+        } catch (URISyntaxException e) {
+            return false;
+        }
+    }
+
+    private static boolean meetsTypeConstraints(Value[] values, int requiredType) {
+        // Constraints must be met by all values
+        for (Value value : values) {
+            if (!meetsTypeConstraints(value, requiredType)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean meetsValueConstraints(Value value, String[] constraints) {
+        if (constraints == null || constraints.length == 0) {
+            return true;
+        }
+
+        // Any of the constraints must be met
+        for (String constraint : constraints) {
+            if (Constraints.valueConstraint(value.getType(), constraint).apply(value)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean meetsValueConstraints(Value[] values, String[] constraints) {
+        if (constraints == null || constraints.length == 0) {
+            return true;
+        }
+
+        // Constraints must be met by all values
+        for (Value value : values) {
+            if (!meetsValueConstraints(value, constraints)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean matches(String childNodeName, String name) {
+        String oakChildName = node.getNameMapper().getOakName(childNodeName);
+        String oakName = node.getNameMapper().getOakName(name);
         // TODO need a better way to handle SNS
-        return childNodeName.startsWith(name);
+        return oakChildName != null && oakChildName.startsWith(oakName);
     }
 
 }

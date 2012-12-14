@@ -77,7 +77,8 @@ import com.google.common.collect.Sets;
  * @see QueryIndex
  * @see PropertyIndexLookup
  */
-public class PropertyIndex implements QueryIndex {
+@Deprecated
+class PropertyIndex implements QueryIndex {
 
     public static final String TYPE = "property";
 
@@ -118,7 +119,7 @@ public class PropertyIndex implements QueryIndex {
             }
         }
         // not an appropriate index
-        return Double.MAX_VALUE;
+        return Double.POSITIVE_INFINITY;
     }
 
     @Override
@@ -139,11 +140,10 @@ public class PropertyIndex implements QueryIndex {
             }
         }
 
-        if (paths != null) {
-            return Cursors.newPathCursor(paths);
-        } else {
-            return Cursors.newTraversingCursor(filter, root);
+        if (paths == null) {
+            throw new IllegalStateException("Property index is used even when no index is available for filter " + filter);
         }
+        return Cursors.newPathCursor(paths);
     }
 
     @Override

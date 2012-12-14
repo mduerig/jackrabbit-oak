@@ -19,7 +19,6 @@ package org.apache.jackrabbit.oak.security.user;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nonnull;
-import javax.jcr.Session;
 
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.jackrabbit.oak.api.Root;
@@ -27,9 +26,11 @@ import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
 import org.apache.jackrabbit.oak.spi.lifecycle.RepositoryInitializer;
 import org.apache.jackrabbit.oak.spi.security.ConfigurationParameters;
+import org.apache.jackrabbit.oak.spi.security.Context;
 import org.apache.jackrabbit.oak.spi.security.SecurityConfiguration;
 import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
 import org.apache.jackrabbit.oak.spi.security.user.UserConfiguration;
+import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
 import org.apache.jackrabbit.oak.spi.security.user.action.AuthorizableActionProvider;
 import org.apache.jackrabbit.oak.spi.security.user.action.DefaultAuthorizableActionProvider;
 import org.apache.jackrabbit.oak.spi.xml.ProtectedItemImporter;
@@ -42,8 +43,7 @@ public class UserConfigurationImpl extends SecurityConfiguration.Default impleme
     private final ConfigurationParameters config;
     private final SecurityProvider securityProvider;
 
-    public UserConfigurationImpl(ConfigurationParameters config,
-                                 SecurityProvider securityProvider) {
+    public UserConfigurationImpl(SecurityProvider securityProvider, ConfigurationParameters config) {
         this.config = config;
         this.securityProvider = securityProvider;
     }
@@ -61,6 +61,7 @@ public class UserConfigurationImpl extends SecurityConfiguration.Default impleme
         return new UserInitializer(securityProvider);
     }
 
+    @Nonnull
     @Override
     public List<ValidatorProvider> getValidatorProviders() {
         ValidatorProvider vp = new UserValidatorProvider(getConfigurationParameters());
@@ -73,21 +74,24 @@ public class UserConfigurationImpl extends SecurityConfiguration.Default impleme
         return Collections.<ProtectedItemImporter>singletonList(new UserImporter(config));
     }
 
+    @Nonnull
+    @Override
+    public Context getContext() {
+        return UserContext.getInstance();
+    }
+
     //--------------------------------------------------< UserConfiguration >---
     @Nonnull
     @Override
     public AuthorizableActionProvider getAuthorizableActionProvider() {
-        // TODO: create authorizable actions from configuration
-        return DefaultAuthorizableActionProvider.INSTANCE;
+        // TODO OAK-521: add proper implementation
+        AuthorizableActionProvider defProvider = new DefaultAuthorizableActionProvider(securityProvider, config);
+        return config.getConfigValue(UserConstants.PARAM_AUTHORIZABLE_ACTION_PROVIDER, defProvider);
     }
 
-    @Override
-    public UserManager getUserManager(Root root, NamePathMapper namePathMapper, Session session) {
-        return new UserManagerImpl(session, root, namePathMapper, securityProvider);
-    }
-
+    @Nonnull
     @Override
     public UserManager getUserManager(Root root, NamePathMapper namePathMapper) {
-        return new UserManagerImpl(null, root, namePathMapper, securityProvider);
+        return new UserManagerImpl(root, namePathMapper, securityProvider);
     }
 }

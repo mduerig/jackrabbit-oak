@@ -27,12 +27,14 @@ import javax.jcr.Repository;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.oak.api.ContentRepository;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.ops4j.pax.exam.CoreOptions;
 import org.ops4j.pax.exam.Option;
 import org.ops4j.pax.exam.junit.Configuration;
 import org.ops4j.pax.exam.junit.JUnit4TestRunner;
+import org.ops4j.pax.exam.options.SystemPropertyOption;
 import org.ops4j.pax.exam.options.UrlProvisionOption;
 
 import static junit.framework.Assert.assertNotNull;
@@ -40,6 +42,7 @@ import static junit.framework.Assert.assertTrue;
 import static org.ops4j.pax.exam.CoreOptions.bundle;
 import static org.ops4j.pax.exam.CoreOptions.junitBundles;
 import static org.ops4j.pax.exam.CoreOptions.mavenBundle;
+import static org.ops4j.pax.exam.CoreOptions.systemProperties;
 
 @RunWith(JUnit4TestRunner.class)
 public class OSGiIT {
@@ -49,6 +52,9 @@ public class OSGiIT {
         return CoreOptions.options(
                 junitBundles(),
                 mavenBundle("org.apache.felix", "org.apache.felix.scr", "1.6.0"),
+                mavenBundle( "org.apache.felix", "org.apache.felix.configadmin", "1.4.0" ),
+                mavenBundle( "org.apache.felix", "org.apache.felix.fileinstall", "3.2.6" ),
+                systemProperties(new SystemPropertyOption("felix.fileinstall.dir").value(getConfigDir())),
                 jarBundle("jcr.jar"),
                 jarBundle("guava.jar"),
                 jarBundle("jackrabbit-api.jar"),
@@ -63,6 +69,12 @@ public class OSGiIT {
                 jarBundle("tika-core.jar"));
     }
 
+    private String getConfigDir(){
+        File target = new File("target");
+        File configDir = new File(target,"test-config");
+        return configDir.getAbsolutePath();
+    }
+
     private UrlProvisionOption jarBundle(String jar)
             throws MalformedURLException {
         File target = new File("target");
@@ -74,6 +86,7 @@ public class OSGiIT {
     private MicroKernel kernel;
 
     @Test
+    @Ignore("OAK-454")
     public void testMicroKernel() {
         assertNotNull(kernel);
         assertTrue(Pattern.matches("[0-9a-f]+", kernel.getHeadRevision()));

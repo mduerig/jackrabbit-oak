@@ -20,14 +20,17 @@ import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.spi.commit.Observer;
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.spi.commit.CommitHook;
+import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
 import org.apache.jackrabbit.oak.spi.lifecycle.CompositeInitializer;
 import org.apache.jackrabbit.oak.spi.lifecycle.RepositoryInitializer;
 import org.apache.jackrabbit.oak.spi.xml.ProtectedItemImporter;
 
 /**
- * PluginConfiguration... TODO
+ * SecurityConfiguration... TODO
  */
 public interface SecurityConfiguration {
 
@@ -38,13 +41,16 @@ public interface SecurityConfiguration {
     RepositoryInitializer getRepositoryInitializer();
 
     @Nonnull
+    List<CommitHook> getCommitHooks();
+
+    @Nonnull
     List<ValidatorProvider> getValidatorProviders();
 
     @Nonnull
-    List<Observer> getCommitObservers();
+    List<ProtectedItemImporter> getProtectedItemImporters();
 
     @Nonnull
-    List<ProtectedItemImporter> getProtectedItemImporters();
+    Context getContext();
 
     /**
      * Default implementation that provides empty validators/parameters.
@@ -65,13 +71,13 @@ public interface SecurityConfiguration {
 
         @Nonnull
         @Override
-        public List<ValidatorProvider> getValidatorProviders() {
-            return Collections.emptyList();
+        public List<CommitHook> getCommitHooks() {
+            return Collections.<CommitHook>singletonList(new EmptyHook());
         }
 
         @Nonnull
         @Override
-        public List<Observer> getCommitObservers() {
+        public List<ValidatorProvider> getValidatorProviders() {
             return Collections.emptyList();
         }
 
@@ -80,6 +86,20 @@ public interface SecurityConfiguration {
         public List<ProtectedItemImporter> getProtectedItemImporters() {
             return Collections.emptyList();
         }
-    }
 
+        @Override
+        public Context getContext() {
+            return new Context() {
+                @Override
+                public boolean definesProperty(Tree parent, PropertyState property) {
+                    return false;
+                }
+
+                @Override
+                public boolean definesTree(Tree tree) {
+                    return false;
+                }
+            };
+        }
+    }
 }

@@ -171,6 +171,11 @@ public class PasswordValidationActionTest extends AbstractSecurityTest {
         }
 
         @Override
+        protected void init(SecurityProvider securityProvider, ConfigurationParameters config) {
+            // nothing to do
+        }
+
+        @Override
         public void onCreate(User user, String password, Root root, NamePathMapper namePathMapper) throws RepositoryException {
             onCreateCalled++;
         }
@@ -192,7 +197,7 @@ public class PasswordValidationActionTest extends AbstractSecurityTest {
         @Nonnull
         @Override
         public UserConfiguration getUserConfiguration() {
-            return new UserConfigurationImpl(ConfigurationParameters.EMPTY, this) {
+            return new UserConfigurationImpl(this, ConfigurationParameters.EMPTY) {
 
                 @Nonnull
                 @Override

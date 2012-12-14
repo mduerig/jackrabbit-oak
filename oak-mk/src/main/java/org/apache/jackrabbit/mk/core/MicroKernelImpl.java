@@ -30,6 +30,7 @@ import org.apache.jackrabbit.mk.model.tree.ChildNode;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mk.model.tree.NodeState;
 import org.apache.jackrabbit.mk.model.tree.PropertyState;
+import org.apache.jackrabbit.mk.store.RevisionStore;
 import org.apache.jackrabbit.mk.util.CommitGate;
 import org.apache.jackrabbit.mk.util.NameFilter;
 import org.apache.jackrabbit.mk.util.NodeFilter;
@@ -194,22 +195,23 @@ public class MicroKernelImpl implements MicroKernel {
         List<StoredCommit> commits = new ArrayList<StoredCommit>();
         try {
             StoredCommit toCommit = rep.getCommit(toRevisionId);
-            if (toCommit.getBranchRootId() != null) {
-                throw new MicroKernelException("branch revisions are not supported: " + toRevisionId);
-            }
 
             Commit fromCommit;
             if (toRevisionId.equals(fromRevisionId)) {
                 fromCommit = toCommit;
             } else {
                 fromCommit = rep.getCommit(fromRevisionId);
-                if (fromCommit.getCommitTS() > toCommit.getCommitTS()) {
-                    // negative range, return empty journal
-                    return "[]";
+            }
+
+            if (fromCommit.getBranchRootId() != null) {
+                if (!fromCommit.getBranchRootId().equals(toCommit.getBranchRootId())) {
+                    throw new MicroKernelException("inconsistent range specified: fromRevision denotes a private branch while toRevision denotes a head or another private branch");
                 }
             }
-            if (fromCommit.getBranchRootId() != null) {
-                throw new MicroKernelException("branch revisions are not supported: " + fromRevisionId);
+
+            if (fromCommit.getCommitTS() > toCommit.getCommitTS()) {
+                // negative range, return empty journal
+                return "[]";
             }
 
             // collect commits, starting with toRevisionId
@@ -264,8 +266,11 @@ public class MicroKernelImpl implements MicroKernel {
             commitBuff.object().
                     key("id").value(commit.getId().toString()).
                     key("ts").value(commit.getCommitTS()).
-                    key("msg").value(commit.getMsg()).
-                    key("changes").value(diff).endObject();
+                    key("msg").value(commit.getMsg());
+            if (commit.getBranchRootId() != null) {
+                commitBuff.key("branchRootId").value(commit.getBranchRootId().toString());
+            }
+            commitBuff.key("changes").value(diff).endObject();
         }
         return commitBuff.endArray().toString();
     }
@@ -347,6 +352,11 @@ public class MicroKernelImpl implements MicroKernel {
             throw new IllegalStateException("this instance has already been disposed");
         }
 
+        Id id = null;
+        if (!path.startsWith("/")) {
+            // OAK-468: Identifier- or hash-based access in the MicroKernel
+            id = Id.fromString(path);
+        }
         Id revId = revisionId == null ? getHeadRevisionId() : Id.fromString(revisionId);
 
         NodeFilter nodeFilter = filter == null || filter.isEmpty() ? null : NodeFilter.parse(filter);
@@ -356,7 +366,13 @@ public class MicroKernelImpl implements MicroKernel {
         }
 
         try {
-            NodeState nodeState = rep.getNodeState(revId, path);
+            NodeState nodeState;
+            if (id != null) {
+                RevisionStore rs = rep.getRevisionStore();
+                nodeState = rs.getNodeState(rs.getNode(id));
+            } else {
+                nodeState = rep.getNodeState(revId, path);
+            }
             if (nodeState == null) {
                 return null;
             }
@@ -375,6 +391,9 @@ public class MicroKernelImpl implements MicroKernel {
         }
         if (path.length() > 0 && !PathUtils.isAbsolute(path)) {
             throw new IllegalArgumentException("absolute path expected: " + path);
+        }
+        if (jsonDiff == null || jsonDiff.length() == 0) {
+            return getHeadRevision();
         }
 
         Id revId = revisionId == null ? getHeadRevisionId() : Id.fromString(revisionId);
@@ -471,7 +490,7 @@ public class MicroKernelImpl implements MicroKernel {
                         break;
                     }
                     default:
-                        throw new AssertionError("token type: " + t.getTokenType());
+                        throw new IllegalArgumentException("jsonDiff: illegal token '" + t.getToken() + "' at pos: " + t.getLastPos());
                 }
             }
             Id newHead = cb.doCommit();
@@ -571,13 +590,19 @@ public class MicroKernelImpl implements MicroKernel {
                 // unless it is explicitly excluded in the filter
                 builder.key(":childNodeCount").value(childCount);
             }
-            // check whether :hash has been explicitly included
             if (filter != null) {
                 NameFilter nf = filter.getPropertyFilter();
-                if (nf != null
-                        && nf.getInclusionPatterns().contains(":hash")
-                        && !nf.getExclusionPatterns().contains(":hash")) {
-                    builder.key(":hash").value(rep.getRevisionStore().getId(node).toString());
+                if (nf != null) {
+                    // check whether :id has been explicitly included
+                    if (nf.getInclusionPatterns().contains(":hash")
+                            && !nf.getExclusionPatterns().contains(":hash")) {
+                        builder.key(":hash").value(rep.getRevisionStore().getId(node).toString());
+                    }
+                    // check whether :id has been explicitly included
+                    if (nf.getInclusionPatterns().contains(":id")
+                            && !nf.getExclusionPatterns().contains(":id")) {
+                        builder.key(":id").value(rep.getRevisionStore().getId(node).toString());
+                    }
                 }
             }
         }

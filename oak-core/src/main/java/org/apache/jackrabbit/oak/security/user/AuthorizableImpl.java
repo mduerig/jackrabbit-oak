@@ -138,30 +138,19 @@ abstract class AuthorizableImpl implements Authorizable, UserConstants {
 
     @Override
     public String getPath() throws RepositoryException {
-        Node n = getNode();
-        if (n != null) {
-            return n.getPath();
-        } else {
-            return userManager.getNamePathMapper().getJcrPath(getTree().getPath());
-        }
+        return userManager.getNamePathMapper().getJcrPath(getTree().getPath());
     }
 
     //-------------------------------------------------------------< Object >---
     @Override
     public int hashCode() {
         if (hashCode == 0) {
-            // FIXME: add proper hash-code generation taking repo/workspace/tree-identifier into account
-//            try {
-//                Node node = getNode();
-                StringBuilder sb = new StringBuilder();
-                sb.append(isGroup() ? "group:" : "user:");
-                //sb.append(node.getSession().getWorkspace().getName());
-                sb.append(':');
-                sb.append(id);
-                hashCode = sb.toString().hashCode();
-//            } catch (RepositoryException e) {
-//                log.warn("Error while calculating hash code.",e.getMessage());
-//            }
+            // FIXME OAK-523: add proper hash-code generation taking repo/workspace/tree-identifier into account
+            StringBuilder sb = new StringBuilder();
+            sb.append(isGroup() ? "group:" : "user:");
+            sb.append(':');
+            sb.append(id);
+            hashCode = sb.toString().hashCode();
         }
         return hashCode;
     }
@@ -173,7 +162,7 @@ abstract class AuthorizableImpl implements Authorizable, UserConstants {
         }
         if (obj instanceof AuthorizableImpl) {
             AuthorizableImpl otherAuth = (AuthorizableImpl) obj;
-            // FIXME: make sure 2 authorizables are based on the same tree/node object
+            // FIXME OAK-523: make sure 2 authorizables are based on the same tree/node object
             return isGroup() == otherAuth.isGroup() && id.equals(otherAuth.id);
         }
         return false;
@@ -226,18 +215,6 @@ abstract class AuthorizableImpl implements Authorizable, UserConstants {
      */
     boolean isEveryone() throws RepositoryException {
         return isGroup() && EveryonePrincipal.NAME.equals(getPrincipalName());
-    }
-
-    /**
-     * @return The node associated with this authorizable instance.
-     * @throws javax.jcr.RepositoryException
-     */
-    @CheckForNull
-    private Node getNode() throws RepositoryException {
-        if (node == null) {
-            node = userManager.getAuthorizableNode(id);
-        }
-        return node;
     }
 
     /**

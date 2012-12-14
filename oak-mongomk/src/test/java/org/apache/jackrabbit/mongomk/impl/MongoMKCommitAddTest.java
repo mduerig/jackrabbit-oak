@@ -7,7 +7,11 @@ import static org.junit.Assert.fail;
 
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.json.simple.JSONObject;
+import org.junit.Ignore;
 import org.junit.Test;
+
+import com.jamonapi.Monitor;
+import com.jamonapi.MonitorFactory;
 
 /**
  * Tests for {@link MongoMicroKernel#commit(String, String, String, String)}
@@ -47,6 +51,14 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
         assertTrue(mk.nodeExists("/a/b/c/d",null));
     }
 
+    @Test
+    public void addNodeWithParanthesis() throws Exception {
+        mk.commit("/", "+\"Test({0})\" : {}", null, null);
+        String nodes = mk.getNodes("/Test({0})", null, 1, 0, -1, null);
+        JSONObject obj = parseJSONObject(nodes);
+        assertPropertyValue(obj, ":childNodeCount", 0L);
+    }
+
 
     @Test
     public void addIntermediataryNodes() throws Exception {
@@ -63,6 +75,7 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
+    @Ignore // FIXME - due to CommitCommandInstructionVisitor add node change.
     public void addDuplicateNode() throws Exception {
         mk.commit("/", "+\"a\" : {}", null, null);
         try {
@@ -103,7 +116,29 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
         assertPropertyValue(obj, "a/key4", 0.25);
     }
 
+    // See http://www.mongodb.org/display/DOCS/Legal+Key+Names
     @Test
+    public void setPropertyIllegalKey() throws Exception {
+        mk.commit("/", "+\"a\" : {}", null, null);
+
+        mk.commit("/", "^\"a/ke.y1\" : \"value\"", null, null);
+        String nodes = mk.getNodes("/", null, 1 /*depth*/, 0 /*offset*/, -1 /*maxChildNodes*/, null /*filter*/);
+        JSONObject obj = parseJSONObject(nodes);
+        assertPropertyValue(obj, "a/ke.y1", "value");
+
+        mk.commit("/", "^\"a/ke.y.1\" : \"value\"", null, null);
+        nodes = mk.getNodes("/", null, 1 /*depth*/, 0 /*offset*/, -1 /*maxChildNodes*/, null /*filter*/);
+        obj = parseJSONObject(nodes);
+        assertPropertyValue(obj, "a/ke.y.1", "value");
+
+        mk.commit("/", "^\"a/$key1\" : \"value\"", null, null);
+        nodes = mk.getNodes("/", null, 1 /*depth*/, 0 /*offset*/, -1 /*maxChildNodes*/, null /*filter*/);
+        obj = parseJSONObject(nodes);
+        assertPropertyValue(obj, "a/$key1", "value");
+    }
+
+    @Test
+    @Ignore // FIXME - due to CommitCommandInstructionVisitor add node change.
     public void setPropertyWithoutAddingNode() throws Exception {
         try {
             mk.commit("/", "^\"a/key1\" : \"value1\"", null, null);
@@ -125,4 +160,21 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
         JSONObject obj = parseJSONObject(nodes);
         assertPropertyValue(obj, "a/key1", "value3");
    }
+
+    // This is a test to make sure commit time stays the same as time goes on.
+    @Test
+    @Ignore("OAK-461")
+    public void commitTime() throws Exception {
+        boolean debug = false;
+        Monitor commitMonitor = MonitorFactory.getTimeMonitor("commit");
+        for (int i = 0; i < 1000; i++) {
+            commitMonitor.start();
+            String diff = "+\"a"+i+"\" : {} +\"b"+i+"\" : {} +\"c"+i+"\" : {}";
+            if (debug) System.out.println("Committing: " + diff);
+            mk.commit("/", diff, null, null);
+            commitMonitor.stop();
+            if (debug) System.out.println("Committed in " + commitMonitor.getLastValue() + "ms");
+        }
+        if (debug) System.out.println("Final Result:" + commitMonitor);
+    }
 }

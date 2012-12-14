@@ -16,8 +16,13 @@
  */
 package org.apache.jackrabbit.mongomk.impl.command;
 
-import org.apache.jackrabbit.mongomk.api.model.Node;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
+import org.apache.jackrabbit.mongomk.impl.action.FetchNodesActionNew;
+import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
@@ -25,11 +30,10 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
  */
 public class NodeExistsCommand extends BaseCommand<Boolean> {
 
-    private final Long revisionId;
-
+    private Long revisionId;
     private String branchId;
-    private Node parentNode;
     private String path;
+    private MongoNode node;
 
     /**
      * Constructs a new {@code NodeExistsCommandMongo}.
@@ -55,35 +59,51 @@ public class NodeExistsCommand extends BaseCommand<Boolean> {
 
     @Override
     public Boolean execute() throws Exception {
-        if (PathUtils.denotesRoot(path)) {
-            return true;
+        // To check a path really exists, all the paths from root need to be checked.
+        Set<String> paths = new HashSet<String>();
+        char[] path = this.path.toCharArray();
+        StringBuilder current = new StringBuilder();
+        for (int i = 0; i < path.length; i++) {
+            if (i == 0) {
+                paths.add("/");
+            } else if (path[i] == '/') {
+                paths.add(current.toString());
+            }
+            current.append(path[i]);
+        }
+        paths.add(current.toString());
+
+        if (revisionId == null) {
+            revisionId = new GetHeadRevisionCommand(nodeStore).execute();
         }
 
-        // Check that all the paths up to the root actually exist.
-        return pathExists();
-    }
+        FetchNodesActionNew action = new FetchNodesActionNew(nodeStore, paths, revisionId);
+        action.setBranchId(branchId);
+        //action.setValidCommits(validCommits);
 
-    private boolean pathExists() throws Exception {
-        while (!PathUtils.denotesRoot(path)) {
-            readParentNode(revisionId, branchId);
-            if (parentNode == null || !childExists()) {
+        Map<String, MongoNode> pathAndNodeMap = action.execute();
+        String currentPath = this.path;
+        while (!PathUtils.denotesRoot(currentPath)) {
+            String childName = PathUtils.getName(currentPath);
+            String parentPath = PathUtils.getParentPath(currentPath);
+            MongoNode parentNode = pathAndNodeMap.get(parentPath);
+            if (parentNode == null || !parentNode.childExists(childName)) {
+                node = null;
                 return false;
             }
-            path = PathUtils.getParentPath(path);
+            currentPath = PathUtils.getParentPath(currentPath);
         }
-
+        node = pathAndNodeMap.get(this.path);
         return true;
     }
 
-    private void readParentNode(Long revisionId, String branchId) throws Exception {
-        String parentPath = PathUtils.getParentPath(path);
-        GetNodesCommand command = new GetNodesCommand(nodeStore, parentPath, revisionId);
-        command.setBranchId(branchId);
-        parentNode = command.execute();
-    }
-
-    private boolean childExists() {
-        String childName = PathUtils.getName(path);
-        return parentNode.getChildNodeEntry(childName) != null;
+    /**
+     * After {@link NodeExistsCommand} executed, this method can be used to access
+     * the node with the path.
+     *
+     * @return Node or null if it does not exist.
+     */
+    public MongoNode getNode() {
+        return node;
     }
 }

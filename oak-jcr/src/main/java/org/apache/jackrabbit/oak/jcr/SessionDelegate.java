@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.jcr;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -40,13 +41,16 @@ import org.apache.jackrabbit.oak.api.AuthInfo;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.api.SessionQueryEngine;
+import org.apache.jackrabbit.oak.api.QueryEngine;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.namepath.LocalNameMapper;
+import org.apache.jackrabbit.oak.namepath.NameMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapperImpl;
 import org.apache.jackrabbit.oak.plugins.identifier.IdentifierManager;
+import org.apache.jackrabbit.oak.plugins.name.Namespaces;
 import org.apache.jackrabbit.oak.plugins.nodetype.DefinitionProvider;
 import org.apache.jackrabbit.oak.plugins.nodetype.EffectiveNodeTypeProvider;
 import org.apache.jackrabbit.oak.plugins.observation.ObservationManagerImpl;
@@ -54,6 +58,8 @@ import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
 import org.apache.jackrabbit.oak.plugins.value.ValueFactoryImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.collect.Maps;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -66,7 +72,7 @@ public class SessionDelegate {
     private final ContentSession contentSession;
     private final ValueFactoryImpl valueFactory;
     private final Workspace workspace;
-    private final Session session;
+    private final SessionImpl session;
     private final Root root;
     private final boolean autoRefresh;
 
@@ -85,8 +91,7 @@ public class SessionDelegate {
     SessionDelegate(
             Repository repository, ScheduledExecutorService executor,
             ContentSession contentSession, SecurityProvider securityProvider,
-            boolean autoRefresh)
-            throws RepositoryException {
+            boolean autoRefresh) {
 
         this.repository = checkNotNull(repository);
         this.executor = executor;
@@ -95,10 +100,19 @@ public class SessionDelegate {
         this.autoRefresh = autoRefresh;
 
         this.root = contentSession.getLatestRoot();
+        // FIXME: do not pass partially initialized 'this'
         this.workspace = new WorkspaceImpl(this);
-        this.session = new SessionImpl(this);
+
+        Map<String, String> namespaces = Maps.newHashMap();
+        NameMapper mapper = new LocalNameMapper(namespaces) {
+            @Override
+            protected Map<String, String> getNamespaceMap() {
+                return Namespaces.getNamespaceMap(root.getTree("/"));
+            }
+        };
+        this.session = new SessionImpl(this, namespaces);
         this.idManager = new IdentifierManager(root);
-        this.namePathMapper = new NamePathMapperImpl(new SessionNameMapper(this), idManager);
+        this.namePathMapper = new NamePathMapperImpl(mapper, idManager);
         this.valueFactory = new ValueFactoryImpl(root.getBlobFactory(), namePathMapper);
     }
 
@@ -433,7 +447,7 @@ public class SessionDelegate {
     }
 
     @Nonnull
-    public SessionQueryEngine getQueryEngine() {
+    public QueryEngine getQueryEngine() {
         return root.getQueryEngine();
     }
 
@@ -503,7 +517,7 @@ public class SessionDelegate {
     UserManager getUserManager() throws UnsupportedRepositoryOperationException {
         if (userManager == null) {
             if (securityProvider != null) {
-                userManager = securityProvider.getUserConfiguration().getUserManager(root, getNamePathMapper(), session);
+                userManager = securityProvider.getUserConfiguration().getUserManager(root, getNamePathMapper());
             } else {
                 throw new UnsupportedRepositoryOperationException("User management not supported.");
             }
@@ -515,7 +529,7 @@ public class SessionDelegate {
     PrivilegeManager getPrivilegeManager() throws UnsupportedRepositoryOperationException {
         if (privilegeManager == null) {
             if (securityProvider != null) {
-                privilegeManager = securityProvider.getPrivilegeConfiguration().getPrivilegeManager(contentSession, root, getNamePathMapper());
+                privilegeManager = securityProvider.getPrivilegeConfiguration().getPrivilegeManager(root, getNamePathMapper());
             } else {
                 throw new UnsupportedRepositoryOperationException("Privilege management not supported.");
             }
@@ -531,5 +545,12 @@ public class SessionDelegate {
     @Nonnull
     DefinitionProvider getDefinitionProvider() throws RepositoryException {
         return (DefinitionProvider) workspace.getNodeTypeManager();
+    }
+
+    void checkProtectedNodes(String... absJcrPaths) throws RepositoryException {
+        for (String absPath : absJcrPaths) {
+            NodeImpl node = (NodeImpl) session.getNode(absPath);
+            node.checkProtected();
+        }
     }
 }

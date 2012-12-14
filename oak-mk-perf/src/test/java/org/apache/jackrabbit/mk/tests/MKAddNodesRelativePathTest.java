@@ -16,15 +16,18 @@
  */
 package org.apache.jackrabbit.mk.tests;
 
+import org.apache.jackrabbit.mk.scenarios.MicroKernelRelativePath;
 import org.apache.jackrabbit.mk.testing.MicroKernelTestBase;
-import org.apache.jackrabbit.mk.util.Committer;
 import org.junit.Test;
 
 /**
  * Measure the time needed for writing nodes in different tree structures.Each
  * node is committed separately.Each node is also committed using the relative
  * path of the parent node.
+ * 
+ * 
  */
+
 public class MKAddNodesRelativePathTest extends MicroKernelTestBase {
 
     static String nodeNamePrefix = "N";
@@ -32,34 +35,19 @@ public class MKAddNodesRelativePathTest extends MicroKernelTestBase {
 
     @Test
     public void testWriteNodesSameLevel() throws Exception {
-        Committer commiter = new Committer();
-        chronometer.start();
-        commiter.addPyramidStructure(mk, "/", 0, 0, nodesNumber, nodeNamePrefix);
-        chronometer.stop();
-        System.out.println("Total time for testWriteNodesSameLevel is "
-                + chronometer.getSeconds());
+        MicroKernelRelativePath.writeNodesSameLevel(mk, chronometer,
+                nodesNumber, nodeNamePrefix);
     }
 
     @Test
     public void testWriteNodes10Children() {
-        Committer commiter = new Committer();
-        chronometer.start();
-
-        commiter.addPyramidStructure(mk, "/", 0, 10, nodesNumber,
-                nodeNamePrefix);
-        chronometer.stop();
-        System.out.println("Total time for testWriteNodes10Children is "
-                + chronometer.getSeconds());
+        MicroKernelRelativePath.writeNodes10Children(mk, chronometer,
+                nodesNumber, nodeNamePrefix);
     }
 
     @Test
     public void testWriteNodes100Children() {
-        Committer commiter = new Committer();
-        chronometer.start();
-        commiter.addPyramidStructure(mk, "/", 0, 100, nodesNumber,
-                nodeNamePrefix);
-        chronometer.stop();
-        System.out.println("Total time for testWriteNodes100Children is "
-                + chronometer.getSeconds());
+        MicroKernelRelativePath.writeNodes100Children(mk, chronometer,
+                nodesNumber, nodeNamePrefix);
     }
 }

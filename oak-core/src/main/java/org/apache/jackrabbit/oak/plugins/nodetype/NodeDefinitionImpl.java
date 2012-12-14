@@ -24,6 +24,7 @@ import javax.jcr.nodetype.NodeDefinition;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.NodeTypeManager;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.util.NodeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,20 +40,19 @@ import org.slf4j.LoggerFactory;
  */
 class NodeDefinitionImpl extends ItemDefinitionImpl implements NodeDefinition {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(NodeDefinitionImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(NodeDefinitionImpl.class);
 
     private final NodeTypeManager manager;
 
-    protected NodeDefinitionImpl(
-            NodeTypeManager manager, NodeType type, NodeUtil node) {
+    protected NodeDefinitionImpl(NodeTypeManager manager, NodeType type, NodeUtil node) {
         super(type, node);
         this.manager = manager;
     }
 
+    //-----------------------------------------------------< NodeDefinition >---
     @Override
     public String[] getRequiredPrimaryTypeNames() {
-        return node.getNames("jcr:requiredPrimaryTypes", "nt:base");
+        return node.getNames(JcrConstants.JCR_REQUIREDPRIMARYTYPES, JcrConstants.NT_BASE);
     }
 
     @Override
@@ -62,8 +62,7 @@ class NodeDefinitionImpl extends ItemDefinitionImpl implements NodeDefinition {
         for (String name : names) {
             try {
                 types.add(manager.getNodeType(name));
-            }
-            catch (RepositoryException e) {
+            } catch (RepositoryException e) {
                 log.warn("Unable to access required primary type "
                         + name + " of node " + getName(), e);
             }
@@ -73,7 +72,7 @@ class NodeDefinitionImpl extends ItemDefinitionImpl implements NodeDefinition {
 
     @Override
     public String getDefaultPrimaryTypeName() {
-        return node.getName("jcr:defaultPrimaryType", null);
+        return node.getName(JcrConstants.JCR_DEFAULTPRIMARYTYPE, null);
     }
 
     @Override
@@ -92,7 +91,6 @@ class NodeDefinitionImpl extends ItemDefinitionImpl implements NodeDefinition {
 
     @Override
     public boolean allowsSameNameSiblings() {
-        return node.getBoolean("jcr:sameNameSiblings");
+        return node.getBoolean(JcrConstants.JCR_SAMENAMESIBLINGS);
     }
-
 }

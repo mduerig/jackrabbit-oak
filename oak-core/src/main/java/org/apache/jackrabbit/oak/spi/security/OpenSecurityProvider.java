@@ -19,17 +19,13 @@ package org.apache.jackrabbit.oak.spi.security;
 import java.util.Collections;
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
-import org.apache.jackrabbit.oak.spi.security.authentication.LoginContextProvider;
-import org.apache.jackrabbit.oak.spi.security.authentication.OpenLoginContextProvider;
-import org.apache.jackrabbit.oak.spi.security.authentication.token.TokenProvider;
+import org.apache.jackrabbit.oak.spi.security.authentication.AuthenticationConfiguration;
+import org.apache.jackrabbit.oak.spi.security.authentication.OpenAuthenticationConfiguration;
 import org.apache.jackrabbit.oak.spi.security.authorization.AccessControlConfiguration;
 import org.apache.jackrabbit.oak.spi.security.authorization.OpenAccessControlConfiguration;
 import org.apache.jackrabbit.oak.spi.security.principal.PrincipalConfiguration;
 import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeConfiguration;
 import org.apache.jackrabbit.oak.spi.security.user.UserConfiguration;
-import org.apache.jackrabbit.oak.spi.state.NodeStore;
 
 /**
  * OpenSecurityProvider... TODO: review if we really have the need for that once TODO in InitialContent is resolved
@@ -39,24 +35,18 @@ public class OpenSecurityProvider implements SecurityProvider {
     @Nonnull
     @Override
     public Iterable<SecurityConfiguration> getSecurityConfigurations() {
-        return Collections.<SecurityConfiguration>singletonList(getAccessControlProvider());
+        return Collections.<SecurityConfiguration>singletonList(getAccessControlConfiguration());
     }
 
     @Nonnull
     @Override
-    public LoginContextProvider getLoginContextProvider(NodeStore nodeStore, QueryIndexProvider indexProvider) {
-        return new OpenLoginContextProvider();
+    public AuthenticationConfiguration getAuthenticationConfiguration() {
+        return new OpenAuthenticationConfiguration();
     }
 
     @Nonnull
     @Override
-    public TokenProvider getTokenProvider(Root root) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Nonnull
-    @Override
-    public AccessControlConfiguration getAccessControlProvider() {
+    public AccessControlConfiguration getAccessControlConfiguration() {
         return new OpenAccessControlConfiguration();
     }
 

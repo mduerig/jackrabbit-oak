@@ -29,11 +29,12 @@ import org.apache.jackrabbit.api.security.user.Query;
 import org.apache.jackrabbit.oak.api.Result;
 import org.apache.jackrabbit.oak.api.ResultRow;
 import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.api.SessionQueryEngine;
+import org.apache.jackrabbit.oak.api.QueryEngine;
 import org.apache.jackrabbit.oak.security.user.query.XPathQueryBuilder;
 import org.apache.jackrabbit.oak.security.user.query.XPathQueryEvaluator;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
+import org.apache.jackrabbit.oak.spi.security.user.util.UserUtility;
 import org.apache.jackrabbit.util.ISO9075;
 import org.apache.jackrabbit.util.Text;
 import org.slf4j.Logger;
@@ -60,18 +61,14 @@ class UserQueryManager {
         this.userManager = userManager;
         this.root = root;
 
-        this.userRoot = userManager.getConfig().getConfigValue(UserConstants.PARAM_USER_PATH, UserConstants.DEFAULT_USER_PATH);
-        this.groupRoot = userManager.getConfig().getConfigValue(UserConstants.PARAM_GROUP_PATH, UserConstants.DEFAULT_GROUP_PATH);
-
-        String parent = userRoot;
-        while (!Text.isDescendant(parent, groupRoot)) {
-            parent = Text.getRelativeParent(parent, 1);
-        }
-        authorizableRoot = parent;
+        userRoot = UserUtility.getAuthorizableRootPath(userManager.getConfig(), AuthorizableType.USER);
+        groupRoot = UserUtility.getAuthorizableRootPath(userManager.getConfig(), AuthorizableType.GROUP);
+        authorizableRoot = UserUtility.getAuthorizableRootPath(userManager.getConfig(), AuthorizableType.AUTHORIZABLE);
     }
 
     @Nonnull
     Iterator<Authorizable> find(Query query) throws RepositoryException {
+        // TODO OAK-253: replace usage of XPATH
         XPathQueryBuilder builder = new XPathQueryBuilder();
         query.build(builder);
         return new XPathQueryEvaluator(builder, userManager, root, userManager.getNamePathMapper()).eval();
@@ -106,9 +103,10 @@ class UserQueryManager {
     @Nonnull
     Iterator<Authorizable> findAuthorizables(String relPath, String value,
                                              boolean exact, AuthorizableType type) throws RepositoryException {
-        // TODO: replace XPATH
+        // TODO OAK-480: fix authorizable query
+        // TODO OAK-253: replace usage of XPATH
         String statement = buildXPathStatement(relPath, value, exact, type);
-        SessionQueryEngine queryEngine = root.getQueryEngine();
+        QueryEngine queryEngine = root.getQueryEngine();
         try {
             Result result = queryEngine.executeQuery(statement, javax.jcr.query.Query.XPATH, Long.MAX_VALUE, 0, null, userManager.getNamePathMapper());
             return Iterators.filter(Iterators.transform(result.getRows().iterator(), new ResultRowToAuthorizable()), Predicates.<Object>notNull());

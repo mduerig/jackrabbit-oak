@@ -111,6 +111,9 @@ public class FetchCommitsAction extends BaseAction<List<MongoCommit>> {
     private DBCursor fetchListOfValidCommits() {
         DBCollection commitCollection = nodeStore.getCommitCollection();
         QueryBuilder queryBuilder = QueryBuilder.start(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE);
+        if (fromRevisionId > -1) {
+            queryBuilder = queryBuilder.and(MongoCommit.KEY_REVISION_ID).greaterThanEquals(fromRevisionId);
+        }
         if (toRevisionId > -1) {
             queryBuilder = queryBuilder.and(MongoCommit.KEY_REVISION_ID).lessThanEquals(toRevisionId);
         }
@@ -121,10 +124,12 @@ public class FetchCommitsAction extends BaseAction<List<MongoCommit>> {
         }
 
         DBObject query = queryBuilder.get();
+        DBObject orderBy = new BasicDBObject(MongoCommit.KEY_REVISION_ID, -1);
 
-        LOG.debug(String.format("Executing query: %s", query));
+        LOG.debug("Executing query: {}", query);
 
-        return maxEntries > 0? commitCollection.find(query).limit(maxEntries) : commitCollection.find(query);
+        return maxEntries > 0? commitCollection.find(query).limit(maxEntries).sort(orderBy)
+                : commitCollection.find(query).sort(orderBy);
     }
 
     private List<MongoCommit> convertToCommits(DBCursor dbCursor) {
@@ -133,6 +138,7 @@ public class FetchCommitsAction extends BaseAction<List<MongoCommit>> {
             MongoCommit commitMongo = (MongoCommit) dbCursor.next();
             commits.put(commitMongo.getRevisionId(), commitMongo);
         }
+        dbCursor.close();
 
         List<MongoCommit> validCommits = new LinkedList<MongoCommit>();
         if (commits.isEmpty()) {
@@ -156,8 +162,8 @@ public class FetchCommitsAction extends BaseAction<List<MongoCommit>> {
             currentRevision = baseRevision;
         }
 
-        LOG.debug(String.format("Found list of valid revisions for max revision %s: %s",
-                toRevisionId, validCommits));
+        LOG.debug("Found list of valid revisions for max revision {}: {}",
+                toRevisionId, validCommits);
 
         return validCommits;
     }

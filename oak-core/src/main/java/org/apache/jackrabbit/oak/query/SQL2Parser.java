@@ -35,6 +35,8 @@ import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
 import org.apache.jackrabbit.oak.query.ast.SourceImpl;
 import org.apache.jackrabbit.oak.query.ast.StaticOperandImpl;
 import org.apache.jackrabbit.oak.spi.query.PropertyValues;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.jcr.PropertyType;
 import java.math.BigDecimal;
@@ -43,15 +45,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * The SQL2 parser can convert a JCR-SQL2 query to a query.
- * The 'old' SQL query language is also supported if
+ * The SQL2 parser can convert a JCR-SQL2 query to a query. The 'old' SQL query
+ * language (here named SQL-1) is also supported.
  */
 public class SQL2Parser {
+    
+    private static final Logger LOG = LoggerFactory.getLogger(SQL2Parser.class);
 
     // Character types, used during the tokenizer phase
     private static final int CHAR_END = -1, CHAR_VALUE = 2, CHAR_QUOTED = 3;
     private static final int CHAR_NAME = 4, CHAR_SPECIAL_1 = 5, CHAR_SPECIAL_2 = 6;
-    private static final int CHAR_STRING = 7, CHAR_DECIMAL = 8;
+    private static final int CHAR_STRING = 7, CHAR_DECIMAL = 8, CHAR_BRACKETED = 9;
 
     // Token types
     private static final int KEYWORD = 1, IDENTIFIER = 2, PARAMETER = 3, END = 4, VALUE = 5;
@@ -182,30 +186,17 @@ public class SQL2Parser {
     }
 
     private String readName() throws ParseException {
-        if (readIf("[")) {
-            if (currentTokenType == VALUE) {
-                PropertyValue value = readString();
-                read("]");
-                return value.getValue(Type.STRING);
-            } else {
-                int level = 1;
-                StringBuilder buff = new StringBuilder();
-                while (true) {
-                    if (isToken("]")) {
-                        if (--level <= 0) {
-                            read();
-                            break;
-                        }
-                    } else if (isToken("[")) {
-                        level++;
-                    }
-                    buff.append(readAny());
-                }
-                return buff.toString();
-            }
-        } else {
-            return readAny();
+        if (currentTokenType == END) {
+            throw getSyntaxError("a token");
         }
+        String s;
+        if (currentTokenType == VALUE) {
+            s = currentValue.getValue(Type.STRING);
+        } else {
+            s = currentToken;
+        }
+        read();
+        return s;
     }
 
     private SourceImpl parseSource() throws ParseException {
@@ -245,9 +236,8 @@ public class SQL2Parser {
                 read(",");
                 String selector2 = readName();
                 if (readIf(",")) {
-                    c = factory.sameNodeJoinCondition(selector1, selector2, readAbsolutePath());
+                    c = factory.sameNodeJoinCondition(selector1, selector2, readPath());
                 } else {
-                    // TODO verify "." is correct
                     c = factory.sameNodeJoinCondition(selector1, selector2, ".");
                 }
             } else if ("ISCHILDNODE".equalsIgnoreCase(name)) {
@@ -535,6 +525,23 @@ public class SQL2Parser {
     private StaticOperandImpl parseStaticOperand() throws ParseException {
         if (currentTokenType == PLUS) {
             read();
+            if (currentTokenType != VALUE) {
+                throw getSyntaxError("number");
+            }
+            int valueType = currentValue.getType().tag();
+            switch (valueType) {
+            case PropertyType.LONG:
+                currentValue = PropertyValues.newLong(currentValue.getValue(Type.LONG));
+                break;
+            case PropertyType.DOUBLE:
+                currentValue = PropertyValues.newDouble(currentValue.getValue(Type.DOUBLE));
+                break;
+            case PropertyType.DECIMAL:
+                currentValue = PropertyValues.newDecimal(currentValue.getValue(Type.DECIMAL).negate());
+                break;
+            default:
+                throw getSyntaxError("Illegal operation: + " + currentValue);
+            }
         } else if (currentTokenType == MINUS) {
             read();
             if (currentTokenType != VALUE) {
@@ -778,20 +785,6 @@ public class SQL2Parser {
         read();
     }
 
-    private String readAny() throws ParseException {
-        if (currentTokenType == END) {
-            throw getSyntaxError("a token");
-        }
-        String s;
-        if (currentTokenType == VALUE) {
-            s = currentValue.getValue(Type.STRING);
-        } else {
-            s = currentToken;
-        }
-        read();
-        return s;
-    }
-
     private PropertyValue readString() throws ParseException {
         if (currentTokenType != VALUE) {
             throw getSyntaxError("string value");
@@ -836,8 +829,6 @@ public class SQL2Parser {
             case '%':
             case '?':
             case '$':
-            case '[':
-            case ']':
                 type = CHAR_SPECIAL_1;
                 break;
             case '!':
@@ -851,17 +842,28 @@ public class SQL2Parser {
             case '.':
                 type = CHAR_DECIMAL;
                 break;
+            case '[':
+                types[i] = type = CHAR_BRACKETED;
+                startLoop = i;
+                while (true) {
+                    while (command[++i] != ']') {
+                        checkRunOver(i, len, startLoop);
+                    }
+                    if (i >= len - 1 || command[i + 1] != ']') {
+                        break;
+                    }
+                    i++;
+                }
+                break;
             case '\'':
-                type = CHAR_STRING;
-                types[i] = CHAR_STRING;
+                types[i] = type = CHAR_STRING;
                 startLoop = i;
                 while (command[++i] != '\'') {
                     checkRunOver(i, len, startLoop);
                 }
                 break;
             case '\"':
-                type = CHAR_QUOTED;
-                types[i] = CHAR_QUOTED;
+                types[i] = type = CHAR_QUOTED;
                 startLoop = i;
                 while (command[++i] != '\"') {
                     checkRunOver(i, len, startLoop);
@@ -938,7 +940,10 @@ public class SQL2Parser {
             if (types[i] == CHAR_SPECIAL_2) {
                 i++;
             }
-            // fall through
+            currentToken = statement.substring(start, i);
+            currentTokenType = KEYWORD;
+            parseIndex = i;
+            return;
         case CHAR_SPECIAL_1:
             currentToken = statement.substring(start, i);
             switch (c) {
@@ -999,6 +1004,11 @@ public class SQL2Parser {
             }
             readDecimal(i - 1, i);
             return;
+        case CHAR_BRACKETED:
+            readString(i, ']');
+            currentTokenType = IDENTIFIER;
+            currentToken = currentValue.getValue(Type.STRING);
+            return;
         case CHAR_STRING:
             readString(i, '\'');
             return;
@@ -1045,13 +1055,18 @@ public class SQL2Parser {
             i++;
         }
         currentToken = "'";
-        checkLiterals(false);
+        if (end != ']') {
+            checkLiterals(false);
+        }
         currentValue = PropertyValues.newString(result);
         parseIndex = i;
         currentTokenType = VALUE;
     }
 
     private void checkLiterals(boolean text) throws ParseException {
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Literal used in query: " + statement);
+        }
         if (text && !allowTextLiterals || !text && !allowNumberLiterals) {
             throw getSyntaxError("bind variable (literals of this type not allowed)");
         }

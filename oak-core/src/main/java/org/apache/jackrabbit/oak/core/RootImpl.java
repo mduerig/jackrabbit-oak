@@ -31,10 +31,11 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.BlobFactory;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.api.SessionQueryEngine;
+import org.apache.jackrabbit.oak.api.QueryEngine;
 import org.apache.jackrabbit.oak.api.TreeLocation;
+import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.commit.DefaultConflictHandler;
-import org.apache.jackrabbit.oak.query.SessionQueryEngineImpl;
+import org.apache.jackrabbit.oak.query.QueryEngineImpl;
 import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
 import org.apache.jackrabbit.oak.spi.observation.ChangeExtractor;
 import org.apache.jackrabbit.oak.spi.query.CompositeQueryIndexProvider;
@@ -116,6 +117,26 @@ public class RootImpl implements Root {
         this.accConfiguration = new OpenAccessControlConfiguration();
         this.indexProvider = new CompositeQueryIndexProvider();
         refresh();
+    }
+
+    /**
+     * Oak level variant of {@link org.apache.jackrabbit.oak.api.ContentSession#getLatestRoot()}
+     * to be used when no {@code ContentSession} is available.
+     *
+     * @return A new Root instance.
+     * @see org.apache.jackrabbit.oak.api.ContentSession#getLatestRoot()
+     */
+    public Root getLatest() {
+        checkLive();
+        RootImpl root = new RootImpl(store, null, subject, accConfiguration, indexProvider) {
+            protected void checkLive() {
+                RootImpl.this.checkLive();
+            }
+        };
+        if (conflictHandler != null) {
+            root.setConflictHandler(conflictHandler);
+        }
+        return root;
     }
 
     void setConflictHandler(ConflictHandler conflictHandler) {
@@ -267,24 +288,28 @@ public class RootImpl implements Root {
     }
 
     @Override
-    public SessionQueryEngine getQueryEngine() {
+    public QueryEngine getQueryEngine() {
         checkLive();
-        return new SessionQueryEngineImpl(indexProvider) {
-            @Override
-            protected NodeState getRootNodeState() {
-                return rootTree.getNodeState();
-            }
+        return new QueryEngineImpl(indexProvider) {
 
             @Override
-            protected Root getRoot() {
+            protected NodeState getRootState() {
+                return rootTree.getNodeState();
+            }
+            
+            @Override
+            protected Root getRootTree() {
                 return RootImpl.this;
             }
+
         };
     }
 
     @Nonnull
     @Override
     public BlobFactory getBlobFactory() {
+        checkLive();
+
         return new BlobFactory() {
             @Override
             public Blob createBlob(InputStream inputStream) throws IOException {
@@ -318,7 +343,7 @@ public class RootImpl implements Root {
     }
 
     CompiledPermissions getPermissions() {
-        return accConfiguration.getAccessControlContext(subject).getPermissions();
+        return accConfiguration.getPermissionProvider(NamePathMapper.DEFAULT).getCompiledPermissions(store, subject.getPrincipals());
     }
 
     //------------------------------------------------------------< private >---

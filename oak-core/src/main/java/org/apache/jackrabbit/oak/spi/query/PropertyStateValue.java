@@ -42,33 +42,40 @@ public class PropertyStateValue implements PropertyValue {
         this.ps = ps;
     }
 
+    @Override
     public boolean isArray() {
         return ps.isArray();
     }
 
+    @Override
     @Nonnull
     public Type<?> getType() {
         return ps.getType();
     }
 
+    @Override
     @Nonnull
     public <T> T getValue(Type<T> type) {
         return ps.getValue(type);
     }
 
+    @Override
     @Nonnull
     public <T> T getValue(Type<T> type, int index) {
         return ps.getValue(type, index);
     }
 
+    @Override
     public long size() {
         return ps.size();
     }
 
+    @Override
     public long size(int index) {
         return ps.size(index);
     }
 
+    @Override
     public int count() {
         return ps.count();
     }
@@ -81,13 +88,19 @@ public class PropertyStateValue implements PropertyValue {
     @Override
     public int compareTo(PropertyValue p2) {
         if (getType().tag() != p2.getType().tag()) {
-            return Integer.signum(getType().tag() - p2.getType().tag());
+            return Integer.signum(p2.getType().tag() - getType().tag());
         }
         switch (getType().tag()) {
-        case PropertyType.BINARY:
-            return compare(getValue(Type.BINARIES), p2.getValue(Type.BINARIES));
+        case PropertyType.BOOLEAN:
+            return compare(getValue(Type.BOOLEANS), p2.getValue(Type.BOOLEANS));
+        case PropertyType.DECIMAL:
+            return compare(getValue(Type.DECIMALS), p2.getValue(Type.DECIMALS));
         case PropertyType.DOUBLE:
             return compare(getValue(Type.DOUBLES), p2.getValue(Type.DOUBLES));
+        case PropertyType.LONG:
+            return compare(getValue(Type.LONGS), p2.getValue(Type.LONGS));
+        case PropertyType.BINARY:
+            return compare(getValue(Type.BINARIES), p2.getValue(Type.BINARIES));
         case PropertyType.DATE:
             return compareAsDate(getValue(Type.STRINGS),
                     p2.getValue(Type.STRINGS));

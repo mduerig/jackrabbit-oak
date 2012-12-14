@@ -20,6 +20,7 @@ import javax.jcr.nodetype.ItemDefinition;
 import javax.jcr.nodetype.NodeType;
 import javax.jcr.version.OnParentVersionAction;
 
+import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.util.NodeUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,8 +39,7 @@ import org.slf4j.LoggerFactory;
  */
 class ItemDefinitionImpl implements ItemDefinition {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(ItemDefinitionImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(ItemDefinitionImpl.class);
 
     private final NodeType type;
 
@@ -50,6 +50,7 @@ class ItemDefinitionImpl implements ItemDefinition {
         this.node = node;
     }
 
+    //-----------------------------------------------------< ItemDefinition >---
     @Override
     public NodeType getDeclaringNodeType() {
         return type;
@@ -57,17 +58,17 @@ class ItemDefinitionImpl implements ItemDefinition {
 
     @Override
     public String getName() {
-        return node.getName("jcr:name", "*");
+        return node.getName(JcrConstants.JCR_NAME, NodeTypeConstants.RESIDUAL_NAME);
     }
 
     @Override
     public boolean isAutoCreated() {
-        return node.getBoolean("jcr:autoCreated");
+        return node.getBoolean(JcrConstants.JCR_AUTOCREATED);
     }
 
     @Override
     public boolean isMandatory() {
-        return node.getBoolean("jcr:mandatory");
+        return node.getBoolean(JcrConstants.JCR_MANDATORY);
     }
 
     @Override
@@ -84,7 +85,16 @@ class ItemDefinitionImpl implements ItemDefinition {
 
     @Override
     public boolean isProtected() {
-        return node.getBoolean("jcr:protected");
+        return node.getBoolean(JcrConstants.JCR_PROTECTED);
     }
 
+    @Override
+    public String toString() {
+        return getName();
+    }
+
+    //-----------------------------------------------------------< internal >---
+    String getOakName() {
+        return node.getString(JcrConstants.JCR_NAME, NodeTypeConstants.RESIDUAL_NAME);
+    }
 }

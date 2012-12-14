@@ -57,6 +57,7 @@ public class ContentRepositoryImpl implements ContentRepository {
      * initialized components.
      *
      * @param nodeStore the node store this repository is based upon.
+     * @param conflictHandler The conflict handler.
      * @param indexProvider index provider
      * @param securityProvider The configured security provider or {@code null} if
      * default implementations should be used.
@@ -84,11 +85,11 @@ public class ContentRepositoryImpl implements ContentRepository {
             throw new NoSuchWorkspaceException(workspaceName);
         }
 
-        LoginContextProvider lcProvider = securityProvider.getLoginContextProvider(nodeStore, indexProvider);
+        LoginContextProvider lcProvider = securityProvider.getAuthenticationConfiguration().getLoginContextProvider(nodeStore, indexProvider);
         LoginContext loginContext = lcProvider.getLoginContext(credentials, workspaceName);
         loginContext.login();
 
-        AccessControlConfiguration acConfiguration = securityProvider.getAccessControlProvider();
+        AccessControlConfiguration acConfiguration = securityProvider.getAccessControlConfiguration();
         return new ContentSessionImpl(loginContext, acConfiguration, workspaceName,
                 nodeStore, conflictHandler, indexProvider);
     }
