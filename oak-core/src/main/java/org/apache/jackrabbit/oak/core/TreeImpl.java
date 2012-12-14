@@ -49,7 +49,7 @@ import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
 public class TreeImpl implements Tree {
 
     /** Internal and hidden property that contains the child order */
-    static final String OAK_CHILD_ORDER = ":childOrder";
+    public static final String OAK_CHILD_ORDER = ":childOrder";
 
     /** Underlying {@code Root} of this {@code Tree} instance */
     private final RootImpl root;

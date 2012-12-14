@@ -16,15 +16,24 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.core.TreeImpl;
+import org.apache.jackrabbit.oak.kernel.JsopOp.Set;
+import org.apache.jackrabbit.oak.plugins.commit.ConflictHandlerWrapper;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
+import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStoreBranch;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.skip;
 import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getName;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getParentPath;
@@ -149,6 +158,34 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
         }
     }
 
+    @Override
+    public NodeStoreBranch rebase(ConflictHandler conflictHandler) {
+        checkNotMerged();
+
+        NodeStoreBranch rebasedBranch = store.branch();
+        if (headRevision != null) {  // Nothing has been written to this branch if null
+            NodeBuilder rootBuilder = rebasedBranch.getRoot().builder();
+            for (JsopOp jsopOp : getJsopOps(store.getKernel(), baseRevision, headRevision)) {
+                jsopOp.apply(getBase(), rootBuilder, new ChildOrderConflictHandler(conflictHandler));
+            }
+            rebasedBranch.setRoot(rootBuilder.getNodeState());
+        }
+
+        return rebasedBranch;
+    }
+
+    private static Iterable<JsopOp> getJsopOps(final MicroKernel kernel, String fromRevision, String toRevision) {
+        String journal = kernel.getJournal(fromRevision, toRevision, null);
+        Iterable<String> changes = skip(JournalIterator.getChanges(journal), 1);  // skip fromRevision
+
+        return Iterables.concat(Iterables.transform(changes, new Function<String, Iterable<JsopOp>>() {
+            @Override
+            public Iterable<JsopOp> apply(String entry) {
+                return JsopIterator.getJsopOps(kernel, entry);
+            }
+        }));
+    }
+
     //------------------------------------------------------------< private >---
 
     private void checkNotMerged() {
@@ -168,6 +205,8 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
         return node;
     }
 
+    //------------------------------------------------------------< ChildOrderConflictHandler >---
+
     private void commit(String jsop) {
         MicroKernel kernel = store.getKernel();
         if (headRevision == null) {
@@ -177,5 +216,28 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
 
         headRevision = kernel.commit("", jsop, headRevision, null);
         head = store.getRootState(headRevision);
+    }
+
+    private static class ChildOrderConflictHandler extends ConflictHandlerWrapper {
+        public ChildOrderConflictHandler(ConflictHandler conflictHandler) {
+            super(conflictHandler);
+        }
+
+        @Override
+        public void parentNotFound(Set set, NodeState base, NodeBuilder rootBuilder) {
+            if (!TreeImpl.OAK_CHILD_ORDER.equals(PathUtils.getName(set.path))) {
+                // Node has been removed, conflict on child order is irrelevant: ignore
+                super.propertyValueConflict(set, base, rootBuilder);
+            }
+        }
+
+        @Override
+        public void propertyValueConflict(Set set, NodeState base, NodeBuilder rootBuilder) {
+            if (!TreeImpl.OAK_CHILD_ORDER.equals(PathUtils.getName(set.path))) {
+                // concurrent orderBefore(), other changes win
+                super.propertyValueConflict(set, base, rootBuilder);
+            }
+        }
+
     }
 }

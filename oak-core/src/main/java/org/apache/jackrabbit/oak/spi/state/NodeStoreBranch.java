@@ -19,6 +19,7 @@ package org.apache.jackrabbit.oak.spi.state;
 import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
 
 /**
  * An instance of this class represents a private branch of the tree in a
@@ -82,5 +83,10 @@ public interface NodeStoreBranch {
     @Nonnull
     NodeState merge() throws CommitFailedException;
 
+    /**
+     * Rebase this branch to the latest revision.
+     */
+    @Nonnull
+    NodeStoreBranch rebase(@Nonnull ConflictHandler conflictHandler);
 }
 

@@ -30,8 +30,8 @@ import javax.security.auth.Subject;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.BlobFactory;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.QueryEngine;
+import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.commit.DefaultConflictHandler;
@@ -84,7 +84,7 @@ public class RootImpl implements Root {
      */
     private int modCount;
 
-    private volatile ConflictHandler conflictHandler = DefaultConflictHandler.OURS;
+    private volatile ConflictHandler conflictHandler = DefaultConflictHandler.INSTANCE;
 
     private final QueryIndexProvider indexProvider;
 
@@ -213,10 +213,8 @@ public class RootImpl implements Root {
         checkLive();
         if (!store.getRoot().equals(rootTree.getBaseState())) {
             purgePendingChanges();
-            NodeState base = getBaseState();
-            NodeState head = rootTree.getNodeState();
-            refresh();
-            MergingNodeStateDiff.merge(base, head, rootTree.getNodeBuilder(), conflictHandler);
+            branch = branch.rebase(conflictHandler);
+            rootTree = TreeImpl.createRoot(this);
         }
     }
 

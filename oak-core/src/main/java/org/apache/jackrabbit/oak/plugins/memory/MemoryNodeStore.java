@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.io.ByteStreams;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.spi.state.NodeStoreBranch;
@@ -103,6 +104,10 @@ public class MemoryNodeStore implements NodeStore {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public NodeStoreBranch rebase(ConflictHandler conflictHandler) {
+            throw new UnsupportedOperationException();
+        }
     }
 
 }
