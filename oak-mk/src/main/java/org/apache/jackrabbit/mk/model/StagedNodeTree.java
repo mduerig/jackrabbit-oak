@@ -16,15 +16,19 @@
  */
 package org.apache.jackrabbit.mk.model;
 
-import org.apache.jackrabbit.mk.json.JsonObject;
-import org.apache.jackrabbit.mk.model.tree.NodeDelta;
-import org.apache.jackrabbit.mk.store.NotFoundException;
-import org.apache.jackrabbit.mk.store.RevisionStore;
-import org.apache.jackrabbit.oak.commons.PathUtils;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+
+import org.apache.jackrabbit.mk.json.JsonObject;
+import org.apache.jackrabbit.mk.model.tree.NodeDelta;
+import org.apache.jackrabbit.mk.model.tree.NodeState;
+import org.apache.jackrabbit.mk.model.tree.PropertyState;
+import org.apache.jackrabbit.mk.store.NotFoundException;
+import org.apache.jackrabbit.mk.store.RevisionStore;
+import org.apache.jackrabbit.mk.store.RevisionStore.PutToken;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 
 /**
  * A {@code StagedNodeTree} provides methods to manipulate a specific revision
@@ -78,6 +82,21 @@ public class StagedNodeTree {
      */
     public Id /* new id of root node */ persist(RevisionStore.PutToken token) throws Exception {
         return root != null ? root.persist(token) : null;
+    }
+
+    public Id rebase(Id baseId, Id fromId, Id toId, PutToken token) throws Exception {
+        // reset staging area to new base revision
+        reset(baseId);
+
+        StoredNode baseRoot = store.getRootNode(baseId);
+        StoredNode fromRoot = store.getRootNode(fromId);
+        StoredNode toRoot = store.getRootNode(toId);
+
+        // recursively apply changes from 'fromRoot' to 'toRoot' to 'baseRoot'
+        rebaseNode(baseRoot, fromRoot, toRoot, "/");
+
+        // persist staged nodes
+        return persist(token);
     }
 
     /**
@@ -360,6 +379,106 @@ public class StagedNodeTree {
             parent = node;
         }
         return node;
+    }
+
+    private void rebaseNode(StoredNode base, StoredNode from, StoredNode to, String path) throws Exception {
+        assert from != null;
+        assert to != null;
+        assert base != null;
+
+        NodeState baseState = store.getNodeState(base);
+        NodeDelta theirDelta = new NodeDelta(store, store.getNodeState(from), store.getNodeState(base));
+        NodeDelta delta = new NodeDelta(store, store.getNodeState(from), store.getNodeState(to));
+
+        // apply the changes
+        StagedNode stagedNode = getStagedNode(path, true);
+
+        for (Entry<String, String> added : delta.getAddedProperties().entrySet()) {
+            String name = added.getKey();
+            String value = added.getValue();
+
+            PropertyState p = baseState.getProperty(name);
+            if (p == null || value.equals(p.getEncodedValue())) {
+                stagedNode.getProperties().put(name, value);
+            }
+            else {
+                throw new Exception("Added property conflicts with existing property '" + name + "' at '" + path + '\'');
+            }
+        }
+
+        for (String removed : delta.getRemovedProperties().keySet()) {
+            if (baseState.getProperty(removed) != null) {
+                if (theirDelta.getAddedProperties().containsKey(removed)) {
+                    throw new Exception("Removed property conflicts with added property '" + removed + "' at '" + path + '\'');
+                }
+                if (theirDelta.getChangedProperties().containsKey(removed)) {
+                    throw new Exception("Removed property conflicts with changed property '" + removed + "' at '" + path + '\'');
+                }
+                stagedNode.getProperties().remove(removed);
+            }
+        }
+
+        for (Entry<String, String> changed : delta.getChangedProperties().entrySet()) {
+            String name = changed.getKey();
+            String value = changed.getValue();
+
+            PropertyState p = baseState.getProperty(name);
+            if (p == null) {
+                throw new Exception("Changed property conflicts with removed property '" + name + "' at '" + path + '\'');
+            }
+            else {
+                if (theirDelta.getAddedProperties().containsKey(name)) {
+                    throw new Exception("Changed property conflicts with added property '" + name + "' at '" + path + '\'');
+                }
+                String theirs = theirDelta.getChangedProperties().get(name);
+                if (theirs != null && !theirs.equals(value)) {
+                    throw new Exception("Changes property conflicts with changed property '" + name + "' at '" + path + '\'');
+                }
+                stagedNode.getProperties().put(name, value);
+            }
+        }
+
+        for (Entry<String, Id> added : delta.getAddedChildNodes().entrySet()) {
+            String name = added.getKey();
+            Id id = added.getValue();
+
+            NodeState n = baseState.getChildNode(name);
+            if (n == null) {
+                stagedNode.add(new ChildNodeEntry(name, id));
+            }
+            else {
+                throw new Exception("Added node conflicts with existing node '" + name + "' at '" + path + '\'');
+            }
+        }
+
+        for (String removed : delta.getRemovedChildNodes().keySet()) {
+            if (baseState.getChildNode(removed) != null) {
+                if (theirDelta.getAddedChildNodes().containsKey(removed)) {
+                    throw new Exception("Removed node conflicts with added node '" + removed + "' at '" + path + '\'');
+                }
+                if (theirDelta.getChangedChildNodes().containsKey(removed)) {
+                    throw new Exception("Removed node conflicts with changed node '" + removed + "' at '" + path + '\'');
+                }
+                stagedNode.remove(removed);
+            }
+        }
+
+        for (String changed : delta.getChangedChildNodes().keySet()) {
+            StoredNode changedBase = getChildNode(base, changed);
+            if (changedBase == null) {
+                throw new Exception("Changed node conflicts with removed node '" + changed + "' at '" + path + '\'');
+            }
+
+            StoredNode changedFrom = getChildNode(from, changed);
+            StoredNode changedTo = getChildNode(to, changed);
+            String changedPath = PathUtils.concat(path, changed);
+            rebaseNode(changedBase, changedFrom, changedTo, changedPath);
+        }
+    }
+
+    private StoredNode getChildNode(StoredNode parent, String name) throws Exception {
+        ChildNodeEntry cne = parent.getChildNodeEntry(name);
+        return cne == null ? null : store.getNode(cne.getId());
     }
 
     /**
