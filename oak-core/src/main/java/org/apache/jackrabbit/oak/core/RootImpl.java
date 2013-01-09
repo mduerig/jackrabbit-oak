@@ -213,10 +213,8 @@ public class RootImpl implements Root {
         checkLive();
         if (!store.getRoot().equals(rootTree.getBaseState())) {
             purgePendingChanges();
-            NodeState base = getBaseState();
-            NodeState head = rootTree.getNodeState();
-            refresh();
-            MergingNodeStateDiff.merge(base, head, rootTree.getNodeBuilder(), conflictHandler);
+            branch.rebase();  // michid conflict handler!?
+            rootTree = TreeImpl.createRoot(this);
         }
     }
 

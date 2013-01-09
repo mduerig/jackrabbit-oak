@@ -40,10 +40,10 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
     private final KernelNodeStore store;
 
     /** Root state of the base revision of this branch */
-    private final NodeState base;
+    private NodeState base;
 
     /** Revision of the base state of this branch*/
-    private final String baseRevision;
+    private String baseRevision;
 
     /** Root state of the head revision of this branch*/
     private NodeState head;
@@ -146,6 +146,23 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
         catch (MicroKernelException e) {
             setRoot(oldRoot);
             throw new CommitFailedException(e);
+        }
+    }
+
+    @Override
+    public void rebase() {
+        KernelNodeState root = store.getRoot();
+        if (headRevision == null) {
+            // Nothing was written to this branch: set new base revision
+            base = root;
+            baseRevision = root.getRevision();
+            head = root;
+        }
+        else {
+            base = root;
+            baseRevision = root.getRevision();
+            headRevision = store.getKernel().rebase(headRevision, baseRevision);
+            head = store.getRootState(headRevision);
         }
     }
 

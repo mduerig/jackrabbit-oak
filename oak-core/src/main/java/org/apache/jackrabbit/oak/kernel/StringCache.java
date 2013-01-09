@@ -111,7 +111,7 @@ class StringCache {
             NodeTypeConstants.JCR_CREATEDBY,
             NodeTypeConstants.JCR_LASTMODIFIEDBY,
             NodeTypeConstants.MIX_CREATED,
-            NodeTypeConstants.MIX_LASTMODIFIED,
+            NodeTypeConstants.MIX_LASTMODIFIED, // michid remove this and related
             NodeTypeConstants.MIX_REP_MERGE_CONFLICT,
             NodeTypeConstants.REP_OURS,
             NodeTypeConstants.ADD_EXISTING,

@@ -1398,6 +1398,7 @@ public class RepositoryTest extends AbstractRepositoryTest {
     }
 
     @Test
+    @Ignore  // michid ignore
     public void saveRefreshConflict() throws RepositoryException {
         Session session1 = createAdminSession();
         Session session2 = createAdminSession();
@@ -1427,6 +1428,7 @@ public class RepositoryTest extends AbstractRepositoryTest {
     }
 
     @Test
+    @Ignore  // michid ignore
     public void saveConflict() throws RepositoryException {
         getAdminSession().getRootNode().addNode("node");
         getAdminSession().save();
