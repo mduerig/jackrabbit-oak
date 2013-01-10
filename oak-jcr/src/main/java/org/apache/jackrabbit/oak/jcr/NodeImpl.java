@@ -53,8 +53,8 @@ import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.NodeTypeManager;
 import javax.jcr.nodetype.PropertyDefinition;
 import javax.jcr.version.Version;
+import javax.jcr.version.VersionException;
 import javax.jcr.version.VersionHistory;
-import javax.jcr.version.VersionManager;
 
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
@@ -86,7 +86,9 @@ import static javax.jcr.Property.JCR_LOCK_IS_DEEP;
 import static javax.jcr.Property.JCR_LOCK_OWNER;
 
 /**
- * {@code NodeImpl}...
+ * TODO document
+ * 
+ * @param <T> the delegate type
  */
 public class NodeImpl<T extends NodeDelegate> extends ItemImpl<T> implements Node {
 
@@ -870,6 +872,10 @@ public class NodeImpl<T extends NodeDelegate> extends ItemImpl<T> implements Nod
     public void setPrimaryType(final String nodeTypeName) throws RepositoryException {
         checkStatus();
         checkProtected();
+        if (!isCheckedOut()) {
+            throw new VersionException("Cannot set primary type. Node is " +
+                    "checked in.");
+        }
 
         internalSetPrimaryType(nodeTypeName);
     }
@@ -940,9 +946,7 @@ public class NodeImpl<T extends NodeDelegate> extends ItemImpl<T> implements Nod
                 ntm.getNodeType(mixinName); // throws on not found
                 // TODO: END
 
-                VersionManager vMgr = sessionDelegate.getVersionManager();
-                String path = toJcrPath(dlg.getPath());
-                return isSupportedMixinName(mixinName) && vMgr.isCheckedOut(path);
+                return isSupportedMixinName(mixinName) && isCheckedOut();
             }
         });
     }

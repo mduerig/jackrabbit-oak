@@ -20,7 +20,6 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Type;
@@ -32,7 +31,6 @@ import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 
 /**
  * Provides a QueryIndex that does lookups against a property index
@@ -81,7 +79,8 @@ class Property2Index implements QueryIndex {
 
     public static final String TYPE = "p2";
 
-    private static final int MAX_STRING_LENGTH = 100; // TODO: configurable
+    // TODO the max string length should be removed, or made configurable
+    private static final int MAX_STRING_LENGTH = 100; 
 
     static List<String> encode(PropertyValue value) {
         List<String> values = new ArrayList<String>();
@@ -103,49 +102,76 @@ class Property2Index implements QueryIndex {
 
     @Override
     public String getIndexName() {
-        return "oak:index";
+        return "p2";
     }
 
     @Override
     public double getCost(Filter filter, NodeState root) {
         Property2IndexLookup lookup = new Property2IndexLookup(root);
         for (PropertyRestriction pr : filter.getPropertyRestrictions()) {
-            if (pr.firstIncluding && pr.lastIncluding
-                    && pr.first.equals(pr.last) // TODO: range queries
-                    && lookup.isIndexed(pr.propertyName, "/")) { // TODO: path
-                return lookup.getCost(pr.propertyName, pr.first);
+            // TODO support indexes on a path
+            // currently, only indexes on the root node are supported
+            if (lookup.isIndexed(pr.propertyName, "/")) {
+                if (pr.firstIncluding && pr.lastIncluding
+                    && pr.first != null && pr.first.equals(pr.last)) {
+                    // "[property] = $value"
+                    return lookup.getCost(pr.propertyName, pr.first);
+                } else if (pr.first == null && pr.last == null) {
+                    // "[property] is not null"
+                    return lookup.getCost(pr.propertyName, null);
+                }
             }
         }
         // not an appropriate index
         return Double.POSITIVE_INFINITY;
     }
-
+    
     @Override
     public Cursor query(Filter filter, NodeState root) {
-        Set<String> paths = null;
+        Iterable<String> paths = null;
 
         Property2IndexLookup lookup = new Property2IndexLookup(root);
         for (PropertyRestriction pr : filter.getPropertyRestrictions()) {
-            if (pr.firstIncluding && pr.lastIncluding
-                    && pr.first.equals(pr.last) // TODO: range queries
-                    && lookup.isIndexed(pr.propertyName, "/")) { // TODO: path
-                Set<String> set = lookup.find(pr.propertyName, pr.first);
-                if (paths == null) {
-                    paths = Sets.newHashSet(set);
-                } else {
-                    paths.retainAll(set);
+            // TODO support indexes on a path
+            // currently, only indexes on the root node are supported
+            if (lookup.isIndexed(pr.propertyName, "/")) {
+                // equality
+                if (pr.firstIncluding && pr.lastIncluding
+                    && pr.first != null && pr.first.equals(pr.last)) {
+                    // "[property] = $value"
+                    paths = lookup.query(pr.propertyName, pr.first);
+                    break;
+                } else if (pr.first == null && pr.last == null) {
+                    // "[property] is not null"
+                    // TODO don't load all entries in memory
+                    paths = lookup.query(pr.propertyName, null);
+                    break;
                 }
             }
         }
-
         if (paths == null) {
             throw new IllegalStateException("Property index is used even when no index is available for filter " + filter);
         }
         return Cursors.newPathCursor(paths);
     }
-
+    
     @Override
     public String getPlan(Filter filter, NodeState root) {
-        return "oak:index"; // TODO: better plans
+        StringBuilder buff = new StringBuilder("p2");
+        Property2IndexLookup lookup = new Property2IndexLookup(root);
+        for (PropertyRestriction pr : filter.getPropertyRestrictions()) {
+            // TODO support indexes on a path
+            // currently, only indexes on the root node are supported
+            if (lookup.isIndexed(pr.propertyName, "/")) {
+                if (pr.firstIncluding && pr.lastIncluding
+                    && pr.first != null && pr.first.equals(pr.last)) {
+                    buff.append(' ').append(pr.propertyName).append('=').append(pr.first);
+                } else if (pr.first == null && pr.last == null) {
+                    buff.append(' ').append(pr.propertyName);
+                }
+            }
+        }
+        return buff.toString();
     }
+
 }

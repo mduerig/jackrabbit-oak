@@ -70,21 +70,20 @@ class NodeTypeIndex implements QueryIndex, JcrConstants {
             throw new IllegalStateException(
                     "NodeType index is used even when no index is available for filter " + filter);
         }
-        return Cursors.newPathCursor(lookup.find(
+        return Cursors.newPathCursorDistinct(lookup.query(
                 resolveNodeType(root, filter.getNodeType())));
     }
-
+    
     @Override
     public String getPlan(Filter filter, NodeState root) {
-        // TODO: return plan according to query()
-        return null;
+        return "nodeType " + filter.getNodeType() + " path " + filter.getPath();
     }
 
     @Override
     public String getIndexName() {
-        return "nodetype";
+        return "nodeType";
     }
-
+    
     //----------------------------< internal >----------------------------------
 
     private static boolean hasNodeTypeRestriction(Filter filter) {

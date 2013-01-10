@@ -27,9 +27,9 @@ interface Condition {
 
     void accept(ConditionVisitor visitor) throws RepositoryException;
 
-    //------------------------------------------< Condition implementations >---
+    //-----------------------------------------------------< Node Condition >---
+    class Node implements Condition {
 
-    static class Node implements Condition {
         private final String pattern;
 
         public Node(String pattern) {
@@ -45,7 +45,9 @@ interface Condition {
         }
     }
 
-    static class Property implements Condition {
+    //-------------------------------------------------< Property Condition >---
+    class Property implements Condition {
+
         private final String relPath;
         private final RelationOp op;
         private final Value value;
@@ -93,7 +95,9 @@ interface Condition {
         }
     }
 
-    static class Contains implements Condition {
+    //-------------------------------------------------< Contains Condition >---
+    class Contains implements Condition {
+
         private final String relPath;
         private final String searchExpr;
 
@@ -115,7 +119,9 @@ interface Condition {
         }
     }
 
-    static class Impersonation implements Condition {
+    //--------------------------------------------< Impersonation Condition >---
+    class Impersonation implements Condition {
+
         private final String name;
 
         public Impersonation(String name) {
@@ -131,7 +137,9 @@ interface Condition {
         }
     }
 
-    static class Not implements Condition {
+    //------------------------------------------------------< Not Condition >---
+    class Not implements Condition {
+
         private final Condition condition;
 
         public Not(Condition condition) {
@@ -147,20 +155,14 @@ interface Condition {
         }
     }
 
-    abstract static class Compound implements Condition, Iterable<Condition> {
-        private final List<Condition> conditions = new ArrayList<Condition>();
+    //-------------------------------------------------< Compound Condition >---
+    abstract class Compound implements Condition, Iterable<Condition> {
 
-        public Compound() {
-            super();
-        }
+        private final List<Condition> conditions = new ArrayList<Condition>();
 
         public Compound(Condition condition1, Condition condition2) {
             conditions.add(condition1);
             conditions.add(condition2);
-        }
-
-        public void addCondition(Condition condition) {
-            conditions.add(condition);
         }
 
         public Iterator<Condition> iterator() {
@@ -168,7 +170,9 @@ interface Condition {
         }
     }
 
-    static class And extends Compound {
+    //------------------------------------------------------< And Condition >---
+    class And extends Compound {
+
         public And(Condition condition1, Condition condition2) {
             super(condition1, condition2);
         }
@@ -178,7 +182,9 @@ interface Condition {
         }
     }
 
-    static class Or extends Compound {
+    //-------------------------------------------------------< Or Condition >---
+    class Or extends Compound {
+
         public Or(Condition condition1, Condition condition2) {
             super(condition1, condition2);
         }

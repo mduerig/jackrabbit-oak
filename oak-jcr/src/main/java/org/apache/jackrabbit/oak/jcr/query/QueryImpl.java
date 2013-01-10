@@ -29,6 +29,8 @@ import javax.jcr.ValueFactory;
 import javax.jcr.query.InvalidQueryException;
 import javax.jcr.query.Query;
 import javax.jcr.query.QueryResult;
+import javax.jcr.version.VersionException;
+
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.jcr.NodeDelegate;
@@ -112,11 +114,17 @@ public class QueryImpl implements Query {
 
     @Override
     public void setLimit(long limit) {
+        if (limit < 0) {
+            throw new IllegalArgumentException("Limit may not be negative, is: " + limit);
+        }
         this.limit = limit;
     }
 
     @Override
     public void setOffset(long offset) {
+        if (offset < 0) {
+            throw new IllegalArgumentException("Offset may not be negative, is: " + offset);
+        }
         this.offset = offset;
     }
 
@@ -131,6 +139,10 @@ public class QueryImpl implements Query {
             throw new PathNotFoundException("The specified path does not exist: " + parent);
         }
         Node parentNode = new NodeImpl<NodeDelegate>(parentDelegate);
+        if (!parentNode.isCheckedOut()) {
+            throw new VersionException("Cannot store query. Node at " +
+                    absPath + " is checked in.");
+        }
         String nodeName = PathUtils.getName(oakPath);
         ValueFactory vf = sessionDelegate.getValueFactory();
         Node n = parentNode.addNode(nodeName, JcrConstants.NT_QUERY);

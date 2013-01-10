@@ -19,10 +19,10 @@ package org.apache.jackrabbit.oak.security.user;
 import java.security.Principal;
 import java.util.Enumeration;
 import java.util.Iterator;
-import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 
 import com.google.common.base.Function;
+import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
@@ -30,7 +30,6 @@ import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.jackrabbit.commons.iterator.RangeIteratorAdapter;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.spi.security.principal.EveryonePrincipal;
-import org.apache.jackrabbit.oak.spi.security.principal.TreeBasedPrincipal;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
 import org.apache.jackrabbit.oak.spi.security.user.util.UserUtility;
 import org.slf4j.Logger;
@@ -149,7 +148,7 @@ class GroupImpl extends AuthorizableImpl implements Group {
     private Iterator<Authorizable> getMembers(boolean includeInherited) throws RepositoryException {
         UserManagerImpl userMgr = getUserManager();
         if (isEveryone()) {
-            String propName = getJcrName(REP_PRINCIPAL_NAME);
+            String propName = getUserManager().getNamePathMapper().getJcrName((REP_PRINCIPAL_NAME));
             return userMgr.findAuthorizables(propName, null, UserManager.SEARCH_TYPE_AUTHORIZABLE);
         } else {
             Iterator oakPaths = getMembershipProvider().getMembers(getTree(), AuthorizableType.AUTHORIZABLE, includeInherited);
@@ -243,8 +242,10 @@ class GroupImpl extends AuthorizableImpl implements Group {
 
             Iterator<Principal> principals = Iterators.transform(members, new Function<Authorizable, Principal>() {
                 @Override
-                public Principal apply(@Nullable Authorizable authorizable) {
-                    assert authorizable != null;
+                public Principal apply(Authorizable authorizable) {
+                    if (authorizable == null) {
+                        return null;
+                    }
                     try {
                         return authorizable.getPrincipal();
                     } catch (RepositoryException e) {
@@ -254,7 +255,7 @@ class GroupImpl extends AuthorizableImpl implements Group {
                     }
                 }
             });
-            return Iterators.asEnumeration(principals);
+            return Iterators.asEnumeration(Iterators.filter(principals, Predicates.<Object>notNull()));
         }
     }
 }

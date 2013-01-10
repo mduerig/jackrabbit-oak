@@ -19,11 +19,14 @@ package org.apache.jackrabbit.oak.security.user.query;
 import javax.jcr.Value;
 
 import org.apache.jackrabbit.api.security.user.Authorizable;
+import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.QueryBuilder;
+import org.apache.jackrabbit.api.security.user.User;
+import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
 
 public class XPathQueryBuilder implements QueryBuilder<Condition> {
 
-    private Class<? extends Authorizable> selector = Authorizable.class;
+    private AuthorizableType selectorType = AuthorizableType.AUTHORIZABLE;
     private String groupName;
     private boolean declaredMembersOnly;
     private Condition condition;
@@ -32,12 +35,18 @@ public class XPathQueryBuilder implements QueryBuilder<Condition> {
     private boolean sortIgnoreCase;
     private Value bound;
     private long offset;
-    private long maxCount = -1;
+    private long maxCount = Long.MAX_VALUE;
 
     //-------------------------------------------------------< QueryBuilder >---
     @Override
     public void setSelector(Class<? extends Authorizable> selector) {
-        this.selector = selector;
+        if (User.class.isAssignableFrom(selector)) {
+            selectorType = AuthorizableType.USER;
+        } else if (Group.class.isAssignableFrom(selector)) {
+            selectorType = AuthorizableType.GROUP;
+        } else {
+            selectorType = AuthorizableType.AUTHORIZABLE;
+        }
     }
 
     @Override
@@ -65,14 +74,16 @@ public class XPathQueryBuilder implements QueryBuilder<Condition> {
 
     @Override
     public void setLimit(Value bound, long maxCount) {
-        offset = 0;   // Unset any previously set offset
+        // reset the offset before setting bound value/maxCount
+        offset = 0;
         this.bound = bound;
         this.maxCount = maxCount;
     }
 
     @Override
     public void setLimit(long offset, long maxCount) {
-        bound = null; // Unset any previously set bound
+        // reset the bound value before setting offset/maxCount
+        bound = null;
         this.offset = offset;
         this.maxCount = maxCount;
     }
@@ -153,8 +164,8 @@ public class XPathQueryBuilder implements QueryBuilder<Condition> {
         return new Condition.Property(relPath, op, value);
     }
 
-    Class<? extends Authorizable> getSelector() {
-        return selector;
+    AuthorizableType getSelectorType() {
+        return selectorType;
     }
 
     String getGroupName() {

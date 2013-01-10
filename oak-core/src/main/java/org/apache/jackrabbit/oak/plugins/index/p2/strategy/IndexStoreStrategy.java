@@ -16,8 +16,6 @@
  */
 package org.apache.jackrabbit.oak.plugins.index.p2.strategy;
 
-import java.util.Set;
-
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -25,7 +23,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 /**
  * Strategy that defines how the index content will be actually stored under the
  * index node
- * 
  */
 public interface IndexStoreStrategy {
 
@@ -52,21 +49,23 @@ public interface IndexStoreStrategy {
      */
     void insert(NodeBuilder index, String key, boolean unique,
             Iterable<String> values) throws CommitFailedException;
-
+    
     /**
-     * Search for a given set of values
+     * Search for a given set of values.
      * 
-     * @param index index node
-     * @param values values to look for
-     * @return the set of paths corresponding to the given values
+     * @param indexName the name of the index (for logging)
+     * @param index index node (may not be null)
+     * @param values values to look for (null to check for property existence)
+     * @return an iterator of paths
      */
-    Set<String> find(NodeState index, Iterable<String> values);
+    Iterable<String> query(String indexName, NodeState index, Iterable<String> values);
 
     /**
-     * Count the occurrence of a given set of values. Used in scoring.
+     * Count the occurrence of a given set of values. Used in calculating the
+     * cost of an index.
      * 
-     * @param index the index node
-     * @param values values to look for
+     * @param index the index node (may not be null)
+     * @param values values to look for (null to check for property existence)
      * @return the aggregated count of occurrences for each provided value
      */
     int count(NodeState index, Iterable<String> values);

@@ -32,7 +32,9 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
 /**
  * UserUtils... TODO
  */
-public final class UserUtility implements UserConstants{
+public final class UserUtility implements UserConstants {
+
+    private UserUtility() {}
 
     @Nonnull
     public static String getAdminId(ConfigurationParameters parameters) {

@@ -21,20 +21,18 @@ import java.util.Iterator;
 import javax.annotation.Nonnull;
 import javax.jcr.RepositoryException;
 
-import com.google.common.base.Function;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterators;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Query;
-import org.apache.jackrabbit.oak.api.Result;
-import org.apache.jackrabbit.oak.api.ResultRow;
-import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.QueryEngine;
+import org.apache.jackrabbit.oak.api.Result;
+import org.apache.jackrabbit.oak.api.Root;
+import org.apache.jackrabbit.oak.security.user.query.QueryUtil;
+import org.apache.jackrabbit.oak.security.user.query.ResultRowToAuthorizable;
 import org.apache.jackrabbit.oak.security.user.query.XPathQueryBuilder;
 import org.apache.jackrabbit.oak.security.user.query.XPathQueryEvaluator;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
-import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
-import org.apache.jackrabbit.oak.spi.security.user.util.UserUtility;
 import org.apache.jackrabbit.util.ISO9075;
 import org.apache.jackrabbit.util.Text;
 import org.slf4j.Logger;
@@ -45,25 +43,14 @@ import org.slf4j.LoggerFactory;
  */
 class UserQueryManager {
 
-    /**
-     * logger instance
-     */
     private static final Logger log = LoggerFactory.getLogger(UserQueryManager.class);
 
     private final UserManagerImpl userManager;
     private final Root root;
 
-    private final String userRoot;
-    private final String groupRoot;
-    private final String authorizableRoot;
-
     UserQueryManager(UserManagerImpl userManager, Root root) {
         this.userManager = userManager;
         this.root = root;
-
-        userRoot = UserUtility.getAuthorizableRootPath(userManager.getConfig(), AuthorizableType.USER);
-        groupRoot = UserUtility.getAuthorizableRootPath(userManager.getConfig(), AuthorizableType.GROUP);
-        authorizableRoot = UserUtility.getAuthorizableRootPath(userManager.getConfig(), AuthorizableType.AUTHORIZABLE);
     }
 
     @Nonnull
@@ -71,15 +58,13 @@ class UserQueryManager {
         // TODO OAK-253: replace usage of XPATH
         XPathQueryBuilder builder = new XPathQueryBuilder();
         query.build(builder);
-        return new XPathQueryEvaluator(builder, userManager, root, userManager.getNamePathMapper()).eval();
+        return new XPathQueryEvaluator(builder, userManager, root, userManager.getNamePathMapper(), userManager.getConfig()).eval();
     }
 
     @Nonnull
     Iterator<Authorizable> findAuthorizables(String relativePath, String value,
-                                             AuthorizableType authorizableType)
-            throws RepositoryException {
-        String oakPath =  userManager.getNamePathMapper().getOakPath(relativePath);
-        return findAuthorizables(oakPath, value, true, authorizableType);
+                                             AuthorizableType authorizableType) throws RepositoryException {
+        return findAuthorizables(relativePath, value, true, authorizableType);
     }
 
     /**
@@ -109,8 +94,10 @@ class UserQueryManager {
         QueryEngine queryEngine = root.getQueryEngine();
         try {
             Result result = queryEngine.executeQuery(statement, javax.jcr.query.Query.XPATH, Long.MAX_VALUE, 0, null, userManager.getNamePathMapper());
-            return Iterators.filter(Iterators.transform(result.getRows().iterator(), new ResultRowToAuthorizable()), Predicates.<Object>notNull());
+            Iterator<Authorizable> authorizables = Iterators.transform(result.getRows().iterator(), new ResultRowToAuthorizable(userManager));
+            return Iterators.filter(authorizables, Predicates.<Object>notNull());
         } catch (ParseException e) {
+            log.warn("Invalid user query: " + statement, e);
             throw new RepositoryException(e);
         }
     }
@@ -119,40 +106,40 @@ class UserQueryManager {
     @Nonnull
     private String buildXPathStatement(String relPath, String value, boolean exact, AuthorizableType type) {
         StringBuilder stmt = new StringBuilder();
-        String searchRoot = getSearchRoot(type);
+        String searchRoot = QueryUtil.getSearchRoot(type, userManager.getConfig());
         if (!"/".equals(searchRoot)) {
             stmt.append(searchRoot);
         }
 
-        String path;
         String propName;
+        String path;
         String ntName;
         if (relPath.indexOf('/') == -1) {
             // search for properties somewhere below an authorizable node
+            propName = userManager.getNamePathMapper().getOakName(relPath);
             path = null;
-            propName = relPath;
             ntName = null;
         } else {
             // FIXME: proper normalization of the relative path
-            path = (relPath.startsWith("./") ? null : Text.getRelativeParent(relPath, 1));
-            propName = Text.getName(relPath);
-            ntName = getNodeTypeName(type);
+            String oakPath = userManager.getNamePathMapper().getOakPath(relPath);
+            propName = Text.getName(oakPath);
+            path = Text.getRelativeParent(oakPath, 1);
+            ntName = QueryUtil.getNodeTypeName(type);
         }
 
         stmt.append("//");
-        if (path != null) {
+        if (path != null && !path.isEmpty()) {
             stmt.append(path);
+        } else if (ntName != null) {
+            stmt.append("element(*,").append(ntName).append(')');
         } else {
-            if (ntName != null) {
-                stmt.append("element(*,");
-                stmt.append(ntName);
-            } else {
-                stmt.append("element(*");
-            }
-            stmt.append(')');
+            stmt.append("element(*)");
         }
 
-        if (value != null) {
+        if (value == null) {
+            // property must exist
+            stmt.append("[@").append(propName).append(']');
+        } else {
             stmt.append('[');
             stmt.append((exact) ? "@" : "jcr:like(@");
             stmt.append(ISO9075.encode(propName));
@@ -170,21 +157,6 @@ class UserQueryManager {
         return stmt.toString();
     }
 
-    /**
-     * @param type
-     * @return The path of search root for the specified authorizable type.
-     */
-    @Nonnull
-    private String getSearchRoot(AuthorizableType type) {
-        if (type == AuthorizableType.USER) {
-            return userRoot;
-        } else if (type == AuthorizableType.GROUP) {
-            return groupRoot;
-        } else {
-            return authorizableRoot;
-        }
-    }
-
     @Nonnull
     private static String escapeForQuery(String value) {
         StringBuilder ret = new StringBuilder();
@@ -199,28 +171,5 @@ class UserQueryManager {
             }
         }
         return ret.toString();
-    }
-
-    @Nonnull
-    private static String getNodeTypeName(AuthorizableType type) {
-        if (type == AuthorizableType.USER) {
-            return UserConstants.NT_REP_USER;
-        } else if (type == AuthorizableType.GROUP) {
-            return UserConstants.NT_REP_GROUP;
-        } else {
-            return UserConstants.NT_REP_AUTHORIZABLE;
-        }
-    }
-
-    private class ResultRowToAuthorizable implements Function<ResultRow, Authorizable> {
-        @Override
-        public Authorizable apply(ResultRow row) {
-            try {
-                return userManager.getAuthorizable(row.getPath());
-            } catch (RepositoryException e) {
-                log.debug("Failed to access authorizable " + row.getPath());
-                return null;
-            }
-        }
     }
 }

@@ -35,7 +35,6 @@ import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.apache.jackrabbit.oak.spi.security.ConfigurationParameters;
-import org.apache.jackrabbit.oak.spi.security.principal.TreeBasedPrincipal;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableNodeName;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
@@ -159,9 +158,6 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
  */
 class UserProvider extends AuthorizableBaseProvider {
 
-    /**
-     * logger instance
-     */
     private static final Logger log = LoggerFactory.getLogger(UserProvider.class);
 
     private static final String DELIMITER = "/";
@@ -175,7 +171,6 @@ class UserProvider extends AuthorizableBaseProvider {
         super(root, config);
 
         defaultDepth = config.getConfigValue(PARAM_DEFAULT_DEPTH, DEFAULT_DEPTH);
-
         groupPath = config.getConfigValue(PARAM_GROUP_PATH, DEFAULT_GROUP_PATH);
         userPath = config.getConfigValue(PARAM_USER_PATH, DEFAULT_USER_PATH);
     }

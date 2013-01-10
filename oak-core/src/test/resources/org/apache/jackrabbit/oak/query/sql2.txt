@@ -23,9 +23,21 @@
 # * new tests are typically be added on top, after the syntax docs
 # * use ascii character only
 
+# test parent join
+
+commit / + "test": { "a": { "x": "1", "yes": { } }, "b": { "yes" : { } }, "c": { "x": "1", "no" : { } }}
+
+xpath test//yes/..[@x]
+/test/a, null, /test/a
+
+select b.[jcr:path] as [jcr:path], b.[jcr:score] as [jcr:score], b.* from [nt:base] as a inner join [nt:base] as b on ischildnode(a, b) where name(a) = 'yes' and isdescendantnode(a, '/test') and b.[x] is not null
+/test/a, null, /test/a
+
+commit / - "test"
+
 # test spaces in identifiers
 
-commit / + "test": { "space space": { }}
+commit / + "test": { "space space": { "x": "1" }}
 
 select * from [nt:base] where issamenode([/test/space space])
 /test/space space

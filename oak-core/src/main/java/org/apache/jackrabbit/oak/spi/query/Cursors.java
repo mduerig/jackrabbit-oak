@@ -17,7 +17,10 @@
 package org.apache.jackrabbit.oak.spi.query;
 
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.Iterator;
+
+import javax.annotation.Nullable;
 
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
@@ -29,6 +32,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Queues;
 
@@ -36,7 +40,8 @@ import static org.apache.jackrabbit.oak.commons.PathUtils.isAbsolute;
 import static org.apache.jackrabbit.oak.spi.query.Filter.PathRestriction.ALL_CHILDREN;
 
 /**
- * <code>Cursors</code> provides factory methods to create {@link Cursor}s.
+ * This utility class provides factory methods to create commonly used types of
+ * {@link Cursor}s.
  */
 public class Cursors {
 
@@ -46,19 +51,30 @@ public class Cursors {
     /**
      * Creates a {@link Cursor} over paths.
      *
-     * @param paths the paths to iterate over.
+     * @param paths the paths to iterate over (must return distinct paths)
      * @return the Cursor.
      */
     public static Cursor newPathCursor(Iterable<String> paths) {
-        return new PathCursor(paths);
+        return new PathCursor(paths, true);
+    }
+    
+    /**
+     * Creates a {@link Cursor} over paths, and make the result distinct.
+     * The iterator might return duplicate paths
+     * 
+     * @param paths the paths to iterate over (might contain duplicate entries)
+     * @return the Cursor.
+     */
+    public static Cursor newPathCursorDistinct(Iterable<String> paths) {
+        return new PathCursor(paths, true);
     }
 
     /**
      * Returns a traversing cursor based on the path restriction in the given
      * {@link Filter}.
-     *
-     * @param filter    the filter.
-     * @param rootState      the root {@link NodeState}.
+     * 
+     * @param filter the filter.
+     * @param rootState the root {@link NodeState}.
      * @return the {@link Cursor}.
      */
     public static Cursor newTraversingCursor(Filter filter,
@@ -87,8 +103,22 @@ public class Cursors {
 
         private final Iterator<String> iterator;
 
-        public PathCursor(Iterable<String> paths) {
-            this.iterator = paths.iterator();
+        public PathCursor(Iterable<String> paths, boolean distinct) {
+            Iterator<String> it = paths.iterator();
+            if (distinct) {
+                it = Iterators.filter(it, new Predicate<String>() {
+                    
+                    private final HashSet<String> known = new HashSet<String>();
+
+                    @Override
+                    public boolean apply(@Nullable String input) {
+                        // Set.add returns true for new entries
+                        return known.add(input);
+                    }
+                    
+                });
+            }
+            this.iterator = it;
         }
 
         @Override

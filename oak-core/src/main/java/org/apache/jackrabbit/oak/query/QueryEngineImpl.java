@@ -49,7 +49,7 @@ public abstract class QueryEngineImpl implements QueryEngine {
     
     static final String NO_LITERALS = "-noLiterals";
 
-    private static final Logger LOG = LoggerFactory.getLogger(QueryEngineImpl.class);
+    static final Logger LOG = LoggerFactory.getLogger(QueryEngineImpl.class);
 
     private final QueryIndexProvider indexProvider;
 
@@ -138,6 +138,12 @@ public abstract class QueryEngineImpl implements QueryEngine {
     public Result executeQuery(String statement, String language, long limit,
             long offset, Map<String, ? extends PropertyValue> bindings,
             NamePathMapper namePathMapper) throws ParseException {
+        if (limit < 0) {
+            throw new IllegalArgumentException("Limit may not be negative, is: " + limit);
+        }
+        if (offset < 0) {
+            throw new IllegalArgumentException("Offset may not be negative, is: " + offset);
+        }
         Query q = parseQuery(statement, language);
         q.setRootTree(getRootTree());
         q.setRootState(getRootState());
