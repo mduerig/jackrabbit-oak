@@ -82,6 +82,7 @@ public interface NodeStoreBranch {
     @Nonnull
     NodeState merge() throws CommitFailedException;
 
+    // michid doc
     void rebase();
 
 }

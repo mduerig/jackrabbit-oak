@@ -16,12 +16,10 @@
  */
 package org.apache.jackrabbit.oak.plugins.commit;
 
-import javax.jcr.InvalidItemStateException;
 
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
 import org.apache.jackrabbit.oak.spi.commit.DefaultValidator;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -32,7 +30,7 @@ import static org.apache.jackrabbit.oak.api.Type.STRINGS;
  * {@link Validator} which checks the presence of conflict markers
  * in the tree in fails the commit if any are found.
  *
- * @see AnnotatingConflictHandler
+ * @see AnnotatingConflictHandler michid update doc
  */
 public class ConflictValidator extends DefaultValidator {
     @Override
@@ -65,9 +63,10 @@ public class ConflictValidator extends DefaultValidator {
         if (JcrConstants.JCR_MIXINTYPES.equals(property.getName())) {
             assert property.isArray();
             for (String v : property.getValue(STRINGS)) {
-                if (NodeTypeConstants.MIX_REP_MERGE_CONFLICT.equals(v)) {
-                    throw new CommitFailedException(new InvalidItemStateException("Item has unresolved conflicts"));
-                }
+                // michid update code
+//                if (NodeTypeConstants.MIX_REP_MERGE_CONFLICT.equals(v)) {
+//                    throw new CommitFailedException(new InvalidItemStateException("Item has unresolved conflicts"));
+//                }
             }
         }
     }

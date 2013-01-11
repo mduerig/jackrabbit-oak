@@ -30,13 +30,11 @@ import javax.security.auth.Subject;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.BlobFactory;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.QueryEngine;
+import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.TreeLocation;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.plugins.commit.DefaultConflictHandler;
 import org.apache.jackrabbit.oak.query.QueryEngineImpl;
-import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
 import org.apache.jackrabbit.oak.spi.observation.ChangeExtractor;
 import org.apache.jackrabbit.oak.spi.query.CompositeQueryIndexProvider;
 import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
@@ -83,8 +81,6 @@ public class RootImpl implements Root {
      * purge.
      */
     private int modCount;
-
-    private volatile ConflictHandler conflictHandler = DefaultConflictHandler.OURS;
 
     private final QueryIndexProvider indexProvider;
 
@@ -133,14 +129,7 @@ public class RootImpl implements Root {
                 RootImpl.this.checkLive();
             }
         };
-        if (conflictHandler != null) {
-            root.setConflictHandler(conflictHandler);
-        }
         return root;
-    }
-
-    void setConflictHandler(ConflictHandler conflictHandler) {
-        this.conflictHandler = conflictHandler;
     }
 
     /**
@@ -213,7 +202,7 @@ public class RootImpl implements Root {
         checkLive();
         if (!store.getRoot().equals(rootTree.getBaseState())) {
             purgePendingChanges();
-            branch.rebase();  // michid conflict handler!?
+            branch.rebase();
             rootTree = TreeImpl.createRoot(this);
         }
     }

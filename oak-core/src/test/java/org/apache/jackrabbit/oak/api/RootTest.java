@@ -19,7 +19,6 @@
 package org.apache.jackrabbit.oak.api;
 
 import org.apache.jackrabbit.oak.Oak;
-import org.apache.jackrabbit.oak.plugins.commit.AnnotatingConflictHandler;
 import org.apache.jackrabbit.oak.plugins.commit.ConflictValidator;
 import org.junit.After;
 import org.junit.Before;
@@ -38,7 +37,6 @@ public class RootTest {
     public void setUp() {
         repository = new Oak()
             .with(new ConflictValidator())
-            .with(new AnnotatingConflictHandler())
             .createContentRepository();
     }
 

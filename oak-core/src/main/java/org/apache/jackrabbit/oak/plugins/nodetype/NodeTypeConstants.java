@@ -46,16 +46,5 @@ public interface NodeTypeConstants extends JcrConstants {
     String MIX_CREATED = "mix:created";
     String MIX_LASTMODIFIED = "mix:lastModified";
 
-    /**
-     * Merge conflict handling
-     */
-    String MIX_REP_MERGE_CONFLICT = "rep:MergeConflict";
-    String REP_OURS = "rep:ours";
-    String ADD_EXISTING = "addExisting";
-    String CHANGE_DELETED = "changeDeleted";  // michid remove this and related
-    String CHANGE_CHANGED = "changeChanged";
-    String DELETE_CHANGED = "deleteChanged";
-    String DELETE_DELETED = "deleteDeleted";
-
     String RESIDUAL_NAME = "*";
 }

@@ -18,12 +18,12 @@ package org.apache.jackrabbit.oak.jcr;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
 import javax.annotation.Nonnull;
 import javax.jcr.Repository;
 
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.oak.Oak;
-import org.apache.jackrabbit.oak.plugins.commit.AnnotatingConflictHandler;
 import org.apache.jackrabbit.oak.plugins.commit.ConflictValidatorProvider;
 import org.apache.jackrabbit.oak.plugins.index.IndexHookProvider;
 import org.apache.jackrabbit.oak.plugins.index.nodetype.NodeTypeIndexProvider;
@@ -38,7 +38,6 @@ import org.apache.jackrabbit.oak.plugins.nodetype.TypeValidatorProvider;
 import org.apache.jackrabbit.oak.plugins.version.VersionHook;
 import org.apache.jackrabbit.oak.security.SecurityProviderImpl;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
-import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
 import org.apache.jackrabbit.oak.spi.lifecycle.RepositoryInitializer;
@@ -73,7 +72,6 @@ public class Jcr {
         with(new ConflictValidatorProvider());
 
         with(new Property2IndexHookProvider());
-        with(new AnnotatingConflictHandler());
 
         with(new Property2IndexProvider());
         with(new NodeTypeIndexProvider());
@@ -127,12 +125,6 @@ public class Jcr {
     public Jcr with(@Nonnull SecurityProvider securityProvider) {
         oak.with(checkNotNull(securityProvider));
         this.securityProvider = securityProvider;
-        return this;
-    }
-
-    @Nonnull
-    public Jcr with(@Nonnull ConflictHandler conflictHandler) {
-        oak.with(checkNotNull(conflictHandler));
         return this;
     }
 
