@@ -39,14 +39,11 @@
       org.apache.jackrabbit.test.api.SessionTest#testSaveConstraintViolationException<!--OAK-66-->
       org.apache.jackrabbit.test.api.SessionTest#testHasCapability
       org.apache.jackrabbit.test.api.SessionTest#testMoveLockException
-      org.apache.jackrabbit.test.api.SessionTest#testSaveInvalidStateException <!-- michid ignore -->
       org.apache.jackrabbit.test.api.SessionUUIDTest#testSaveReferentialIntegrityException<!--OAK-66-->
       org.apache.jackrabbit.test.api.SessionUUIDTest#testSaveMovedRefNode<!--OAK-66-->
       org.apache.jackrabbit.test.api.NodeTest#testRefreshInvalidItemStateException<!--OAK-141-->
       org.apache.jackrabbit.test.api.NodeTest#testRemoveNodeLockedItself
       org.apache.jackrabbit.test.api.NodeTest#testRemoveNodeParentLocked
-      org.apache.jackrabbit.test.api.NodeTest#testRemoveInvalidItemStateException  <!-- michid ignore -->
-      org.apache.jackrabbit.test.api.NodeTest#testSaveInvalidStateException  <!-- michid ignore -->
       org.apache.jackrabbit.test.api.NodeUUIDTest#testSaveReferentialIntegrityException<!--OAK-66-->
       org.apache.jackrabbit.test.api.NodeUUIDTest#testSaveMovedRefNode<!--OAK-66-->
       org.apache.jackrabbit.test.api.NodeOrderableChildNodesTest#testOrderBeforeUnsupportedRepositoryOperationException<!--OAK-169-->

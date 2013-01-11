@@ -16,11 +16,11 @@
  */
 package org.apache.jackrabbit.oak.spi.commit;
 
+import javax.annotation.CheckForNull;
+
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-
-import javax.annotation.CheckForNull;
 
 /**
  * Content change validator. An instance of this interface is used to
@@ -91,4 +91,14 @@ public interface Validator {
     Validator childNodeDeleted(String name, NodeState before)
             throws CommitFailedException;
 
+
+    /**
+     * Check whether a validator handles a child of the given name.
+     * Validators which return {@code false} will not have any of
+     * their {@code child...} methods called.
+     * @param name  name of the child
+     * @return  {@code true} if this validator want to validate a child node
+     *          of the given name. {@code false} otherwise.
+     */
+    boolean handles(String name);
 }

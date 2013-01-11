@@ -47,7 +47,7 @@ public class QueryTest extends AbstractQueryTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // TODO not implemented IndexWrapper.rebase
     public void sql2Explain() throws Exception {
         test("sql2_explain.txt");
     }

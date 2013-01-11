@@ -24,6 +24,7 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.plugins.name.NamespaceConstants;
 import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
+import org.apache.jackrabbit.oak.spi.commit.DefaultValidator;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.security.authorization.CompiledPermissions;
 import org.apache.jackrabbit.oak.spi.security.authorization.Permissions;
@@ -35,7 +36,7 @@ import org.apache.jackrabbit.util.Text;
 /**
  * PermissionValidator... TODO
  */
-class PermissionValidator implements Validator {
+class PermissionValidator extends DefaultValidator {
 
     /* TODO
      * - special permissions for protected items (versioning, access control, etc.)

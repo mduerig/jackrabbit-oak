@@ -21,6 +21,7 @@ import javax.jcr.security.AccessControlException;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.spi.commit.DefaultValidator;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.security.authorization.restriction.RestrictionProvider;
 import org.apache.jackrabbit.oak.spi.security.privilege.PrivilegeDefinition;
@@ -30,7 +31,7 @@ import org.apache.jackrabbit.oak.util.NodeUtil;
 /**
  * AccessControlValidator... TODO
  */
-class AccessControlValidator implements Validator, AccessControlConstants {
+class AccessControlValidator extends DefaultValidator implements AccessControlConstants {
 
     private final NodeUtil parentBefore;
     private final NodeUtil parentAfter;

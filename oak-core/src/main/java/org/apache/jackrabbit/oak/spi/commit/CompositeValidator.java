@@ -16,13 +16,13 @@
  */
 package org.apache.jackrabbit.oak.spi.commit;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
  * This {@code Validator} aggregates a list of validators into
@@ -65,9 +65,11 @@ public class CompositeValidator implements Validator {
     public Validator childNodeAdded(String name, NodeState after) throws CommitFailedException {
         List<Validator> childValidators = new ArrayList<Validator>(validators.size());
         for (Validator validator : validators) {
-            Validator child = validator.childNodeAdded(name, after);
-            if (child != null) {
-                childValidators.add(child);
+            if (validator.handles(name)) {
+                Validator child = validator.childNodeAdded(name, after);
+                if (child != null) {
+                    childValidators.add(child);
+                }
             }
         }
         if (!childValidators.isEmpty()) {
@@ -81,9 +83,11 @@ public class CompositeValidator implements Validator {
     public Validator childNodeChanged(String name, NodeState before, NodeState after) throws CommitFailedException {
         List<Validator> childValidators = new ArrayList<Validator>(validators.size());
         for (Validator validator : validators) {
-            Validator child = validator.childNodeChanged(name, before, after);
-            if (child != null) {
-                childValidators.add(child);
+            if (validator.handles(name)) {
+                Validator child = validator.childNodeChanged(name, before, after);
+                if (child != null) {
+                    childValidators.add(child);
+                }
             }
         }
         if (!childValidators.isEmpty()) {
@@ -97,9 +101,11 @@ public class CompositeValidator implements Validator {
     public Validator childNodeDeleted(String name, NodeState before) throws CommitFailedException {
         List<Validator> childValidators = new ArrayList<Validator>(validators.size());
         for (Validator validator : validators) {
-            Validator child = validator.childNodeDeleted(name, before);
-            if (child != null) {
-                childValidators.add(child);
+            if (validator.handles(name)) {
+                Validator child = validator.childNodeDeleted(name, before);
+                if (child != null) {
+                    childValidators.add(child);
+                }
             }
         }
         if (!childValidators.isEmpty()) {
@@ -109,4 +115,8 @@ public class CompositeValidator implements Validator {
         }
     }
 
+    @Override
+    public boolean handles(String name) {
+        return true;
+    }
 }

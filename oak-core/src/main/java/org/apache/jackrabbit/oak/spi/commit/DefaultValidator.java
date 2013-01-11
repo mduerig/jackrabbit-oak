@@ -19,6 +19,7 @@ package org.apache.jackrabbit.oak.spi.commit;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 
 /**
  * Validator that does nothing by default and doesn't recurse into subtrees.
@@ -67,4 +68,8 @@ public class DefaultValidator implements Validator {
         return null;
     }
 
+    @Override
+    public boolean handles(String name) {
+        return !NodeStateUtils.isHidden(name);
+    }
 }

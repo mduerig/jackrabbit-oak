@@ -17,40 +17,29 @@
 package org.apache.jackrabbit.oak.plugins.commit;
 
 
-import org.apache.jackrabbit.JcrConstants;
+import javax.jcr.InvalidItemStateException;
+
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.commit.DefaultValidator;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
-import static org.apache.jackrabbit.oak.api.Type.STRINGS;
-
 /**
  * {@link Validator} which checks the presence of conflict markers
  * in the tree in fails the commit if any are found.
- *
- * @see AnnotatingConflictHandler michid update doc
  */
 public class ConflictValidator extends DefaultValidator {
-    @Override
-    public void propertyAdded(PropertyState after) throws CommitFailedException {
-        failOnMergeConflict(after);
-    }
+    private static final String CONFLICT_MARKER = ":conflict";
 
     @Override
-    public void propertyChanged(PropertyState before, PropertyState after)
-            throws CommitFailedException {
-        failOnMergeConflict(after);
-    }
-
-    @Override
-    public Validator childNodeAdded(String name, NodeState after) {
+    public Validator childNodeAdded(String name, NodeState after) throws CommitFailedException {
+        failOnMergeConflict(name);
         return this;
     }
 
     @Override
-    public Validator childNodeChanged(String name, NodeState before, NodeState after) {
+    public Validator childNodeChanged(String name, NodeState before, NodeState after) throws CommitFailedException {
+        failOnMergeConflict(name);
         return this;
     }
 
@@ -59,15 +48,14 @@ public class ConflictValidator extends DefaultValidator {
         return this;
     }
 
-    private static void failOnMergeConflict(PropertyState property) throws CommitFailedException {
-        if (JcrConstants.JCR_MIXINTYPES.equals(property.getName())) {
-            assert property.isArray();
-            for (String v : property.getValue(STRINGS)) {
-                // michid update code
-//                if (NodeTypeConstants.MIX_REP_MERGE_CONFLICT.equals(v)) {
-//                    throw new CommitFailedException(new InvalidItemStateException("Item has unresolved conflicts"));
-//                }
-            }
+    private static void failOnMergeConflict(String name) throws CommitFailedException {
+        if (name.equals(CONFLICT_MARKER)) {
+            throw new CommitFailedException(new InvalidItemStateException("Item has unresolved conflicts"));
         }
+    }
+
+    @Override
+    public boolean handles(String name) {
+        return super.handles(name) || CONFLICT_MARKER.equals(name);
     }
 }

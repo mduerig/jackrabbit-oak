@@ -92,7 +92,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBefore() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -138,7 +138,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBeforeWithAdd() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -183,7 +183,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBeforeWithRemove() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -229,7 +229,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBeforeWithRemoveOtherSession() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -275,7 +275,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBeforeRemoved() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -312,7 +312,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBeforeAllRemoved() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -350,7 +350,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentOrderBeforeTargetRemoved() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -388,7 +388,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void concurrentAddChildOrderable() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -463,7 +463,7 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
+    @Ignore  // FIXME implement commit hook for resolving conflicts on child order
     public void removeWithConcurrentOrderBefore() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {

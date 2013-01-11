@@ -75,4 +75,8 @@ public class FailingValidator implements Validator {
         throw new CommitFailedException(message);
     }
 
+    @Override
+    public boolean handles(String name) {
+        return true;
+    }
 }
