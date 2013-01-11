@@ -154,15 +154,15 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
         KernelNodeState root = store.getRoot();
         if (headRevision == null) {
             // Nothing was written to this branch: set new base revision
+            head = root;
             base = root;
             baseRevision = root.getRevision();
-            head = root;
         }
         else {
+            headRevision = store.getKernel().rebase(headRevision, root.getRevision());
+            head = store.getRootState(headRevision);
             base = root;
             baseRevision = root.getRevision();
-            headRevision = store.getKernel().rebase(headRevision, baseRevision);
-            head = store.getRootState(headRevision);
         }
     }
 
