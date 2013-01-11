@@ -19,7 +19,6 @@ package org.apache.jackrabbit.mk;
 import java.io.File;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mk.core.MicroKernelImpl;
 import org.junit.After;
 import org.junit.Before;
@@ -28,9 +27,7 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class MicroKernelImplTest {
     
@@ -87,13 +84,13 @@ public class MicroKernelImplTest {
     @Test
     public void rebaseEmptyBranch() {
         String branch = mk.branch(null);
-        String trunkRev = mk.commit("", "+\"/a\":{}", null, null);
+        String trunk = mk.commit("", "+\"/a\":{}", null, null);
         String rebased = mk.rebase(branch, null);
 
         assertEquals("{\":childNodeCount\":1,\"a\":{}}", mk.getNodes("/", rebased, 0, 0, -1, null));
         assertEquals("{\":childNodeCount\":1,\"a\":{}}", mk.getNodes("/", null, 0, 0, -1, null));
-        assertEquals(trunkRev, mk.getHeadRevision());
-        assertFalse((trunkRev.equals(rebased)));
+        assertEquals(trunk, mk.getHeadRevision());
+        assertFalse((trunk.equals(rebased)));
     }
 
     @Test
@@ -101,7 +98,7 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x\":{}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "+\"/x/b\":{}", branch, null);
-        String trunkRev = mk.commit("", "+\"/x/a\":{}", null, null);
+        String trunk = mk.commit("", "+\"/x/a\":{}", null, null);
         String rebased = mk.rebase(branch, null);
 
         assertEquals(1, mk.getChildNodeCount("/x", null));
@@ -120,7 +117,7 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "-\"/x/y\"", branch, null);
-        String trunkRev = mk.commit("", "+\"/x/a\":{}", null, null);
+        String trunk = mk.commit("", "+\"/x/a\":{}", null, null);
         String rebased = mk.rebase(branch, null);
 
         assertEquals(2, mk.getChildNodeCount("/x", null));
@@ -138,7 +135,7 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":42", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/q\":99", null, null);
+        String trunk = mk.commit("", "^\"/x/y/q\":99", null, null);
         String rebased = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
@@ -159,7 +156,7 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":null", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/q\":99", null, null);
+        String trunk = mk.commit("", "^\"/x/y/q\":99", null, null);
         String rebased = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
@@ -180,7 +177,7 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":41", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/q\":99", null, null);
+        String trunk = mk.commit("", "^\"/x/y/q\":99", null, null);
         String rebased = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
@@ -201,7 +198,7 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":99", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/p\":99", null, null);
+        String trunk = mk.commit("", "^\"/x/y/p\":99", null, null);
         String rebased = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
@@ -215,158 +212,161 @@ public class MicroKernelImplTest {
     }
 
     @Test
-    public void rebaseAddNodeConflict() {
+    public void rebaseAddExistingNode() {
         mk.commit("", "+\"/x\":{}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "+\"/x/a\":{}", branch, null);
-        String trunkRev = mk.commit("", "+\"/x/a\":{}", null, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x/a'");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        mk.commit("", "+\"/x/a\":{\"b\":{}}", null, null);
 
-        assertEquals(1, mk.getChildNodeCount("/x", null));
-        assertNotNull(mk.getNodes("/x/a", null, 0, 0, -1, null));
+        branch = mk.rebase(branch, null);
 
-        assertEquals(1, mk.getChildNodeCount("/x", branch));
-        assertNotNull(mk.getNodes("/x/a", branch, 0, 0, -1, null));
+        assertTrue(mk.nodeExists("/x/a/b", branch));
+        String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+            "{\":childNodeCount\":1,\"addExistingNode\":{\":childNodeCount\":1,\"a\":{\":childNodeCount\":0}}}",
+            conflict);
     }
 
     @Test
-    public void rebaseAddPropertyConflict() {
+    public void rebaseAddExistingProperty() {
         mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":42", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/p\":99", null, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x/y/p'");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        mk.commit("", "^\"/x/y/p\":99", null, null);
 
-        String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":42"));
-
-        String trunkNode = mk.getNodes("/x/y", null, 0, 0, -1, null);
-        assertTrue(trunkNode.contains("\"p\":99"));
-    }
-
-    @Test
-    public void rebaseRemovePropertyConflict() {
-        mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
-        String branch = mk.branch(null);
-        branch = mk.commit("", "^\"/x/y/p\":99", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/p\":null", null, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x/y/p'");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        branch = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
         assertTrue(branchNode.contains("\"p\":99"));
-
-        String trunkNode = mk.getNodes("/x/y", null, 0, 0, -1, null);
-        assertFalse(trunkNode.contains("\"p\":42"));
-        assertFalse(trunkNode.contains("\"p\":99"));
+        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"addExistingProperty\":{\"p\":42,\":childNodeCount\":0}}",
+                conflict);
     }
 
     @Test
-    public void rebaseRemoveChangedPropertyConflict() {
+    public void rebaseChangeRemovedProperty() {
+        mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
+        String branch = mk.branch(null);
+        branch = mk.commit("", "^\"/x/y/p\":99", branch, null);
+        mk.commit("", "^\"/x/y/p\":null", null, null);
+
+        branch = mk.rebase(branch, null);
+
+        String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
+        assertFalse(branchNode.contains("\"p\":99"));
+        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"changeRemovedProperty\":{\"p\":99,\":childNodeCount\":0}}",
+                conflict);
+    }
+
+    @Test
+    public void rebaseRemoveChangedProperty() {
         mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":null", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/p\":99", null, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x/y/p'");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        mk.commit("", "^\"/x/y/p\":99", null, null);
+
+        branch = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertFalse(branchNode.contains("\"p\":42"));
-        assertFalse(branchNode.contains("\"p\":99"));
-
-        String trunkNode = mk.getNodes("/x/y", null, 0, 0, -1, null);
-        assertTrue(trunkNode.contains("\"p\":99"));
+        assertTrue(branchNode.contains("\"p\":99"));
+        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"removeChangedProperty\":{\"p\":42,\":childNodeCount\":0}}",
+                conflict);
     }
 
     @Test
-    public void rebaseChangedChangedPropertyConflict() {
+    public void rebaseChangedChangedProperty() {
         mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
         String branch = mk.branch(null);
         branch = mk.commit("", "^\"/x/y/p\":41", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/p\":99", null, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x/y/p'");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        mk.commit("", "^\"/x/y/p\":99", null, null);
+
+        branch = mk.rebase(branch, null);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":41"));
-
-        String trunkNode = mk.getNodes("/x/y", null, 0, 0, -1, null);
-        assertTrue(trunkNode.contains("\"p\":99"));
+        assertTrue(branchNode.contains("\"p\":99"));
+        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"changeChangedProperty\":{\"p\":41,\":childNodeCount\":0}}",
+                conflict);
     }
 
     @Test
-    public void rebaseRemoveChangedNodeConflict() {
+    public void rebaseRemoveChangedNode() {
         mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
         String branch = mk.branch(null);
-        mk.getNodes("/x/y", branch, 0, 0, -1, null);
         branch = mk.commit("", "-\"/x/y\"", branch, null);
-        String trunkRev = mk.commit("", "^\"/x/y/p\":42", null, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x/y");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        mk.commit("", "^\"/x/y/p\":42", null, null);
 
-        assertFalse(mk.nodeExists("/x/y", branch));
+        branch = mk.rebase(branch, null);
 
-        String trunkNode = mk.getNodes("/x/y", null, 0, 0, -1, null);
-        assertTrue(trunkNode.contains("\"p\":42"));
+        String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
+        assertTrue(branchNode.contains("\"p\":42"));
+        String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"removeChangedNode\":{\":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}",
+                conflict);
     }
 
     @Test
-    public void rebaseChangeRemovedNodeConflict() {
+    public void rebaseChangeRemovedNode() {
         mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
         String branch = mk.branch(null);
-        String trunkRev = mk.commit("", "-\"/x\"", null, null);
         branch = mk.commit("", "^\"/x/p\":42", branch, null);
-        try {
-            mk.rebase(branch, null);
-            fail("Expected MicroKernelException for conflict at '/x");
-        }
-        catch (MicroKernelException e) {
-            assertSame(Exception.class, e.getCause().getClass());
-        }
+        mk.commit("", "-\"/x\"", null, null);
 
-        assertFalse(mk.nodeExists("/x", null));
+        branch = mk.rebase(branch, null);
 
-        String branchNode = mk.getNodes("/x", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":42"));
+        assertFalse(mk.nodeExists("/x", branch));
+        String conflict = mk.getNodes("/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"changeRemovedNode\":{\":childNodeCount\":1,\"x\":{\"p\":42,\"" +
+                ":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}}",
+                conflict);
+    }
+
+    @Test
+    public void rebaseRemoveRemovedProperty() {
+        mk.commit("", "+\"/x\":{\"y\":{\"p\":42}}", null, null);
+        String branch = mk.branch(null);
+        branch = mk.commit("", "^\"/x/y/p\":null", branch, null);
+        mk.commit("", "^\"/x/y/p\":null", null, null);
+
+        branch = mk.rebase(branch, null);
+
+        String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
+        assertFalse(branchNode.contains("\"p\":42"));
+        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"removeRemovedProperty\":{\"p\":42,\":childNodeCount\":0}}",
+                conflict);
+    }
+
+    @Test
+    public void rebaseRemoveRemovedNode() {
+        mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
+        String branch = mk.branch(null);
+        branch = mk.commit("", "-\"/x/y\"", branch, null);
+        mk.commit("", "-\"/x/y\"", null, null);
+
+        branch = mk.rebase(branch, null);
+
+        assertFalse(mk.nodeExists("/a/y", branch));
+        String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
+        assertEquals(
+                "{\":childNodeCount\":1,\"removeRemovedNode\":{\":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}",
+                conflict);
     }
 
     @Test
     public void mergeRebased() {
         mk.commit("", "+\"/x\":{\"y\":{}}", null, null);
         String branch = mk.branch(null);
-        String trunkRev = mk.commit("", "^\"/x/p\":42", null, null);
+        String trunk = mk.commit("", "^\"/x/p\":42", null, null);
         branch = mk.commit("", "^\"/x/q\":43", branch, null);
         branch = mk.rebase(branch, null);
 

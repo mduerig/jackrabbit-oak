@@ -489,17 +489,14 @@ public interface MicroKernel {
      * <p/>
      * A {@code MicroKernelException} is thrown if {@code branchRevisionId} doesn't
      * exist, if it's not a branch revision, if {@code newBaseRevisionId} doesn't exist,
-     * if it's a branch revision, if the rebase fails because of conflicting changes or
-     * if another error occurs.
+     * if it's a branch revision or if another error occurs.
      *
      * @param branchRevisionId id of private branch revision
      * @param newBaseRevisionId id of new base revision
      * @return id of the rebased branch revision
      * @throws MicroKernelException if {@code branchRevisionId} doesn't exist,
      *                              if it's not a branch revision, if {@code newBaseRevisionId}
-     *                              doesn't exist, if it's a branch revision,
-     *                              if the rebase fails because of conflicting changes or
-     *                              if another error occurs.
+     *                              doesn't exist, if it's a branch revision, or if another error occurs.
      */
     @Nonnull
     String /*revisionId */ rebase(@Nonnull String branchRevisionId, String newBaseRevisionId);
