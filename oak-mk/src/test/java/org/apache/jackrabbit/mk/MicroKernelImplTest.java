@@ -355,7 +355,7 @@ public class MicroKernelImplTest {
 
         branch = mk.rebase(branch, null);
 
-        assertFalse(mk.nodeExists("/a/y", branch));
+        assertFalse(mk.nodeExists("/x/y", branch));
         String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
         assertEquals(
                 "{\":childNodeCount\":1,\"removeRemovedNode\":{\":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}",
