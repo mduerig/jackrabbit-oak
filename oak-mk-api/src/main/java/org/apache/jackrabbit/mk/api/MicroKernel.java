@@ -490,6 +490,44 @@ public interface MicroKernel {
      * A {@code MicroKernelException} is thrown if {@code branchRevisionId} doesn't
      * exist, if it's not a branch revision, if {@code newBaseRevisionId} doesn't exist,
      * if it's a branch revision or if another error occurs.
+     * <p/>
+     * If rebasing results in a conflict, conflicting nodes are annotated with a conflict
+     * marker denoting the type of the conflict and the value(s) before the rebase operation.
+     * The conflict marker is an internal node with the name {@code :conflict} and is added
+     * to the node whose properties or child nodes are in conflict.
+     * <p/>
+     * type of conflicts:
+     * <dl>
+     *     <dt>addExistingProperty:</dt>
+     *     <dd>A property has been added that has a different value than a property with the same name
+     *         that has been added in trunk.</dd>
+     *     <dt>removeRemovedProperty:</dt>
+     *     <dd>A property has been removed while a property of the same name has been removed in trunk.</dd>
+     *     <dt>removeChangedProperty:</dt>
+     *     <dd>A property has been removed while a property of the same name has been changed in trunk.</dd>
+     *     <dt>changeRemovedProperty:</dt>
+     *     <dd>A property has been changed while a property of the same name has been removed in trunk. </dd>
+     *     <dt>changeChangedProperty:</dt>
+     *     <dd>A property has been changed while a property of the same name has been changed to a
+     *         different value in trunk.</dd>
+     *     <dt>addExistingNode:</dt>
+     *     <dd>A node has been added that is different from a node of them same name that has been added
+     *         to the trunk.</dd>
+     *     <dt>removeRemovedNode:</dt>
+     *     <dd>A node has been removed while a node of the same name has been removed in trunk.</dd>
+     *     <dt>removeChangedNode:</dt>
+     *     <dd>A node has been removed while a node of the same name has been changed in trunk.</dd>
+     *     <dt>changeRemovedNode:</dt>
+     *     <dd>A node has been changed while a node of the same name has been removed in trunk.</dd>
+     * </dl>
+     * In this context a node is regarded as changed if a property way added, a property was removed,
+     * a property was set to a different value, a child node was added, a child node was removed or
+     * a child node was changed.
+     * <p/>
+     * On conflict the conflict marker node carries the conflicting value of the branch while the rebased
+     * value in the branch itself will be set to the conflicting value of the trunk. In the case of conflicting
+     * properties, the conflicting value is the property value from the branch. In the case of conflicting
+     * node, the conflicting value is the node from the branch.
      *
      * @param branchRevisionId id of private branch revision
      * @param newBaseRevisionId id of new base revision
