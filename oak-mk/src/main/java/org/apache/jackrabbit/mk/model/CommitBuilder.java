@@ -210,12 +210,6 @@ public class CommitBuilder {
 
         Id rebasedId = stagedTree.rebase(baseRevId, fromId, toId, token);
 
-        if (store.getCommit(toId).getRootNodeId().equals(rebasedId)) {
-            // the rebase didn't cause any changes,
-            // no need to create new commit object/update head revision
-            return toId;
-        }
-
         StoredCommit baseCommit = store.getCommit(baseRevId);
         MutableCommit newCommit = new MutableCommit();
         newCommit.setParentId(baseRevId);
