@@ -497,6 +497,7 @@ public interface MicroKernel {
      * @throws MicroKernelException if {@code branchRevisionId} doesn't exist,
      *                              if it's not a branch revision, if {@code newBaseRevisionId}
      *                              doesn't exist, if it's a branch revision, or if another error occurs.
+     * michid update doc
      */
     @Nonnull
     String /*revisionId */ rebase(@Nonnull String branchRevisionId, String newBaseRevisionId);

@@ -547,7 +547,8 @@ public class MicroKernelImpl implements MicroKernel {
             try {
                 CommitBuilder cb = rep.getCommitBuilder(newBranchId,
                         "rebasing " + branchRevisionId + " onto " + newBaseRevisionId);
-                return cb.rebase(baseId, branchId).toString();
+                Id rebased = cb.rebase(baseId, branchId);
+                return (cb.hasConflicts() ? "-" : "") + rebased.toString();
             }
             catch (Exception e) {
                 throw new MicroKernelException(e);

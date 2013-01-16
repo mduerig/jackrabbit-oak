@@ -39,6 +39,7 @@ public class StagedNodeTree {
 
     private StagedNode root;
     private Id baseRevisionId;
+    private boolean hasConflicts;
 
     /**
      * Creates a new {@code StagedNodeTree} instance.
@@ -69,6 +70,11 @@ public class StagedNodeTree {
      */
     public boolean isEmpty() {
         return root == null;
+    }
+
+    // michid doc
+    public boolean hasConflicts() {
+        return hasConflicts;
     }
 
     /**
@@ -397,26 +403,20 @@ public class StagedNodeTree {
             String theirValue = theirDelta.getAddedProperties().get(name);
 
             if (theirValue != null && !theirValue.equals(ourValue)) {
-                markConflict(stagedNode, "addExistingProperty", name, ourValue);
+                hasConflicts = true;
             }
-            else {
-                stagedNode.getProperties().put(name, ourValue);
-            }
+            stagedNode.getProperties().put(name, ourValue);
         }
 
         for (Entry<String, String> removed : ourDelta.getRemovedProperties().entrySet()) {
             String name = removed.getKey();
             String ourValue = removed.getValue();
 
-            if (theirDelta.getRemovedProperties().containsKey(name)) {
-                markConflict(stagedNode, "removeRemovedProperty", name, ourValue);
+            if (theirDelta.getRemovedProperties().containsKey(name) ||
+                    theirDelta.getChangedProperties().containsKey(name)) {
+                hasConflicts = true;
             }
-            else if (theirDelta.getChangedProperties().containsKey(name)) {
-                markConflict(stagedNode, "removeChangedProperty", name, ourValue);
-            }
-            else {
-                stagedNode.getProperties().remove(name);
-            }
+            stagedNode.getProperties().remove(name);
         }
 
         for (Entry<String, String> changed : ourDelta.getChangedProperties().entrySet()) {
@@ -424,15 +424,11 @@ public class StagedNodeTree {
             String ourValue = changed.getValue();
             String theirValue = theirDelta.getChangedProperties().get(name);
 
-            if (theirDelta.getRemovedProperties().containsKey(name)) {
-                markConflict(stagedNode, "changeRemovedProperty", name, ourValue);
+            if (theirDelta.getRemovedProperties().containsKey(name) ||
+                    theirValue != null && !theirValue.equals(ourValue)) {
+                hasConflicts = true;
             }
-            else if (theirValue != null && !theirValue.equals(ourValue)) {
-                markConflict(stagedNode, "changeChangedProperty", name, ourValue);
-            }
-            else {
-                stagedNode.getProperties().put(name, ourValue);
-            }
+            stagedNode.getProperties().put(name, ourValue);
         }
 
         for (Entry<String, Id> added : ourDelta.getAddedChildNodes().entrySet()) {
@@ -441,26 +437,20 @@ public class StagedNodeTree {
             Id theirId = theirDelta.getAddedChildNodes().get(name);
 
             if (theirId != null && !theirId.equals(ourId)) {
-                markConflict(stagedNode, "addExistingNode", name, ourId);
+                hasConflicts = true;
             }
-            else {
-                stagedNode.add(new ChildNodeEntry(name, ourId));
-            }
+            stagedNode.add(new ChildNodeEntry(name, ourId));
         }
 
         for (Entry<String, Id> removed : ourDelta.getRemovedChildNodes().entrySet()) {
             String name = removed.getKey();
             Id ourId = removed.getValue();
 
-            if (theirDelta.getRemovedChildNodes().containsKey(name)) {
-                markConflict(stagedNode, "removeRemovedNode", name, ourId);
+            if (theirDelta.getRemovedChildNodes().containsKey(name) ||
+                    theirDelta.getChangedChildNodes().containsKey(name)) {
+                hasConflicts = true;
             }
-            else if (theirDelta.getChangedChildNodes().containsKey(name)) {
-                markConflict(stagedNode, "removeChangedNode", name, ourId);
-            }
-            else {
-                stagedNode.remove(name);
-            }
+            stagedNode.remove(name);
         }
 
         for (Entry<String, Id> changed : ourDelta.getChangedChildNodes().entrySet()) {
@@ -469,7 +459,8 @@ public class StagedNodeTree {
 
             StoredNode changedBase = getChildNode(base, name);
             if (changedBase == null) {
-                markConflict(stagedNode, "changeRemovedNode", name, ourId);
+                hasConflicts = true;
+                stagedNode.add(new ChildNodeEntry(name, ourId));
                 continue;
             }
 

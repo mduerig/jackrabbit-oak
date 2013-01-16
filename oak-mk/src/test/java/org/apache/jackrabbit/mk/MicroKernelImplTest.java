@@ -219,12 +219,11 @@ public class MicroKernelImplTest {
         mk.commit("", "+\"/x/a\":{\"b\":{}}", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
-        assertTrue(mk.nodeExists("/x/a/b", branch));
-        String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-            "{\":childNodeCount\":1,\"addExistingNode\":{\":childNodeCount\":1,\"a\":{\":childNodeCount\":0}}}",
-            conflict);
+        assertTrue(mk.nodeExists("/x/a", branch));
+        assertFalse(mk.nodeExists("/x/a/b", branch));
     }
 
     @Test
@@ -235,13 +234,11 @@ public class MicroKernelImplTest {
         mk.commit("", "^\"/x/y/p\":99", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":99"));
-        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"addExistingProperty\":{\"p\":42,\":childNodeCount\":0}}",
-                conflict);
+        assertTrue(branchNode.contains("\"p\":42"));
     }
 
     @Test
@@ -252,13 +249,11 @@ public class MicroKernelImplTest {
         mk.commit("", "^\"/x/y/p\":null", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertFalse(branchNode.contains("\"p\":99"));
-        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"changeRemovedProperty\":{\"p\":99,\":childNodeCount\":0}}",
-                conflict);
+        assertTrue(branchNode.contains("\"p\":99"));
     }
 
     @Test
@@ -269,13 +264,12 @@ public class MicroKernelImplTest {
         mk.commit("", "^\"/x/y/p\":99", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":99"));
-        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"removeChangedProperty\":{\"p\":42,\":childNodeCount\":0}}",
-                conflict);
+        assertFalse(branchNode.contains("\"p\":42"));
+        assertFalse(branchNode.contains("\"p\":99"));
     }
 
     @Test
@@ -286,13 +280,11 @@ public class MicroKernelImplTest {
         mk.commit("", "^\"/x/y/p\":99", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":99"));
-        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"changeChangedProperty\":{\"p\":41,\":childNodeCount\":0}}",
-                conflict);
+        assertTrue(branchNode.contains("\"p\":41"));
     }
 
     @Test
@@ -303,13 +295,10 @@ public class MicroKernelImplTest {
         mk.commit("", "^\"/x/y/p\":42", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
-        String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
-        assertTrue(branchNode.contains("\"p\":42"));
-        String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"removeChangedNode\":{\":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}",
-                conflict);
+        assertFalse(mk.nodeExists("/x/y", branch));
     }
 
     @Test
@@ -320,13 +309,11 @@ public class MicroKernelImplTest {
         mk.commit("", "-\"/x\"", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
-        assertFalse(mk.nodeExists("/x", branch));
-        String conflict = mk.getNodes("/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"changeRemovedNode\":{\":childNodeCount\":1,\"x\":{\"p\":42,\"" +
-                ":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}}",
-                conflict);
+        String branchNode = mk.getNodes("/x", branch, 0, 0, -1, null);
+        assertTrue(branchNode.contains("\"p\":42"));
     }
 
     @Test
@@ -337,13 +324,11 @@ public class MicroKernelImplTest {
         mk.commit("", "^\"/x/y/p\":null", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
         String branchNode = mk.getNodes("/x/y", branch, 0, 0, -1, null);
         assertFalse(branchNode.contains("\"p\":42"));
-        String conflict = mk.getNodes("/x/y/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"removeRemovedProperty\":{\"p\":42,\":childNodeCount\":0}}",
-                conflict);
     }
 
     @Test
@@ -354,12 +339,10 @@ public class MicroKernelImplTest {
         mk.commit("", "-\"/x/y\"", null, null);
 
         branch = mk.rebase(branch, null);
+        assertTrue(branch.startsWith("-"));
+        branch = branch.substring(1);
 
-        assertFalse(mk.nodeExists("/a/y", branch));
-        String conflict = mk.getNodes("/x/:conflict", branch, 100, 0, -1, null);
-        assertEquals(
-                "{\":childNodeCount\":1,\"removeRemovedNode\":{\":childNodeCount\":1,\"y\":{\":childNodeCount\":0}}}",
-                conflict);
+        assertFalse(mk.nodeExists("/x/y", branch));
     }
 
     @Test

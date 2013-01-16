@@ -55,6 +55,11 @@ public class CommitBuilder {
         stagedTree = new StagedNodeTree(store, baseRevId);
     }
 
+    // michid doc
+    public boolean hasConflicts()  {
+        return stagedTree.hasConflicts();
+    }
+
     public void addNode(String parentNodePath, String nodeName, JsonObject node) throws Exception {
         Change change = new AddNode(parentNodePath, nodeName, node);
         change.apply();
