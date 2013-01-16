@@ -28,7 +28,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.apache.jackrabbit.oak.OakAssert.assertSequence;
@@ -51,12 +50,22 @@ public class TreeTest {
 
                 /**
                  * Allow deleting changed node.
-                 * See {@link TreeTest#removeWithConcurrentOrderBefore()}
+                 * See {@link TreeTest#concurrentOrderBeforeWithRemoveOtherSession()},
+                 * {@link TreeTest#removeWithConcurrentOrderBefore}
                  */
                 @Override
                 public Resolution deleteChangedNode(NodeBuilder parent,
                                                     String name,
                                                     NodeState theirs) {
+                    return Resolution.OURS;
+                }
+
+                /**
+                 * Allow changing deleted node.
+                 * See {@link TreeTest#concurrentAddChildOrderable()}
+                 */
+                @Override
+                public Resolution changeDeletedNode(NodeBuilder parent, String name, NodeState ours) {
                     return Resolution.OURS;
                 }
             })
@@ -108,7 +117,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBefore() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -154,7 +162,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBeforeWithAdd() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -199,7 +206,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBeforeWithRemove() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -245,7 +251,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBeforeWithRemoveOtherSession() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -291,7 +296,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBeforeRemoved() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -328,7 +332,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBeforeAllRemoved() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -366,7 +369,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentOrderBeforeTargetRemoved() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -404,7 +406,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void concurrentAddChildOrderable() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {
@@ -479,7 +480,6 @@ public class TreeTest {
     }
 
     @Test
-    @Ignore  // michid ignore
     public void removeWithConcurrentOrderBefore() throws Exception {
         ContentSession s1 = repository.login(null, null);
         try {

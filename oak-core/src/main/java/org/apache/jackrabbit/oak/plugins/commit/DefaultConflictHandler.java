@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.jackrabbit.oak.plugins.commit;
 
 import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
@@ -53,11 +54,6 @@ public class DefaultConflictHandler implements ConflictHandler {
     }
 
     @Override
-    public Resolution addExistingProperty(NodeBuilder parent, PropertyState ours, PropertyState theirs) {
-        return resolution;
-    }
-
-    @Override
     public Resolution changeDeletedProperty(NodeBuilder parent, PropertyState ours) {
         return resolution;
     }
@@ -73,16 +69,6 @@ public class DefaultConflictHandler implements ConflictHandler {
     }
 
     @Override
-    public Resolution deleteDeletedProperty(NodeBuilder parent, PropertyState ours) {
-        return resolution;
-    }
-
-    @Override
-    public Resolution addExistingNode(NodeBuilder parent, String name, NodeState ours, NodeState theirs) {
-        return resolution;
-    }
-
-    @Override
     public Resolution changeDeletedNode(NodeBuilder parent, String name, NodeState ours) {
         return resolution;
     }
@@ -92,8 +78,4 @@ public class DefaultConflictHandler implements ConflictHandler {
         return resolution;
     }
 
-    @Override
-    public Resolution deleteDeletedNode(NodeBuilder parent, String name) {
-        return resolution;
-    }
 }

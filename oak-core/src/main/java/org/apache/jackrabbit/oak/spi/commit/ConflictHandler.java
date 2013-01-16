@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.jackrabbit.oak.spi.commit;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -58,17 +59,6 @@ public interface ConflictHandler {
     }
 
     /**
-     * The property {@code ours} has been added to {@code parent} which conflicts
-     * with property {@code theirs} which has been added in the persistence store.
-     *
-     * @param parent  root of the conflict
-     * @param ours  our version of the property
-     * @param theirs  their version of the property
-     * @return  {@link Resolution} of the conflict
-     */
-    Resolution addExistingProperty(NodeBuilder parent, PropertyState ours, PropertyState theirs);
-
-    /**
      * The property {@code ours} has been changed in {@code parent} while it was
      * removed in the persistence store.
      *
@@ -90,16 +80,6 @@ public interface ConflictHandler {
     Resolution changeChangedProperty(NodeBuilder parent, PropertyState ours, PropertyState theirs);
 
     /**
-     * The property {@code ours} has been removed in {@code parent} while it was
-     * also removed in the persistence store.
-     *
-     * @param parent  root of the conflict
-     * @param ours  our version of the property
-     * @return  {@link Resolution} of the conflict
-     */
-    Resolution deleteDeletedProperty(NodeBuilder parent, PropertyState ours);
-
-    /**
      * The property {@code theirs} changed in the persistence store while it has been
      * deleted locally.
      *
@@ -108,18 +88,6 @@ public interface ConflictHandler {
      * @return  {@link Resolution} of the conflict
      */
     Resolution deleteChangedProperty(NodeBuilder parent, PropertyState theirs);
-
-    /**
-     * The node {@code ours} has been added to {@code parent} which conflicts
-     * with node {@code theirs} which has been added in the persistence store.
-     *
-     * @param parent  root of the conflict
-     * @param name  name of the node
-     * @param ours  our version of the node
-     * @param theirs  their version of the node
-     * @return  {@link Resolution} of the conflict
-     */
-    Resolution addExistingNode(NodeBuilder parent, String name, NodeState ours, NodeState theirs);
 
     /**
      * The node {@code ours} has been changed in {@code parent} while it was
@@ -142,14 +110,4 @@ public interface ConflictHandler {
      * @return  {@link Resolution} of the conflict
      */
     Resolution deleteChangedNode(NodeBuilder parent, String name, NodeState theirs);
-
-    /**
-     * The node {@code name} has been removed in {@code parent} while it was
-     * also removed in the persistence store.
-     *
-     * @param parent  root of the conflict
-     * @param name  name of the node
-     * @return  {@link Resolution} of the conflict
-     */
-    Resolution deleteDeletedNode(NodeBuilder parent, String name);
 }

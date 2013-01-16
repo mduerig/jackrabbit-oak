@@ -24,6 +24,7 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.commit.ConflictHandlerWrapper;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryPropertyBuilder;
 import org.apache.jackrabbit.oak.spi.commit.ConflictHandler;
+import org.apache.jackrabbit.oak.spi.commit.ConflictHandler.Resolution;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
@@ -33,8 +34,6 @@ import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.jackrabbit.oak.spi.commit.ConflictHandler.Resolution.MERGED;
-import static org.apache.jackrabbit.oak.spi.commit.ConflictHandler.Resolution.OURS;
 
 /**
  * MergingNodeStateDiff... TODO
@@ -54,103 +53,75 @@ class MergingNodeStateDiff implements NodeStateDiff {
         this.conflictHandler = conflictHandler;
     }
 
-    static void merge(NodeState fromState, NodeState toState, final NodeBuilder target,
+    static void merge(NodeState theirs, NodeState ours, final NodeBuilder target,
             final ConflictHandler conflictHandler) {
-        toState.compareAgainstBaseState(fromState, new MergingNodeStateDiff(
+        ours.compareAgainstBaseState(theirs, new MergingNodeStateDiff(
                 checkNotNull(target), new ChildOrderConflictHandler(conflictHandler)));
     }
 
     //------------------------------------------------------< NodeStateDiff >---
     @Override
-    public void propertyAdded(PropertyState after) {
-        ConflictHandler.Resolution resolution;
-        PropertyState p = target.getProperty(after.getName());
-
-        if (p == null) {
-            resolution = OURS;
-        }
-        else {
-            resolution = conflictHandler.addExistingProperty(target, after, p);
-        }
+    public void propertyAdded(PropertyState ours) {
+        Resolution resolution = conflictHandler.changeDeletedProperty(target, ours);
 
         switch (resolution) {
             case OURS:
-                target.setProperty(after);
+                target.setProperty(ours);
                 break;
             case THEIRS:
+                target.removeProperty(ours.getName());
+                break;
             case MERGED:
                 break;
         }
     }
 
     @Override
-    public void propertyChanged(PropertyState before, PropertyState after) {
-        checkArgument(before.getName().equals(after.getName()),
+    public void propertyChanged(PropertyState theirs, PropertyState ours) {
+        checkArgument(theirs.getName().equals(ours.getName()),
                 "before and after must have the same name");
 
-        ConflictHandler.Resolution resolution;
-        PropertyState p = target.getProperty(after.getName());
-
-        if (p == null) {
-            resolution = conflictHandler.changeDeletedProperty(target, after);
-        }
-        else if (before.equals(p)) {
-            resolution = OURS;
-        }
-        else {
-            resolution = conflictHandler.changeChangedProperty(target, after, p);
-        }
+        Resolution resolution = conflictHandler.changeChangedProperty(target, ours, theirs);
 
         switch (resolution) {
             case OURS:
-                target.setProperty(after);
+                target.setProperty(ours);
                 break;
             case THEIRS:
+                target.setProperty(theirs);
+                break;
             case MERGED:
                 break;
         }
     }
 
     @Override
-    public void propertyDeleted(PropertyState before) {
-        ConflictHandler.Resolution resolution;
-        PropertyState p = target.getProperty(before.getName());
-
-        if (before.equals(p)) {
-            resolution = OURS;
-        }
-        else if (p == null) {
-            resolution = conflictHandler.deleteDeletedProperty(target, before);
-        }
-        else {
-            resolution = conflictHandler.deleteChangedProperty(target, p);
-        }
+    public void propertyDeleted(PropertyState theirs) {
+        Resolution resolution = conflictHandler.deleteChangedProperty(target, theirs);
 
         switch (resolution) {
             case OURS:
-                target.removeProperty(before.getName());
+                target.removeProperty(theirs.getName());
                 break;
             case THEIRS:
+                target.setProperty(theirs);
+                break;
             case MERGED:
                 break;
         }
     }
 
     @Override
-    public void childNodeAdded(String name, NodeState after) {
-        ConflictHandler.Resolution resolution;
-        if (!target.hasChildNode(name)) {
-            resolution = OURS;
-        } else {
-            NodeBuilder n = target.child(name);
-            resolution = conflictHandler.addExistingNode(target, name, after, n.getNodeState());
-        }
+    public void childNodeAdded(String name, NodeState ours) {
+        Resolution resolution = conflictHandler.changeDeletedNode(target, name, ours);
 
         switch (resolution) {
             case OURS:
-                addChild(target, name, after);
+                addChild(target, name, ours);
                 break;
             case THEIRS:
+                target.removeNode(name);
+                break;
             case MERGED:
                 break;
         }
@@ -158,46 +129,20 @@ class MergingNodeStateDiff implements NodeStateDiff {
 
     @Override
     public void childNodeChanged(String name, NodeState before, NodeState after) {
-        ConflictHandler.Resolution resolution;
-        if (!target.hasChildNode(name)) {
-            resolution = conflictHandler.changeDeletedNode(target, name, after);
-        } else {
-            merge(before, after, target.child(name), conflictHandler);
-            resolution = MERGED;
-        }
-
-        switch (resolution) {
-            case OURS:
-                addChild(target, name, after);
-                break;
-            case THEIRS:
-            case MERGED:
-                break;
-        }
+        merge(before, after, target.child(name), conflictHandler);
     }
 
     @Override
-    public void childNodeDeleted(String name, NodeState before) {
-        ConflictHandler.Resolution resolution;
-        NodeBuilder n = target.hasChildNode(name) ? target.child(name) : null;
-
-        if (n == null) {
-            resolution = conflictHandler.deleteDeletedNode(target, name);
-        }
-        else if (before.equals(n.getNodeState())) {
-            resolution = OURS;
-        }
-        else {
-            resolution = conflictHandler.deleteChangedNode(target, name, n.getNodeState());
-        }
+    public void childNodeDeleted(String name, NodeState theirs) {
+        ConflictHandler.Resolution resolution = conflictHandler.deleteChangedNode(target, name, theirs);
 
         switch (resolution) {
             case OURS:
-                if (n != null) {
-                    removeChild(target, name);
-                }
+                removeChild(target, name);
                 break;
             case THEIRS:
+                addChild(target, name, theirs);
+                break;
             case MERGED:
                 break;
         }
@@ -237,19 +182,6 @@ class MergingNodeStateDiff implements NodeStateDiff {
         }
 
         @Override
-        public Resolution addExistingProperty(NodeBuilder parent,
-                                              PropertyState ours,
-                                              PropertyState theirs) {
-            if (isChildOrderProperty(ours)) {
-                // two sessions concurrently called orderBefore() on a Tree
-                // that was previously unordered.
-                return Resolution.THEIRS;
-            } else {
-                return handler.addExistingProperty(parent, ours, theirs);
-            }
-        }
-
-        @Override
         public Resolution changeDeletedProperty(NodeBuilder parent,
                                                 PropertyState ours) {
             if (isChildOrderProperty(ours)) {
@@ -269,17 +201,6 @@ class MergingNodeStateDiff implements NodeStateDiff {
                 return Resolution.THEIRS;
             } else {
                 return handler.changeChangedProperty(parent, ours, theirs);
-            }
-        }
-
-        @Override
-        public Resolution deleteDeletedProperty(NodeBuilder parent,
-                                                PropertyState ours) {
-            if (isChildOrderProperty(ours)) {
-                // concurrent remove of ordered trees
-                return Resolution.THEIRS;
-            } else {
-                return handler.deleteDeletedProperty(parent, ours);
             }
         }
 
