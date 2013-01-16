@@ -104,7 +104,7 @@ public class MemoryNodeStore implements NodeStore {
         }
 
         @Override
-        public void rebase() {
+        public boolean rebase() {
             throw new UnsupportedOperationException();
         }
     }

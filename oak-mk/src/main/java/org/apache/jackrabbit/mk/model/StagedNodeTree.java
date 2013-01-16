@@ -72,7 +72,13 @@ public class StagedNodeTree {
         return root == null;
     }
 
-    // michid doc
+    /**
+     * Conflict status of the preceding rebase operation.
+     *
+     * @return  {@code true} if the preceding rebase operation
+     * didn't detect a conflict, {@code false} otherwise.
+     * Undefined if there no rebase took place.
+     */
     public boolean hasConflicts() {
         return hasConflicts;
     }

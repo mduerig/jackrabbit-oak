@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.jackrabbit.oak.core;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -38,7 +39,7 @@ import static org.apache.jackrabbit.oak.spi.commit.ConflictHandler.Resolution.OU
 /**
  * MergingNodeStateDiff... TODO
  */
-class MergingNodeStateDiff implements NodeStateDiff {  // michid remove?
+class MergingNodeStateDiff implements NodeStateDiff {
 
     /**
      * logger instance

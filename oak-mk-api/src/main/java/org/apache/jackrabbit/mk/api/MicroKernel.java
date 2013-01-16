@@ -491,13 +491,49 @@ public interface MicroKernel {
      * exist, if it's not a branch revision, if {@code newBaseRevisionId} doesn't exist,
      * if it's a branch revision or if another error occurs.
      *
+     * <p/>
+     * If rebasing results in conflicts, conflicting items are skipped. That is, they are
+     * not rebased but left to their original state. Conflicts are indicated by returning
+     * a negative revision number. While the actual revision number of the rebased branch
+     * is always the absolute value of the return value of this method, the sign of the
+     * return value can be used to determine the presence of conflicts.
+     * <p/>
+     * type of conflicts:
+     * <dl>
+     *     <dt>addExistingProperty:</dt>
+     *     <dd>A property has been added that has a different value than a property with the same name
+     *         that has been added in trunk.</dd>
+     *     <dt>removeRemovedProperty:</dt>
+     *     <dd>A property has been removed while a property of the same name has been removed in trunk.</dd>
+     *     <dt>removeChangedProperty:</dt>
+     *     <dd>A property has been removed while a property of the same name has been changed in trunk.</dd>
+     *     <dt>changeRemovedProperty:</dt>
+     *     <dd>A property has been changed while a property of the same name has been removed in trunk. </dd>
+     *     <dt>changeChangedProperty:</dt>
+     *     <dd>A property has been changed while a property of the same name has been changed to a
+     *         different value in trunk.</dd>
+     *     <dt>addExistingNode:</dt>
+     *     <dd>A node has been added that is different from a node of them same name that has been added
+     *         to the trunk.</dd>
+     *     <dt>removeRemovedNode:</dt>
+     *     <dd>A node has been removed while a node of the same name has been removed in trunk.</dd>
+     *     <dt>removeChangedNode:</dt>
+     *     <dd>A node has been removed while a node of the same name has been changed in trunk.</dd>
+     *     <dt>changeRemovedNode:</dt>
+     *     <dd>A node has been changed while a node of the same name has been removed in trunk.</dd>
+     * </dl>
+     * In this context a node is regarded as changed if a property way added, a property was removed,
+     * a property was set to a different value, a child node was added, a child node was removed or
+     * a child node was changed.
+     * <p/>
+     *
      * @param branchRevisionId id of private branch revision
      * @param newBaseRevisionId id of new base revision
-     * @return id of the rebased branch revision
+     * @return id of the rebased branch revision. The id is negative (leading -) to indicate that
+     *         a conflict occurred.
      * @throws MicroKernelException if {@code branchRevisionId} doesn't exist,
      *                              if it's not a branch revision, if {@code newBaseRevisionId}
      *                              doesn't exist, if it's a branch revision, or if another error occurs.
-     * michid update doc
      */
     @Nonnull
     String /*revisionId */ rebase(@Nonnull String branchRevisionId, String newBaseRevisionId);

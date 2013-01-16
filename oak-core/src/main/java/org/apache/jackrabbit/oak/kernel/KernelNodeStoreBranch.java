@@ -150,19 +150,26 @@ class KernelNodeStoreBranch implements NodeStoreBranch {
     }
 
     @Override
-    public void rebase() {
+    public boolean rebase() {
         KernelNodeState root = store.getRoot();
         if (headRevision == null) {
             // Nothing was written to this branch: set new base revision
             head = root;
             base = root;
             baseRevision = root.getRevision();
+            return true;
         }
         else {
             headRevision = store.getKernel().rebase(headRevision, root.getRevision());
+            boolean failed = headRevision.startsWith("-");
+            if (failed) {
+                headRevision = headRevision.substring(1);
+            }
+
             head = store.getRootState(headRevision);
             base = root;
             baseRevision = root.getRevision();
+            return !failed;
         }
     }
 
