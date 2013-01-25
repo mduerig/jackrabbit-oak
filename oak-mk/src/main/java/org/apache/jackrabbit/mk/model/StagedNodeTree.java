@@ -90,7 +90,7 @@ public class StagedNodeTree {
         StoredNode fromRoot = store.getRootNode(fromId);
         StoredNode toRoot = store.getRootNode(toId);
 
-        // recursively apply changes from 'fromRoot' to 'toRoot' to 'baseRoot'
+        // recursively apply changes from 'fromRoot' to 'toRoot' onto 'baseRoot'
         rebaseNode(baseRoot, fromRoot, toRoot, "/");
 
         // persist staged nodes
