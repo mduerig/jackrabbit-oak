@@ -537,7 +537,8 @@ public interface MicroKernel {
      *                              doesn't exist, if it's a branch revision, or if another error occurs.
      */
     @Nonnull
-    String /*revisionId */ rebase(@Nonnull String branchRevisionId, String newBaseRevisionId);
+    String /*revisionId */ rebase(@Nonnull String branchRevisionId, String newBaseRevisionId)
+        throws MicroKernelException;
 
     //--------------------------------------------------< BLOB READ/WRITE ops >
 
