@@ -17,18 +17,20 @@
 package org.apache.jackrabbit.oak.spi.security.authorization;
 
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.security.AccessControlEntry;
 import javax.jcr.security.AccessControlException;
 import javax.jcr.security.Privilege;
 
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
-import org.apache.jackrabbit.api.security.JackrabbitAccessControlList;
+import org.apache.jackrabbit.api.security.JackrabbitAccessControlEntry;
+import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.security.authorization.restriction.RestrictionProvider;
 
 /**
@@ -37,29 +39,29 @@ import org.apache.jackrabbit.oak.spi.security.authorization.restriction.Restrict
  */
 public class ImmutableACL extends AbstractAccessControlList {
 
-    private final List<AccessControlEntry> entries;
+    private final List<JackrabbitAccessControlEntry> entries;
+    private final RestrictionProvider restrictionProvider;
 
     private int hashCode;
 
     /**
      * Construct a new {@code UnmodifiableAccessControlList}
      *
-     * @param jcrPath
-     * @param entries
-     * @param restrictionProvider
+     * @param oakPath The Oak path of this policy or {@code null}.
+     * @param entries The access control entries contained in this policy.
+     * @param restrictionProvider The restriction provider.
+     * @param namePathMapper The {@link NamePathMapper} used for conversion.
      */
-    public ImmutableACL(String jcrPath, List<? extends AccessControlEntry> entries,
-                        RestrictionProvider restrictionProvider) {
-        super(jcrPath, restrictionProvider);
-        this.entries = (entries == null) ? Collections.<AccessControlEntry>emptyList() : ImmutableList.copyOf(entries);
+    public ImmutableACL(@Nullable String oakPath,
+                        @Nonnull List<? extends JackrabbitAccessControlEntry> entries,
+                        @Nonnull RestrictionProvider restrictionProvider,
+                        @Nonnull NamePathMapper namePathMapper) {
+        super(oakPath, namePathMapper);
+        this.entries = ImmutableList.copyOf(entries);
+        this.restrictionProvider = restrictionProvider;
     }
 
     //--------------------------------------------------< AccessControlList >---
-
-    @Override
-    public AccessControlEntry[] getAccessControlEntries() throws RepositoryException {
-        return entries.toArray(new AccessControlEntry[entries.size()]);
-    }
 
     @Override
     public void removeAccessControlEntry(AccessControlEntry ace)
@@ -68,16 +70,6 @@ public class ImmutableACL extends AbstractAccessControlList {
     }
 
     //----------------------------------------< JackrabbitAccessControlList >---
-
-    @Override
-    public boolean isEmpty() {
-        return entries.isEmpty();
-    }
-
-    @Override
-    public int size() {
-        return entries.size();
-    }
 
     @Override
     public boolean addEntry(Principal principal, Privilege[] privileges,
@@ -90,16 +82,22 @@ public class ImmutableACL extends AbstractAccessControlList {
         throw new AccessControlException("Immutable ACL. Use AccessControlManager#getPolicy or #getApplicablePolicy in order to obtain a modifiable ACL.");
     }
 
+    //------------------------------------------< AbstractAccessControlList >---
+    @Override
+    public List<JackrabbitAccessControlEntry> getEntries() {
+        return entries;
+    }
+
+    @Override
+    public RestrictionProvider getRestrictionProvider() {
+        return restrictionProvider;
+    }
+
     //-------------------------------------------------------------< Object >---
     @Override
     public int hashCode() {
         if (hashCode == 0) {
-            int result = 17;
-            result = 37 * result + (getPath() != null ? getPath().hashCode() : 0);
-            for (AccessControlEntry entry : entries) {
-                result = 37 * result + entry.hashCode();
-            }
-            hashCode = result;
+            hashCode = Objects.hashCode(getOakPath(), entries);
         }
         return hashCode;
     }
@@ -109,14 +107,10 @@ public class ImmutableACL extends AbstractAccessControlList {
         if (obj == this) {
             return true;
         }
-        if (obj instanceof JackrabbitAccessControlList) {
-            try {
-                JackrabbitAccessControlList acl = (JackrabbitAccessControlList) obj;
-                return ((jcrPath == null) ? acl.getPath() == null : jcrPath.equals(acl.getPath()))
-                        && entries.equals(Arrays.asList(acl.getAccessControlEntries()));
-            } catch (RepositoryException e) {
-                // failed to retrieve access control entries -> objects are not equal.
-            }
+        if (obj instanceof ImmutableACL) {
+            ImmutableACL other = (ImmutableACL) obj;
+            return Objects.equal(getOakPath(), other.getOakPath())
+                    && entries.equals(other.entries);
         }
         return false;
     }

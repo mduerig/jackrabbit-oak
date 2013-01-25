@@ -16,11 +16,6 @@
  */
 package org.apache.jackrabbit.oak.security.principal;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,36 +29,34 @@ import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
-import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.security.AbstractSecurityTest;
+import org.apache.jackrabbit.oak.AbstractSecurityTest;
 import org.apache.jackrabbit.oak.spi.security.principal.AdminPrincipal;
 import org.apache.jackrabbit.oak.spi.security.principal.EveryonePrincipal;
 import org.apache.jackrabbit.oak.spi.security.principal.PrincipalProvider;
-import org.apache.jackrabbit.oak.spi.security.user.UserConfiguration;
 import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * PrincipalProviderImplTest...
  */
 public class PrincipalProviderImplTest extends AbstractSecurityTest {
 
-    private Root root;
-    private UserConfiguration userConfig;
     private PrincipalProvider principalProvider;
 
     @Override
     public void before() throws Exception {
         super.before();
 
-        root = admin.getLatestRoot();
-        userConfig = getSecurityProvider().getUserConfiguration();
-        principalProvider = new PrincipalProviderImpl(root, userConfig, NamePathMapper.DEFAULT);
+        principalProvider = new PrincipalProviderImpl(root, getUserConfiguration(), namePathMapper);
     }
 
     @Test
     public void testGetPrincipals() throws Exception {
-        String adminId = admin.getAuthInfo().getUserID();
+        String adminId = adminSession.getAuthInfo().getUserID();
         Set<? extends Principal> principals = principalProvider.getPrincipals(adminId);
 
         assertNotNull(principals);
@@ -87,7 +80,7 @@ public class PrincipalProviderImplTest extends AbstractSecurityTest {
 
         Group everyoneGroup = null;
         try {
-            UserManager userMgr = userConfig.getUserManager(root, NamePathMapper.DEFAULT);
+            UserManager userMgr = getUserManager();
             everyoneGroup = userMgr.createGroup(EveryonePrincipal.NAME);
             root.commit();
 
@@ -105,7 +98,7 @@ public class PrincipalProviderImplTest extends AbstractSecurityTest {
     public void testFindUserPrincipal() throws Exception {
         User testUser = null;
         try {
-            UserManager userMgr = userConfig.getUserManager(root, NamePathMapper.DEFAULT);
+            UserManager userMgr = getUserManager();
             testUser = userMgr.createUser("TestUser", "pw");
             root.commit();
 
@@ -133,7 +126,7 @@ public class PrincipalProviderImplTest extends AbstractSecurityTest {
     public void testFindGroupPrincipal() throws Exception {
         Group testGroup = null;
         try {
-            UserManager userMgr = userConfig.getUserManager(root, NamePathMapper.DEFAULT);
+            UserManager userMgr = getUserManager();
             testGroup = userMgr.createGroup("TestGroup");
             root.commit();
 
@@ -201,7 +194,7 @@ public class PrincipalProviderImplTest extends AbstractSecurityTest {
         User testUser = null;
         Group testGroup = null;
         try {
-            UserManager userMgr = userConfig.getUserManager(root, NamePathMapper.DEFAULT);
+            UserManager userMgr = getUserManager();
             testUser = userMgr.createUser("TestUser", "pw");
             testGroup = userMgr.createGroup("TestGroup");
 

@@ -34,6 +34,7 @@ import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.PropertyValue;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
 import org.apache.jackrabbit.oak.plugins.nodetype.ReadOnlyNodeTypeManager;
@@ -47,6 +48,7 @@ import org.apache.jackrabbit.oak.spi.query.QueryIndex;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 
 /**
  * A selector within a query.
@@ -93,28 +95,33 @@ public class SelectorImpl extends SourceImpl {
         return quote(nodeTypeName) + " as " + quote(selectorName);
     }
 
+    public boolean isPrepared() {
+        return index != null;
+    }
 
     @Override
     public void prepare() {
         if (queryConstraint != null) {
             queryConstraint.restrictPushDown(this);
         }
-        for (JoinConditionImpl c : allJoinConditions) {
-            c.restrictPushDown(this);
+        if (!outerJoinLeftHandSide && !outerJoinRightHandSide) {
+            for (JoinConditionImpl c : allJoinConditions) {
+                c.restrictPushDown(this);
+            }
         }
-        index = query.getBestIndex(createFilter());
+        index = query.getBestIndex(createFilter(true));
     }
 
     @Override
     public void execute(NodeState rootState) {
-        cursor = index.query(createFilter(), rootState);
+        cursor = index.query(createFilter(false), rootState);
     }
 
     @Override
     public String getPlan(NodeState rootState) {
         StringBuilder buff = new StringBuilder();
         buff.append(toString());
-        buff.append(" /* ").append(index.getPlan(createFilter(), rootState));
+        buff.append(" /* ").append(index.getPlan(createFilter(true), rootState));
         if (selectorCondition != null) {
             buff.append(" where ").append(selectorCondition);
         }
@@ -122,8 +129,15 @@ public class SelectorImpl extends SourceImpl {
         return buff.toString();
     }
 
-    private Filter createFilter() {
+    /**
+     * Create the filter condition for planning or execution.
+     * 
+     * @param preparing whether a filter for the prepare phase should be made 
+     * @return the filter
+     */
+    private Filter createFilter(boolean preparing) {
         FilterImpl f = new FilterImpl(this, query.getStatement());
+        f.setPreparing(preparing);
         validateNodeType(nodeTypeName);
         f.setNodeType(nodeTypeName);
         if (joinCondition != null) {
@@ -253,6 +267,8 @@ public class SelectorImpl extends SourceImpl {
                 }
                 if (p.equals("..")) {
                     t = t.getParent();
+                } else if (p.equals(".")) {
+                    // same node
                 } else {
                     t = t.getChild(p);
                 }
@@ -270,6 +286,16 @@ public class SelectorImpl extends SourceImpl {
             }
             return PropertyValues.newString(local);
         }
+        if (propertyName.equals("*")) {
+            // TODO currently all property values are converted to strings - 
+            // this doesn't play well with the idea that the types may be different
+            List<String> values = new ArrayList<String>();
+            for (PropertyState p : t.getProperties()) {
+                Iterables.addAll(values, p.getValue(Type.STRINGS));
+            }
+            // "*"
+            return PropertyValues.newString(values);
+        } 
         return PropertyValues.create(t.getProperty(propertyName));
     }
 

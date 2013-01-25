@@ -16,6 +16,7 @@
  */
 package org.apache.jackrabbit.mongomk.impl.instruction;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,12 +29,13 @@ import org.apache.jackrabbit.mongomk.api.instruction.Instruction.RemoveNodeInstr
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction.SetPropertyInstruction;
 import org.apache.jackrabbit.mongomk.api.instruction.InstructionVisitor;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
-import org.apache.jackrabbit.mongomk.impl.action.FetchNodesActionNew;
 import org.apache.jackrabbit.mongomk.impl.command.NodeExistsCommand;
 import org.apache.jackrabbit.mongomk.impl.exception.NotFoundException;
 import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class reads in the instructions generated from JSON, applies basic checks
@@ -41,10 +43,12 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
  */
 public class CommitCommandInstructionVisitor implements InstructionVisitor {
 
-    private final long headRevisionId;
+    private static final Logger log = LoggerFactory.getLogger(CommitCommandInstructionVisitor.class);
+
+    // the revision this commit is based on
+    private final long baseRevisionId;
     private final MongoNodeStore nodeStore;
     private final Map<String, MongoNode> pathNodeMap;
-    private final List<MongoCommit> validCommits;
 
     private String branchId;
 
@@ -52,14 +56,13 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
      * Creates {@code CommitCommandInstructionVisitor}
      *
      * @param nodeStore Node store.
-     * @param headRevisionId Head revision.
-     * @param validCommits
+     * @param baseRevisionId the revision this commit is based on
      */
-    public CommitCommandInstructionVisitor(MongoNodeStore nodeStore, long headRevisionId,
-            List<MongoCommit> validCommits) {
+    public CommitCommandInstructionVisitor(MongoNodeStore nodeStore,
+                                           long baseRevisionId,
+                                           List<MongoCommit> validCommits) {
         this.nodeStore = nodeStore;
-        this.headRevisionId = headRevisionId;
-        this.validCommits = validCommits;
+        this.baseRevisionId = baseRevisionId;
         pathNodeMap = new HashMap<String, MongoNode>();
     }
 
@@ -93,9 +96,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         }
 
         String parentNodePath = PathUtils.getParentPath(nodePath);
-        // FIXME - Performance
-        //MongoNode parent = getStoredNode(parentNodePath);
-        MongoNode parent = getStagedNode(parentNodePath);
+        MongoNode parent = getStoredNode(parentNodePath);
         if (parent.childExists(nodeName)) {
             throw new RuntimeException("There's already a child node with name '" + nodeName + "'");
         }
@@ -107,9 +108,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
     public void visit(SetPropertyInstruction instruction) {
         String key = instruction.getKey();
         Object value = instruction.getValue();
-        // FIXME - Performance
-        //MongoNode node = getStoredNode(instruction.getPath());
-        MongoNode node = getStagedNode(instruction.getPath());
+        MongoNode node = getStoredNode(instruction.getPath());
         if (value == null) {
             node.removeProp(key);
         } else {
@@ -123,15 +122,14 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         checkAbsolutePath(nodePath);
 
         String parentPath = PathUtils.getParentPath(nodePath);
-        MongoNode parent = getStagedNode(parentPath);
         String nodeName = PathUtils.getName(nodePath);
-        // See OAK-507
-//        MongoNode parent = getStoredNode(parentPath);
-//        if (!parent.childExists(nodeName)) {
-//            throw new RuntimeException("Node " + nodeName
-//                    + " does not exists at parent path: " + parentPath);
-//        }
+        MongoNode parent = getStoredNode(parentPath);
+        if (!parent.childExists(nodeName)) {
+            throw new RuntimeException("Node " + nodeName
+                    + " does not exists at parent path: " + parentPath);
+        }
         parent.removeChild(nodeName);
+        markAsDeleted(nodePath);
     }
 
     @Override
@@ -160,23 +158,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
             throw new RuntimeException("Node already exists at copy destination path: " + destPath);
         }
 
-        // First, copy the existing nodes.
-        Map<String, MongoNode> nodesToCopy = new FetchNodesActionNew(nodeStore,
-                srcPath, FetchNodesActionNew.LIMITLESS_DEPTH, headRevisionId).execute();
-        for (MongoNode nodeMongo : nodesToCopy.values()) {
-            String oldPath = nodeMongo.getPath();
-            String oldPathRel = PathUtils.relativize(srcPath, oldPath);
-            String newPath = PathUtils.concat(destPath, oldPathRel);
-
-            nodeMongo.setPath(newPath);
-            nodeMongo.removeField("_id");
-            pathNodeMap.put(newPath, nodeMongo);
-        }
-
-        // Then, copy any staged changes.
-        MongoNode srcNode = getStoredNode(srcPath, false);
-        MongoNode destNode = getStagedNode(destPath);
-        copyStagedChanges(srcNode, destNode);
+        copy(getStoredNode(srcPath, false), destPath);
 
         // Finally, add to destParent.
         destParent.addChild(destNodeName);
@@ -186,48 +168,17 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
     public void visit(MoveNodeInstruction instruction) {
         String srcPath = instruction.getSourcePath();
         String destPath = instruction.getDestPath();
-        if (PathUtils.isAncestor(srcPath, destPath)) {
-            throw new RuntimeException("Target path cannot be descendant of source path: "
-                    + destPath);
+
+        if (destPath.startsWith(srcPath + "/")) {
+            throw new RuntimeException("Cannot move " + srcPath + " to " + destPath);
         }
 
-        String srcParentPath = PathUtils.getParentPath(srcPath);
-        String srcNodeName = PathUtils.getName(srcPath);
-
-        String destParentPath = PathUtils.getParentPath(destPath);
-        String destNodeName = PathUtils.getName(destPath);
-
-        MongoNode srcParent = getStoredNode(srcParentPath);
-        if (!srcParent.childExists(srcNodeName)) {
-            throw new NotFoundException(srcPath);
-        }
-
-        MongoNode destParent = getStoredNode(destParentPath);
-        if (destParent.childExists(destNodeName)) {
-            throw new RuntimeException("Node already exists at move destination path: " + destPath);
-        }
-
-        // First, copy the existing nodes.
-        Map<String, MongoNode> nodesToCopy = new FetchNodesActionNew(nodeStore,
-                srcPath, FetchNodesActionNew.LIMITLESS_DEPTH, headRevisionId).execute();
-        for (MongoNode nodeMongo : nodesToCopy.values()) {
-            String oldPath = nodeMongo.getPath();
-            String oldPathRel = PathUtils.relativize(srcPath, oldPath);
-            String newPath = PathUtils.concat(destPath, oldPathRel);
-
-            nodeMongo.setPath(newPath);
-            nodeMongo.removeField("_id");
-            pathNodeMap.put(newPath, nodeMongo);
-        }
-
-        // Then, copy any staged changes.
-        MongoNode srcNode = getStoredNode(srcPath, false);
-        MongoNode destNode = getStagedNode(destPath);
-        copyStagedChanges(srcNode, destNode);
-
-        // Finally, add to destParent and remove from srcParent.
-        destParent.addChild(destNodeName);
-        srcParent.removeChild(srcNodeName);
+        // copy source to destination
+        visit(new CopyNodeInstructionImpl(instruction.getPath(),
+                srcPath, instruction.getDestPath()));
+        // delete source tree
+        visit(new RemoveNodeInstructionImpl(PathUtils.getParentPath(srcPath),
+                PathUtils.getName(srcPath)));
     }
 
     private void checkAbsolutePath(String srcPath) {
@@ -258,7 +209,7 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
 
         // First need to check that the path is indeed valid.
         NodeExistsCommand existCommand = new NodeExistsCommand(nodeStore,
-                path, headRevisionId);
+                path, baseRevisionId);
         existCommand.setBranchId(branchId);
         boolean exists = false;
         try {
@@ -266,9 +217,10 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         } catch (Exception ignore) {}
 
         if (!exists) {
-            throw new NotFoundException(path + " @rev" + headRevisionId);
+            throw new NotFoundException(path + " @rev" + baseRevisionId);
         }
         node = existCommand.getNode();
+        log.debug("Read node @{}: {}", baseRevisionId, node);
         node.removeField("_id");
         if (addToMap) {
             pathNodeMap.put(path, node);
@@ -276,27 +228,52 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         return node;
     }
 
-    private void copyStagedChanges(MongoNode srcNode, MongoNode destNode) {
-
-        // Copy staged changes at the top level.
-        copyAddedNodes(srcNode, destNode);
-        copyRemovedNodes(srcNode, destNode);
+    /**
+     * Recursively copies nodes from <code>srcNode</code> to
+     * <code>destPath</code>. This method takes existing nodes as well as
+     * staged nodes into account.
+     *
+     * @param srcNode the source node.
+     */
+    private void copy(MongoNode srcNode, String destPath) {
+        MongoNode destNode = srcNode.copy();
+        destNode.setPath(destPath);
+        destNode.removeField("_id");
         copyAddedProperties(srcNode, destNode);
         copyRemovedProperties(srcNode, destNode);
+        pathNodeMap.put(destPath, destNode);
 
-        // Recursively add staged changes of the descendants.
-        List<String> srcChildren = srcNode.getChildren();
-        if (srcChildren == null || srcChildren.isEmpty()) {
+        List<String> children = new ArrayList<String>();
+        if (srcNode.getChildren() != null) {
+            children.addAll(srcNode.getChildren());
+        }
+        if (srcNode.getRemovedChildren() != null) {
+            for (String child : srcNode.getRemovedChildren()) {
+                destNode.removeChild(child);
+                children.remove(child);
+            }
+        }
+        if (srcNode.getAddedChildren() != null) {
+            for (String child : srcNode.getAddedChildren()) {
+                destNode.addChild(child);
+                children.add(child);
+            }
+        }
+        for (String child : children) {
+            String srcChildPath = PathUtils.concat(srcNode.getPath(), child);
+            String destChildPath = PathUtils.concat(destPath, child);
+            copy(getStoredNode(srcChildPath, false), destChildPath);
+        }
+    }
+
+    private void copyAddedProperties(MongoNode srcNode, MongoNode destNode) {
+        Map<String, Object> addedProps = srcNode.getAddedProps();
+        if (addedProps == null || addedProps.isEmpty()) {
             return;
         }
 
-        for (String childName : srcChildren) {
-            String oldChildPath = PathUtils.concat(srcNode.getPath(), childName);
-            MongoNode oldChild = getStoredNode(oldChildPath);
-
-            String newChildPath = PathUtils.concat(destNode.getPath(), childName);
-            MongoNode newChild = getStagedNode(newChildPath);
-            copyStagedChanges(oldChild, newChild);
+        for (Entry<String, Object> entry : addedProps.entrySet()) {
+            destNode.addProperty(entry.getKey(), entry.getValue());
         }
     }
 
@@ -311,37 +288,19 @@ public class CommitCommandInstructionVisitor implements InstructionVisitor {
         }
     }
 
-    private void copyAddedNodes(MongoNode srcNode, MongoNode destNode) {
-        List<String> addedChildren = srcNode.getAddedChildren();
-        if (addedChildren == null || addedChildren.isEmpty()) {
-            return;
+    private void markAsDeleted(String path) {
+        MongoNode node = getStoredNode(path);
+        node.setDeleted(true);
+        List<String> children = new ArrayList<String>();
+        if (node.getChildren() != null) {
+            children.addAll(node.getChildren());
         }
-
-        for (String childName : addedChildren) {
-            getStagedNode(PathUtils.concat(destNode.getPath(), childName));
-            destNode.addChild(childName);
+        if (node.getAddedChildren() != null) {
+            children.addAll(node.getAddedChildren());
         }
-    }
-
-    private void copyRemovedNodes(MongoNode srcNode, MongoNode destNode) {
-        List<String> removedChildren = srcNode.getRemovedChildren();
-        if (removedChildren == null || removedChildren.isEmpty()) {
-            return;
+        for (String child : children) {
+            markAsDeleted(PathUtils.concat(path, child));
         }
-
-        for (String child : removedChildren) {
-            destNode.removeChild(child);
-        }
-    }
-
-    private void copyAddedProperties(MongoNode srcNode, MongoNode destNode) {
-        Map<String, Object> addedProps = srcNode.getAddedProps();
-        if (addedProps == null || addedProps.isEmpty()) {
-            return;
-        }
-
-        for (Entry<String, Object> entry : addedProps.entrySet()) {
-            destNode.addProperty(entry.getKey(), entry.getValue());
-        }
+        pathNodeMap.put(path, node);
     }
 }

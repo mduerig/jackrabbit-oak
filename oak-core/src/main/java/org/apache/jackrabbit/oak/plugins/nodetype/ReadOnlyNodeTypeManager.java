@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.jcr.Node;
@@ -49,12 +50,13 @@ import org.apache.jackrabbit.commons.iterator.NodeTypeIteratorAdapter;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
+import org.apache.jackrabbit.oak.core.ReadOnlyTree;
 import org.apache.jackrabbit.oak.namepath.NameMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.namepath.NamePathMapperImpl;
+import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeState;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.util.NodeUtil;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static javax.jcr.PropertyType.UNDEFINED;
@@ -72,8 +74,6 @@ import static org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants.NODE_
  */
 public abstract class ReadOnlyNodeTypeManager implements NodeTypeManager, EffectiveNodeTypeProvider, DefinitionProvider {
 
-    private static final Logger log = LoggerFactory.getLogger(ReadOnlyNodeTypeManager.class);
-
     /**
      * Returns the internal name for the specified JCR name.
      *
@@ -84,11 +84,7 @@ public abstract class ReadOnlyNodeTypeManager implements NodeTypeManager, Effect
      */
     @Nonnull
     protected final String getOakName(String jcrName) throws RepositoryException {
-        String oakName = getNamePathMapper().getOakName(jcrName);
-        if (oakName == null) {
-            throw new RepositoryException("Invalid JCR name " + jcrName);
-        }
-        return oakName;
+        return getNamePathMapper().getOakName(jcrName);
     }
 
     /**
@@ -122,11 +118,13 @@ public abstract class ReadOnlyNodeTypeManager implements NodeTypeManager, Effect
     }
 
     //--------------------------------------------------------------------------
+
     /**
      * Return a new instance of {@code ReadOnlyNodeTypeManager} that reads node
      * type information from the tree at {@link NodeTypeConstants#NODE_TYPES_PATH}.
      *
      * @param root The root to read node types from.
+     * @param namePathMapper The {@code NamePathMapper} to use.
      * @return a new instance of {@code ReadOnlyNodeTypeManager}.
      */
     @Nonnull
@@ -142,6 +140,30 @@ public abstract class ReadOnlyNodeTypeManager implements NodeTypeManager, Effect
             @Override
             protected NamePathMapper getNamePathMapper() {
                 return namePathMapper;
+            }
+        };
+    }
+
+    /**
+     * Returns a read-only node type manager based on the types stored within
+     * the content tree starting at the given root node state.
+     *
+     * @param root root node state
+     * @return read-only node type manager
+     */
+    @Nonnull
+    public static ReadOnlyNodeTypeManager getInstance(NodeState root) {
+        Tree tree = new ReadOnlyTree(root).getLocation()
+                .getChild(NODE_TYPES_PATH.substring(1)).getTree();
+
+        final Tree types = tree == null
+            ? new ReadOnlyTree(MemoryNodeState.EMPTY_NODE)  // No node types in content, use an empty node
+            : tree;
+
+        return new ReadOnlyNodeTypeManager() {
+            @Override
+            protected Tree getTypes() {
+                return types;
             }
         };
     }
@@ -200,23 +222,27 @@ public abstract class ReadOnlyNodeTypeManager implements NodeTypeManager, Effect
     }
 
     @Override
-    public NodeTypeTemplate createNodeTypeTemplate() throws RepositoryException {
-        return new NodeTypeTemplateImpl(this, getNamePathMapper(), getValueFactory());
+    public NodeTypeTemplate createNodeTypeTemplate()
+            throws RepositoryException {
+        throw new UnsupportedRepositoryOperationException();
     }
 
     @Override
-    public NodeTypeTemplate createNodeTypeTemplate(NodeTypeDefinition ntd) throws RepositoryException {
-        return new NodeTypeTemplateImpl(this, getNamePathMapper(), getValueFactory(), ntd);
+    public NodeTypeTemplate createNodeTypeTemplate(NodeTypeDefinition ntd)
+            throws RepositoryException {
+        throw new UnsupportedRepositoryOperationException();
     }
 
     @Override
-    public NodeDefinitionTemplate createNodeDefinitionTemplate() {
-        return new NodeDefinitionTemplateImpl(getNamePathMapper());
+    public NodeDefinitionTemplate createNodeDefinitionTemplate()
+            throws RepositoryException {
+        throw new UnsupportedRepositoryOperationException();
     }
 
     @Override
-    public PropertyDefinitionTemplate createPropertyDefinitionTemplate() {
-        return new PropertyDefinitionTemplateImpl(getNamePathMapper());
+    public PropertyDefinitionTemplate createPropertyDefinitionTemplate()
+            throws RepositoryException {
+        throw new UnsupportedRepositoryOperationException();
     }
 
     /**

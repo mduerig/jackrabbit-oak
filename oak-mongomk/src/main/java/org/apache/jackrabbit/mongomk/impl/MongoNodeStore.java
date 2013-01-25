@@ -16,7 +16,6 @@
  */
 package org.apache.jackrabbit.mongomk.impl;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -27,12 +26,12 @@ import org.apache.jackrabbit.mongomk.api.command.CommandExecutor;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
-import org.apache.jackrabbit.mongomk.impl.command.CommitCommandNew;
+import org.apache.jackrabbit.mongomk.impl.command.CommitCommand;
 import org.apache.jackrabbit.mongomk.impl.command.DefaultCommandExecutor;
 import org.apache.jackrabbit.mongomk.impl.command.DiffCommand;
 import org.apache.jackrabbit.mongomk.impl.command.GetHeadRevisionCommand;
 import org.apache.jackrabbit.mongomk.impl.command.GetJournalCommand;
-import org.apache.jackrabbit.mongomk.impl.command.GetNodesCommandNew;
+import org.apache.jackrabbit.mongomk.impl.command.GetNodesCommand;
 import org.apache.jackrabbit.mongomk.impl.command.GetRevisionHistoryCommand;
 import org.apache.jackrabbit.mongomk.impl.command.MergeCommand;
 import org.apache.jackrabbit.mongomk.impl.command.NodeExistsCommand;
@@ -63,13 +62,35 @@ public class MongoNodeStore implements NodeStore {
     public static final String COLLECTION_NODES = "nodes";
     public static final String COLLECTION_SYNC = "sync";
 
+    private static final int COMMIT_CACHE_SIZE;
+    private static final int NODE_CACHE_SIZE;
+
+    static {
+        int commitCacheSize = 1000;
+        try {
+            commitCacheSize = Integer.parseInt(
+                    System.getProperty("mongomk.commitCacheSize", "" + commitCacheSize));
+        } catch (NumberFormatException e) {
+            // use default
+        }
+        COMMIT_CACHE_SIZE = commitCacheSize;
+        int nodeCacheSize = 10000;
+        try {
+            nodeCacheSize = Integer.parseInt(
+                    System.getProperty("mongomk.nodeCacheSize", "" + nodeCacheSize));
+        } catch (NumberFormatException e) {
+            // use default
+        }
+        NODE_CACHE_SIZE = nodeCacheSize;
+    }
+
     private static final Logger LOG = LoggerFactory.getLogger(MongoNodeStore.class);
 
     private final CommandExecutor commandExecutor;
     private final DB db;
 
-    private Map<Long, MongoCommit> commitCache = Collections.synchronizedMap(SimpleLRUCache.<Long, MongoCommit> newInstance(1000));
-    private Map<String, MongoNode> nodeCache = Collections.synchronizedMap(SimpleLRUCache.<String, MongoNode> newInstance(10000));
+    private Map<Long, MongoCommit> commitCache = Collections.synchronizedMap(SimpleLRUCache.<Long, MongoCommit> newInstance(COMMIT_CACHE_SIZE));
+    private Map<String, MongoNode> nodeCache = Collections.synchronizedMap(SimpleLRUCache.<String, MongoNode> newInstance(NODE_CACHE_SIZE));
 
     /**
      * Constructs a new {@code NodeStoreMongo}.
@@ -84,7 +105,7 @@ public class MongoNodeStore implements NodeStore {
 
     @Override
     public String commit(Commit commit) throws Exception {
-        Command<Long> command = new CommitCommandNew(this, commit);
+        Command<Long> command = new CommitCommand(this, commit);
         Long revisionId = commandExecutor.execute(command);
         return MongoUtil.fromMongoRepresentation(revisionId);
     }
@@ -111,7 +132,7 @@ public class MongoNodeStore implements NodeStore {
     @Override
     public Node getNodes(String path, String revisionId, int depth, long offset,
             int maxChildNodes, String filter) throws Exception {
-        GetNodesCommandNew command = new GetNodesCommandNew(this, path,
+        GetNodesCommand command = new GetNodesCommand(this, path,
                 MongoUtil.toMongoRepresentation(revisionId));
         command.setBranchId(getBranchId(revisionId));
         command.setDepth(depth);
@@ -200,6 +221,17 @@ public class MongoNodeStore implements NodeStore {
     }
 
     /**
+     * Evicts the commit from the {@link #commitCache}.
+     *
+     * @param commit the commit.
+     */
+    public void evict(MongoCommit commit) {
+        if (commitCache.remove(commit.getRevisionId()) != null) {
+            LOG.debug("Removed commit {} from cache", commit.getRevisionId());
+        }
+    }
+
+    /**
      * Returns the commit from the cache or null if the commit is not in the cache.
      *
      * @param revisionId Commit revision id.
@@ -225,7 +257,7 @@ public class MongoNodeStore implements NodeStore {
         String key = path + "*" + branchId + "*" + revisionId;
         if (!nodeCache.containsKey(key)) {
             LOG.debug("Adding node to cache: {}", key);
-            nodeCache.put(key, node);
+            nodeCache.put(key, node.copy());
         }
     }
 
@@ -244,7 +276,7 @@ public class MongoNodeStore implements NodeStore {
             return null;
         }
         LOG.debug("Returning node from cache: {}", key);
-        return node;
+        return node.copy();
     }
 
     private void init() {
@@ -265,7 +297,7 @@ public class MongoNodeStore implements NodeStore {
         options.put("unique", Boolean.TRUE);
         commitCollection.ensureIndex(index, options);
         MongoCommit commit = new MongoCommit();
-        commit.setAffectedPaths(Arrays.asList(new String[] { "/" }));
+        commit.setAffectedPaths(Collections.singleton("/"));
         commit.setBaseRevisionId(0L);
         commit.setDiff(INITIAL_COMMIT_DIFF);
         commit.setMessage(INITIAL_COMMIT_MESSAGE);

@@ -28,13 +28,13 @@ import org.slf4j.LoggerFactory;
 /**
  * ResultRowToAuthorizable... TODO
  */
-public class ResultRowToAuthorizable implements Function<ResultRow, Authorizable> {
+class ResultRowToAuthorizable implements Function<ResultRow, Authorizable> {
 
     private static final Logger log = LoggerFactory.getLogger(ResultRowToAuthorizable.class);
 
     private final UserManager userManager;
 
-    public ResultRowToAuthorizable(UserManager userManager) {
+    ResultRowToAuthorizable(UserManager userManager) {
         this.userManager = userManager;
     }
 

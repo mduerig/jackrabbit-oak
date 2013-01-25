@@ -218,11 +218,10 @@ public class ReadOnlyTree implements Tree {
 
     //-------------------------------------------------------< TreeLocation >---
 
-    private class NodeLocation implements TreeLocation {
-        private final ReadOnlyTree tree;
+    private class NodeLocation extends AbstractNodeLocation<ReadOnlyTree> {
 
         private NodeLocation(ReadOnlyTree tree) {
-            this.tree = checkNotNull(tree);
+            super(tree);
         }
 
         @Override
@@ -261,8 +260,8 @@ public class ReadOnlyTree implements Tree {
         }
 
         @Override
-        public String getPath() {
-            return tree.getPath();
+        public boolean remove() {
+            return false;
         }
 
         @Override
@@ -271,48 +270,25 @@ public class ReadOnlyTree implements Tree {
         }
 
         @Override
-        public PropertyState getProperty() {
-            return null;
-        }
-
-        @Override
         public Status getStatus() {
             return tree.getStatus();
         }
     }
 
-    private class PropertyLocation implements TreeLocation {
-        private final NodeLocation parent;
-        private final String name;
+    private class PropertyLocation extends AbstractPropertyLocation<NodeLocation> {
 
-        private PropertyLocation(NodeLocation parent, String name) {
-            this.parent = checkNotNull(parent);
-            this.name = checkNotNull(name);
+        private PropertyLocation(NodeLocation parentLocation, String name) {
+            super(parentLocation, name);
         }
 
         @Override
-        public TreeLocation getParent() {
-            return parent;
-        }
-
-        @Override
-        public TreeLocation getChild(String relPath) {
-            return TreeLocation.NULL;
-        }
-
-        @Override
-        public String getPath() {
-            return PathUtils.concat(parent.getPath(), name);
-        }
-
-        @Override
-        public Tree getTree() {
-            return null;
+        public boolean remove() {
+            return false;
         }
 
         @Override
         public PropertyState getProperty() {
-            return parent.tree.getProperty(name);
+            return parentLocation.tree.getProperty(name);
         }
 
         @Override

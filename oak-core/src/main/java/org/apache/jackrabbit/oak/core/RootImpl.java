@@ -125,6 +125,7 @@ public class RootImpl implements Root {
     public Root getLatest() {
         checkLive();
         RootImpl root = new RootImpl(store, null, subject, accConfiguration, indexProvider) {
+            @Override
             protected void checkLive() {
                 RootImpl.this.checkLive();
             }

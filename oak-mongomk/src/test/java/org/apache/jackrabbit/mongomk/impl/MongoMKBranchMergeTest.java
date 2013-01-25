@@ -1,10 +1,31 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.jackrabbit.mongomk.impl;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -277,7 +298,6 @@ public class MongoMKBranchMergeTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME - due to CommitCommandInstructionVisitor add node change.
     public void addExistingRootInBranch() {
         addNodes(null, "/root");
         assertNodesExist(null, "/root");
@@ -290,7 +310,6 @@ public class MongoMKBranchMergeTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME - due to CommitCommandInstructionVisitor add node change.
     public void addExistingChildInBranch() {
         addNodes(null, "/root", "/root/child1");
         assertNodesExist(null, "/root", "/root/child1");
@@ -306,6 +325,7 @@ public class MongoMKBranchMergeTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
+    @Ignore("Implementation specific behavior")
     public void emptyMergeCausesNoChange() {
         String rev1 = mk.commit("", "+\"/child1\":{}", null, "");
 
@@ -329,20 +349,63 @@ public class MongoMKBranchMergeTest extends BaseMongoMicroKernelTest {
         } catch (Exception expected) {}
     }
 
-    private String addNodes(String rev, String...nodes) {
-        String newRev = rev;
-        for (String node : nodes) {
-            newRev = mk.commit("", "+\"" + node + "\":{}", rev, "");
+    @Test
+    public void movesInBranch() {
+        String rev = mk.commit("/", "+\"a\":{\"b\":{}}", null, null);
+        String branchRev = mk.branch(rev);
+        branchRev = mk.commit("/", ">\"a\":\"x\"^\"x/b/p\":1>\"x\":\"a\"", branchRev, null);
+        rev = mk.merge(branchRev, null);
+        assertNodesExist(rev, "/a", "/a/b");
+        assertPropExists(rev, "/a/b", "p");
+    }
+
+    @Test
+    public void concurrentNonConflictingMerges() throws Exception {
+        int numThreads = 10;
+        mk.commit("/", "+\"test\":{}", null, null);
+        List<Thread> workers = new ArrayList<Thread>();
+        final List<Exception> exceptions = Collections.synchronizedList(new ArrayList<Exception>());
+        for (int i = 0; i < numThreads; i++) {
+            final String path = "/test/t" + i;
+            mk.commit("", "+\"" + path + "\":{}", null, null);
+            workers.add(new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        for (int i = 0; i < 50; i++) {
+                            String branchRev = mk.branch(null);
+                            branchRev = mk.commit(path, "+\"node" + i + "\":{}", branchRev, null);
+                            mk.merge(branchRev, null);
+                        }
+                    } catch (MicroKernelException e) {
+                        exceptions.add(e);
+                    }
+                }
+            }));
         }
-        return newRev;
+        for (Thread t : workers) {
+            t.start();
+        }
+        for (Thread t : workers) {
+            t.join();
+        }
+        if (!exceptions.isEmpty()) {
+            throw exceptions.get(0);
+        }
+    }
+
+    private String addNodes(String rev, String...nodes) {
+        for (String node : nodes) {
+            rev = mk.commit("", "+\"" + node + "\":{}", rev, "");
+        }
+        return rev;
     }
 
     private String removeNodes(String rev, String...nodes) {
-        String newRev = rev;
         for (String node : nodes) {
-            newRev = mk.commit("", "-\"" + node + "\"", rev, "");
+            rev = mk.commit("", "-\"" + node + "\"", rev, "");
         }
-        return newRev;
+        return rev;
     }
 
     private String setProp(String rev, String prop, Object value) {

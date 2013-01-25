@@ -30,11 +30,11 @@ import javax.jcr.ImportUUIDBehavior;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.nodetype.ConstraintViolationException;
-import javax.jcr.nodetype.NodeType;
 import javax.jcr.nodetype.PropertyDefinition;
 
 import org.apache.jackrabbit.api.JackrabbitSession;
 import org.apache.jackrabbit.api.security.principal.PrincipalIterator;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.Impersonation;
@@ -48,7 +48,6 @@ import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.identifier.IdentifierManager;
 import org.apache.jackrabbit.oak.security.principal.PrincipalImpl;
 import org.apache.jackrabbit.oak.spi.security.ConfigurationParameters;
-import org.apache.jackrabbit.oak.spi.security.principal.PrincipalProvider;
 import org.apache.jackrabbit.oak.spi.security.user.UserConstants;
 import org.apache.jackrabbit.oak.spi.xml.NodeInfo;
 import org.apache.jackrabbit.oak.spi.xml.PropInfo;
@@ -181,7 +180,6 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
             return false;
         }
 
-
         initialized = true;
         return initialized;
     }
@@ -217,8 +215,7 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
 
     // -----------------------------------------< ProtectedPropertyImporter >---
     @Override
-    public boolean handlePropInfo(Tree parent, PropInfo propInfo,
-                                  PropertyDefinition def) throws RepositoryException {
+    public boolean handlePropInfo(Tree parent, PropInfo propInfo, PropertyDefinition def) throws RepositoryException {
         checkInitialized();
 
         Authorizable a = userManager.getAuthorizable(parent);
@@ -227,15 +224,14 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
             return false;
         }
 
-        String propString = propInfo.getName();
-        if (UserConstants.REP_PRINCIPAL_NAME.equals(propString)) {
-            if (isViolatingDefinition(propString, def, UserConstants.NT_REP_AUTHORIZABLE, false)) {
+        String propName = propInfo.getName();
+        if (UserConstants.REP_PRINCIPAL_NAME.equals(propName)) {
+            if (!isValid(def, UserConstants.NT_REP_AUTHORIZABLE, false)) {
                 return false;
             }
 
             String principalName = propInfo.getTextValue().getString();
             userManager.setPrincipal(parent, new TreeBasedPrincipal(principalName, parent, namePathMapper));
-
             /*
             Execute authorizable actions for a NEW group as this is the
             same place in the userManager#createGroup that the actions
@@ -250,10 +246,10 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
                     userManager.onCreate((User) a, currentPw.remove(a.getID()));
                 }
             }
-
             return true;
-        } else if (UserConstants.REP_PASSWORD.equals(propString)) {
-            if (isWrongType(a, false) || isViolatingDefinition(propString, def, UserConstants.NT_REP_USER, false)) {
+        } else if (UserConstants.REP_PASSWORD.equals(propName)) {
+            if (a.isGroup() || !isValid(def, UserConstants.NT_REP_USER, false)) {
+                log.warn("Unexpected authorizable or definition for property rep:password");
                 return false;
             }
 
@@ -276,8 +272,9 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
             }
             return true;
 
-        } else if (UserConstants.REP_IMPERSONATORS.equals(propString)) {
-            if (isWrongType(a, false) || isViolatingDefinition(propString, def, UserConstants.MIX_REP_IMPERSONATABLE, true)) {
+        } else if (UserConstants.REP_IMPERSONATORS.equals(propName)) {
+            if (a.isGroup() || !isValid(def, UserConstants.MIX_REP_IMPERSONATABLE, true)) {
+                log.warn("Unexpected authorizable or definition for property rep:impersonators");
                 return false;
             }
             // since impersonators may be imported later on, postpone processing
@@ -287,17 +284,17 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
             referenceTracker.processedReference(new Impersonators(a.getID(), tvs));
             return true;
 
-        } else if (UserConstants.REP_DISABLED.equals(propString)) {
-            if (isWrongType(a, false) || isViolatingDefinition(propString, def, UserConstants.NT_REP_USER, false)) {
-                log.warn("Unexpected definition for property rep:disabled");
+        } else if (UserConstants.REP_DISABLED.equals(propName)) {
+            if (a.isGroup() || !isValid(def, UserConstants.NT_REP_USER, false)) {
+                log.warn("Unexpected authorizable or definition for property rep:disabled");
                 return false;
             }
 
             ((User) a).disable(propInfo.getTextValue().getString());
             return true;
 
-        } else if (UserConstants.REP_MEMBERS.equals(propString)) {
-            if (isWrongType(a, true) || isViolatingDefinition(propString, def, UserConstants.NT_REP_GROUP, true)) {
+        } else if (UserConstants.REP_MEMBERS.equals(propName)) {
+            if (!a.isGroup() || !isValid(def, UserConstants.NT_REP_GROUP, true)) {
                 return false;
             }
             // since group-members are references to user/groups that potentially
@@ -393,8 +390,8 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
     }
 
     @Nonnull
-    private PrincipalProvider getPrincipalProvider() throws RepositoryException {
-        return userManager.getPrincipalProvider();
+    private PrincipalManager getPrincipalManager() throws RepositoryException {
+        return userManager.getPrincipalManager();
     }
 
     private void checkInitialized() {
@@ -403,27 +400,9 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
         }
     }
 
-    private boolean isNodeType(String oakName, NodeType nodeType) {
-        return oakName.equals(namePathMapper.getJcrName(nodeType.getName()));
-    }
-
-    private boolean isViolatingDefinition(String propertyName, PropertyDefinition definition,
-                                 String oakNodeTypeName, boolean multipleStatus) {
-        if (multipleStatus == definition.isMultiple() && isNodeType(oakNodeTypeName, definition.getDeclaringNodeType())) {
-            return false;
-        } else {
-            log.warn("Unexpected definition for property " + propertyName);
-            return true;
-        }
-    }
-
-    private static boolean isWrongType(Authorizable a, boolean isExpectedGroup) {
-        if (a.isGroup() != isExpectedGroup) {
-            log.warn("Expected parent node of to be {}.", (isExpectedGroup) ? "group" : "user");
-            return false;
-        } else {
-            return true;
-        }
+    private boolean isValid(PropertyDefinition definition, String oakNodeTypeName, boolean multipleStatus) {
+        return multipleStatus == definition.isMultiple() &&
+               definition.getDeclaringNodeType().isNodeType(namePathMapper.getJcrName(oakNodeTypeName));
     }
 
     /**
@@ -607,7 +586,7 @@ public class UserImporter implements ProtectedPropertyImporter, ProtectedNodeImp
                 if (!imp.grantImpersonation(new PrincipalImpl(principalName))) {
                     handleFailure("Failed to grant impersonation for " + principalName + " on " + a);
                     if (importBehavior == ImportBehavior.BESTEFFORT &&
-                            getPrincipalProvider().getPrincipal(principalName) == null) {
+                            getPrincipalManager().getPrincipal(principalName) == null) {
                         log.info("ImportBehavior.BESTEFFORT: Remember non-existing impersonator for special processing.");
                         nonExisting.add(principalName);
                     }

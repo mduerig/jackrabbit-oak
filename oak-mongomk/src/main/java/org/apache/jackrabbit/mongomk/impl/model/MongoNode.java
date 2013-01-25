@@ -32,6 +32,7 @@ import com.mongodb.BasicDBObject;
 public class MongoNode extends BasicDBObject {
 
     public static final String KEY_CHILDREN = "children";
+    public static final String KEY_DELETED = "deleted";
     public static final String KEY_PATH = "path";
     public static final String KEY_PROPERTIES = "props";
     public static final String KEY_REVISION_ID = "revId";
@@ -101,6 +102,18 @@ public class MongoNode extends BasicDBObject {
         }
     }
 
+    public boolean isDeleted() {
+        return getBoolean(KEY_DELETED);
+    }
+
+    public void setDeleted(boolean deleted) {
+        if (deleted) {
+            put(KEY_DELETED, Boolean.TRUE);
+        } else {
+            remove(KEY_DELETED);
+        }
+    }
+
     public String getPath() {
         return getString(KEY_PATH);
     }
@@ -131,6 +144,13 @@ public class MongoNode extends BasicDBObject {
         put(KEY_REVISION_ID, revisionId);
     }
 
+    @Override
+    public MongoNode copy() {
+        MongoNode copy = new MongoNode();
+        copy.putAll((Map) super.copy());
+        return copy;
+    }
+
     //--------------------------------------------------------------------------
     //
     // These properties are used to keep track of changes but not persisted
@@ -138,10 +158,17 @@ public class MongoNode extends BasicDBObject {
     //--------------------------------------------------------------------------
 
     public void addChild(String childName) {
+        if (removedChildren != null && removedChildren.remove(childName)) {
+            return;
+        }
+
         if (addedChildren == null) {
             addedChildren = new LinkedList<String>();
         }
-        addedChildren.add(childName);
+
+        if (!addedChildren.contains(childName)) {
+            addedChildren.add(childName);
+        }
     }
 
     public List<String> getAddedChildren() {
@@ -149,10 +176,17 @@ public class MongoNode extends BasicDBObject {
     }
 
     public void removeChild(String childName) {
+        if (addedChildren != null && addedChildren.remove(childName)) {
+            return;
+        }
+
         if (removedChildren == null) {
             removedChildren = new LinkedList<String>();
         }
-        removedChildren.add(childName);
+
+        if (!removedChildren.contains(childName)) {
+            removedChildren.add(childName);
+        }
     }
 
     public List<String> getRemovedChildren() {

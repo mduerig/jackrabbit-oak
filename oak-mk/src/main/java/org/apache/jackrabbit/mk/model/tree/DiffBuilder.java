@@ -46,9 +46,15 @@ public class DiffBuilder {
 
     public String build() throws Exception {
         final JsopBuilder buff = new JsopBuilder();
-        // maps (key: id of target node, value: path/to/target)
+
+        // maps (key: the target node, value: the path to the target)
         // for tracking added/removed nodes; this allows us
         // to detect 'move' operations
+
+        // TODO performance problem: this class uses NodeState as a hash key,
+        // which is not recommended because the hashCode and equals methods
+        // of those classes are slow
+
         final HashMap<NodeState, String> addedNodes = new HashMap<NodeState, String>();
         final HashMap<NodeState, String> removedNodes = new HashMap<NodeState, String>();
 
@@ -60,7 +66,7 @@ public class DiffBuilder {
         if (before == null) {
             if (after != null) {
                 buff.tag('+').key(path).object();
-                toJson(buff, after);
+                toJson(buff, after, depth);
                 return buff.endObject().newline().toString();
             } else {
                 // path doesn't exist in the specified revisions
@@ -117,7 +123,7 @@ public class DiffBuilder {
                     addedNodes.put(after, p);
                     buff.tag('+').
                             key(p).object();
-                    toJson(buff, after);
+                    toJson(buff, after, depth);
                     buff.endObject().newline();
                 }
             }
@@ -215,7 +221,7 @@ public class DiffBuilder {
                     if (p.startsWith(pathFilter)) {
                         buff.tag('+').
                                 key(p).object();
-                        toJson(buff, after);
+                        toJson(buff, after, depth);
                         buff.endObject().newline();
                     }
                 }
@@ -267,14 +273,16 @@ public class DiffBuilder {
         return buff.toString();
     }
 
-    private void toJson(JsopBuilder builder, NodeState node) {
+    private void toJson(JsopBuilder builder, NodeState node, int depth) {
         for (PropertyState property : node.getProperties()) {
             builder.key(property.getName()).encodedValue(property.getEncodedValue());
         }
-        for (ChildNode entry : node.getChildNodeEntries(0, -1)) {
-            builder.key(entry.getName()).object();
-            toJson(builder, entry.getNode());
-            builder.endObject();
+        if (depth != 0) {
+            for (ChildNode entry : node.getChildNodeEntries(0, -1)) {
+                builder.key(entry.getName()).object();
+                toJson(builder, entry.getNode(), depth < 0 ? depth : depth - 1);
+                builder.endObject();
+            }
         }
     }
 }

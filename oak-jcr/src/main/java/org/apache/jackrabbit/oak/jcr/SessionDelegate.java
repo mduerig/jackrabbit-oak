@@ -278,13 +278,8 @@ public class SessionDelegate {
      * @throws RepositoryException if the name is invalid
      */
     @Nonnull
-    public String getOakNameOrThrow(String jcrName) throws RepositoryException {
-        String oakName = getNamePathMapper().getOakName(jcrName);
-        if (oakName != null) {
-            return oakName;
-        } else {
-            throw new RepositoryException("Invalid name: " + jcrName);
-        }
+    public String getOakName(String jcrName) throws RepositoryException {
+        return getNamePathMapper().getOakName(jcrName);
     }
 
     /**
@@ -342,7 +337,7 @@ public class SessionDelegate {
      * @throws RepositoryException if the path can not be mapped
      */
     @Nonnull
-    public String getOakPathOrThrow(String jcrPath)
+    public String getOakPath(String jcrPath)
             throws RepositoryException {
         String oakPath = getOakPathOrNull(jcrPath);
         if (oakPath != null) {
@@ -505,7 +500,7 @@ public class SessionDelegate {
     PrincipalManager getPrincipalManager() throws RepositoryException {
         if (principalManager == null) {
             if (securityProvider != null) {
-                principalManager = securityProvider.getPrincipalConfiguration().getPrincipalManager(session, root, getNamePathMapper());
+                principalManager = securityProvider.getPrincipalConfiguration().getPrincipalManager(root, getNamePathMapper());
             } else {
                 throw new UnsupportedRepositoryOperationException("Principal management not supported.");
             }
@@ -549,7 +544,7 @@ public class SessionDelegate {
 
     void checkProtectedNodes(String... absJcrPaths) throws RepositoryException {
         for (String absPath : absJcrPaths) {
-            NodeImpl node = (NodeImpl) session.getNode(absPath);
+            NodeImpl<?> node = (NodeImpl<?>) session.getNode(absPath);
             node.checkProtected();
         }
     }

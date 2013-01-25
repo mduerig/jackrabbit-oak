@@ -25,7 +25,7 @@ import org.apache.jackrabbit.mk.json.JsopBuilder;
 import org.apache.jackrabbit.mk.model.tree.DiffBuilder;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
 import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
-import org.apache.jackrabbit.mongomk.impl.action.FetchNodesActionNew;
+import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
 import org.apache.jackrabbit.mongomk.impl.model.MongoCommit;
 import org.apache.jackrabbit.mongomk.impl.model.MongoNode;
 import org.apache.jackrabbit.mongomk.impl.model.NodeImpl;
@@ -61,11 +61,11 @@ public class OneLevelDiffCommand extends BaseCommand<String> {
                 nodeStore, fromRevision).execute();
         MongoCommit toCommit = new FetchCommitAction(
                 nodeStore, toRevision).execute();
-        FetchNodesActionNew action = new FetchNodesActionNew(
+        FetchNodesAction action = new FetchNodesAction(
                 nodeStore, path, 0, fromRevision);
         action.setBranchId(fromCommit.getBranchId());
         NodeImpl fromNode = MongoNode.toNode(action.execute().get(path));
-        action = new FetchNodesActionNew(
+        action = new FetchNodesAction(
                 nodeStore, path, 0, toRevision);
         action.setBranchId(toCommit.getBranchId());
         NodeImpl toNode = MongoNode.toNode(action.execute().get(path));
@@ -81,13 +81,13 @@ public class OneLevelDiffCommand extends BaseCommand<String> {
         // find out what changed below path
         List<MongoCommit> commits = getCommits(fromCommit, toCommit);
         Set<String> affectedPaths = new HashSet<String>();
+        String from = (PathUtils.denotesRoot(path) ? path : path + "/") + "\u0000";
+        String to = (PathUtils.denotesRoot(path) ? path : path + "/") + "\uFFFF";
         for (MongoCommit mc : commits) {
-            for (String p : mc.getAffectedPaths()) {
-                if (p.startsWith(path)) {
-                    int d = PathUtils.getDepth(p);
-                    if (d > pathDepth) {
-                        affectedPaths.add(PathUtils.getAncestorPath(p, d - pathDepth - 1));
-                    }
+            for (String p : mc.getAffectedPaths().subSet(from, to)) {
+                int d = PathUtils.getDepth(p);
+                if (d > pathDepth) {
+                    affectedPaths.add(PathUtils.getAncestorPath(p, d - pathDepth - 1));
                 }
             }
         }

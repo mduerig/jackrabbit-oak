@@ -19,7 +19,6 @@ package org.apache.jackrabbit.oak.plugins.value;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.Calendar;
-
 import javax.jcr.Binary;
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
@@ -29,8 +28,6 @@ import javax.jcr.ValueFormatException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -39,7 +36,6 @@ import static com.google.common.base.Preconditions.checkState;
  * Implementation of {@link Value} based on {@code PropertyState}.
  */
 public class ValueImpl implements Value {
-    private static final Logger log = LoggerFactory.getLogger(ValueImpl.class);
 
     private final PropertyState propertyState;
     private final int index;
@@ -71,6 +67,15 @@ public class ValueImpl implements Value {
      */
     ValueImpl(PropertyState property, NamePathMapper namePathMapper) {
         this(checkSingleValued(property), 0, namePathMapper);
+    }
+
+    /**
+     * Same as {@link #getString()} unless that names and paths are returned in their
+     * Oak representation instead of being mapped to their JCR representation.
+     * @return  A String representation of the value of this property.
+     */
+    public String getOakString() {
+        return propertyState.getValue(Type.STRING, index);
     }
 
     private static PropertyState checkSingleValued(PropertyState property) {
@@ -208,9 +213,9 @@ public class ValueImpl implements Value {
 
         switch (getType()) {
             case PropertyType.NAME:
-                return namePathMapper.getJcrName(propertyState.getValue(Type.STRING, index));
+                return namePathMapper.getJcrName(getOakString());
             case PropertyType.PATH:
-                String s = propertyState.getValue(Type.STRING, index);
+                String s = getOakString();
                 if (s.startsWith("[") && s.endsWith("]")) {
                     // identifier paths are returned as-is (JCR 2.0, 3.4.3.1)
                     return s;
@@ -218,7 +223,7 @@ public class ValueImpl implements Value {
                     return namePathMapper.getJcrPath(s);
                 }
             default:
-                return propertyState.getValue(Type.STRING, index);
+                return getOakString();
         }
     }
 
@@ -226,14 +231,14 @@ public class ValueImpl implements Value {
      * @see javax.jcr.Value#getStream()
      */
     @Override
-    public InputStream getStream() throws IllegalStateException, RepositoryException {
+    public InputStream getStream() throws IllegalStateException {
         if (stream == null) {
             stream = getNewStream();
         }
         return stream;
     }
 
-    InputStream getNewStream() throws RepositoryException {
+    InputStream getNewStream() {
         return propertyState.getValue(Type.BINARY, index).getNewStream();
     }
 
@@ -271,15 +276,14 @@ public class ValueImpl implements Value {
     public int hashCode() {
         if (getType() == PropertyType.BINARY) {
             return propertyState.getValue(Type.BINARY, index).hashCode();
-        }
-        else {
-            return propertyState.getValue(Type.STRING, index).hashCode();
+        } else {
+            return getOakString().hashCode();
         }
     }
 
     @Override
     public String toString() {
-        return propertyState.getValue(Type.STRING, index);
+        return getOakString();
     }
 
     private static int compare(PropertyState p1, int i1, PropertyState p2, int i2) {

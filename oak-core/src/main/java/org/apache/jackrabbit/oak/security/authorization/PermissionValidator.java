@@ -33,6 +33,8 @@ import org.apache.jackrabbit.oak.util.NodeUtil;
 import org.apache.jackrabbit.oak.version.VersionConstants;
 import org.apache.jackrabbit.util.Text;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 /**
  * PermissionValidator... TODO
  */
@@ -134,6 +136,8 @@ class PermissionValidator extends DefaultValidator {
     }
 
     private Validator checkPermissions(NodeUtil node, boolean isBefore, int defaultPermission) throws CommitFailedException {
+        checkNotNull(node);
+
         Tree tree = node.getTree();
         String path = tree.getPath();
         int permission;

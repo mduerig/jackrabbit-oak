@@ -23,7 +23,7 @@
   <parent>
     <groupId>org.apache.jackrabbit</groupId>
     <artifactId>oak-parent</artifactId>
-    <version>0.6-SNAPSHOT</version>
+    <version>0.7-SNAPSHOT</version>
     <relativePath>../oak-parent/pom.xml</relativePath>
   </parent>
 
@@ -201,6 +201,8 @@
       org.apache.jackrabbit.test.api.query.qom.ColumnTest#testExpandColumnsForNodeType               <!-- OAK-323 -->
       org.apache.jackrabbit.test.api.query.GetPropertyNamesTest#testGetPropertyNames                 <!-- OAK-323 -->
       org.apache.jackrabbit.test.api.query.qom.SelectorTest#testUnknownNodeType                      <!-- OAK-476 -->
+      org.apache.jackrabbit.test.api.query.qom.EquiJoinConditionTest#testRightOuterJoin1 <!-- bug in test case, see OAK-559 -->
+      org.apache.jackrabbit.test.api.query.qom.EquiJoinConditionTest#testLeftOuterJoin2 <!-- bug in test case, see OAK-559 -->
       org.apache.jackrabbit.test.api.observation.EventTest#testGetUserId
       org.apache.jackrabbit.test.api.observation.NodeMovedTest#testMoveNode
       org.apache.jackrabbit.test.api.observation.NodeMovedTest#testMoveTree
@@ -209,7 +211,6 @@
       org.apache.jackrabbit.test.api.observation.NodeReorderTest#testNodeReorderMove                <!-- reorder not supported -->
       org.apache.jackrabbit.test.api.observation.NodeReorderTest#testNodeReorderSameName            <!-- reorder not supported -->
       org.apache.jackrabbit.test.api.observation.NodeReorderTest#testNodeReorderSameNameWithRemove  <!-- reorder not supported -->
-      org.apache.jackrabbit.test.api.observation.AddEventListenerTest#testNodeType
       org.apache.jackrabbit.test.api.observation.AddEventListenerTest#testNoLocalTrue
       org.apache.jackrabbit.test.api.observation.GetIdentifierTest#testNodeAdded
       org.apache.jackrabbit.test.api.observation.GetIdentifierTest#testNodeMoved
@@ -225,7 +226,6 @@
       org.apache.jackrabbit.oak.jcr.security.user.EveryoneGroupTest#testMembers                                <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.FindAuthorizablesTest#testFindAuthorizableByAddedProperty    <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.FindAuthorizablesTest#testFindAuthorizableByRelativePath     <!-- OAK-343 -->
-      org.apache.jackrabbit.oak.jcr.security.user.UserQueryTest                                          <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.UserManagerTest#testGetNewAuthorizable                 <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.UserManagerTest#testCreateGroupWithExistingPrincipal2  <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.UserManagerTest#testCreateGroupWithExistingPrincipal3  <!-- OAK-343 -->
@@ -235,9 +235,6 @@
       org.apache.jackrabbit.oak.jcr.security.user.GroupTest#testInheritedMembers                         <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.GroupTest#testCyclicGroups                             <!-- OAK-343 -->
       org.apache.jackrabbit.oak.jcr.security.user.AuthorizableTest#testRemoveListedAuthorizable          <!-- OAK-343 -->
-      org.apache.jackrabbit.oak.jcr.security.principal.PrincipalManagerTest#testFindPrincipal            <!-- OAK-545 -->
-      org.apache.jackrabbit.oak.jcr.security.principal.PrincipalManagerTest#testFindPrincipalByType      <!-- OAK-545 -->
-      org.apache.jackrabbit.oak.jcr.security.principal.PrincipalManagerTest#testFindPrincipalByTypeAll   <!-- OAK-545 -->
     </known.issues>
   </properties>
 
