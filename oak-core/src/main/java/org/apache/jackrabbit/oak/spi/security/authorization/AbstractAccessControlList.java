@@ -17,16 +17,23 @@
 package org.apache.jackrabbit.oak.spi.security.authorization;
 
 import java.security.Principal;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Set;
+import java.util.List;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
+import javax.jcr.security.AccessControlEntry;
 import javax.jcr.security.Privilege;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
+import org.apache.jackrabbit.api.security.JackrabbitAccessControlEntry;
 import org.apache.jackrabbit.api.security.JackrabbitAccessControlList;
+import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.security.authorization.restriction.RestrictionDefinition;
 import org.apache.jackrabbit.oak.spi.security.authorization.restriction.RestrictionProvider;
 
@@ -35,21 +42,41 @@ import org.apache.jackrabbit.oak.spi.security.authorization.restriction.Restrict
  */
 public abstract class AbstractAccessControlList implements JackrabbitAccessControlList {
 
-    protected final String jcrPath;
-    protected final RestrictionProvider restrictionProvider;
+    private final String oakPath;
+    private final NamePathMapper namePathMapper;
 
-    public AbstractAccessControlList(String jcrPath, RestrictionProvider restrictionProvider) {
-        this.jcrPath = jcrPath;
-        this.restrictionProvider = restrictionProvider;
+    public AbstractAccessControlList(@Nullable String oakPath,
+                                     @Nonnull NamePathMapper namePathMapper) {
+        this.oakPath = oakPath;
+        this.namePathMapper = namePathMapper;
     }
 
+    //------------------------------------------< AbstractAccessControlList >---
+    @CheckForNull
+    public String getOakPath() {
+        return oakPath;
+    }
+
+    @Nonnull
+    public abstract List<JackrabbitAccessControlEntry> getEntries();
+
+    @Nonnull
+    public abstract RestrictionProvider getRestrictionProvider();
+
     //--------------------------------------< JackrabbitAccessControlPolicy >---
+    @CheckForNull
     @Override
     public String getPath() {
-        return jcrPath;
+        return (oakPath == null) ? null : namePathMapper.getJcrPath(oakPath);
     }
 
     //--------------------------------------------------< AccessControlList >---
+
+    @Override
+    public AccessControlEntry[] getAccessControlEntries() throws RepositoryException {
+        List<JackrabbitAccessControlEntry> entries = getEntries();
+        return entries.toArray(new AccessControlEntry[entries.size()]);
+    }
 
     @Override
     public boolean addAccessControlEntry(Principal principal, Privilege[] privileges) throws RepositoryException {
@@ -57,9 +84,21 @@ public abstract class AbstractAccessControlList implements JackrabbitAccessContr
     }
 
     //----------------------------------------< JackrabbitAccessControlList >---
+
+    @Override
+    public boolean isEmpty() {
+        return getEntries().isEmpty();
+    }
+
+    @Override
+    public int size() {
+        return getEntries().size();
+    }
+
+    @Nonnull
     @Override
     public String[] getRestrictionNames() throws RepositoryException {
-        Set<RestrictionDefinition> supported = restrictionProvider.getSupportedRestrictions(jcrPath);
+        Collection<RestrictionDefinition> supported = getRestrictionProvider().getSupportedRestrictions(getOakPath());
         return Collections2.transform(supported, new Function<RestrictionDefinition, String>() {
             @Override
             public String apply(RestrictionDefinition definition) {
@@ -71,11 +110,13 @@ public abstract class AbstractAccessControlList implements JackrabbitAccessContr
 
     @Override
     public int getRestrictionType(String restrictionName) throws RepositoryException {
-        for (RestrictionDefinition definition : restrictionProvider.getSupportedRestrictions(jcrPath)) {
+        for (RestrictionDefinition definition : getRestrictionProvider().getSupportedRestrictions(getOakPath())) {
             if (definition.getJcrName().equals(restrictionName)) {
                 return definition.getRequiredType();
             }
         }
+        // for backwards compatibility with JR2 return undefined type for an
+        // unknown restriction name.
         return PropertyType.UNDEFINED;
     }
 

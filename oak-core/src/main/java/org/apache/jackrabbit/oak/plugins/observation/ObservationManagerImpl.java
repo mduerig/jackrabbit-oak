@@ -33,6 +33,7 @@ import org.apache.jackrabbit.commons.iterator.EventListenerIteratorAdapter;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.core.RootImpl;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
+import org.apache.jackrabbit.oak.plugins.nodetype.ReadOnlyNodeTypeManager;
 import org.apache.jackrabbit.oak.spi.observation.ChangeExtractor;
 
 /**
@@ -44,12 +45,14 @@ public class ObservationManagerImpl implements ObservationManager {
     private final ScheduledExecutorService executor;
     private final Map<EventListener, ChangeProcessor> processors = new HashMap<EventListener, ChangeProcessor>();
     private final AtomicBoolean hasEvents = new AtomicBoolean(false);
+    private final ReadOnlyNodeTypeManager ntMgr;
 
     public ObservationManagerImpl(Root root, NamePathMapper namePathMapper, ScheduledExecutorService executor) {
         Preconditions.checkArgument(root instanceof RootImpl, "root must be of actual type RootImpl");
         this.root = ((RootImpl) root);
         this.namePathMapper = namePathMapper;
         this.executor = executor;
+        this.ntMgr = ReadOnlyNodeTypeManager.getInstance(root, namePathMapper);
     }
 
     public synchronized void dispose() {
@@ -71,7 +74,8 @@ public class ObservationManagerImpl implements ObservationManager {
     @Override
     public synchronized void addEventListener(EventListener listener, int eventTypes, String absPath,
             boolean isDeep, String[] uuid, String[] nodeTypeName, boolean noLocal) throws RepositoryException {
-        ChangeFilter filter = new ChangeFilter(eventTypes, absPath, isDeep, uuid, nodeTypeName, noLocal);
+        ChangeFilter filter = new ChangeFilter(ntMgr, namePathMapper, eventTypes,
+                absPath, isDeep, uuid, nodeTypeName, noLocal);
         ChangeProcessor processor = processors.get(listener);
         if (processor == null) {
             processor = new ChangeProcessor(this, listener, filter);

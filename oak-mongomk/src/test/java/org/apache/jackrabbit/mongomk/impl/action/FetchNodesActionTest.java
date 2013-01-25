@@ -16,6 +16,11 @@
  */
 package org.apache.jackrabbit.mongomk.impl.action;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -24,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.mongomk.BaseMongoMicroKernelTest;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
@@ -61,17 +67,17 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
 
     @Test
     public void invalidLastRevision() throws Exception {
-        Long revisionId1 = addNode("a");
-        Long revisionId2 = addNode("b");
+        addNode("a");
+        addNode("b");
         Long revisionId3 = addNode("c");
 
         invalidateCommit(revisionId3);
-        List<Node> actuals = createAndExecuteQuery(revisionId3);
-
-        String json = String.format("{\"/#%2$s\" : { \"a#%1$s\" : {}, \"b#%2$s\" : {} }}",
-                revisionId1, revisionId2);
-        Iterator<Node> expecteds = NodeBuilder.build(json).getChildNodeEntries(0, -1);
-        NodeAssert.assertEquals(expecteds, actuals);
+        try {
+            createAndExecuteQuery(revisionId3);
+            fail("Expected MicroKernelException");
+        } catch (MicroKernelException e) {
+            // expected
+        }
     }
 
     @Test
@@ -88,6 +94,36 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
                 revisionId1, revisionId3);
         Iterator<Node> expecteds = NodeBuilder.build(json).getChildNodeEntries(0, -1);
         NodeAssert.assertEquals(expecteds, actuals);
+    }
+
+    @Test
+    public void samePrefix() throws Exception {
+        addNode("a");
+        addNode("a/b");
+        addNode("a/bb");
+        long rev = addNode("a/b/c");
+
+        int depth = 0;
+        FetchNodesAction action = new FetchNodesAction(getNodeStore(),
+                "/a/b", depth, rev);
+        Map<String, MongoNode> nodes = action.execute();
+        assertEquals(1, nodes.size());
+        assertNotNull(nodes.get("/a/b"));
+
+        depth = 1;
+        action = new FetchNodesAction(getNodeStore(), "/a/b", depth, rev);
+        nodes = action.execute();
+        assertEquals(2, nodes.size());
+        assertNotNull(nodes.get("/a/b"));
+        assertNotNull(nodes.get("/a/b/c"));
+
+        depth = FetchNodesAction.LIMITLESS_DEPTH;
+        action = new FetchNodesAction(getNodeStore(), "/a/b", depth, rev);
+        nodes = action.execute();
+        assertEquals(2, nodes.size());
+        assertNotNull(nodes.get("/a/b"));
+        assertNotNull(nodes.get("/a/b/c"));
+        assertNull(nodes.get("/a/bb"));
     }
 
     // FIXME - Revisit this test.
@@ -213,7 +249,7 @@ public class FetchNodesActionTest extends BaseMongoMicroKernelTest {
     }
 
     private List<Node> createAndExecuteQuery(long revisionId, Set<String> paths, int depth) {
-        FetchNodesActionNew query = new FetchNodesActionNew(getNodeStore(), paths, revisionId);
+        FetchNodesAction query = new FetchNodesAction(getNodeStore(), paths, revisionId);
         return toNode(query.execute());
     }
 

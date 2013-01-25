@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.api.model.Node;
@@ -51,7 +52,7 @@ public class MongoAssert {
         MongoCommit result = (MongoCommit) commitCollection.findOne(query);
         Assert.assertNotNull(result);
 
-        List<String> actualPaths = result.getAffectedPaths();
+        Set<String> actualPaths = result.getAffectedPaths();
         Assert.assertEquals(new HashSet<String>(Arrays.asList(expectedPaths)), new HashSet<String>(actualPaths));
     }
 
@@ -59,10 +60,11 @@ public class MongoAssert {
         DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start(MongoCommit.KEY_REVISION_ID)
                 .is(commit.getRevisionId()).and(MongoCommit.KEY_MESSAGE)
-                .is(commit.getMessage()).and(MongoCommit.KEY_DIFF).is(commit.getDiff()).and(MongoCommit.KEY_PATH)
+                .is(commit.getMessage()).and(MongoCommit.KEY_PATH)
                 .is(commit.getPath()).and(MongoCommit.KEY_FAILED).notEquals(Boolean.TRUE).get();
         MongoCommit result = (MongoCommit) commitCollection.findOne(query);
         Assert.assertNotNull(result);
+        Assert.assertEquals(commit.getDiff(), result.getDiff());
     }
 
     public static void assertHeadRevision(long revisionId) {

@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nonnull;
 import javax.jcr.RepositoryException;
 import javax.jcr.Value;
 import javax.jcr.security.AccessControlEntry;
@@ -30,37 +31,47 @@ import javax.jcr.security.AccessControlException;
 import javax.jcr.security.Privilege;
 
 import org.apache.jackrabbit.api.security.JackrabbitAccessControlEntry;
-import org.apache.jackrabbit.oak.spi.security.authorization.AbstractAccessControlList;
+import org.apache.jackrabbit.api.security.authorization.PrivilegeManager;
+import org.apache.jackrabbit.api.security.principal.PrincipalManager;
+import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.spi.security.authorization.ACE;
+import org.apache.jackrabbit.oak.spi.security.authorization.AbstractAccessControlList;
 import org.apache.jackrabbit.oak.spi.security.authorization.restriction.Restriction;
-import org.apache.jackrabbit.oak.spi.security.authorization.restriction.RestrictionProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * ACL... TODO
  */
-class ACL extends AbstractAccessControlList {
+abstract class ACL extends AbstractAccessControlList {
 
     private static final Logger log = LoggerFactory.getLogger(ACL.class);
 
-    private final List<JackrabbitAccessControlEntry> entries;
+    private final List<JackrabbitAccessControlEntry> entries = new ArrayList<JackrabbitAccessControlEntry>();
 
-    ACL(String jcrPath, List<JackrabbitAccessControlEntry> entries, RestrictionProvider restrictionProvider) {
-        super(jcrPath, restrictionProvider);
-
-        this.entries = (entries == null) ? new ArrayList<JackrabbitAccessControlEntry>() : entries;
+    ACL(String oakPath, NamePathMapper namePathMapper) {
+        this(oakPath, null, namePathMapper);
     }
 
-    JackrabbitAccessControlEntry[] getACEs() {
-        return entries.toArray(new JackrabbitAccessControlEntry[entries.size()]);
+    ACL(String oakPath, List<JackrabbitAccessControlEntry> entries, NamePathMapper namePathMapper) {
+        super(oakPath, namePathMapper);
+        if (entries != null) {
+            this.entries.addAll(entries);
+        }
+    }
+
+    abstract PrincipalManager getPrincipalManager();
+
+    abstract PrivilegeManager getPrivilegeManager();
+
+    //------------------------------------------< AbstractAccessControlList >---
+    @Nonnull
+    @Override
+    public List<JackrabbitAccessControlEntry> getEntries() {
+        return entries;
     }
 
     //--------------------------------------------------< AccessControlList >---
-    @Override
-    public AccessControlEntry[] getAccessControlEntries() throws RepositoryException {
-        return getACEs();
-    }
 
     @Override
     public void removeAccessControlEntry(AccessControlEntry ace) throws RepositoryException {
@@ -71,28 +82,29 @@ class ACL extends AbstractAccessControlList {
     }
 
     //----------------------------------------< JackrabbitAccessControlList >---
-    @Override
-    public boolean isEmpty() {
-        return entries.isEmpty();
-    }
-
-    @Override
-    public int size() {
-        return entries.size();
-    }
 
     @Override
     public boolean addEntry(Principal principal, Privilege[] privileges,
                             boolean isAllow, Map<String, Value> restrictions) throws RepositoryException {
-        // NOTE: validation and any kind of optimization of the entry list is
-        // delegated to the commit validator
+        if (privileges == null || privileges.length == 0) {
+            throw new AccessControlException("Privileges may not be null nor an empty array");
+        }
+        for (Privilege p : privileges) {
+            getPrivilegeManager().getPrivilege(p.getName());
+        }
+
+        if (principal == null || !getPrincipalManager().hasPrincipal(principal.getName())) {
+            String msg = "Unknown principal " + ((principal == null) ? "null" : principal.getName());
+            throw new AccessControlException(msg);
+        }
+
         Set<Restriction> rs;
         if (restrictions == null) {
             rs = Collections.emptySet();
         } else {
             rs = new HashSet<Restriction>(restrictions.size());
             for (String name : restrictions.keySet()) {
-                rs.add(restrictionProvider.createRestriction(jcrPath, name, restrictions.get(name)));
+                rs.add(getRestrictionProvider().createRestriction(getOakPath(), name, restrictions.get(name)));
             }
         }
         JackrabbitAccessControlEntry entry = new ACE(principal, privileges, isAllow, rs);
@@ -129,42 +141,10 @@ class ACL extends AbstractAccessControlList {
     }
 
     //-------------------------------------------------------------< Object >---
-    /**
-     * Returns zero to satisfy the Object equals/hashCode contract.
-     * This class is mutable and not meant to be used as a hash key.
-     *
-     * @return always zero
-     * @see Object#hashCode()
-     */
-    @Override
-    public int hashCode() {
-        return 0;
-    }
-
-    /**
-     * Returns true if the path and the entries are equal; false otherwise.
-     *
-     * @param obj Object to test.
-     * @return true if the path and the entries are equal; false otherwise.
-     * @see Object#equals(Object)
-     */
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) {
-            return true;
-        }
-        if (obj instanceof ACL) {
-            ACL acl = (ACL) obj;
-            return ((jcrPath == null) ? acl.jcrPath == null : jcrPath.equals(acl.jcrPath))
-                    && entries.equals(acl.entries);
-        }
-        return false;
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("ACL: ").append(jcrPath).append("; ACEs: ");
+        sb.append("ACL: ").append(getPath()).append("; ACEs: ");
         for (AccessControlEntry ace : entries) {
             sb.append(ace.toString()).append(';');
         }

@@ -24,10 +24,10 @@ import org.apache.jackrabbit.api.security.user.QueryBuilder;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
 
-public class XPathQueryBuilder implements QueryBuilder<Condition> {
+class XPathQueryBuilder implements QueryBuilder<Condition> {
 
     private AuthorizableType selectorType = AuthorizableType.AUTHORIZABLE;
-    private String groupName;
+    private String groupID;
     private boolean declaredMembersOnly;
     private Condition condition;
     private String sortProperty;
@@ -50,8 +50,8 @@ public class XPathQueryBuilder implements QueryBuilder<Condition> {
     }
 
     @Override
-    public void setScope(String groupName, boolean declaredOnly) {
-        this.groupName = groupName;
+    public void setScope(String groupID, boolean declaredOnly) {
+        this.groupID = groupID;
         declaredMembersOnly = declaredOnly;
     }
 
@@ -168,8 +168,8 @@ public class XPathQueryBuilder implements QueryBuilder<Condition> {
         return selectorType;
     }
 
-    String getGroupName() {
-        return groupName;
+    String getGroupID() {
+        return groupID;
     }
 
     boolean isDeclaredMembersOnly() {

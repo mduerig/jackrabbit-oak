@@ -1,3 +1,19 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.jackrabbit.mongomk.impl;
 
 import static org.junit.Assert.assertEquals;
@@ -52,6 +68,19 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
+    public void addNodeWithNestedChildren2() throws Exception {
+        mk.commit("/", "+\"a\" : {}", null, null);
+        mk.commit("/a", "+\"b\" : {}", null, null);
+        mk.commit("/a/b", "+\"c\" : {}", null, null);
+        mk.commit("/a", "+\"d\" : {}", null, null);
+
+        assertTrue(mk.nodeExists("/a",null));
+        assertTrue(mk.nodeExists("/a/b",null));
+        assertTrue(mk.nodeExists("/a/b/c",null));
+        assertTrue(mk.nodeExists("/a/d", null));
+    }
+
+    @Test
     public void addNodeWithParanthesis() throws Exception {
         mk.commit("/", "+\"Test({0})\" : {}", null, null);
         String nodes = mk.getNodes("/Test({0})", null, 1, 0, -1, null);
@@ -75,7 +104,6 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME - due to CommitCommandInstructionVisitor add node change.
     public void addDuplicateNode() throws Exception {
         mk.commit("/", "+\"a\" : {}", null, null);
         try {
@@ -138,7 +166,6 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
     }
 
     @Test
-    @Ignore // FIXME - due to CommitCommandInstructionVisitor add node change.
     public void setPropertyWithoutAddingNode() throws Exception {
         try {
             mk.commit("/", "^\"a/key1\" : \"value1\"", null, null);
@@ -176,5 +203,22 @@ public class MongoMKCommitAddTest extends BaseMongoMicroKernelTest {
             if (debug) System.out.println("Committed in " + commitMonitor.getLastValue() + "ms");
         }
         if (debug) System.out.println("Final Result:" + commitMonitor);
+    }
+
+    @Test
+    public void existingNodesMerged() throws Exception {
+        String rev = mk.commit("/", "+\"a\" : {}", null, null);
+        mk.commit("/", "+\"a/b\" : {}", null, null);
+        mk.commit("/", "^\"a/key1\" : \"value1\"", null, null);
+
+        // Commit to rev before key1 and b were added
+        mk.commit("/", "^\"a/key2\" : \"value2\"", rev, null);
+
+        // Check that key1 and b were merged
+        String nodes = mk.getNodes("/", null, 1 /*depth*/, 0 /*offset*/, -1 /*maxChildNodes*/, null /*filter*/);
+        JSONObject obj = parseJSONObject(nodes);
+        assertPropertyValue(obj, ":childNodeCount", 1L);
+        assertPropertyValue(obj, "a/key1", "value1");
+        assertPropertyValue(obj, "a/key2", "value2");
     }
 }

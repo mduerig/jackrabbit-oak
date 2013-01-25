@@ -17,10 +17,7 @@
 package org.apache.jackrabbit.oak.security.authentication.token;
 
 import org.apache.jackrabbit.api.security.user.Authorizable;
-import org.apache.jackrabbit.api.security.user.UserManager;
-import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.security.AbstractSecurityTest;
+import org.apache.jackrabbit.oak.AbstractSecurityTest;
 import org.apache.jackrabbit.oak.spi.security.ConfigurationParameters;
 import org.junit.After;
 import org.junit.Before;
@@ -30,32 +27,27 @@ import org.junit.Before;
  */
 public abstract class AbstractTokenTest extends AbstractSecurityTest {
 
-    Root root;
     TokenProviderImpl tokenProvider;
-
     String userId;
-    UserManager userManager;
 
     @Before
     public void before() throws Exception {
         super.before();
 
-        root = admin.getLatestRoot();
+        root = adminSession.getLatestRoot();
         tokenProvider = new TokenProviderImpl(root,
                 ConfigurationParameters.EMPTY,
-                getSecurityProvider().getUserConfiguration());
+                getUserConfiguration());
 
         userId = "testUser";
-        userManager = getSecurityProvider().getUserConfiguration().getUserManager(root, NamePathMapper.DEFAULT);
-
-        userManager.createUser(userId, "pw");
+        getUserManager().createUser(userId, "pw");
         root.commit();
     }
 
     @After
     public void after() throws Exception {
         try {
-            Authorizable a = userManager.getAuthorizable(userId);
+            Authorizable a = getUserManager().getAuthorizable(userId);
             if (a != null) {
                 a.remove();
                 root.commit();

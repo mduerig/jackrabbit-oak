@@ -29,10 +29,8 @@ import javax.security.auth.login.LoginException;
 import org.apache.jackrabbit.api.security.authentication.token.TokenCredentials;
 import org.apache.jackrabbit.api.security.user.Authorizable;
 import org.apache.jackrabbit.api.security.user.UserManager;
+import org.apache.jackrabbit.oak.AbstractSecurityTest;
 import org.apache.jackrabbit.oak.api.AuthInfo;
-import org.apache.jackrabbit.oak.api.Root;
-import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.security.AbstractSecurityTest;
 import org.apache.jackrabbit.oak.spi.security.authentication.ImpersonationCredentials;
 import org.junit.After;
 import org.junit.Before;
@@ -47,22 +45,16 @@ import static org.junit.Assert.fail;
  */
 public class UserAuthenticationTest extends AbstractSecurityTest {
 
-    private Root root;
-
-    private String userId;
-    private UserManager userManager;
-
+    private final String userId = "testUser";
     private UserAuthentication authentication;
 
     @Before
     public void before() throws Exception {
         super.before();
 
-        root = admin.getLatestRoot();
+        root = adminSession.getLatestRoot();
 
-        userId = "testUser";
-        userManager = getSecurityProvider().getUserConfiguration().getUserManager(root, NamePathMapper.DEFAULT);
-
+        UserManager userManager = getUserManager();
         userManager.createUser(userId, "pw");
         root.commit();
 
@@ -72,7 +64,7 @@ public class UserAuthenticationTest extends AbstractSecurityTest {
     @After
     public void after() throws Exception {
         try {
-            Authorizable a = userManager.getAuthorizable(userId);
+            Authorizable a = getUserManager().getAuthorizable(userId);
             if (a != null) {
                 a.remove();
                 root.commit();
@@ -90,7 +82,7 @@ public class UserAuthenticationTest extends AbstractSecurityTest {
 
     @Test
     public void testAuthenticateWithoutUserId() throws Exception {
-        UserAuthentication authentication = new UserAuthentication(null, userManager);
+        UserAuthentication authentication = new UserAuthentication(null, getUserManager());
         assertFalse(authentication.authenticate(new SimpleCredentials(userId, "pw".toCharArray())));
     }
 
@@ -130,9 +122,9 @@ public class UserAuthenticationTest extends AbstractSecurityTest {
     @Test
     public void testAuthenticateInvalidImpersonationCredentials() throws Exception {
        List<Credentials> invalid = new ArrayList<Credentials>();
-        invalid.add(new ImpersonationCredentials(new GuestCredentials(), admin.getAuthInfo()));
-        invalid.add(new ImpersonationCredentials(new SimpleCredentials(admin.getAuthInfo().getUserID(), new char[0]), new TestAuthInfo()));
-        invalid.add(new ImpersonationCredentials(new SimpleCredentials("unknown", new char[0]), admin.getAuthInfo()));
+        invalid.add(new ImpersonationCredentials(new GuestCredentials(), adminSession.getAuthInfo()));
+        invalid.add(new ImpersonationCredentials(new SimpleCredentials(adminSession.getAuthInfo().getUserID(), new char[0]), new TestAuthInfo()));
+        invalid.add(new ImpersonationCredentials(new SimpleCredentials("unknown", new char[0]), adminSession.getAuthInfo()));
         invalid.add(new ImpersonationCredentials(new SimpleCredentials("unknown", new char[0]), new TestAuthInfo()));
 
         for (Credentials creds : invalid) {
@@ -148,7 +140,7 @@ public class UserAuthenticationTest extends AbstractSecurityTest {
     @Test
     public void testAuthenticateImpersonationCredentials() throws Exception {
         SimpleCredentials sc = new SimpleCredentials(userId, new char[0]);
-        assertTrue(authentication.authenticate(new ImpersonationCredentials(sc, admin.getAuthInfo())));
+        assertTrue(authentication.authenticate(new ImpersonationCredentials(sc, adminSession.getAuthInfo())));
     }
 
     @Test

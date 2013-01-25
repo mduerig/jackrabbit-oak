@@ -45,6 +45,6 @@ class AccessControlContext implements Context, AccessControlConstants {
     public boolean definesTree(Tree tree) {
         NodeUtil node = new NodeUtil(tree);
         String ntName = node.getPrimaryNodeTypeName();
-        return AC_NODE_TYPE_NAMES.contains(ntName);
+        return AC_NODETYPE_NAMES.contains(ntName);
     }
 }

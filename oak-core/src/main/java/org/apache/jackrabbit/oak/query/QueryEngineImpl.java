@@ -162,6 +162,9 @@ public abstract class QueryEngineImpl implements QueryEngine {
 
     public QueryIndex getBestIndex(Query query, NodeState rootState, Filter filter) {
         QueryIndex best = null;
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("cost using filter " + filter);
+        }
         double bestCost = Double.POSITIVE_INFINITY;
         for (QueryIndex index : getIndexes(rootState)) {
             double cost = index.getCost(filter, rootState);
@@ -173,11 +176,14 @@ public abstract class QueryEngineImpl implements QueryEngine {
                 best = index;
             }
         }
-        if (best == null) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("no indexes found - using TraversingIndex; indexProvider: " + indexProvider);
-            }
-            best = new TraversingIndex();
+        QueryIndex index = new TraversingIndex();
+        double cost = index.getCost(filter, rootState);
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("cost for " + index.getIndexName() + " is " + cost);
+        }
+        if (cost < bestCost) {
+            bestCost = cost;
+            best = index;
         }
         return best;
     }

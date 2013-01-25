@@ -16,6 +16,9 @@
  */
 package org.apache.jackrabbit.mongomk.impl.command;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -25,8 +28,8 @@ import java.util.Set;
 import org.apache.jackrabbit.mongomk.api.instruction.Instruction;
 import org.apache.jackrabbit.mongomk.api.model.Commit;
 import org.apache.jackrabbit.mongomk.impl.MongoNodeStore;
-import org.apache.jackrabbit.mongomk.impl.action.FetchCommitsAction;
-import org.apache.jackrabbit.mongomk.impl.action.FetchNodesAction;
+import org.apache.jackrabbit.mongomk.impl.action.FetchCommitAction;
+import org.apache.jackrabbit.mongomk.impl.action.FetchHeadRevisionIdAction;
 import org.apache.jackrabbit.mongomk.impl.action.ReadAndIncHeadRevisionAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveAndSetHeadRevisionAction;
 import org.apache.jackrabbit.mongomk.impl.action.SaveCommitAction;
@@ -43,6 +46,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 import com.mongodb.QueryBuilder;
+import com.mongodb.WriteConcern;
 import com.mongodb.WriteResult;
 
 /**
@@ -56,10 +60,11 @@ public class CommitCommand extends BaseCommand<Long> {
 
     private Set<String> affectedPaths;
     private Map<String, MongoNode> existingNodes;
-    private List<MongoCommit> validCommits;
     private MongoSync mongoSync;
-    private Set<MongoNode> nodes;
+    private Map<String, MongoNode> nodes;
     private Long revisionId;
+    private final Long initialBaseRevisionId;
+    private Long baseRevisionId;
     private String branchId;
 
     /**
@@ -71,33 +76,50 @@ public class CommitCommand extends BaseCommand<Long> {
     public CommitCommand(MongoNodeStore nodeStore, Commit commit) {
         super(nodeStore);
         this.commit = (MongoCommit)commit;
+        this.initialBaseRevisionId = commit.getBaseRevisionId();
     }
 
     @Override
     public Long execute() throws Exception {
-        boolean success = false;
+        int retries = 0;
+        boolean success;
         do {
             mongoSync = new ReadAndIncHeadRevisionAction(nodeStore).execute();
             revisionId = mongoSync.getNextRevisionId() - 1;
+            if (initialBaseRevisionId != null) {
+                baseRevisionId = initialBaseRevisionId;
+            } else {
+                baseRevisionId = mongoSync.getHeadRevisionId();
+            }
             logger.debug("Committing @{} with diff: {}", revisionId, commit.getDiff());
-            readValidCommits();
             readBranchIdFromBaseCommit();
             createMongoNodes();
             prepareCommit();
-            readExistingNodes();
-            mergeNodes();
+            // If base revision is older than the head revision, need to read
+            // and merge nodes at the head revision.
+            FetchHeadRevisionIdAction action = new FetchHeadRevisionIdAction(nodeStore, branchId);
+            long headRevisionId = action.execute();
+            if (baseRevisionId < headRevisionId) {
+                readExistingNodes();
+                mergeNodes();
+            }
             prepareMongoNodes();
-            new SaveNodesAction(nodeStore, nodes).execute();
+            new SaveNodesAction(nodeStore, nodes.values()).execute();
             new SaveCommitAction(nodeStore, commit).execute();
             success = saveAndSetHeadRevision();
+            if (success) {
+                cacheNodes();
+            } else {
+                retries++;
+            }
         } while (!success);
 
-        logger.debug("Commit @{}: success", revisionId);
+        String msg = "Commit @{}: success";
+        if (retries > 0) {
+            msg += " with {} retries.";
+        }
+        logger.debug(msg, revisionId, retries);
         return revisionId;
-    }
-
-    private void readValidCommits() {
-        validCommits = new FetchCommitsAction(nodeStore, mongoSync.getHeadRevisionId()).execute();
     }
 
     @Override
@@ -124,30 +146,28 @@ public class CommitCommand extends BaseCommand<Long> {
             return;
         }
 
-        for (MongoCommit commit : validCommits) {
-            if (baseRevisionId.equals(commit.getRevisionId())) {
-                branchId = commit.getBranchId();
-            }
-        }
+        FetchCommitAction action = new FetchCommitAction(nodeStore, baseRevisionId);
+        MongoCommit commit = action.execute();
+        branchId = commit.getBranchId();
     }
 
     private void createMongoNodes() throws Exception {
         CommitCommandInstructionVisitor visitor = new CommitCommandInstructionVisitor(
-                nodeStore, mongoSync.getHeadRevisionId(), validCommits);
+                nodeStore, baseRevisionId, null);
         visitor.setBranchId(branchId);
 
         for (Instruction instruction : commit.getInstructions()) {
             instruction.accept(visitor);
         }
 
-        Map<String, MongoNode> pathNodeMap = visitor.getPathNodeMap();
-        affectedPaths = pathNodeMap.keySet();
-        nodes = new HashSet<MongoNode>(pathNodeMap.values());
+        nodes = visitor.getPathNodeMap();
+        affectedPaths = nodes.keySet();
     }
 
     private void prepareCommit() throws Exception {
-        commit.setAffectedPaths(new LinkedList<String>(affectedPaths));
-        commit.setBaseRevisionId(mongoSync.getHeadRevisionId());
+        commit.setAffectedPaths(affectedPaths);
+        commit.setBaseRevisionId(branchId == null?
+                mongoSync.getHeadRevisionId() : baseRevisionId);
         commit.setRevisionId(revisionId);
         if (commit.getBranchId() == null && branchId != null) {
             commit.setBranchId(branchId);
@@ -155,54 +175,76 @@ public class CommitCommand extends BaseCommand<Long> {
         commit.removeField("_id"); // In case this is a retry.
     }
 
-    private void readExistingNodes() {
-        FetchNodesAction action = new FetchNodesAction(nodeStore, affectedPaths,
-                mongoSync.getHeadRevisionId());
-        action.setBranchId(branchId);
-        action.setValidCommits(validCommits);
-        existingNodes = action.execute();
+//    private void readExistingNodes() {
+//        FetchNodesAction action = new FetchNodesAction(nodeStore, affectedPaths,
+//                mongoSync.getHeadRevisionId());
+//        action.setBranchId(branchId);
+//        existingNodes = action.execute();
+//    }
+
+    // FIXME - Performance, This seems to be faster for commits than the old method.
+    private void readExistingNodes() throws Exception {
+        if (affectedPaths == null || affectedPaths.isEmpty()) {
+            existingNodes = Collections.emptyMap();
+        }
+
+        existingNodes = new HashMap<String, MongoNode>();
+        for (String path : affectedPaths) {
+            NodeExistsCommand command;
+            if (branchId == null) {
+                command = new NodeExistsCommand(nodeStore, path, mongoSync.getHeadRevisionId());
+            } else {
+                command = new NodeExistsCommand(nodeStore, path, baseRevisionId);
+                command.setBranchId(branchId);
+            }
+            if (command.execute()) {
+                existingNodes.put(path, command.getNode());
+            }
+        }
     }
 
     private void mergeNodes() {
-        for (MongoNode existingNode : existingNodes.values()) {
-            for (MongoNode committingNode : nodes) {
-                if (existingNode.getPath().equals(committingNode.getPath())) {
-                    if(logger.isDebugEnabled()){
-                        logger.debug("Found existing node to merge: {}", existingNode.getPath());
-                        logger.debug("Existing node: {}", existingNode);
-                        logger.debug("Committing node: {}", committingNode);
-                    }
-                    Map<String, Object> existingProperties = existingNode.getProperties();
-                    if (!existingProperties.isEmpty()) {
-                        committingNode.setProperties(existingProperties);
-
-                        logger.debug("Merged properties for {}: {}", existingNode.getPath(),
-                                existingProperties);
-                    }
-
-                    List<String> existingChildren = existingNode.getChildren();
-                    if (existingChildren != null) {
-                        committingNode.setChildren(existingChildren);
-
-                        logger.debug("Merged children for {}: {}", existingNode.getPath(), existingChildren);
-                    }
-
-                    logger.debug("Merged node for {}: {}", existingNode.getPath(), committingNode);
-
-                    break;
+        for (MongoNode committingNode : nodes.values()) {
+            MongoNode existingNode = existingNodes.get(committingNode.getPath());
+            if (existingNode != null) {
+                if(logger.isDebugEnabled()){
+                    logger.debug("Found existing node to merge: {}", existingNode.getPath());
+                    logger.debug("Existing node: {}", existingNode);
+                    logger.debug("Committing node: {}", committingNode);
                 }
+                Map<String, Object> existingProperties = existingNode.getProperties();
+                if (!existingProperties.isEmpty()) {
+                    committingNode.setProperties(existingProperties);
+
+                    logger.debug("Merged properties for {}: {}", existingNode.getPath(),
+                            existingProperties);
+                }
+
+                List<String> existingChildren = existingNode.getChildren();
+                if (existingChildren != null) {
+                    committingNode.setChildren(existingChildren);
+
+                    logger.debug("Merged children for {}: {}", existingNode.getPath(), existingChildren);
+                }
+
+                logger.debug("Merged node for {}: {}", existingNode.getPath(), committingNode);
+            } else {
+                // FIXME: this may also mean a node we modify has
+                // been removed in the meantime
             }
         }
     }
 
     private void prepareMongoNodes() {
-        for (MongoNode committingNode : nodes) {
+        for (MongoNode committingNode : nodes.values()) {
             logger.debug("Preparing children (added and removed) of {}", committingNode.getPath());
             logger.debug("Committing node: {}", committingNode);
 
             List<String> children = committingNode.getChildren();
             if (children == null) {
                 children = new LinkedList<String>();
+            } else {
+                children = new ArrayList<String>(children);
             }
 
             List<String> addedChildren = committingNode.getAddedChildren();
@@ -258,6 +300,11 @@ public class CommitCommand extends BaseCommand<Long> {
      * @throws Exception If an exception happens.
      */
     protected boolean saveAndSetHeadRevision() throws Exception {
+        // Don't update the head revision id for branches.
+        if (branchId != null) {
+            return true;
+        }
+
         long assumedHeadRevision = this.mongoSync.getHeadRevisionId();
         MongoSync mongoSync = new SaveAndSetHeadRevisionAction(nodeStore,
                 assumedHeadRevision, revisionId).execute();
@@ -273,8 +320,7 @@ public class CommitCommand extends BaseCommand<Long> {
                 markAsFailed();
                 throw new ConflictingCommitException(message);
             } else {
-                logger.warn("Commit @{}: failed due to a conflicting commit."
-                        + " Affected paths: {}", revisionId, commit.getAffectedPaths());
+                logger.info("Commit @{}: failed due to a concurrent commit." + " Affected paths: {}", revisionId, commit.getAffectedPaths());
                 markAsFailed();
                 return false;
             }
@@ -302,10 +348,19 @@ public class CommitCommand extends BaseCommand<Long> {
         DBCollection commitCollection = nodeStore.getCommitCollection();
         DBObject query = QueryBuilder.start("_id").is(commit.getObjectId("_id")).get();
         DBObject update = new BasicDBObject("$set", new BasicDBObject(MongoCommit.KEY_FAILED, Boolean.TRUE));
-        WriteResult writeResult = commitCollection.update(query, update);
+        WriteResult writeResult = commitCollection.update(query, update,
+                false /*upsert*/, false /*multi*/, WriteConcern.SAFE);
+        logger.debug("Marked @{} failed", revisionId);
+        nodeStore.evict(commit);
         if (writeResult.getError() != null) {
             // FIXME This is potentially a bug that we need to handle.
             throw new Exception(String.format("Update wasn't successful: %s", writeResult));
+        }
+    }
+
+    private void cacheNodes() {
+        for (MongoNode node : nodes.values()) {
+            nodeStore.cache(node);
         }
     }
 }
