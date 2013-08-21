@@ -95,6 +95,17 @@ public class SessionDelegate {
         refreshAtNextAccess = true;
     }
 
+    private static final ThreadLocal<Integer> LAST_UPDATER = new ThreadLocal<Integer>();
+
+    private int id() {
+        return System.identityHashCode(this);
+    }
+
+    private boolean isUpdated() {
+        Integer id = LAST_UPDATER.get();
+        return id != null && !id.equals(id());
+    }
+
     /**
      * Performs the passed {@code SessionOperation} in a safe execution context. This
      * context ensures that the session is refreshed if necessary and that refreshing
@@ -124,11 +135,12 @@ public class SessionDelegate {
                             " refresh the session.", initStackTrace);
                     warnIfIdle = false;
                 }
-                if (refreshAtNextAccess || timeElapsed >= refreshInterval) {
+                if (refreshAtNextAccess || isUpdated() || timeElapsed >= refreshInterval) {
                     // Refresh if forced or if the session has been idle too long
                     refreshAtNextAccess = false;
                     refresh(true);
                     updateCount++;
+                    LAST_UPDATER.remove();
                 }
             }
             lastAccessed = now;
@@ -141,6 +153,7 @@ public class SessionDelegate {
             sessionOpCount--;
             if (sessionOperation.isUpdate()) {
                 updateCount++;
+                LAST_UPDATER.set(id());
             }
         }
     }
