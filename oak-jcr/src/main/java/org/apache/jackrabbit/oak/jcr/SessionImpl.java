@@ -394,6 +394,11 @@ public class SessionImpl implements JackrabbitSession {
                 sd.save();
                 return null;
             }
+
+            @Override
+            public boolean isSave() {
+                return true;
+            }
         });
     }
 
