@@ -159,7 +159,12 @@ public class KernelNodeStore extends AbstractNodeStore {
         if (builder instanceof KernelRootBuilder) {
             return ((KernelRootBuilder) builder).merge(commitHook, committed);
         } else {
-            return super.merge(builder, commitHook, committed);
+            mergeLock.lock();
+            try {
+                return super.merge(builder, commitHook, committed);
+            } finally {
+                mergeLock.unlock();
+            }
         }
     }
 

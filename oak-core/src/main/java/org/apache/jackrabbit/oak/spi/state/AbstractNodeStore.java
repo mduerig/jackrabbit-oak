@@ -19,9 +19,6 @@ package org.apache.jackrabbit.oak.spi.state;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
 import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -32,8 +29,6 @@ import org.apache.jackrabbit.oak.spi.commit.PostCommitHook;
  * Abstract base class for {@link NodeStore} implementations.
  */
 public abstract class AbstractNodeStore implements NodeStore {
-
-    private final Lock mergeLock = new ReentrantLock();
 
     /**
      * This default implementation is equal to atomically first rebase the builder
@@ -48,19 +43,13 @@ public abstract class AbstractNodeStore implements NodeStore {
     @Override
     public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook,
             PostCommitHook committed) throws CommitFailedException {
-        checkNotNull(builder);
         checkNotNull(commitHook);
-        mergeLock.lock();
-        try {
-            rebase(builder);
-            NodeStoreBranch branch = branch();
-            branch.setRoot(builder.getNodeState());
-            NodeState merged = branch.merge(commitHook, committed);
-            builder.reset(merged);
-            return merged;
-        } finally {
-            mergeLock.unlock();
-        }
+        rebase(checkNotNull(builder));
+        NodeStoreBranch branch = branch();
+        branch.setRoot(builder.getNodeState());
+        NodeState merged = branch.merge(commitHook, committed);
+        builder.reset(merged);
+        return merged;
     }
 
     /**
