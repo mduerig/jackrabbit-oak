@@ -145,9 +145,25 @@ class SecureNodeBuilder implements NodeBuilder {
         securityContext = null;
     }
 
+    public void baseChanged() {
+        baseRevision++;
+        securityContext = null;
+    }
+
     @Override
     public boolean remove() {
         return exists() && builder.remove();
+    }
+
+
+    @Override
+    public boolean moveTo(NodeBuilder newParent, String newName) {
+        return exists() && builder.moveTo(newParent, newName);
+    }
+
+    @Override
+    public boolean copyTo(NodeBuilder newParent, String newName) {
+        return exists() && builder.copyTo(newParent, newName);
     }
 
     @Override @CheckForNull
