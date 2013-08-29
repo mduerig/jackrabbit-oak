@@ -79,8 +79,9 @@ public class SegmentNodeStore extends AbstractNodeStore {
         return getHead().getChildNode(ROOT);
     }
 
+    // michid synchronized here fixes ConcurrentFileOperationsTest but brings back the granite deadlock OAK-959
     @Override
-    public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook, PostCommitHook committed) throws CommitFailedException {
+    public synchronized NodeState merge(@Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook, PostCommitHook committed) throws CommitFailedException {
         return super.merge(builder, commitHook, committed);    // TODO implement merge
     }
 
