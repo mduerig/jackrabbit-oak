@@ -30,13 +30,13 @@ import java.io.InputStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Objects;
+import com.google.common.io.ByteStreams;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-
-import com.google.common.io.ByteStreams;
 
 /**
  * In-memory node state builder.
@@ -320,17 +320,30 @@ public class MemoryNodeBuilder implements NodeBuilder {
 
     @Override
     public boolean moveTo(NodeBuilder newParent, String newName) {
+        checkNotNull(newParent);
+        checkNotNull(newName);
         if (isRoot()) {
             return false;
         } else {
             NodeState nodeState = getNodeState();
             remove();
             if (newParent.exists()) {
-                checkNotNull(newParent).setChildNode(checkNotNull(newName), nodeState);
+                NodeBuilder moved = newParent.setChildNode(newName, nodeState);
+                annotateSourcePath(moved, getPath());
                 return true;
             } else {
                 // Move to descendant
                 return false;
+            }
+        }
+    }
+
+    protected static void annotateSourcePath(NodeBuilder builder, String path) {
+        PropertyState base = builder.getBaseState().getProperty(":source-path");
+        PropertyState head = builder.getNodeState().getProperty(":source-path");
+        if (Objects.equal(base, head)) {
+            if (!builder.hasProperty(":source-path")) {
+                builder.setProperty(":source-path", path);
             }
         }
     }
