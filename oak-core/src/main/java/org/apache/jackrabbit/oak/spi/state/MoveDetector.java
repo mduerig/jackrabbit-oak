@@ -24,10 +24,12 @@ import static org.apache.jackrabbit.oak.commons.PathUtils.concat;
 
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.Sets;
 import org.apache.jackrabbit.oak.api.PropertyState;
 
-public class MoveDetector implements NodeStateDiff {
+public class MoveDetector extends RecursingNodeStateDiff {
     private final MoveAwareNodeStateDiff diff;
     private final String path;
     private final Set<String> movedPaths;
@@ -105,6 +107,16 @@ public class MoveDetector implements NodeStateDiff {
             return true;
         } else {
             return diff.childNodeDeleted(name, before);
+        }
+    }
+
+    @Nonnull
+    @Override
+    public RecursingNodeStateDiff createChildDiff(String name, NodeState before, NodeState after) {
+        if (diff instanceof RecursingNodeStateDiff) {
+            return ((RecursingNodeStateDiff) diff).createChildDiff(name, before, after);
+        } else {
+            return super.createChildDiff(name, before, after);
         }
     }
 }

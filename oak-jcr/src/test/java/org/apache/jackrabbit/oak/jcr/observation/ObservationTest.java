@@ -112,6 +112,8 @@ public class ObservationTest extends AbstractRepositoryTest {
             listener.expectAdd(n1.setProperty("p1", "v1"));
             listener.expectAdd(n1.setProperty("p2", "v2"));
             listener.expectAdd(n.addNode("n2"));
+            listener.expectAdd(n.addNode("s"));
+            listener.expectAdd(n.addNode("t"));
             getAdminSession().save();
 
             List<Expectation> missing = listener.getMissing(2, TimeUnit.SECONDS);
@@ -126,6 +128,9 @@ public class ObservationTest extends AbstractRepositoryTest {
             listener.expectRemove(n1.getProperty("p2")).remove();
             listener.expectRemove(n.getNode("n2")).remove();
             listener.expectAdd(n.addNode("{4}"));
+            Node s = n.getNode("s");
+            Node t = n.getNode("t");
+            s.getSession().move(s.getPath(), t.getPath() + "/ss");
             getAdminSession().save();
 
             missing = listener.getMissing(2, TimeUnit.SECONDS);

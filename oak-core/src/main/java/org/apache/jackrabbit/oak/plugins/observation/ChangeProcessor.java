@@ -32,6 +32,7 @@ import static org.apache.jackrabbit.oak.plugins.identifier.IdentifierManager.get
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
@@ -53,6 +54,8 @@ import org.apache.jackrabbit.oak.core.ImmutableTree;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.observation.ChangeDispatcher.ChangeSet;
 import org.apache.jackrabbit.oak.plugins.observation.ChangeDispatcher.Listener;
+import org.apache.jackrabbit.oak.spi.state.MoveAwareNodeStateDiff;
+import org.apache.jackrabbit.oak.spi.state.MoveDetector;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.RecursingNodeStateDiff;
 import org.apache.jackrabbit.oak.spi.state.VisibleDiff;
@@ -195,8 +198,10 @@ public class ChangeProcessor implements Runnable {
                     String path = namePathMapper.getOakPath(filter.getPath());
                     ImmutableTree beforeTree = getTree(changes.getBeforeState(), path);
                     ImmutableTree afterTree = getTree(changes.getAfterState(), path);
-                    EventGeneratingNodeStateDiff diff = new EventGeneratingNodeStateDiff(changes, beforeTree, afterTree);
-                    SecureNodeStateDiff.compare(VisibleDiff.wrap(diff), beforeTree, afterTree);
+                    Set<String> movedPaths = MoveDetector.findMovedPaths(changes.getBeforeState(), changes.getAfterState());
+                    EventGeneratingNodeStateDiff diff = new EventGeneratingNodeStateDiff(changes, beforeTree, afterTree, movedPaths);
+                    MoveDetector moveDetector = new MoveDetector(diff, "/", movedPaths);
+                    SecureNodeStateDiff.compare(VisibleDiff.wrap(moveDetector), beforeTree, afterTree);
                     if (!stopping) {
                         diff.sendEvents();
                     }
@@ -220,25 +225,27 @@ public class ChangeProcessor implements Runnable {
 
     //------------------------------------------------------------< private >---
 
-    private class EventGeneratingNodeStateDiff extends RecursingNodeStateDiff {
+    private class EventGeneratingNodeStateDiff extends RecursingNodeStateDiff implements MoveAwareNodeStateDiff {
         public static final int EVENT_LIMIT = 8192;
 
         private final ChangeSet changes;
         private final Tree beforeTree;
         private final Tree afterTree;
+        private final Set<String> movedPaths;
 
         private List<Iterator<Event>> events;
         private int eventCount;
 
-        EventGeneratingNodeStateDiff(ChangeSet changes, Tree beforeTree, Tree afterTree, List<Iterator<Event>> events) {
+        EventGeneratingNodeStateDiff(ChangeSet changes, Tree beforeTree, Tree afterTree, List<Iterator<Event>> events, Set<String> movedPaths) {
             this.changes = changes;
             this.beforeTree = beforeTree;
             this.afterTree = afterTree;
             this.events = events;
+            this.movedPaths = movedPaths;
         }
 
-        public EventGeneratingNodeStateDiff(ChangeSet changes, Tree beforeTree, Tree afterTree) {
-            this(changes, beforeTree, afterTree, Lists.<Iterator<Event>>newArrayList());
+        public EventGeneratingNodeStateDiff(ChangeSet changes, Tree beforeTree, Tree afterTree, Set<String> movedPaths) {
+            this(changes, beforeTree, afterTree, Lists.<Iterator<Event>>newArrayList(), movedPaths);
         }
 
         public void sendEvents() {
@@ -319,8 +326,9 @@ public class ChangeProcessor implements Runnable {
         public RecursingNodeStateDiff createChildDiff(String name, NodeState before, NodeState after) {
             if (filterRef.get().includeChildren(afterTree.getPath())) {
                 EventGeneratingNodeStateDiff diff = new EventGeneratingNodeStateDiff(
-                        changes, beforeTree.getChild(name), afterTree.getChild(name), events);
-                return VisibleDiff.wrap(diff);
+                        changes, beforeTree.getChild(name), afterTree.getChild(name), events, movedPaths);
+                MoveDetector moveDetector = new MoveDetector(diff, PathUtils.concat(beforeTree.getPath(), name), movedPaths);
+                return VisibleDiff.wrap(moveDetector);
             } else {
                 return RecursingNodeStateDiff.EMPTY;
             }
@@ -385,6 +393,11 @@ public class ChangeProcessor implements Runnable {
                     });
         }
 
+        @Override
+        public boolean move(String sourcePath, String destPath, NodeState moved) {
+            System.out.println(">" + sourcePath + ":" + destPath);
+            return true; // FIXME implement move: generate move events
+        }
     }
 
 }
