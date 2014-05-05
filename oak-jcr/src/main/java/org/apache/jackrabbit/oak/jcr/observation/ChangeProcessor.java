@@ -28,7 +28,6 @@ import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerO
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -266,12 +265,10 @@ class ChangeProcessor implements Observer {
         }
     }
 
-    static AtomicInteger k = new AtomicInteger();
-
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            int i = k.incrementAndGet();
+            long i = System.nanoTime();
             System.out.println("contentChanged: " + i + " " + JsopDiff.diffToJsop(
                     previousRoot.getChildNode("test_node"),
                     root.getChildNode("test_node")));
