@@ -288,7 +288,9 @@ class ChangeProcessor implements Observer {
                 }
 
                 Iterator<Event> events = concat(eventQueues.iterator());
+                System.out.println("hasEvents: " + events.hasNext());
                 if (events.hasNext() && runningMonitor.enterIf(running)) {
+                    System.out.println("Calling onEvent");
                     try {
                         eventListener.onEvent(
                                 new EventIteratorAdapter(statisticProvider(events)));
@@ -297,6 +299,7 @@ class ChangeProcessor implements Observer {
                     }
                 }
             } catch (Exception e) {
+                e.printStackTrace();
                 LOG.warn("Error while dispatching observation events", e);
             }
         }
