@@ -78,7 +78,10 @@ import org.apache.jackrabbit.oak.plugins.observation.filter.Selectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class OAK1491 extends AbstractRepositoryTest {
     public static final int ALL_EVENTS = NODE_ADDED | NODE_REMOVED | NODE_MOVED | PROPERTY_ADDED |
             PROPERTY_REMOVED | PROPERTY_CHANGED | PERSIST;
@@ -86,7 +89,7 @@ public class OAK1491 extends AbstractRepositoryTest {
     private static final String REFERENCEABLE_NODE = "\"referenceable\"";
     private static final String TEST_PATH = '/' + TEST_NODE;
     private static final String TEST_TYPE = "mix:test";
-    public static final int TIME_OUT = 10;
+    public static final int TIME_OUT = 4;
 
     private Session observingSession;
     private ObservationManager observationManager;
@@ -931,7 +934,7 @@ public class OAK1491 extends AbstractRepositoryTest {
                 System.out.println("no missing");
             }
             catch (TimeoutException e) {
-                System.out.println("getMissing timeout");
+                System.out.println("*** getMissing timeout");
                 long dt = System.nanoTime() - t0;
                 // TODO remove again once OAK-1491 is fixed
                 assertTrue("Spurious wak-up after " + dt,
