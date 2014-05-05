@@ -61,9 +61,12 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@RunWith(Parameterized.class)
 public class OAK1491Test extends AbstractRepositoryTest {
     private static final Logger log = LoggerFactory.getLogger(OAK1491Test.class);
 
