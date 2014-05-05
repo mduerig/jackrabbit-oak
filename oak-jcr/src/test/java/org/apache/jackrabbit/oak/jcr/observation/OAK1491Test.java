@@ -47,6 +47,7 @@ import javax.jcr.observation.EventIterator;
 import javax.jcr.observation.EventListener;
 import javax.jcr.observation.ObservationManager;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ForwardingListenableFuture;
@@ -114,7 +115,10 @@ public class OAK1491Test extends AbstractRepositoryTest {
             listener.expectAdd(n.addNode("n1"));
             getAdminSession().save();
 
+            Stopwatch watch = Stopwatch.createStarted();
             List<Expectation> missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
+            System.out.println(watch.stop());
+
             assertTrue("Missing events: " + missing, missing.isEmpty());
             List<Event> unexpected = listener.getUnexpected();
             assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
@@ -123,7 +127,10 @@ public class OAK1491Test extends AbstractRepositoryTest {
             listener.expectRemove(n.getNode("n1")).remove();
             getAdminSession().save();
 
+            watch = Stopwatch.createStarted();
             missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
+            System.out.println(watch.stop());
+
             assertTrue("Missing events: " + missing, missing.isEmpty());
             unexpected = listener.getUnexpected();
             assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
