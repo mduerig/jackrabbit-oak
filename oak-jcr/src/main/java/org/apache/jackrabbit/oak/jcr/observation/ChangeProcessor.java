@@ -287,6 +287,7 @@ class ChangeProcessor implements Observer {
                     }
                 }
 
+                System.out.println("Building events");
                 Iterator<Event> events = concat(eventQueues.iterator());
                 System.out.println("hasEvents: " + events.hasNext());
                 if (events.hasNext() && runningMonitor.enterIf(running)) {
