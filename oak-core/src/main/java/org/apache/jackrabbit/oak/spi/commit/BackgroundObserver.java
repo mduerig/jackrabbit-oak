@@ -145,6 +145,23 @@ public class BackgroundObserver implements Observer, Closeable {
         this.executor = checkNotNull(executor);
         this.exceptionHandler = checkNotNull(exceptionHandler);
         this.queue = newArrayBlockingQueue(queueLength);
+
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(true) {
+                    System.out.println("Revision queue size = " + queue.size());
+                    try {
+                        Thread.sleep(200);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        });
+        t.setDaemon(true);
+        t.start();
     }
 
     public BackgroundObserver(
