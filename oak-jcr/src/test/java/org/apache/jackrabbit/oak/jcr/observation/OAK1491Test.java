@@ -106,13 +106,13 @@ public class OAK1491Test extends AbstractRepositoryTest {
     }
 
 
-    @Test
-    public void observation() throws RepositoryException, InterruptedException, ExecutionException {
+    private void testObservation(int k) throws RepositoryException, InterruptedException, ExecutionException {
+        System.out.println("run " + k);
         ExpectationListener listener = new ExpectationListener();
         observationManager.addEventListener(listener, ALL_EVENTS, "/", true, null, null, false);
         try {
             Node n = getNode(TEST_PATH);
-            listener.expectAdd(n.addNode("n1"));
+            listener.expectAdd(n.addNode("n" + k));
             getAdminSession().save();
 
             Stopwatch watch = Stopwatch.createStarted();
@@ -122,21 +122,16 @@ public class OAK1491Test extends AbstractRepositoryTest {
             assertTrue("Missing events: " + missing, missing.isEmpty());
             List<Event> unexpected = listener.getUnexpected();
             assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
-
-            listener.expectAdd(n.addNode("n2"));
-            listener.expectRemove(n.getNode("n1")).remove();
-            getAdminSession().save();
-
-            watch = Stopwatch.createStarted();
-            missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
-            System.out.println(watch.stop());
-
-            assertTrue("Missing events: " + missing, missing.isEmpty());
-            unexpected = listener.getUnexpected();
-            assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
         }
         finally {
             observationManager.removeEventListener(listener);
+        }
+    }
+
+    @Test
+    public void observation() throws RepositoryException, InterruptedException, ExecutionException {
+        for (int k = 0; k < 1000; k++) {
+            testObservation(k);
         }
     }
 
