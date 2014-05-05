@@ -44,7 +44,6 @@ import org.apache.jackrabbit.api.jmx.EventListenerMBean;
 import org.apache.jackrabbit.commons.iterator.EventIteratorAdapter;
 import org.apache.jackrabbit.commons.observation.ListenerTracker;
 import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.kernel.JsopDiff;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.observation.CommitRateLimiter;
 import org.apache.jackrabbit.oak.plugins.observation.filter.ACFilter;
@@ -268,10 +267,6 @@ class ChangeProcessor implements Observer {
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            long i = System.nanoTime();
-            System.out.println("contentChanged: " + i + " " + JsopDiff.diffToJsop(
-                    previousRoot.getChildNode("test_node"),
-                    root.getChildNode("test_node")));
             try {
                 List<FilterProvider> providers = filterProvider.get();
                 List<Iterator<Event>> eventQueues = Lists.newArrayList();
@@ -284,16 +279,12 @@ class ChangeProcessor implements Observer {
                         EventQueue events = new EventQueue(
                                 namePathMapper, info, previousRoot, root, basePath,
                                 Filters.all(userFilter, acFilter));
-                        System.out.println("Adding events " + i + " " + events);
                         eventQueues.add(events);
                     }
                 }
 
-                System.out.println("Building events" + i + " ");
                 Iterator<Event> events = concat(eventQueues.iterator());
-                System.out.println("hasEvents: " + i + " " + events.hasNext());
                 if (events.hasNext() && runningMonitor.enterIf(running)) {
-                    System.out.println("Calling onEvent" + i + " ");
                     try {
                         eventListener.onEvent(
                                 new EventIteratorAdapter(statisticProvider(events)));
@@ -302,7 +293,6 @@ class ChangeProcessor implements Observer {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
                 LOG.warn("Error while dispatching observation events", e);
             }
         }
