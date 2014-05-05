@@ -117,7 +117,7 @@ public class BackgroundObserverTest {
             private Long getP(NodeState previous) {
                 return previous.getProperty("p").getValue(Type.LONG);
             }
-        }, executor, 1024);
+        }, executor, 1025);
     }
 
 }

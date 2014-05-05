@@ -78,6 +78,7 @@ public class ObservationRefreshTest extends AbstractRepositoryTest {
 
     @Before
     public void setup() throws RepositoryException {
+        observationQueueLength = 1000000;
         Session session = getAdminSession();
 
         NodeTypeManager ntMgr = session.getWorkspace().getNodeTypeManager();
