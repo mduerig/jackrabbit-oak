@@ -873,6 +873,7 @@ public class OAK1491 extends AbstractRepositoryTest {
         }
 
         public Future<Event> expect(final String path, final int type) {
+            System.out.println("Expect: " + "path = " + path + ", type = " + type);
             return expect(new Expectation("path = " + path + ", type = " + type) {
                 @Override
                 public boolean onEvent(Event event) throws RepositoryException {
@@ -922,12 +923,15 @@ public class OAK1491 extends AbstractRepositoryTest {
 
         public List<Expectation> getMissing(int time, TimeUnit timeUnit)
                 throws ExecutionException, InterruptedException {
+            System.out.println("getMissing");
             List<Expectation> missing = Lists.newArrayList();
             long t0 = System.nanoTime();
             try {
                 Futures.allAsList(expected).get(time, timeUnit);
+                System.out.println("no missing");
             }
             catch (TimeoutException e) {
+                System.out.println("getMissing timeout");
                 long dt = System.nanoTime() - t0;
                 // TODO remove again once OAK-1491 is fixed
                 assertTrue("Spurious wak-up after " + dt,
@@ -948,8 +952,10 @@ public class OAK1491 extends AbstractRepositoryTest {
         @Override
         public void onEvent(EventIterator events) {
             try {
+                System.out.println("onEvent");
                 while (events.hasNext() && failed == null) {
                     Event event = events.nextEvent();
+                    System.out.println(event.getType() + " " + event.getPath());
                     boolean found = false;
                     for (Expectation exp : expected) {
                         if (exp.isEnabled() && exp.onEvent(event)) {
@@ -963,6 +969,7 @@ public class OAK1491 extends AbstractRepositoryTest {
 
                 }
             } catch (Exception e) {
+                e.printStackTrace();
                 for (Expectation exp : expected) {
                     exp.fail(e);
                 }
