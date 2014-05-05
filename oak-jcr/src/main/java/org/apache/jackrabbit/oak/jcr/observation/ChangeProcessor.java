@@ -28,6 +28,7 @@ import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerO
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -265,10 +266,13 @@ class ChangeProcessor implements Observer {
         }
     }
 
+    static AtomicInteger k = new AtomicInteger();
+
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            System.out.println("contentChanged: " + JsopDiff.diffToJsop(
+            int i = k.incrementAndGet();
+            System.out.println("contentChanged: " + i + " " + JsopDiff.diffToJsop(
                     previousRoot.getChildNode("test_node"),
                     root.getChildNode("test_node")));
             try {
@@ -283,16 +287,16 @@ class ChangeProcessor implements Observer {
                         EventQueue events = new EventQueue(
                                 namePathMapper, info, previousRoot, root, basePath,
                                 Filters.all(userFilter, acFilter));
-                        System.out.println("Adding events " + events);
+                        System.out.println("Adding events " + i + " " + events);
                         eventQueues.add(events);
                     }
                 }
 
-                System.out.println("Building events");
+                System.out.println("Building events" + i + " ");
                 Iterator<Event> events = concat(eventQueues.iterator());
-                System.out.println("hasEvents: " + events.hasNext());
+                System.out.println("hasEvents: " + i + " " + events.hasNext());
                 if (events.hasNext() && runningMonitor.enterIf(running)) {
-                    System.out.println("Calling onEvent");
+                    System.out.println("Calling onEvent" + i + " ");
                     try {
                         eventListener.onEvent(
                                 new EventIteratorAdapter(statisticProvider(events)));
