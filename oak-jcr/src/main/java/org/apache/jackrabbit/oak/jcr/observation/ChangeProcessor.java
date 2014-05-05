@@ -267,6 +267,7 @@ class ChangeProcessor implements Observer {
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
+            System.out.println("contentChanged");
             try {
                 List<FilterProvider> providers = filterProvider.get();
                 List<Iterator<Event>> eventQueues = Lists.newArrayList();
