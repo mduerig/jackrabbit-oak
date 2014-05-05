@@ -283,13 +283,14 @@ class ChangeProcessor implements Observer {
                         EventQueue events = new EventQueue(
                                 namePathMapper, info, previousRoot, root, basePath,
                                 Filters.all(userFilter, acFilter));
+                        System.out.println("Adding events " + events);
                         eventQueues.add(events);
                     }
                 }
 
-                System.out.println(Thread.currentThread() + " Building events");
+                System.out.println("Building events");
                 Iterator<Event> events = concat(eventQueues.iterator());
-                System.out.println(Thread.currentThread() + " hasEvents: " + events.hasNext());
+                System.out.println("hasEvents: " + events.hasNext());
                 if (events.hasNext() && runningMonitor.enterIf(running)) {
                     System.out.println("Calling onEvent");
                     try {
