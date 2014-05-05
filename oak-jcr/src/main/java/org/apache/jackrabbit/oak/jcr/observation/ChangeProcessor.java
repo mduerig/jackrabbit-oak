@@ -268,7 +268,9 @@ class ChangeProcessor implements Observer {
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            System.out.println("contentChanged: " + JsopDiff.diffToJsop(previousRoot, root.getChildNode("test_node")));
+            System.out.println("contentChanged: " + JsopDiff.diffToJsop(
+                    previousRoot.getChildNode("test_node"),
+                    root.getChildNode("test_node")));
             try {
                 List<FilterProvider> providers = filterProvider.get();
                 List<Iterator<Event>> eventQueues = Lists.newArrayList();
