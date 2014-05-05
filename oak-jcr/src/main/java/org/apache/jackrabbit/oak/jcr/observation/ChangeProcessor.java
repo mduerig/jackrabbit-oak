@@ -46,7 +46,6 @@ import org.apache.jackrabbit.commons.observation.ListenerTracker;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.kernel.JsopDiff;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
-import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.plugins.observation.CommitRateLimiter;
 import org.apache.jackrabbit.oak.plugins.observation.filter.ACFilter;
 import org.apache.jackrabbit.oak.plugins.observation.filter.EventFilter;
@@ -269,7 +268,7 @@ class ChangeProcessor implements Observer {
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            System.out.println("contentChanged: " + JsopDiff.diffToJsop(EmptyNodeState.EMPTY_NODE, root.getChildNode("test_node")));
+            System.out.println("contentChanged: " + JsopDiff.diffToJsop(previousRoot, root.getChildNode("test_node")));
             try {
                 List<FilterProvider> providers = filterProvider.get();
                 List<Iterator<Event>> eventQueues = Lists.newArrayList();
