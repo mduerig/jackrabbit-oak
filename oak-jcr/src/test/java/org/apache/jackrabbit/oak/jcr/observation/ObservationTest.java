@@ -85,7 +85,7 @@ public class ObservationTest extends AbstractRepositoryTest {
     private static final String REFERENCEABLE_NODE = "\"referenceable\"";
     private static final String TEST_PATH = '/' + TEST_NODE;
     private static final String TEST_TYPE = "mix:test";
-    public static final int TIME_OUT = 4;
+    public static final int TIME_OUT = 10;
 
     private Session observingSession;
     private ObservationManager observationManager;
