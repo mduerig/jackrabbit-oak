@@ -80,20 +80,8 @@ public abstract class AbstractRepositoryTest {
     @Parameterized.Parameters
     public static Collection<Object[]> fixtures() {
         Collection<Object[]> result = new ArrayList<Object[]>();
-        if (FIXTURES.isEmpty() || FIXTURES.contains("MK_IMPL")) {
-            result.add(new Object[] { NodeStoreFixture.MK_IMPL });
-        }
-        if (FIXTURES.isEmpty() || FIXTURES.contains("DOCUMENT_MK")) {
-            result.add(new Object[] { NodeStoreFixture.DOCUMENT_MK });
-        }
-        if (FIXTURES.isEmpty() || FIXTURES.contains("DOCUMENT_NS")) {
-            result.add(new Object[] { NodeStoreFixture.DOCUMENT_NS });
-        }
         if (FIXTURES.isEmpty() || FIXTURES.contains("SEGMENT_MK")) {
             result.add(new Object[] { NodeStoreFixture.SEGMENT_MK });
-        }
-        if (FIXTURES.isEmpty() || FIXTURES.contains("DOCUMENT_JDBC")) {
-            result.add(new Object[] { NodeStoreFixture.DOCUMENT_JDBC });
         }
         return result;
     }
