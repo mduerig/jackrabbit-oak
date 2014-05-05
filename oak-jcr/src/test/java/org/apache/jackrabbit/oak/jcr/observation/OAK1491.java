@@ -79,7 +79,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-public class OAK1492 extends AbstractRepositoryTest {
+public class OAK1491 extends AbstractRepositoryTest {
     public static final int ALL_EVENTS = NODE_ADDED | NODE_REMOVED | NODE_MOVED | PROPERTY_ADDED |
             PROPERTY_REMOVED | PROPERTY_CHANGED | PERSIST;
     private static final String TEST_NODE = "test_node";
@@ -92,7 +92,7 @@ public class OAK1492 extends AbstractRepositoryTest {
     private ObservationManager observationManager;
     private String test_uuid;
 
-    public OAK1492(NodeStoreFixture fixture) {
+    public OAK1491(NodeStoreFixture fixture) {
         super(fixture);
     }
 
