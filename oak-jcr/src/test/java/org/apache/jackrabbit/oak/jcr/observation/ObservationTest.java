@@ -75,10 +75,16 @@ import org.apache.jackrabbit.oak.jcr.NodeStoreFixture;
 import org.apache.jackrabbit.oak.plugins.observation.filter.FilterBuilder;
 import org.apache.jackrabbit.oak.plugins.observation.filter.Selectors;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ObservationTest extends AbstractRepositoryTest {
+    private static final Logger log = LoggerFactory.getLogger(ObservationTest.class);
+
     public static final int ALL_EVENTS = NODE_ADDED | NODE_REMOVED | NODE_MOVED | PROPERTY_ADDED |
             PROPERTY_REMOVED | PROPERTY_CHANGED | PERSIST;
     private static final String TEST_NODE = "test_node";
@@ -93,6 +99,16 @@ public class ObservationTest extends AbstractRepositoryTest {
 
     public ObservationTest(NodeStoreFixture fixture) {
         super(fixture);
+    }
+
+    @BeforeClass
+    public static void beforeClass() {
+        log.info("Start running {} tests", ObservationTest.class);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        log.info("Done running {} tests", ObservationTest.class);
     }
 
     @Before
