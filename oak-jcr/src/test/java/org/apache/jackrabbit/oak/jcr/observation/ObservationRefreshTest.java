@@ -66,7 +66,7 @@ public class ObservationRefreshTest extends AbstractRepositoryTest {
     private static final String TEST_PATH = '/' + TEST_NODE;
     private static final String TEST_TYPE = "mix:test";
 
-    private static final long CONDITION_TIMEOUT = 15*1000;
+    private static final long CONDITION_TIMEOUT = 10*60*1000;
 
     private Session observingSession;
     private ObservationManager observationManager;
@@ -109,18 +109,18 @@ public class ObservationRefreshTest extends AbstractRepositoryTest {
         observationManager.addEventListener(listener, ALL_EVENTS, "/", true, null, null, false);
         try {
             Node n = getAdminSession().getNode(TEST_PATH);
-            for (int i=0; i<200; i++) {
+            for (int i=0; i<1000; i++) {
                 n.addNode("n" + i);
                 n.getSession().save();
             }
             listener.waitFor(CONDITION_TIMEOUT, new Condition() {
                 @Override
                 public boolean evaluate() {
-                    return listener.numAdded == 200;
+                    return listener.numAdded == 1000;
                 }
             });
             assertEquals("", listener.error);
-            assertEquals("added nodes", 200, listener.numAdded);
+            assertEquals("added nodes", 1000, listener.numAdded);
         }
         finally {
             observationManager.removeEventListener(listener);
