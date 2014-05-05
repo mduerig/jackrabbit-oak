@@ -29,9 +29,6 @@ import static javax.jcr.observation.Event.PERSIST;
 import static javax.jcr.observation.Event.PROPERTY_ADDED;
 import static javax.jcr.observation.Event.PROPERTY_CHANGED;
 import static javax.jcr.observation.Event.PROPERTY_REMOVED;
-import static org.apache.jackrabbit.JcrConstants.JCR_MIXINTYPES;
-import static org.apache.jackrabbit.JcrConstants.JCR_PRIMARYTYPE;
-import static org.apache.jackrabbit.JcrConstants.NT_UNSTRUCTURED;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -52,8 +49,6 @@ import javax.jcr.Node;
 import javax.jcr.Property;
 import javax.jcr.RepositoryException;
 import javax.jcr.Session;
-import javax.jcr.nodetype.NodeTypeManager;
-import javax.jcr.nodetype.NodeTypeTemplate;
 import javax.jcr.observation.Event;
 import javax.jcr.observation.EventIterator;
 import javax.jcr.observation.EventListener;
@@ -67,7 +62,6 @@ import com.google.common.util.concurrent.ForwardingListenableFuture;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.api.observation.JackrabbitEventFilter;
 import org.apache.jackrabbit.api.observation.JackrabbitObservationManager;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -87,9 +81,7 @@ public class OAK1491 extends AbstractRepositoryTest {
     public static final int ALL_EVENTS = NODE_ADDED | NODE_REMOVED | NODE_MOVED | PROPERTY_ADDED |
             PROPERTY_REMOVED | PROPERTY_CHANGED | PERSIST;
     private static final String TEST_NODE = "test_node";
-    private static final String REFERENCEABLE_NODE = "\"referenceable\"";
     private static final String TEST_PATH = '/' + TEST_NODE;
-    private static final String TEST_TYPE = "mix:test";
     public static final int TIME_OUT = 4;
 
     private Session observingSession;
@@ -104,18 +96,7 @@ public class OAK1491 extends AbstractRepositoryTest {
     public void setup() throws RepositoryException {
         Session session = getAdminSession();
 
-        NodeTypeManager ntMgr = session.getWorkspace().getNodeTypeManager();
-        NodeTypeTemplate mixTest = ntMgr.createNodeTypeTemplate();
-        mixTest.setName(TEST_TYPE);
-        mixTest.setMixin(true);
-        ntMgr.registerNodeType(mixTest, false);
-
         Node n = session.getRootNode().addNode(TEST_NODE);
-        n.addMixin(TEST_TYPE);
-        Node refNode = n.addNode(REFERENCEABLE_NODE);
-        refNode.addMixin(JcrConstants.MIX_REFERENCEABLE);
-        test_uuid = refNode.getProperty(JcrConstants.JCR_UUID).getString();
-
         session.save();
 
         observingSession = createAdminSession();
@@ -165,65 +146,6 @@ public class OAK1491 extends AbstractRepositoryTest {
     }
 
     @Test
-    public void infoMap() throws RepositoryException, ExecutionException, InterruptedException {
-        ExpectationListener listener = new ExpectationListener();
-        observationManager.addEventListener(listener, NODE_ADDED, "/", true, null, null, false);
-        try {
-            Node n = getNode(TEST_PATH);
-            n.addNode("n1", "oak:Unstructured");
-            n.addNode("n2");
-            n.getNode("n2").addMixin(TEST_TYPE);
-
-            listener.expect(new Expectation("infoMap for n1") {
-                @Override
-                public boolean onEvent(Event event) throws Exception {
-                    if (event.getPath().endsWith("n1")) {
-                        Map<?, ?> info = event.getInfo();
-                        return info != null &&
-                                "oak:Unstructured".equals(info.get(JCR_PRIMARYTYPE));
-                    } else {
-                        return false;
-                    }
-                }
-            });
-
-            listener.expect(new Expectation("infoMap for n2") {
-                @Override
-                public boolean onEvent(Event event) throws Exception {
-                    if (event.getPath().endsWith("n2")) {
-                        Map<?, ?> info = event.getInfo();
-                        if (info == null) {
-                            return false;
-                        }
-                        Object mixinTypes = info.get(JCR_MIXINTYPES);
-                        if (!(mixinTypes instanceof String[])) {
-                            return false;
-                        }
-
-                        Object primaryType = info.get(JCR_PRIMARYTYPE);
-                        String[] mixins = (String[]) mixinTypes;
-                        return NT_UNSTRUCTURED.equals(primaryType) &&
-                                mixins.length == 1 &&
-                                TEST_TYPE.equals(mixins[0]);
-                    } else {
-                        return false;
-                    }
-                }
-            });
-
-            getAdminSession().save();
-
-            List<Expectation> missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
-            assertTrue("Missing events: " + missing, missing.isEmpty());
-            List<Event> unexpected = listener.getUnexpected();
-            assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
-        }
-        finally {
-            observationManager.removeEventListener(listener);
-        }
-    }
-
-    @Test
     public void observation2() throws RepositoryException, InterruptedException, ExecutionException {
         ExpectationListener listener = new ExpectationListener();
         observationManager.addEventListener(listener, ALL_EVENTS, "/", true, null, null, false);
@@ -244,71 +166,6 @@ public class OAK1491 extends AbstractRepositoryTest {
             missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
             assertTrue("Missing events: " + missing, missing.isEmpty());
             unexpected = listener.getUnexpected();
-            assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
-        }
-        finally {
-            observationManager.removeEventListener(listener);
-        }
-    }
-
-    @Test
-    public void typeFilter() throws RepositoryException, InterruptedException, ExecutionException {
-        ExpectationListener listener = new ExpectationListener();
-        observationManager.addEventListener(listener, ALL_EVENTS, "/", true, null,
-                new String[]{TEST_TYPE}, false);
-
-        try {
-            Node n = getNode(TEST_PATH);
-            Property p = n.setProperty("p", "v");
-            listener.expectAdd(p);
-            Node n1 = n.addNode("n1");
-            listener.expect(n1.getPath(), NODE_ADDED);
-            n1.addNode("n2");
-            getAdminSession().save();
-
-            List<Expectation> missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
-            assertTrue("Missing events: " + missing, missing.isEmpty());
-            List<Event> unexpected = listener.getUnexpected();
-            assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
-
-            listener.expectChange(p).setValue("v2");
-            getAdminSession().save();
-
-            missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
-            assertTrue("Missing events: " + missing, missing.isEmpty());
-            unexpected = listener.getUnexpected();
-            assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
-
-            listener.expectRemove(p).remove();
-            getAdminSession().save();
-
-            missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
-            assertTrue("Missing events: " + missing, missing.isEmpty());
-            unexpected = listener.getUnexpected();
-            assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
-        }
-        finally {
-            observationManager.removeEventListener(listener);
-        }
-    }
-
-    @Test
-    public void uuidFilter() throws RepositoryException, InterruptedException, ExecutionException {
-        ExpectationListener listener = new ExpectationListener();
-        observationManager.addEventListener(listener, ALL_EVENTS, "/", true,
-                new String[]{test_uuid}, null, false);
-
-        try {
-            Node nonRefNode = getNode(TEST_PATH);
-            Node refNode = nonRefNode.getNode(REFERENCEABLE_NODE);
-
-            nonRefNode.addNode("n");
-            listener.expect(refNode.addNode("r").getPath(), NODE_ADDED);
-            getAdminSession().save();
-
-            List<Expectation> missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
-            assertTrue("Missing events: " + missing, missing.isEmpty());
-            List<Event> unexpected = listener.getUnexpected();
             assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
         }
         finally {
