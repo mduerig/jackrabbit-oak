@@ -66,7 +66,7 @@ public class ObservationRefreshTest extends AbstractRepositoryTest {
     private static final String TEST_PATH = '/' + TEST_NODE;
     private static final String TEST_TYPE = "mix:test";
 
-    private static final long CONDITION_TIMEOUT = 30*1000;
+    private static final long CONDITION_TIMEOUT = 10*60*1000;
 
     private Session observingSession;
     private ObservationManager observationManager;
