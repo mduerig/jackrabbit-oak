@@ -26,6 +26,7 @@ import static javax.jcr.observation.Event.PROPERTY_ADDED;
 import static javax.jcr.observation.Event.PROPERTY_CHANGED;
 import static javax.jcr.observation.Event.PROPERTY_REMOVED;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -121,6 +122,80 @@ public class ObservationRefreshTest extends AbstractRepositoryTest {
             });
             assertEquals("", listener.error);
             assertEquals("added nodes", 1000, listener.numAdded);
+
+            for (int i=0; i<1000; i++) {
+                n.getNode("n" + i).remove();
+                n.getSession().save();
+            }
+            listener.waitFor(CONDITION_TIMEOUT, new Condition() {
+                @Override
+                public boolean evaluate() {
+                    return listener.numRemoved == 1000;
+                }
+            });
+            assertEquals("", listener.error);
+            assertEquals("removed nodes", 1000, listener.numRemoved);
+
+            for (int i=0; i<100; i++) {
+                n.setProperty("test" + i, "foo");
+                n.getSession().save();
+            }
+            listener.waitFor(CONDITION_TIMEOUT, new Condition() {
+                @Override
+                public boolean evaluate() {
+                    return listener.numPropsAdded == 1100;
+                }
+            });
+            assertEquals("", listener.error);
+            assertEquals("properties added", 1100, listener.numPropsAdded);
+
+            for (int i=0; i<100; i++) {
+                n.setProperty("test" + i, i);
+                n.getSession().save();
+            }
+            listener.waitFor(CONDITION_TIMEOUT, new Condition() {
+                @Override
+                public boolean evaluate() {
+                    return listener.numPropsModified == 100;
+                }
+            });
+            assertEquals("", listener.error);
+            assertEquals("properties modified", 100, listener.numPropsModified);
+
+            for (int i=0; i<10; i++) {
+                n.setProperty("test100", "foo");
+                n.getSession().save();
+                assertTrue("Gave up waiting for events",
+                        listener.waitFor(CONDITION_TIMEOUT, new Condition() {
+                            @Override
+                            public boolean evaluate() {
+                                return listener.test100Exists;
+                            }
+                        }));
+                n.getProperty("test100").remove();
+                n.getSession().save();
+                assertTrue("Gave up waiting for events",
+                        listener.waitFor(CONDITION_TIMEOUT, new Condition() {
+                            @Override
+                            public boolean evaluate() {
+                                return !listener.test100Exists;
+                            }
+                        }));
+            }
+            assertEquals("", listener.error);
+
+            for (int i=0; i<100; i++) {
+                n.getProperty("test" + i).remove();
+                n.getSession().save();
+            }
+            listener.waitFor(CONDITION_TIMEOUT, new Condition() {
+                @Override
+                public boolean evaluate() {
+                    return listener.numPropsRemoved == 1100;
+                }
+            });
+            assertEquals("", listener.error);
+            assertEquals("properties removed", 1100, listener.numPropsRemoved);
         }
         finally {
             observationManager.removeEventListener(listener);
@@ -152,7 +227,6 @@ public class ObservationRefreshTest extends AbstractRepositoryTest {
             try {
                 while (events.hasNext()) {
                     Event event = events.nextEvent();
-                    System.out.println("Event: " + event.getType() + " " + event.getPath());
                     if (event.getType() == Event.NODE_ADDED) {
                         numAdded++;
                         if (!observingSession.nodeExists(event.getPath())) {
