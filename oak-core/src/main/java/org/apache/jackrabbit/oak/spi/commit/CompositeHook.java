@@ -30,7 +30,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
  */
 public class CompositeHook implements CommitHook {
 
-    public static CommitHook compose(@Nonnull Collection<CommitHook> hooks) {
+    public static CommitHook compose(@Nonnull Collection<? extends CommitHook> hooks) {
         switch (hooks.size()) {
         case 0:
             return EmptyHook.INSTANCE;
@@ -41,9 +41,9 @@ public class CompositeHook implements CommitHook {
         }
     }
 
-    private final Collection<CommitHook> hooks;
+    private final Collection<? extends CommitHook> hooks;
 
-    private CompositeHook(@Nonnull Collection<CommitHook> hooks) {
+    private CompositeHook(@Nonnull Collection<? extends CommitHook> hooks) {
         this.hooks = hooks;
     }
 

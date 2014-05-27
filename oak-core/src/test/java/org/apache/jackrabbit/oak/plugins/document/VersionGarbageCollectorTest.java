@@ -19,13 +19,6 @@
 
 package org.apache.jackrabbit.oak.plugins.document;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-
 import static org.apache.jackrabbit.oak.plugins.document.Collection.NODES;
 import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.NUM_REVS_THRESHOLD;
 import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.PREV_SPLIT_FACTOR;
@@ -37,13 +30,19 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.stats.Clock;
@@ -123,7 +122,7 @@ public class VersionGarbageCollectorTest {
         NodeBuilder b1 = store.getRoot().builder();
         b1.child("x").child("y");
         b1.child("z");
-        store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         long maxAge = 1; //hours
         long delta = TimeUnit.MINUTES.toMillis(10);
@@ -135,7 +134,7 @@ public class VersionGarbageCollectorTest {
         //Remove x/y
         NodeBuilder b2 = store.getRoot().builder();
         b2.child("x").child("y").remove();
-        store.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         store.runBackgroundOperations();
 
@@ -155,11 +154,11 @@ public class VersionGarbageCollectorTest {
         //4. Check that a revived doc (deleted and created again) does not get gc
         NodeBuilder b3 = store.getRoot().builder();
         b3.child("z").remove();
-        store.merge(b3, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b3, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         NodeBuilder b4 = store.getRoot().builder();
         b4.child("z");
-        store.merge(b4, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b4, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         clock.waitUntil(clock.getTime() + TimeUnit.HOURS.toMillis(maxAge*2) + delta);
         stats = gc.gc(maxAge*2, TimeUnit.HOURS);
@@ -176,7 +175,7 @@ public class VersionGarbageCollectorTest {
         NodeBuilder b1 = store.getRoot().builder();
         b1.child("test").child("foo").child("bar");
         b1.child("test2").child("foo");
-        store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Commit on a node which has a child and where the commit root
         // is parent
@@ -188,7 +187,7 @@ public class VersionGarbageCollectorTest {
 
             //This should result in SplitDoc of type DEFAULT_NO_CHILD
             b1.child("test2").child("foo").setProperty("prop", i);
-            store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
         store.runBackgroundOperations();
 
@@ -228,18 +227,18 @@ public class VersionGarbageCollectorTest {
         // on the rood document, because the children flag is set on the
         // root document
         b1.child("foo");
-        store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         // adding test afterwards will use the new test document as the
         // commit root. this what we want for the test.
         b1.child("test");
-        store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         assertTrue(!getDoc("/test").getLocalRevisions().isEmpty());
 
         for (int i = 0; i < PREV_SPLIT_FACTOR + 1; i++) {
             for (int j = 0; j < NUM_REVS_THRESHOLD; j++) {
                 b1 = store.getRoot().builder();
                 b1.child("test").setProperty("prop", i * NUM_REVS_THRESHOLD + j);
-                store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+                store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
             }
             store.runBackgroundOperations();
         }
@@ -277,7 +276,7 @@ public class VersionGarbageCollectorTest {
             b1.child(name);
             names.add(name);
         }
-        store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         for (ChildNodeEntry entry : store.getRoot().getChildNodeEntries()) {
             entry.getNodeState();
@@ -287,7 +286,7 @@ public class VersionGarbageCollectorTest {
         b1.getChildNode("test-7").remove();
         names.remove("test-7");
 
-        store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         clock.waitUntil(clock.getTime() + TimeUnit.HOURS.toMillis(maxAge) + delta);
 
@@ -311,7 +310,7 @@ public class VersionGarbageCollectorTest {
             NodeBuilder builder = store.getRoot().builder();
             builder.child("foo").setProperty("prop", "v" + i);
             builder.child("bar").setProperty("prop", "v" + i);
-            store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
 
         store.runBackgroundOperations();

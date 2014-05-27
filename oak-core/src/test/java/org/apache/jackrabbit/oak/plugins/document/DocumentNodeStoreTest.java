@@ -16,6 +16,17 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.jackrabbit.oak.api.CommitFailedException.CONSTRAINT;
+import static org.apache.jackrabbit.oak.plugins.document.Collection.NODES;
+import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.MODIFIED_IN_SECS;
+import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.MODIFIED_IN_SECS_RESOLUTION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -30,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Iterables;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -45,7 +57,7 @@ import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
 import org.apache.jackrabbit.oak.spi.commit.Editor;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.HookEditor;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -53,19 +65,6 @@ import org.apache.jackrabbit.oak.stats.Clock;
 import org.junit.After;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import com.google.common.collect.Iterables;
-
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.jackrabbit.oak.api.CommitFailedException.CONSTRAINT;
-import static org.apache.jackrabbit.oak.plugins.document.Collection.NODES;
-import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.MODIFIED_IN_SECS;
-import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.MODIFIED_IN_SECS_RESOLUTION;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class DocumentNodeStoreTest {
 
@@ -94,7 +93,7 @@ public class DocumentNodeStoreTest {
 
         NodeBuilder builder = store2.getRoot().builder();
         builder.child("node2");
-        store2.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store2.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         // force update of _lastRevs
         store2.runBackgroundOperations();
 
@@ -104,7 +103,7 @@ public class DocumentNodeStoreTest {
         builder = store1.getRoot().builder();
         builder.child("node1");
         NodeState root =
-                store1.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+                store1.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         semaphore.acquireUninterruptibly();
         Thread t = new Thread(new Runnable() {
@@ -147,12 +146,12 @@ public class DocumentNodeStoreTest {
             children.add(name);
             builder.child(name);
         }
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         builder = store.getRoot().builder();
         String name = new ArrayList<String>(children).get(
                 KernelNodeState.MAX_CHILD_NAMES / 2);
         builder.child(name).remove();
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         int numEntries = Iterables.size(store.getRoot().getChildNodeEntries());
         assertEquals(max - 1, numEntries);
         store.dispose();
@@ -178,7 +177,7 @@ public class DocumentNodeStoreTest {
         for (int i = 0; i < 10; i++) {
             root.child("node-" + i);
         }
-        store.merge(root, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(root, EditorProvider.EMPTY, CommitInfo.EMPTY);
         counter.set(0);
         // the following should just make one call to DocumentStore.query()
         for (ChildNodeEntry e : store.getRoot().getChildNodeEntries()) {
@@ -279,13 +278,13 @@ public class DocumentNodeStoreTest {
         NodeBuilder b1 = ns1.getRoot().builder();
         for (int i = 0; i < NodeDocument.NUM_REVS_THRESHOLD; i++) {
             b1.setProperty("p", String.valueOf(i));
-            ns1.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            ns1.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
         ns1.runBackgroundOperations();
 
         NodeBuilder b2 = ns2.getRoot().builder();
         b2.setProperty("q", "value");
-        ns2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         ns1.dispose();
         ns2.dispose();
@@ -305,8 +304,8 @@ public class DocumentNodeStoreTest {
             }
         }
         try {
-            ns.merge(builder, CompositeHook.compose(
-                    Arrays.asList(new TestHook("p"), new TestHook("q"), FAILING_HOOK)),
+            ns.merge(builder, new HookEditor(CompositeHook.compose(
+                    Arrays.asList(new TestHook("p"), new TestHook("q"), FAILING_HOOK))),
                     CommitInfo.EMPTY);
             fail("merge must fail and reset changes done by commit hooks");
         } catch (CommitFailedException e) {
@@ -327,8 +326,8 @@ public class DocumentNodeStoreTest {
                 assertEquals("value", p.getValue(Type.STRING));
             }
         }
-        ns.merge(builder, CompositeHook.compose(
-                Arrays.<CommitHook>asList(new TestHook("p"), new TestHook("q"))),
+        ns.merge(builder, new HookEditor(CompositeHook.compose(
+                Arrays.<CommitHook>asList(new TestHook("p"), new TestHook("q")))),
                 CommitInfo.EMPTY);
 
         builder = ns.getRoot().builder();
@@ -377,7 +376,7 @@ public class DocumentNodeStoreTest {
 
         NodeBuilder builder = nodeStore2.getRoot().builder();
         builder.setProperty("prop", "value");
-        nodeStore2.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        nodeStore2.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         nodeStore2.runBackgroundOperations();
 
         clock.waitUntil(System.currentTimeMillis() +
@@ -404,13 +403,13 @@ public class DocumentNodeStoreTest {
         // and move the commit root to the root
         NodeBuilder builder = ns.getRoot().builder();
         builder.child("foo");
-        ns.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         // the second time, the added node is also the commit root, this
         // is the case we are interested in
         builder = ns.getRoot().builder();
         builder.child("bar");
-        ns.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         NodeDocument doc = ns.getDocumentStore().find(NODES,
                 Utils.getIdFromPath("/bar"));
@@ -431,7 +430,7 @@ public class DocumentNodeStoreTest {
                 .setAsyncDelay(0).clock(clock).getNodeStore();
         NodeBuilder builder1 = ns1.getRoot().builder();
         builder1.child("node");
-        ns1.merge(builder1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns1.merge(builder1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         ns1.runBackgroundOperations();
 
         DocumentNodeStore ns2 = new DocumentMK.Builder()
@@ -440,7 +439,7 @@ public class DocumentNodeStoreTest {
 
         NodeBuilder builder2 = ns2.getRoot().builder();
         builder2.child("node").child("child-2");
-        ns2.merge(builder2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns2.merge(builder2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         // wait at least _modified resolution. in reality the wait may
         // not be necessary. e.g. when the clock passes the resolution boundary
@@ -450,7 +449,7 @@ public class DocumentNodeStoreTest {
 
         builder1 = ns1.getRoot().builder();
         builder1.child("node").child("child-1");
-        ns1.merge(builder1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns1.merge(builder1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         ns1.runBackgroundOperations();
 
@@ -488,7 +487,7 @@ public class DocumentNodeStoreTest {
         for (int i = 0; i < DocumentMK.MANY_CHILDREN_THRESHOLD; i++) {
             builder1.child("node-" + i);
         }
-        ns1.merge(builder1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns1.merge(builder1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         // make sure commit is visible to other node store instance
         ns1.runBackgroundOperations();
 
@@ -498,7 +497,7 @@ public class DocumentNodeStoreTest {
 
         NodeBuilder builder2 = ns2.getRoot().builder();
         builder2.child("node").child("child-a");
-        ns2.merge(builder2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns2.merge(builder2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         // wait at least _modified resolution. in reality the wait may
         // not be necessary. e.g. when the clock passes the resolution boundary
@@ -508,13 +507,13 @@ public class DocumentNodeStoreTest {
 
         builder1 = ns1.getRoot().builder();
         builder1.child("node").child("child-b");
-        ns1.merge(builder1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns1.merge(builder1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         // remember root for diff
         DocumentNodeState root1 = ns1.getRoot();
 
         builder1 = root1.builder();
         builder1.child("node").child("child-c");
-        ns1.merge(builder1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns1.merge(builder1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         // remember root for diff
         DocumentNodeState root2 = ns1.getRoot();
 

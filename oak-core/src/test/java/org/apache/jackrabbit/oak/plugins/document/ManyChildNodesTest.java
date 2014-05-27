@@ -16,22 +16,21 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static org.junit.Assert.assertTrue;
+
 import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
 import org.apache.jackrabbit.oak.plugins.document.memory.MemoryDocumentStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.Test;
-
-import com.google.common.collect.Maps;
-
-import static org.junit.Assert.assertTrue;
 
 /**
  * Checks that traversing over many child nodes requests them in batches with
@@ -49,7 +48,7 @@ public class ManyChildNodesTest {
         for (int i = 0; i < DocumentNodeState.MAX_FETCH_SIZE * 2; i++) {
             builder.child("c-" + i);
         }
-        ns.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         store.queries.clear();
         // must fetch in batches
         for (ChildNodeEntry entry : ns.getRoot().getChildNodeEntries()) {

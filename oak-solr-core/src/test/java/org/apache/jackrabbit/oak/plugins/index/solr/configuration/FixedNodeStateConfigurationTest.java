@@ -22,7 +22,7 @@ import static org.junit.Assert.assertNotNull;
 
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
@@ -53,7 +53,7 @@ public class FixedNodeStateConfigurationTest {
                .setProperty("solrHomePath", "sh")
                .setProperty("solrConfigPath", "sc");
 
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     @Test

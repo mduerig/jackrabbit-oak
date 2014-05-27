@@ -31,7 +31,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.io.ByteStreams;
 import org.apache.jackrabbit.oak.api.Blob;
@@ -108,31 +107,26 @@ public class MemoryNodeStore implements NodeStore, Observable {
      * This implementation is equal to first rebasing the builder and then applying it to a
      * new branch and immediately merging it back.
      * @param builder  the builder whose changes to apply
-     * @param commitHook the commit hook to apply while merging changes
+     * @param provider the commit hook to apply while merging changes
      * @return the node state resulting from the merge.
      * @throws CommitFailedException
      * @throws IllegalArgumentException if the builder is not acquired from a root state of
      *                                  this store
      */
-    @Override
-    public synchronized NodeState merge(
-            @Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook,
-            @Nullable CommitInfo info) throws CommitFailedException {
-        checkArgument(builder instanceof MemoryNodeBuilder);
-        checkNotNull(commitHook);
-        rebase(builder);
-        NodeStoreBranch branch = new MemoryNodeStoreBranch(this, getRoot());
-        branch.setRoot(builder.getNodeState());
-        NodeState merged = branch.merge(commitHook, info);
-        ((MemoryNodeBuilder) builder).reset(merged);
-        return merged;
-    }
-
     @Nonnull
     @Override
     public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull EditorProvider provider,
             @Nonnull CommitInfo info) throws CommitFailedException {
-        return merge(builder, new EditorHook(checkNotNull(provider), builder), info);
+        checkArgument(builder instanceof MemoryNodeBuilder);
+        CommitHook commitHook = new EditorHook(checkNotNull(provider), builder);
+        synchronized (this) {
+            rebase(builder);
+            NodeStoreBranch branch = new MemoryNodeStoreBranch(this, getRoot());
+            branch.setRoot(builder.getNodeState());
+            NodeState merged = branch.merge(commitHook, info);
+            ((MemoryNodeBuilder) builder).reset(merged);
+            return merged;
+        }
     }
 
     /**

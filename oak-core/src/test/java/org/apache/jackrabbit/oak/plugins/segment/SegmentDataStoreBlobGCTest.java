@@ -32,7 +32,6 @@ import java.util.Set;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.core.data.FileDataStore;
@@ -44,7 +43,7 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.blob.GarbageCollectableBlobStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.junit.After;
 import org.junit.Test;
@@ -101,7 +100,7 @@ public class SegmentDataStoreBlobGCTest {
             }
             a.child("c" + i).setProperty("x", b);
         }
-        nodeStore.merge(a, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        nodeStore.merge(a, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         for (int id : processed) {
             delete("c" + id);
@@ -115,7 +114,7 @@ public class SegmentDataStoreBlobGCTest {
         NodeBuilder builder = nodeStore.getRoot().builder();
         builder.child(nodeId).remove();
 
-        nodeStore.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        nodeStore.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     @Test

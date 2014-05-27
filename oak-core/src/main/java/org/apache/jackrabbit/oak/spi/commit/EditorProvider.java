@@ -16,11 +16,11 @@
  */
 package org.apache.jackrabbit.oak.spi.commit;
 
+import javax.annotation.CheckForNull;
+
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-
-import javax.annotation.CheckForNull;
 
 /**
  * Extension point for content change editors. Used by the {@link EditorHook}
@@ -32,6 +32,12 @@ import javax.annotation.CheckForNull;
  *         >Commit editors</a>
  */
 public interface EditorProvider {
+    EditorProvider EMPTY = new EditorProvider() {
+        @Override
+        public Editor getRootEditor(NodeState before, NodeState after, NodeBuilder builder, CommitInfo info) {
+            return DefaultEditor.INSTANCE;
+        }
+    };
 
     /**
      * Returns an editor for processing changes between the given two states.

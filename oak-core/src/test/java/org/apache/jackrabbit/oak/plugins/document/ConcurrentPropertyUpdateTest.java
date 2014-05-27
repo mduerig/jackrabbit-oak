@@ -16,6 +16,15 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import javax.jcr.InvalidItemStateException;
+import javax.jcr.RepositoryException;
+
 import com.google.common.collect.Lists;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -27,17 +36,10 @@ import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.CompositeHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
+import org.apache.jackrabbit.oak.spi.commit.HookEditor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.junit.After;
 import org.junit.Test;
-
-import javax.jcr.InvalidItemStateException;
-import javax.jcr.RepositoryException;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 /**
  * Test for OAK-1751.
@@ -79,7 +81,7 @@ public class ConcurrentPropertyUpdateTest extends BaseDocumentMKTest {
         final DocumentNodeStore store = mk.getNodeStore();
         NodeBuilder builder = store.getRoot().builder();
         builder.child("test").setProperty("prop", System.currentTimeMillis());
-        store.merge(builder, HOOK, CommitInfo.EMPTY);
+        store.merge(builder, new HookEditor(HOOK), CommitInfo.EMPTY);
         List<Callable<Object>> tasks = Lists.newArrayList();
         for (int i = 0; i < NUM_THREADS; i++) {
             tasks.add(new Callable<Object>() {
@@ -90,7 +92,7 @@ public class ConcurrentPropertyUpdateTest extends BaseDocumentMKTest {
                             NodeBuilder builder = store.getRoot().builder();
                             builder.getChildNode("test").setProperty(
                                     "prop", Math.random());
-                            store.merge(builder, HOOK, CommitInfo.EMPTY);
+                            store.merge(builder, new HookEditor(HOOK), CommitInfo.EMPTY);
                         } catch (CommitFailedException e) {
                             // merge must either succeed or fail
                             // with an InvalidItemStateException

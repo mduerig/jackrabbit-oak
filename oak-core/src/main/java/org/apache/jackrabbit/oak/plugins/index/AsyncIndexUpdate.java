@@ -20,13 +20,13 @@ package org.apache.jackrabbit.oak.plugins.index;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NODE;
 import static org.apache.jackrabbit.oak.api.jmx.IndexStatsMBean.STATUS_DONE;
 import static org.apache.jackrabbit.oak.api.jmx.IndexStatsMBean.STATUS_RUNNING;
 import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
-import static org.apache.jackrabbit.oak.plugins.index.IndexConstants.REINDEX_PROPERTY_NAME;
 import static org.apache.jackrabbit.oak.plugins.index.IndexConstants.ASYNC_PROPERTY_NAME;
 import static org.apache.jackrabbit.oak.plugins.index.IndexConstants.INDEX_DEFINITIONS_NAME;
+import static org.apache.jackrabbit.oak.plugins.index.IndexConstants.REINDEX_PROPERTY_NAME;
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NODE;
 
 import java.util.Calendar;
 import java.util.HashSet;
@@ -36,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Objects;
-
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
@@ -50,7 +49,8 @@ import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.CompositeHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorDiff;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
+import org.apache.jackrabbit.oak.spi.commit.HookEditor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
@@ -176,7 +176,7 @@ public class AsyncIndexUpdate implements Runnable {
             if (callback.dirty) {
                 async.setProperty(name, checkpoint);
                 try {
-                    store.merge(builder, newCommitHook(name, state),
+                    store.merge(builder, new HookEditor(newCommitHook(name, state)),
                             CommitInfo.EMPTY);
                 } catch (CommitFailedException e) {
                     if (e != CONCURRENT_UPDATE) {
@@ -204,7 +204,7 @@ public class AsyncIndexUpdate implements Runnable {
                 }
 
                 try {
-                    store.merge(builder, newCommitHook(name, state),
+                    store.merge(builder, new HookEditor(newCommitHook(name, state)),
                             CommitInfo.EMPTY);
                     reindexedDefinitions.clear();
                 } catch (CommitFailedException e) {
@@ -255,7 +255,7 @@ public class AsyncIndexUpdate implements Runnable {
     private static void preAsyncRun(NodeStore store, String name) throws CommitFailedException {
         NodeBuilder builder = store.getRoot().builder();
         preAsyncRunNodeStatus(builder, name);
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     private static boolean isAlreadyRunning(NodeStore store, String name) {

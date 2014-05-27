@@ -18,19 +18,19 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+
 import java.util.concurrent.TimeUnit;
 
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.stats.Clock;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
 
 public class CheckpointsTest {
 
@@ -105,7 +105,7 @@ public class CheckpointsTest {
         //Do some commit to change headRevision
         NodeBuilder b2 = store.getRoot().builder();
         b2.child("x");
-        store.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         Revision r2 = Revision.fromString(store.checkpoint(et2));
         assertNotSame(r1, r2);

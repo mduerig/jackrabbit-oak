@@ -16,6 +16,10 @@
  */
 package org.apache.jackrabbit.oak.jcr.version;
 
+import static org.apache.jackrabbit.oak.jcr.AbstractRepositoryTest.dispose;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 import javax.jcr.Node;
 import javax.jcr.Repository;
 import javax.jcr.Session;
@@ -30,17 +34,13 @@ import org.apache.jackrabbit.oak.plugins.segment.memory.MemoryStore;
 import org.apache.jackrabbit.oak.plugins.tree.TreeConstants;
 import org.apache.jackrabbit.oak.plugins.version.VersionConstants;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.apache.jackrabbit.oak.jcr.AbstractRepositoryTest.dispose;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Checks if hidden nodes are properly handled on checkin and restore (OAK-1219, OAK-OAK-1226).
@@ -77,7 +77,7 @@ public class HiddenNodeTest {
 
         NodeBuilder builder = store.getRoot().builder();
         builder.child("test").child(":hidden").setProperty("property", "value");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         session.refresh(false);
         Version v1 = vMgr.checkpoint("/test");
@@ -106,7 +106,7 @@ public class HiddenNodeTest {
         NodeBuilder builder = store.getRoot().builder();
         NodeBuilder testBuilder = builder.getChildNode("test");
         testBuilder.setProperty(":hiddenProperty", "value");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         session.refresh(false);
         Version v1 = vMgr.checkpoint("/test");
@@ -166,7 +166,7 @@ public class HiddenNodeTest {
         NodeBuilder builder = store.getRoot().builder();
         NodeBuilder testBuilder = builder.getChildNode("test").getChildNode("child");
         testBuilder.child(":hidden").setProperty("property", "value");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         session.refresh(false);
         Version v1 = vMgr.checkpoint("/test");
@@ -196,7 +196,7 @@ public class HiddenNodeTest {
         NodeBuilder builder = store.getRoot().builder();
         NodeBuilder testBuilder = builder.getChildNode("test").getChildNode("child");
         testBuilder.setProperty(":hiddenProperty", "value");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         session.refresh(false);
         Version v1 = vMgr.checkpoint("/test");

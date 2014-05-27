@@ -19,18 +19,18 @@
 
 package org.apache.jackrabbit.oak.kernel;
 
+import static junit.framework.Assert.assertFalse;
+import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.Test;
-
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
 
 public class KernelNodeBuilderTest extends AbstractKernelTest {
 
@@ -83,13 +83,13 @@ public class KernelNodeBuilderTest extends AbstractKernelTest {
     private static void modify(NodeStore store) throws CommitFailedException {
         NodeBuilder root = store.getRoot().builder();
         root.setChildNode("added");
-        store.merge(root, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(root, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     private static void init(NodeStore store) throws CommitFailedException {
         NodeBuilder builder = store.getRoot().builder();
         builder.child("x").child("y").child("z");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     private static void run(NodeStore store) throws CommitFailedException {
@@ -111,7 +111,7 @@ public class KernelNodeBuilderTest extends AbstractKernelTest {
         assertFalse("child node x/y/z not should not be present", builder
                 .child("x").child("y").hasChildNode("z"));
 
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
 }

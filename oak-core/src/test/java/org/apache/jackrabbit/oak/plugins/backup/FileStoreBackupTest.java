@@ -18,6 +18,10 @@
  */
 package org.apache.jackrabbit.oak.plugins.backup;
 
+import static org.apache.commons.io.FileUtils.deleteQuietly;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
@@ -31,17 +35,13 @@ import org.apache.jackrabbit.oak.plugins.nodetype.write.InitialContent;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.security.OpenSecurityProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.apache.commons.io.FileUtils.deleteQuietly;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 public class FileStoreBackupTest {
 
@@ -105,7 +105,7 @@ public class FileStoreBackupTest {
         NodeBuilder builder = store.getRoot().builder();
         builder.child("test-backup");
         builder.child("root"); // make sure we don't backup the super-root
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     private static void compare(NodeStore store, File destination)
@@ -133,7 +133,7 @@ public class FileStoreBackupTest {
         c1.setProperty("blob", blob);
         NodeBuilder c2 = builder.child("test-backup2");
         c2.setProperty("blob", blob);
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         FileStoreBackup.backup(store, destination);
         compare(store, destination);

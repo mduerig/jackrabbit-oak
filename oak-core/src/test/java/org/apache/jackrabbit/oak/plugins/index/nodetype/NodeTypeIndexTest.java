@@ -27,7 +27,6 @@ import java.util.Arrays;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
-
 import org.apache.jackrabbit.JcrConstants;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.Type;
@@ -41,7 +40,6 @@ import org.apache.jackrabbit.oak.query.QueryEngineSettings;
 import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.lifecycle.OakInitializer;
 import org.apache.jackrabbit.oak.spi.query.Cursor;
 import org.apache.jackrabbit.oak.spi.query.Cursors;
@@ -77,8 +75,8 @@ public class NodeTypeIndexTest {
         addFolder(root, "folder-2");
         addFile(root, "file-1");
 
-        store.merge(root, new EditorHook(new IndexUpdateProvider(
-                new PropertyIndexEditorProvider())), CommitInfo.EMPTY);
+        store.merge(root, new IndexUpdateProvider(
+                new PropertyIndexEditorProvider()), CommitInfo.EMPTY);
 
         NodeState rootState = store.getRoot();
         NodeTypeIndex index = new NodeTypeIndex();

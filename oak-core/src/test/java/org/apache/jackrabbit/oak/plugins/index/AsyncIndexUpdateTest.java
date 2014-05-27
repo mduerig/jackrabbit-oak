@@ -22,8 +22,8 @@ import static org.apache.jackrabbit.oak.plugins.index.IndexConstants.INDEX_DEFIN
 import static org.apache.jackrabbit.oak.plugins.index.IndexUtils.createIndexDefinition;
 import static org.apache.jackrabbit.oak.plugins.index.property.PropertyIndexEditorProvider.TYPE;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.Collections;
@@ -38,17 +38,14 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.plugins.index.property.PropertyIndexEditorProvider;
 import org.apache.jackrabbit.oak.plugins.index.property.PropertyIndexLookup;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeStore;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.query.PropertyValues;
-import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.ConflictAnnotatingRebaseDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -95,7 +92,7 @@ public class AsyncIndexUpdateTest {
         builder.child("testRoot").setProperty("foo", "abc");
 
         // merge it back in
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         AsyncIndexUpdate async = new AsyncIndexUpdate("async", store, provider);
         async.run();
@@ -138,7 +135,7 @@ public class AsyncIndexUpdateTest {
         builder.child("testSecond").setProperty("bar", "ghi");
 
         // merge it back in
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         AsyncIndexUpdate async = new AsyncIndexUpdate("async", store, provider);
         async.run();
@@ -190,7 +187,7 @@ public class AsyncIndexUpdateTest {
                 .setProperty("foo", "xyz");
 
         // merge it back in
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         AsyncIndexUpdate async = new AsyncIndexUpdate("async", store, provider);
         async.run();
@@ -247,7 +244,7 @@ public class AsyncIndexUpdateTest {
         builder.child("test").setProperty("foo", "a");
         builder.child("child");
 
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         final AsyncIndexUpdate async = new AsyncIndexUpdate("async", store, provider);
         async.run();
@@ -255,7 +252,7 @@ public class AsyncIndexUpdateTest {
         builder = store.getRoot().builder();
         builder.child("test").setProperty("foo", "b");
         builder.child("child").setProperty("prop", "value");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         Thread t = new Thread(new Runnable() {
             @Override
@@ -273,7 +270,7 @@ public class AsyncIndexUpdateTest {
         checkpoint.acquireUninterruptibly();
         builder = store.getRoot().builder();
         builder.child("child").remove();
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         // allow async update to proceed with NodeStore.retrieve()
         retrieve.release();
@@ -290,14 +287,14 @@ public class AsyncIndexUpdateTest {
             @Nonnull
             @Override
             public NodeState merge(@Nonnull NodeBuilder builder,
-                                                @Nonnull CommitHook commitHook,
+                                                @Nonnull EditorProvider provider,
                                                 @Nullable CommitInfo info)
                     throws CommitFailedException {
                 Semaphore s = locks.get(Thread.currentThread());
                 if (s != null) {
                     s.acquireUninterruptibly();
                 }
-                return super.merge(builder, commitHook, info);
+                return super.merge(builder, provider, info);
             }
         };
         IndexEditorProvider provider = new PropertyIndexEditorProvider();
@@ -309,14 +306,14 @@ public class AsyncIndexUpdateTest {
 
         builder.child("test").setProperty("foo", "a");
 
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         final AsyncIndexUpdate async = new AsyncIndexUpdate("async", store, provider);
         async.run();
 
         builder = store.getRoot().builder();
         builder.child("test").setProperty("foo", "b");
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         Thread t = new Thread(new Runnable() {
             @Override
@@ -336,7 +333,7 @@ public class AsyncIndexUpdateTest {
         builder = store.getRoot().builder();
         builder.getChildNode(INDEX_DEFINITIONS_NAME).getChildNode("foo")
                 .getChildNode(":index").child("a").remove();
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         s.release(100);
         t.join();

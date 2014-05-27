@@ -23,7 +23,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 
@@ -34,13 +33,6 @@ public abstract class ProxyNodeStore implements NodeStore {
     @Override
     public NodeState getRoot() {
         return getNodeStore().getRoot();
-    }
-
-    @Override
-    public NodeState merge(
-            NodeBuilder builder, CommitHook commitHook, CommitInfo info)
-            throws CommitFailedException {
-        return getNodeStore().merge(builder, commitHook, info);
     }
 
     @Nonnull

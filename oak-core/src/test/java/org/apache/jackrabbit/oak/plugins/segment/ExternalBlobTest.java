@@ -16,25 +16,10 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import com.google.common.collect.Lists;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.jackrabbit.core.data.FileDataStore;
-import org.apache.jackrabbit.oak.api.Blob;
-import org.apache.jackrabbit.oak.plugins.blob.ReferenceCollector;
-import org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreBlobStore;
-import org.apache.jackrabbit.oak.plugins.memory.AbstractBlob;
-import org.apache.jackrabbit.oak.plugins.segment.file.FileBlob;
-import org.apache.jackrabbit.oak.api.Type;
-import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
-import org.apache.jackrabbit.oak.spi.blob.BlobStore;
-import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
-import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.junit.After;
-import org.junit.Ignore;
-import org.junit.Test;
+import static junit.framework.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -43,10 +28,25 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Random;
 
-import static junit.framework.Assert.assertTrue;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
+import com.google.common.collect.Lists;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.jackrabbit.core.data.FileDataStore;
+import org.apache.jackrabbit.oak.api.Blob;
+import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.blob.ReferenceCollector;
+import org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreBlobStore;
+import org.apache.jackrabbit.oak.plugins.memory.AbstractBlob;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileBlob;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
+import org.apache.jackrabbit.oak.spi.blob.BlobStore;
+import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.junit.After;
+import org.junit.Ignore;
+import org.junit.Test;
 
 public class ExternalBlobTest {
 
@@ -99,7 +99,7 @@ public class ExternalBlobTest {
 
         cb.setProperty("anotherBlob2", createBlob(Segment.MEDIUM_LIMIT + 1));
         cb.setProperty("anotherBlob3", createBlob(Segment.MEDIUM_LIMIT + 1));
-        nodeStore.merge(nb, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        nodeStore.merge(nb, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         final List<String> refrences = Lists.newArrayList();
         store.getTracker().collectBlobReferences(new ReferenceCollector() {
@@ -118,12 +118,12 @@ public class ExternalBlobTest {
         if (!state.exists()) {
             NodeBuilder builder = nodeStore.getRoot().builder();
             builder.child("hello");
-            nodeStore.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            nodeStore.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
 
         NodeBuilder builder = nodeStore.getRoot().builder();
         builder.getChildNode("hello").setProperty("world", blob);
-        nodeStore.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        nodeStore.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         state = nodeStore.getRoot().getChildNode("hello");
         blob = state.getProperty("world").getValue(Type.BINARY);

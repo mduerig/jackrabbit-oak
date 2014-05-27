@@ -18,16 +18,14 @@ package org.apache.jackrabbit.oak.plugins.document;
 
 import javax.annotation.CheckForNull;
 
-import org.apache.jackrabbit.oak.spi.blob.BlobStore;
-import org.apache.jackrabbit.oak.spi.blob.MemoryBlobStore;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.kernel.KernelNodeStore;
 import org.apache.jackrabbit.oak.plugins.document.memory.MemoryDocumentStore;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
+import org.apache.jackrabbit.oak.spi.blob.BlobStore;
+import org.apache.jackrabbit.oak.spi.blob.MemoryBlobStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
 import org.apache.jackrabbit.oak.spi.commit.Editor;
-import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -41,7 +39,7 @@ import org.junit.Test;
 public class MergeRetryTest {
 
     // this hook adds a 'foo' child if it does not exist
-    private static final CommitHook HOOK = new EditorHook(new EditorProvider() {
+    private static final EditorProvider EDITOR_PROVIDER = new EditorProvider() {
         @CheckForNull
         @Override
         public Editor getRootEditor(
@@ -57,7 +55,7 @@ public class MergeRetryTest {
                 }
             };
         }
-    });
+    };
 
     /**
      * Test for OAK-1198
@@ -93,8 +91,8 @@ public class MergeRetryTest {
             NodeBuilder builder2 = ns2.getRoot().builder();
             builder2.child("qux");
 
-            ns1.merge(builder1, HOOK, CommitInfo.EMPTY);
-            ns2.merge(builder2, HOOK, CommitInfo.EMPTY);
+            ns1.merge(builder1, EDITOR_PROVIDER, CommitInfo.EMPTY);
+            ns2.merge(builder2, EDITOR_PROVIDER, CommitInfo.EMPTY);
         } finally {
             mk1.dispose();
             mk2.dispose();
@@ -134,8 +132,8 @@ public class MergeRetryTest {
             NodeBuilder builder2 = ns2.getRoot().builder();
             createTree(builder2.child("qux"), 2);
 
-            ns1.merge(builder1, HOOK, CommitInfo.EMPTY);
-            ns2.merge(builder2, HOOK, CommitInfo.EMPTY);
+            ns1.merge(builder1, EDITOR_PROVIDER, CommitInfo.EMPTY);
+            ns2.merge(builder2, EDITOR_PROVIDER, CommitInfo.EMPTY);
         } finally {
             mk1.dispose();
             mk2.dispose();

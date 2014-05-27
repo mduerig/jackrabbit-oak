@@ -33,6 +33,8 @@ import static org.junit.Assert.fail;
 import java.util.Arrays;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.apache.jackrabbit.oak.plugins.index.AsyncIndexUpdate;
 import org.apache.jackrabbit.oak.plugins.index.IndexEditorProvider;
 import org.apache.jackrabbit.oak.plugins.index.IndexUpdateProvider;
@@ -40,16 +42,12 @@ import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeStore;
 import org.apache.jackrabbit.oak.query.QueryEngineSettings;
 import org.apache.jackrabbit.oak.query.ast.SelectorImpl;
 import org.apache.jackrabbit.oak.query.index.FilterImpl;
-import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.query.Filter;
 import org.apache.jackrabbit.oak.spi.query.PropertyValues;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 ;
 
@@ -60,7 +58,7 @@ public class AsyncPropertyIndexTest {
 
     private IndexEditorProvider provider = new PropertyIndexEditorProvider();
 
-    private EditorHook hook = new EditorHook(new IndexUpdateProvider(provider));
+    private IndexUpdateProvider indexUpdateProvider = new IndexUpdateProvider(provider);
 
     @Test
     public void testAsyncPropertyLookup() throws Exception {
@@ -78,7 +76,7 @@ public class AsyncPropertyIndexTest {
         builder.child("a").setProperty("foo", "abc");
         builder.child("b").setProperty("foo", Arrays.asList("abc", "def"),
                 STRINGS);
-        NodeState head = store.merge(builder, hook, EMPTY);
+        NodeState head = store.merge(builder, indexUpdateProvider, EMPTY);
 
         // query the index, check it doesn't get indexed by the normal PI
         FilterImpl f = createFilter(head, NT_BASE);
@@ -106,7 +104,7 @@ public class AsyncPropertyIndexTest {
         // add content, it should be indexed synchronously
         builder = store.getRoot().builder();
         builder.child("c").setProperty("foo", "def");
-        head = store.merge(builder, hook, EMPTY);
+        head = store.merge(builder, indexUpdateProvider, EMPTY);
         f = createFilter(head, NT_BASE);
         lookup = new PropertyIndexLookup(head);
         assertEquals(ImmutableSet.of("b", "c"), find(lookup, "foo", "def", f));

@@ -19,18 +19,18 @@
 
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+
 import com.google.common.collect.Iterators;
 import org.apache.jackrabbit.oak.plugins.document.memory.MemoryDocumentStore;
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 
 public class LastRevRecoveryTest {
     private DocumentNodeStore ds1;
@@ -61,7 +61,7 @@ public class LastRevRecoveryTest {
         //1. Create base structure /x/y
         NodeBuilder b1 = ds1.getRoot().builder();
         b1.child("x").child("y");
-        ds1.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ds1.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         ds1.runBackgroundOperations();
 
         //lastRev are persisted directly for new nodes. In case of
@@ -71,13 +71,13 @@ public class LastRevRecoveryTest {
         ds2.runBackgroundOperations();
         NodeBuilder b2 = ds2.getRoot().builder();
         b2.child("x").setProperty("f1","b1");
-        ds2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ds2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
         ds2.runBackgroundOperations();
 
         //2. Add a new node /x/y/z
         b2 = ds2.getRoot().builder();
         b2.child("x").child("y").child("z").setProperty("foo", "bar");
-        ds2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ds2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Refresh DS1
         ds1.runBackgroundOperations();

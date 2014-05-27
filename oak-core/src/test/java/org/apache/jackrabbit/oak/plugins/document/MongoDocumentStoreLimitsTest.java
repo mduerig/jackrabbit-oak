@@ -16,17 +16,16 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static junit.framework.Assert.assertNotNull;
+
+import com.google.common.base.Strings;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import com.google.common.base.Strings;
-
-import static junit.framework.Assert.assertNotNull;
 
 /**
  * Test for OAK-1589
@@ -40,7 +39,7 @@ public class MongoDocumentStoreLimitsTest extends AbstractMongoConnectionTest {
         NodeBuilder builder = ns.getRoot().builder();
 
         builder.child("test");
-        ns.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         String longName = Strings.repeat("foo_", 10000);
         String longPath = String.format("/test/%s", longName);
@@ -49,7 +48,7 @@ public class MongoDocumentStoreLimitsTest extends AbstractMongoConnectionTest {
         builder.child("test").child(longName);
 
         try {
-            ns.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            ns.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
         } catch (CommitFailedException e) {
             // expected to fail
             return;

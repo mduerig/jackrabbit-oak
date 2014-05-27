@@ -50,6 +50,7 @@ import org.apache.jackrabbit.oak.spi.commit.CompositeEditorProvider;
 import org.apache.jackrabbit.oak.spi.commit.CompositeHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.HookEditor;
 import org.apache.jackrabbit.oak.spi.commit.MoveTracker;
 import org.apache.jackrabbit.oak.spi.commit.PostValidationHook;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
@@ -244,7 +245,7 @@ class MutableRoot implements Root {
         ContentSession session = getContentSession();
         CommitInfo commitInfo = new CommitInfo(
                 session.toString(), session.getAuthInfo().getUserID(), info);
-        store.merge(builder, getCommitHook(), commitInfo);
+        store.merge(builder, new HookEditor(getCommitHook()), commitInfo);
         secureBuilder.baseChanged();
         modCount = 0;
         if (permissionProvider.hasValue()) {

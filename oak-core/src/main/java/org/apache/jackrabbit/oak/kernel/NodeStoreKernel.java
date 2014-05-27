@@ -41,18 +41,16 @@ import com.google.common.hash.Hashing;
 import com.google.common.io.ByteStreams;
 import org.apache.jackrabbit.mk.api.MicroKernel;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
-import org.apache.jackrabbit.oak.commons.json.JsopBuilder;
-import org.apache.jackrabbit.oak.commons.json.JsopReader;
-import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.commons.json.JsopBuilder;
+import org.apache.jackrabbit.oak.commons.json.JsopReader;
+import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.memory.AbstractBlob;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.DefaultValidator;
-import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.Validator;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -64,8 +62,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeStore;
  */
 public class NodeStoreKernel implements MicroKernel {
 
-    private static final CommitHook CONFLICT_HOOK =
-            new EditorHook(new ValidatorProvider() {
+    private static final ValidatorProvider CONFLICT_VALIDATOR =
+            (new ValidatorProvider() {
                 @Override
                 protected Validator getRootValidator(
                         NodeState before, NodeState after, CommitInfo info) {
@@ -474,7 +472,7 @@ public class NodeStoreKernel implements MicroKernel {
             try {
                 CommitInfo info =
                         new CommitInfo(CommitInfo.OAK_UNKNOWN, null);
-                NodeState newRoot = store.merge(builder, CONFLICT_HOOK, info);
+                NodeState newRoot = store.merge(builder, CONFLICT_VALIDATOR, info);
                 if (!newRoot.equals(head.root)) {
                     revision = new Revision(head, newRoot, message);
                     head = revision;
@@ -512,7 +510,7 @@ public class NodeStoreKernel implements MicroKernel {
             CommitInfo info =
                     new CommitInfo(CommitInfo.OAK_UNKNOWN, null);
             NodeState newRoot =
-                    store.merge(revision.branch, CONFLICT_HOOK, info);
+                    store.merge(revision.branch, CONFLICT_VALIDATOR, info);
             if (!newRoot.equals(head.root)) {
                 head = new Revision(head, newRoot, message);
                 revisions.put(head.id, head);

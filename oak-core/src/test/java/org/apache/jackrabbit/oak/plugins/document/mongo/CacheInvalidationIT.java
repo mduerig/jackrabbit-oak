@@ -19,8 +19,12 @@
 
 package org.apache.jackrabbit.oak.plugins.document.mongo;
 
-import com.google.common.collect.Iterables;
+import static org.apache.jackrabbit.oak.plugins.document.mongo.CacheInvalidator.InvalidationResult;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
+import com.google.common.collect.Iterables;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.document.AbstractMongoConnectionTest;
@@ -31,18 +35,13 @@ import org.apache.jackrabbit.oak.plugins.document.MongoUtils;
 import org.apache.jackrabbit.oak.plugins.document.util.MongoConnection;
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static org.apache.jackrabbit.oak.plugins.document.mongo.CacheInvalidator.InvalidationResult;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class CacheInvalidationIT extends AbstractMongoConnectionTest {
 
@@ -80,7 +79,7 @@ public class CacheInvalidationIT extends AbstractMongoConnectionTest {
         final int totalPaths = paths.length + 1; // 1 extra for root
         NodeBuilder root = getRoot(c1).builder();
         createTree(root, paths);
-        c1.merge(root, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c1.merge(root, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         assertEquals(initialCacheSizeC1 + paths.length, getCurrentCacheSize(c1));
 
@@ -94,7 +93,7 @@ public class CacheInvalidationIT extends AbstractMongoConnectionTest {
 
         NodeBuilder b2 = getRoot(c2).builder();
         builder(b2, "/a/d").setProperty("foo", "bar");
-        c2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Push pending changes at /a
         c2.runBackgroundOperations();
@@ -115,7 +114,7 @@ public class CacheInvalidationIT extends AbstractMongoConnectionTest {
 
         NodeBuilder b2 = getRoot(c2).builder();
         builder(b2, "/a/c").setProperty("foo", "bar");
-        c2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Push pending changes at /a
         c2.runBackgroundOperations();
@@ -148,7 +147,7 @@ public class CacheInvalidationIT extends AbstractMongoConnectionTest {
         // we create x/other, so that x is known to have a child node
         b2.child("x").child("other");
         b2.child("y");
-        c2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
         c2.runBackgroundOperations();
         c1.runBackgroundOperations();
 
@@ -164,9 +163,9 @@ public class CacheInvalidationIT extends AbstractMongoConnectionTest {
         // now we add both "futureX" and "futureY"
         // in the other cluster node
         b2.child("x").child("futureX").setProperty("z", "1");
-        c2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
         b2.child("y").child("futureY").setProperty("z", "2");
-        c2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
         
         c2.runBackgroundOperations();
         c1.runBackgroundOperations();
@@ -183,7 +182,7 @@ public class CacheInvalidationIT extends AbstractMongoConnectionTest {
 
         NodeBuilder b2 = getRoot(c2).builder();
         builder(b2, "/a/c").setProperty("foo", "bar");
-        c2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        c2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Push pending changes at /a
         c2.runBackgroundOperations();

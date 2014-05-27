@@ -28,7 +28,6 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
@@ -158,14 +157,6 @@ public class KernelNodeStore implements NodeStore, Observable {
      * if {@code builder} is a {@link KernelNodeBuilder} instance. Otherwise it throws
      * an {@code IllegalArgumentException}.
      */
-    @Override
-    public NodeState merge(
-            @Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook,
-            @Nullable CommitInfo info) throws CommitFailedException {
-        checkArgument(builder instanceof KernelRootBuilder);
-        return ((KernelRootBuilder) builder).merge(checkNotNull(commitHook), info);
-    }
-
     @Nonnull
     @Override
     public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull EditorProvider provider,

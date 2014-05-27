@@ -19,6 +19,9 @@
 
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static org.apache.jackrabbit.oak.plugins.document.MongoBlobGCTest.randomStream;
+import static org.junit.Assert.assertEquals;
+
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
@@ -27,16 +30,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.apache.jackrabbit.oak.plugins.document.MongoBlobGCTest.randomStream;
-import static org.junit.Assert.assertEquals;
 
 @RunWith(Parameterized.class)
 public class BlobReferenceIteratorTest {
@@ -84,7 +84,7 @@ public class BlobReferenceIteratorTest {
             Blob b = store.createBlob(randomStream(i, 4096));
             b1.child("x").child("y"+1).setProperty("b" + i, b);
             blobs.add(b);
-            store.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            store.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
 
         List<Blob> collectedBlobs = ImmutableList.copyOf(store.getReferencedBlobsIterator());

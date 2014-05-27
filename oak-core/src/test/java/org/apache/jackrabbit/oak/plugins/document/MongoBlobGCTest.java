@@ -19,7 +19,6 @@ package org.apache.jackrabbit.oak.plugins.document;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -28,20 +27,18 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.util.concurrent.MoreExecutors;
-import junit.framework.Assert;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
-
+import junit.framework.Assert;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.MarkSweepGarbageCollector;
 import org.apache.jackrabbit.oak.plugins.document.VersionGarbageCollector.VersionGCStats;
 import org.apache.jackrabbit.oak.spi.blob.GarbageCollectableBlobStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.stats.Clock;
 import org.junit.Test;
@@ -80,7 +77,7 @@ public class MongoBlobGCTest extends AbstractMongoConnectionTest {
             }
             a.child("c" + i).setProperty("x", b);
         }
-        s.merge(a, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        s.merge(a, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         if (deleteDirect) {
             for (int id : processed) {
@@ -90,7 +87,7 @@ public class MongoBlobGCTest extends AbstractMongoConnectionTest {
             a = s.getRoot().builder();
             for (int id : processed) {
                 a.child("c" + id).remove();
-                s.merge(a, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+                s.merge(a, EditorProvider.EMPTY, CommitInfo.EMPTY);
             }
             long maxAge = 10; // hours
             // 1. Go past GC age and check no GC done as nothing deleted

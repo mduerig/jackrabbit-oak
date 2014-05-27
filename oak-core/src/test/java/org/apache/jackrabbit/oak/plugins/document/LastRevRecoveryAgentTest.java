@@ -19,13 +19,16 @@
 
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
 import java.io.IOException;
 import java.util.List;
 
 import com.google.common.collect.Lists;
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.stats.Clock;
 import org.junit.After;
@@ -33,9 +36,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class LastRevRecoveryAgentTest {
@@ -106,7 +106,7 @@ public class LastRevRecoveryAgentTest {
         //1. Create base structure /x/y
         NodeBuilder b1 = ds1.getRoot().builder();
         b1.child("x").child("y");
-        ds1.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ds1.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         ds1.runBackgroundOperations();
 
         ds2.runBackgroundOperations();
@@ -114,7 +114,7 @@ public class LastRevRecoveryAgentTest {
         //2. Add a new node /x/y/z in C2
         NodeBuilder b2 = ds2.getRoot().builder();
         b2.child("x").child("y").child("z").setProperty("foo", "bar");
-        ds2.merge(b2, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ds2.merge(b2, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         NodeDocument z1 = getDocument(ds1, "/x/y/z");
         Revision zlastRev2 = z1.getLastRev().get(c2Id);

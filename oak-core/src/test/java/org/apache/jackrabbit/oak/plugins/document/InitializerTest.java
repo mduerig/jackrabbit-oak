@@ -17,14 +17,13 @@
 package org.apache.jackrabbit.oak.plugins.document;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.plugins.nodetype.write.InitialContent;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.plugins.segment.memory.MemoryStore;
 import org.apache.jackrabbit.oak.security.SecurityProviderImpl;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.security.ConfigurationParameters;
 import org.apache.jackrabbit.oak.spi.security.user.UserConfiguration;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -73,7 +72,7 @@ public class InitializerTest extends AbstractMongoConnectionTest {
     public void testInitializerMongoWithoutInitialContent() throws CommitFailedException {
         NodeBuilder builder = mk.getNodeStore().getRoot().builder();
         builder.child("foo");
-        mk.getNodeStore().merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        mk.getNodeStore().merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         SecurityProviderImpl provider = new SecurityProviderImpl(
                 ConfigurationParameters.of(ImmutableMap.of(UserConfiguration.NAME,

@@ -119,12 +119,12 @@ public class SegmentNodeStore implements NodeStore, Observable {
         return head.get().getChildNode(ROOT);
     }
 
+    @Nonnull
     @Override
-    public NodeState merge(
-            @Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook,
+    public NodeState merge(@Nonnull final NodeBuilder builder, @Nonnull final EditorProvider provider,
             @Nullable CommitInfo info) throws CommitFailedException {
+        CommitHook commitHook = new EditorHook(checkNotNull(provider), builder);
         checkArgument(builder instanceof SegmentNodeBuilder);
-        checkNotNull(commitHook);
 
         SegmentNodeBuilder snb = (SegmentNodeBuilder) builder;
 
@@ -142,14 +142,6 @@ public class SegmentNodeStore implements NodeStore, Observable {
             throw new CommitFailedException(
                     "Segment", 2, "Merge interrupted", e);
         }
-    }
-
-    @Nonnull
-    @Override
-    public NodeState merge(@Nonnull final NodeBuilder builder, @Nonnull final EditorProvider provider,
-            @Nullable CommitInfo info) throws CommitFailedException {
-
-        return merge(builder, new EditorHook(checkNotNull(provider), builder), info);
     }
 
     @Override @Nonnull

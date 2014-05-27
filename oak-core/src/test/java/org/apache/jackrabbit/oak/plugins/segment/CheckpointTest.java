@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.plugins.segment.memory.MemoryStore;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
@@ -64,14 +64,14 @@ public class CheckpointTest {
             throws CommitFailedException {
         NodeBuilder builder = store.getRoot().builder();
         builder.child(name);
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     private static void rmTestNode(NodeStore store, String name)
             throws CommitFailedException {
         NodeBuilder builder = store.getRoot().builder();
         builder.child(name).remove();
-        store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
 }

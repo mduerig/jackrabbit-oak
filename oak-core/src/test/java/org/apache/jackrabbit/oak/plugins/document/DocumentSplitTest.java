@@ -16,6 +16,19 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static org.apache.jackrabbit.oak.plugins.document.Collection.NODES;
+import static org.apache.jackrabbit.oak.plugins.document.MongoBlobGCTest.randomStream;
+import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.NUM_REVS_THRESHOLD;
+import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.PREV_SPLIT_FACTOR;
+import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.SplitDocType;
+import static org.apache.jackrabbit.oak.plugins.document.UpdateOp.Operation.Type.REMOVE_MAP_ENTRY;
+import static org.apache.jackrabbit.oak.plugins.document.UpdateOp.Operation.Type.SET_MAP_ENTRY;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -27,33 +40,18 @@ import java.util.TreeSet;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
-import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.spi.blob.MemoryBlobStore;
-import org.apache.jackrabbit.oak.plugins.document.memory.MemoryDocumentStore;
-import org.apache.jackrabbit.oak.plugins.document.util.Utils;
-import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
-import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
-import org.junit.Test;
-
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import static org.apache.jackrabbit.oak.plugins.document.Collection.NODES;
-import static org.apache.jackrabbit.oak.plugins.document.MongoBlobGCTest.randomStream;
-import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.NUM_REVS_THRESHOLD;
-import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.PREV_SPLIT_FACTOR;
-import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.SPLIT_RATIO;
-import static org.apache.jackrabbit.oak.plugins.document.NodeDocument.SplitDocType;
-import static org.apache.jackrabbit.oak.plugins.document.UpdateOp.Operation.Type.REMOVE_MAP_ENTRY;
-import static org.apache.jackrabbit.oak.plugins.document.UpdateOp.Operation.Type.SET_MAP_ENTRY;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.plugins.document.memory.MemoryDocumentStore;
+import org.apache.jackrabbit.oak.plugins.document.util.Utils;
+import org.apache.jackrabbit.oak.spi.blob.MemoryBlobStore;
+import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+import org.junit.Test;
 
 /**
  * Check correct splitting of documents (OAK-926 & OAK-1342).
@@ -341,7 +339,7 @@ public class DocumentSplitTest extends BaseDocumentMKTest {
         DocumentNodeStore ns = mk.getNodeStore();
         NodeBuilder b1 = ns.getRoot().builder();
         b1.child("test").child("foo").child("bar");
-        ns.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Commit on a node which has a child and where the commit root
         // is parent
@@ -349,7 +347,7 @@ public class DocumentSplitTest extends BaseDocumentMKTest {
             b1 = ns.getRoot().builder();
             b1.child("test").child("foo").setProperty("prop",i);
             b1.child("test").setProperty("prop",i);
-            ns.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            ns.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
         ns.runBackgroundOperations();
         NodeDocument doc = store.find(NODES, Utils.getIdFromPath("/test/foo"));
@@ -364,14 +362,14 @@ public class DocumentSplitTest extends BaseDocumentMKTest {
         DocumentNodeStore ns = mk.getNodeStore();
         NodeBuilder b1 = ns.getRoot().builder();
         b1.child("test").child("foo").setProperty("binaryProp",ns.createBlob(randomStream(1, 4096)));;
-        ns.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        ns.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
 
         //Commit on a node which has a child and where the commit root
         // is parent
         for (int i = 0; i < NodeDocument.NUM_REVS_THRESHOLD; i++) {
             b1 = ns.getRoot().builder();
             b1.child("test").child("foo").setProperty("prop",i);
-            ns.merge(b1, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+            ns.merge(b1, EditorProvider.EMPTY, CommitInfo.EMPTY);
         }
         ns.runBackgroundOperations();
         NodeDocument doc = store.find(NODES, Utils.getIdFromPath("/test/foo"));

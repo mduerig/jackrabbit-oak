@@ -18,6 +18,12 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
+import static junit.framework.Assert.assertNull;
+import static junit.framework.Assert.assertTrue;
+import static org.apache.jackrabbit.oak.api.Type.LONG;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -26,7 +32,7 @@ import java.util.List;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -34,12 +40,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertFalse;
-import static junit.framework.Assert.assertNull;
-import static junit.framework.Assert.assertTrue;
-import static org.apache.jackrabbit.oak.api.Type.LONG;
 
 public class KernelNodeStateTest extends AbstractKernelTest {
 
@@ -56,8 +56,8 @@ public class KernelNodeStateTest extends AbstractKernelTest {
         builder.child("y");
         builder.child("z");
 
-        state = store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
-        state = store.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+        state = store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
+        state = store.merge(builder, EditorProvider.EMPTY, CommitInfo.EMPTY);
     }
 
     @After

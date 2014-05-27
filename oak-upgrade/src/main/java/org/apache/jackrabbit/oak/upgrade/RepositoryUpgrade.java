@@ -127,8 +127,8 @@ import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.CompositeEditorProvider;
 import org.apache.jackrabbit.oak.spi.commit.CompositeHook;
 import org.apache.jackrabbit.oak.spi.commit.Editor;
-import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
+import org.apache.jackrabbit.oak.spi.commit.HookEditor;
 import org.apache.jackrabbit.oak.spi.lifecycle.RepositoryInitializer;
 import org.apache.jackrabbit.oak.spi.security.ConfigurationParameters;
 import org.apache.jackrabbit.oak.spi.security.SecurityConfiguration;
@@ -278,7 +278,7 @@ public class RepositoryUpgrade {
 
             logger.info("Applying default commit hooks");
             // TODO: default hooks?
-            List<CommitHook> hooks = newArrayList();
+            List<EditorProvider> providers = newArrayList();
 
             UserConfiguration userConf =
                     security.getConfiguration(UserConfiguration.class);
@@ -287,22 +287,24 @@ public class RepositoryUpgrade {
                     UserConstants.DEFAULT_GROUP_PATH);
 
             // hooks specific to the upgrade, need to run first
-            hooks.add(new EditorHook(new CompositeEditorProvider(
+            providers.add(new CompositeEditorProvider(
                     new RestrictionEditorProvider(),
-                    new GroupEditorProvider(groupsPath))));
+                    new GroupEditorProvider(groupsPath)));
 
             // security-related hooks
+            List<CommitHook> hooks = newArrayList();
             for (SecurityConfiguration sc : security.getConfigurations()) {
                 hooks.addAll(sc.getCommitHooks(workspaceName));
             }
+            providers.add(new HookEditor(CompositeHook.compose(hooks)));
 
             // type validation, reference and indexing hooks
-            hooks.add(new EditorHook(new CompositeEditorProvider(
+            providers.add(new CompositeEditorProvider(
                 createTypeEditorProvider(),
                 createIndexEditorProvider()
-            )));
+            ));
 
-            target.merge(builder, CompositeHook.compose(hooks), CommitInfo.EMPTY);
+            target.merge(builder, CompositeEditorProvider.compose(providers), CommitInfo.EMPTY);
         } catch (Exception e) {
             throw new RepositoryException("Failed to copy content", e);
         }
