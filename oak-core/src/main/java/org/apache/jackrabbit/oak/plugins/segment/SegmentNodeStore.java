@@ -45,6 +45,8 @@ import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.commit.Observable;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
 import org.apache.jackrabbit.oak.spi.state.ConflictAnnotatingRebaseDiff;
@@ -140,6 +142,14 @@ public class SegmentNodeStore implements NodeStore, Observable {
             throw new CommitFailedException(
                     "Segment", 2, "Merge interrupted", e);
         }
+    }
+
+    @Nonnull
+    @Override
+    public NodeState merge(@Nonnull final NodeBuilder builder, @Nonnull final EditorProvider provider,
+            @Nullable CommitInfo info) throws CommitFailedException {
+
+        return merge(builder, new EditorHook(checkNotNull(provider), builder), info);
     }
 
     @Override @Nonnull

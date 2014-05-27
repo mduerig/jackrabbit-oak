@@ -26,6 +26,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 
 /**
  * Storage abstraction for trees. At any given point in time the stored
@@ -60,6 +61,11 @@ public interface NodeStore {
     @Nonnull
     NodeState merge(
             @Nonnull NodeBuilder builder, @Nonnull CommitHook commitHook,
+            @Nonnull CommitInfo info) throws CommitFailedException;
+
+    @Nonnull
+    NodeState merge(
+            @Nonnull NodeBuilder builder, @Nonnull EditorProvider provider,
             @Nonnull CommitInfo info) throws CommitFailedException;
 
     /**

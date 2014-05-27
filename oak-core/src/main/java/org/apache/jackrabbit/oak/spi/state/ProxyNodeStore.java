@@ -25,6 +25,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 
 public abstract class ProxyNodeStore implements NodeStore {
 
@@ -40,6 +41,13 @@ public abstract class ProxyNodeStore implements NodeStore {
             NodeBuilder builder, CommitHook commitHook, CommitInfo info)
             throws CommitFailedException {
         return getNodeStore().merge(builder, commitHook, info);
+    }
+
+    @Nonnull
+    @Override
+    public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull EditorProvider provider,
+            @Nonnull CommitInfo info) throws CommitFailedException {
+        return getNodeStore().merge(builder, provider, info);
     }
 
     @Override

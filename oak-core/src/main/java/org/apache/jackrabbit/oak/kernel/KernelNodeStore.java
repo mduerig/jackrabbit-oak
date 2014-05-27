@@ -44,6 +44,8 @@ import org.apache.jackrabbit.oak.cache.CacheStats;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.commit.Observable;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -162,6 +164,14 @@ public class KernelNodeStore implements NodeStore, Observable {
             @Nullable CommitInfo info) throws CommitFailedException {
         checkArgument(builder instanceof KernelRootBuilder);
         return ((KernelRootBuilder) builder).merge(checkNotNull(commitHook), info);
+    }
+
+    @Nonnull
+    @Override
+    public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull EditorProvider provider,
+            @Nonnull CommitInfo info) throws CommitFailedException {
+        checkArgument(builder instanceof KernelRootBuilder);
+        return ((KernelRootBuilder) builder).merge(new EditorHook(checkNotNull(provider), builder), info);
     }
 
     /**
