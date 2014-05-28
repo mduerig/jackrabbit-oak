@@ -34,11 +34,11 @@ public class HookEditor implements EditorProvider {
     }
 
     @Override
-    public Editor getRootEditor(NodeState before, NodeState after, NodeBuilder builder, final CommitInfo info) {
+    public Editor getRootEditor(NodeState before, NodeState after, final NodeBuilder builder, final CommitInfo info) {
         return new DefaultEditor() {
             @Override
             public void enter(NodeState before, NodeState after) throws CommitFailedException {
-                commitHook.processCommit(before, after, info);
+                builder.set(commitHook.processCommit(before, after, info));
             }
         };
     }

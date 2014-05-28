@@ -245,6 +245,8 @@ public interface NodeBuilder {
      */
     boolean remove();
 
+    void set(NodeState newHead);
+
     /**
      * Move this child to a new parent with a new name. When the move succeeded this
      * builder has been moved to {@code newParent} as child {@code newName}. Otherwise neither

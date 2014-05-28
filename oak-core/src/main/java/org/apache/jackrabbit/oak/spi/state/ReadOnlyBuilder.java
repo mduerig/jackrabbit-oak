@@ -111,6 +111,11 @@ public class ReadOnlyBuilder implements NodeBuilder {
     }
 
     @Override
+    public void set(NodeState newHead) {
+        throw unsupported();
+    }
+
+    @Override
     public boolean moveTo(NodeBuilder newParent, String newName) {
         throw unsupported();
     }
