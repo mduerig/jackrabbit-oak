@@ -26,13 +26,10 @@ import static org.apache.jackrabbit.oak.commons.PathUtils.getName;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getParentPath;
 
 import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Maps;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.commons.PathUtils;
@@ -55,8 +52,6 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
     private static final Random RANDOM = new Random();
 
     private static final long MIN_BACKOFF = 50;
-
-    protected static final ConcurrentMap<Thread, AbstractNodeStoreBranch> BRANCHES = Maps.newConcurrentMap();
 
     /** The underlying store to which this branch belongs */
     protected final S store;
@@ -217,7 +212,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
     }
 
     @Nonnull
-    protected NodeBuilder getBuilder(NodeState nodeState) {
+    protected NodeBuilder getBranchBuilder(NodeState nodeState, AbstractNodeStoreBranch<S, N> branch) {
         return nodeState.builder();
     }
 
@@ -502,7 +497,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
             try {
                 rebase();
                 dispatcher.contentChanged(base, null);
-                EditorHook hook = new EditorHook(checkNotNull(provider), getBuilder(head));
+                EditorHook hook = new EditorHook(checkNotNull(provider), getBranchBuilder(head, AbstractNodeStoreBranch.this));
                 NodeState toCommit = hook.processCommit(base, head, info);
                 try {
                     NodeState newHead = AbstractNodeStoreBranch.this.persist(toCommit, base, info);
@@ -602,15 +597,10 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
                 rebase();
                 previousHead = head;
                 dispatcher.contentChanged(base, null);
-                N newRoot = withCurrentBranch(new Callable<N>() {
-                    @Override
-                    public N call() throws Exception {
-                        CommitHook hook = new EditorHook(checkNotNull(provider), getBuilder(head));
-                        NodeState toCommit = checkNotNull(hook).processCommit(base, head, info);
-                        head = AbstractNodeStoreBranch.this.persist(toCommit, head, info);
-                        return AbstractNodeStoreBranch.this.merge(head, info);
-                    }
-                });
+                CommitHook hook = new EditorHook(checkNotNull(provider), getBranchBuilder(head, AbstractNodeStoreBranch.this));
+                NodeState toCommit = checkNotNull(hook).processCommit(base, head, info);
+                head = AbstractNodeStoreBranch.this.persist(toCommit, head, info);
+                N newRoot = AbstractNodeStoreBranch.this.merge(head, info);
                 branchState = new Merged(base);
                 success = true;
                 dispatcher.contentChanged(newRoot, info);
@@ -732,15 +722,4 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
         }
     }
 
-    private <T> T withCurrentBranch(Callable<T> callable) throws Exception {
-        Thread t = Thread.currentThread();
-        Object previous = BRANCHES.putIfAbsent(t, this);
-        try {
-            return callable.call();
-        } finally {
-            if (previous == null) {
-                BRANCHES.remove(t, this);
-            }
-        }
-    }
 }

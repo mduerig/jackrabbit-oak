@@ -19,10 +19,8 @@ package org.apache.jackrabbit.oak.plugins.document;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.jackrabbit.oak.api.CommitFailedException.MERGE;
 
-import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReadWriteLock;
 
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -30,6 +28,7 @@ import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeStoreBranch;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
@@ -76,6 +75,18 @@ class DocumentNodeStoreBranch
     protected DocumentNodeState reset(@Nonnull DocumentNodeState branchHead,
                                    @Nonnull DocumentNodeState ancestor) {
         return store.getRoot(store.reset(branchHead.getRevision(), ancestor.getRevision()));
+    }
+
+    @Nonnull
+    @Override
+    protected NodeBuilder getBranchBuilder(NodeState nodeState,
+            AbstractNodeStoreBranch<DocumentNodeStore, DocumentNodeState> branch) {
+        if (nodeState instanceof DocumentNodeState) {
+            NodeBuilder builder = ((DocumentNodeState) nodeState).getBranchBuilder((DocumentNodeStoreBranch) branch);
+            return builder == null ? super.getBranchBuilder(nodeState, branch) : builder;
+        } else {
+            return super.getBranchBuilder(nodeState, branch);
+        }
     }
 
     @Override
@@ -187,20 +198,4 @@ class DocumentNodeStoreBranch
         void with(Commit c);
     }
 
-    /**
-     * Returns the branch instance in use by the current thread or
-     * <code>null</code> if there is none.
-     * <p>
-     * See also {@link AbstractNodeStoreBranch#withCurrentBranch(Callable)}.
-     *
-     * @return
-     */
-    @CheckForNull
-    static DocumentNodeStoreBranch getCurrentBranch() {
-        AbstractNodeStoreBranch b = BRANCHES.get(Thread.currentThread());
-        if (b instanceof DocumentNodeStoreBranch) {
-            return (DocumentNodeStoreBranch) b;
-        }
-        return null;
-    }
 }

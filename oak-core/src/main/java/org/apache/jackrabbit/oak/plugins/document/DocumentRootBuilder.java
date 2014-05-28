@@ -69,10 +69,14 @@ class DocumentRootBuilder extends MemoryNodeBuilder {
 
     DocumentRootBuilder(@Nonnull DocumentNodeState base,
                         @Nonnull DocumentNodeStore store) {
+        this(base, store, store.createBranch(base));
+    }
+
+    public DocumentRootBuilder(DocumentNodeState base, DocumentNodeStore store, DocumentNodeStoreBranch branch) {
         super(checkNotNull(base));
         this.store = checkNotNull(store);
         this.base = base;
-        this.branch = store.createBranch(base);
+        this.branch = branch;
     }
 
     //--------------------------------------------------< MemoryNodeBuilder >---
@@ -98,17 +102,6 @@ class DocumentRootBuilder extends MemoryNodeBuilder {
     protected void updated() {
         if (updates++ > UPDATE_LIMIT) {
             purge();
-        }
-    }
-
-    @Nonnull
-    @Override
-    public NodeState getNodeState() {
-        if (DocumentNodeStoreBranch.getCurrentBranch() != null) {
-            purge();
-            return branch.getHead();
-        } else {
-            return super.getNodeState();
         }
     }
 

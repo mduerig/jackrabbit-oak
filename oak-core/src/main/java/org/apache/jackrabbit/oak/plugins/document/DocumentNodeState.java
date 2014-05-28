@@ -16,6 +16,9 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -23,16 +26,21 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
+import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.cache.CacheValue;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.commons.json.JsopBuilder;
 import org.apache.jackrabbit.oak.commons.json.JsopReader;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.commons.json.JsopWriter;
 import org.apache.jackrabbit.oak.kernel.JsonSerializer;
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
@@ -46,14 +54,6 @@ import org.apache.jackrabbit.oak.spi.state.EqualsDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
-
-import com.google.common.base.Function;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 
 /**
  * A {@link NodeState} implementation for the {@link DocumentNodeStore}.
@@ -210,26 +210,36 @@ class DocumentNodeState extends AbstractNodeState implements CacheValue {
                 Branch b = store.getBranches().getBranch(rev);
                 if (b == null) {
                     if (store.isDisableBranches()) {
-                        if (DocumentNodeStoreBranch.getCurrentBranch() != null) {
-                            return new DocumentRootBuilder(this, store);
-                        } else {
-                            return new MemoryNodeBuilder(this);
-                        }
+                        return new MemoryNodeBuilder(this);
                     } else {
                         throw new IllegalStateException("No branch for revision: " + rev);
                     }
                 }
-                if (b.isHead(rev)
-                        && DocumentNodeStoreBranch.getCurrentBranch() != null) {
-                    return new DocumentRootBuilder(this, store);
-                } else {
-                    return new MemoryNodeBuilder(this);
-                }
+                return new MemoryNodeBuilder(this);
             } else {
                 return new DocumentRootBuilder(this, store);
             }
         } else {
             return new MemoryNodeBuilder(this);
+        }
+    }
+
+    @CheckForNull
+    public NodeBuilder getBranchBuilder(DocumentNodeStoreBranch branch) {
+        if ("/".equals(getPath())) {
+            if (rev.isBranch()) {
+                // check if this node state is head of a branch
+                Branch b = store.getBranches().getBranch(rev);
+                if (b == null || !b.isHead(rev)) {
+                    return null;
+                } else {
+                    return new DocumentRootBuilder(this, store, branch);
+                }
+            } else {
+                return null;
+            }
+        } else {
+            return null;
         }
     }
 
