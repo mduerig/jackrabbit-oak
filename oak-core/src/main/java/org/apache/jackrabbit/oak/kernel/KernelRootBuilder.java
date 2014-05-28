@@ -22,8 +22,8 @@ import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeBuilder;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.ConflictAnnotatingRebaseDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
@@ -137,11 +137,11 @@ class KernelRootBuilder extends MemoryNodeBuilder implements FastMove {
     /**
      * Merge all changes tracked in this builder into the underlying store.
      */
-    NodeState merge(CommitHook hook, CommitInfo info) throws CommitFailedException {
+    NodeState merge(EditorProvider provider, CommitInfo info) throws CommitFailedException {
         purge();
         boolean success = false;
         try {
-            branch.merge(hook, info);
+            branch.merge(provider, info);
             success = true;
         } finally {
             if (!success) {

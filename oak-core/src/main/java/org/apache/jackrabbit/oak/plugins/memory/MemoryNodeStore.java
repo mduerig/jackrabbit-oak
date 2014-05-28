@@ -118,12 +118,11 @@ public class MemoryNodeStore implements NodeStore, Observable {
     public NodeState merge(@Nonnull NodeBuilder builder, @Nonnull EditorProvider provider,
             @Nonnull CommitInfo info) throws CommitFailedException {
         checkArgument(builder instanceof MemoryNodeBuilder);
-        CommitHook commitHook = new EditorHook(checkNotNull(provider), builder);
         synchronized (this) {
             rebase(builder);
             NodeStoreBranch branch = new MemoryNodeStoreBranch(this, getRoot());
             branch.setRoot(builder.getNodeState());
-            NodeState merged = branch.merge(commitHook, info);
+            NodeState merged = branch.merge(provider, info);
             ((MemoryNodeBuilder) builder).reset(merged);
             return merged;
         }
@@ -239,12 +238,13 @@ public class MemoryNodeStore implements NodeStore, Observable {
 
         @Override
         public NodeState merge(
-                @Nonnull CommitHook hook, @Nonnull CommitInfo info)
+                @Nonnull EditorProvider provider, @Nonnull CommitInfo info)
                 throws CommitFailedException {
-            checkNotNull(hook);
+            checkNotNull(provider);
             checkNotNull(info);
             // TODO: rebase();
             checkNotMerged();
+            CommitHook hook = new EditorHook(checkNotNull(provider), root.builder());
             NodeState merged = squeeze(hook.processCommit(base, root, info));
             store.setRoot(merged, info);
             root = null; // Mark as merged

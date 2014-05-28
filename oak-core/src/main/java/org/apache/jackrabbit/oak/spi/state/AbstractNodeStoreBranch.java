@@ -16,11 +16,6 @@
  */
 package org.apache.jackrabbit.oak.spi.state;
 
-import java.util.Random;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.locks.Lock;
-
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -30,16 +25,22 @@ import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getName;
 import static org.apache.jackrabbit.oak.commons.PathUtils.getParentPath;
 
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.Lock;
+
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
 import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-
-import com.google.common.collect.Maps;
+import org.apache.jackrabbit.oak.spi.commit.EditorHook;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 
 /**
  * A base implementation of a node store branch, which supports partially
@@ -215,6 +216,11 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
         return branchState.getHead();
     }
 
+    @Nonnull
+    protected NodeBuilder getBuilder(NodeState nodeState) {
+        return nodeState.builder();
+    }
+
     @Override
     public void setRoot(NodeState newRoot) {
         branchState.setRoot(checkNotNull(newRoot));
@@ -280,7 +286,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
 
     @Nonnull
     @Override
-    public NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info)
+    public NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info)
             throws CommitFailedException {
         CommitFailedException ex = null;
         long time = System.currentTimeMillis();
@@ -297,7 +303,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
             }
             mergeLock.lock();
             try {
-                return branchState.merge(checkNotNull(hook), checkNotNull(info));
+                return branchState.merge(checkNotNull(provider), checkNotNull(info));
             } catch (CommitFailedException e) {
                 ex = e;
                 // only retry on merge failures. these may be caused by
@@ -375,7 +381,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
          * and it is the responsibility of the caller to convert it into a
          * {@link CommitFailedException}.
          *
-         * @param hook the commit hook to run.
+         * @param provider the commit hook to run.
          * @param info the associated commit info.
          * @return the result of the merge.
          * @throws CommitFailedException if a commit hook rejected the changes
@@ -385,8 +391,9 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
          */
         @Nonnull
         abstract NodeState merge(
-                @Nonnull CommitHook hook, @Nonnull CommitInfo info)
+                @Nonnull EditorProvider provider, @Nonnull CommitInfo info)
                 throws CommitFailedException;
+
     }
 
     /**
@@ -396,7 +403,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
      * <ul>
      *     <li>{@link InMemory} on {@link #setRoot(NodeState)} if the new root differs
      *         from the current base</li>.
-     *     <li>{@link Merged} on {@link #merge(CommitHook, CommitInfo)}</li>
+     *     <li>{@link Merged} on {@link #merge(EditorProvider, CommitInfo)}</li>
      * </ul>
      */
     private class Unmodified extends BranchState {
@@ -429,7 +436,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
 
         @Override
         @Nonnull
-        NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info) {
+        NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info) {
             branchState = new Merged(base);
             return base;
         }
@@ -444,7 +451,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
      *     <li>{@link Unmodified} on {@link #setRoot(NodeState)} if the new root is the same
      *         as the base of this branch or
      *     <li>{@link Persisted} otherwise.
-     *     <li>{@link Merged} on {@link #merge(CommitHook, CommitInfo)}</li>
+     *     <li>{@link Merged} on {@link #merge(EditorProvider, CommitInfo)}</li>
      * </ul>
      */
     private class InMemory extends BranchState {
@@ -488,13 +495,14 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
 
         @Override
         @Nonnull
-        NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info)
+        NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info)
                 throws CommitFailedException {
-            checkNotNull(hook);
+            checkNotNull(provider);
             checkNotNull(info);
             try {
                 rebase();
                 dispatcher.contentChanged(base, null);
+                EditorHook hook = new EditorHook(checkNotNull(provider), getBuilder(head));
                 NodeState toCommit = hook.processCommit(base, head, info);
                 try {
                     NodeState newHead = AbstractNodeStoreBranch.this.persist(toCommit, base, info);
@@ -522,8 +530,8 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
      * <ul>
      *     <li>{@link Unmodified} on {@link #setRoot(NodeState)} if the new root is the same
      *         as the base of this branch.
-     *     <li>{@link ResetFailed} on failed reset in {@link #merge(CommitHook, CommitInfo)}</li>
-     *     <li>{@link Merged} on successful {@link #merge(CommitHook, CommitInfo)}</li>
+     *     <li>{@link ResetFailed} on failed reset in {@link #merge(EditorProvider, CommitInfo)}</li>
+     *     <li>{@link Merged} on successful {@link #merge(EditorProvider, CommitInfo)}</li>
      * </ul>
      */
     private class Persisted extends BranchState {
@@ -585,7 +593,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
 
         @Override
         @Nonnull
-        NodeState merge(@Nonnull final CommitHook hook,
+        NodeState merge(@Nonnull final EditorProvider provider,
                         @Nonnull final CommitInfo info)
                 throws CommitFailedException {
             boolean success = false;
@@ -597,6 +605,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
                 N newRoot = withCurrentBranch(new Callable<N>() {
                     @Override
                     public N call() throws Exception {
+                        CommitHook hook = new EditorHook(checkNotNull(provider), getBuilder(head));
                         NodeState toCommit = checkNotNull(hook).processCommit(base, head, info);
                         head = AbstractNodeStoreBranch.this.persist(toCommit, head, info);
                         return AbstractNodeStoreBranch.this.merge(head, info);
@@ -670,7 +679,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
 
         @Override
         @Nonnull
-        NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info) {
+        NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info) {
             throw new IllegalStateException("Branch has already been merged");
         }
     }
@@ -717,7 +726,7 @@ public abstract class AbstractNodeStoreBranch<S extends NodeStore, N extends Nod
          */
         @Nonnull
         @Override
-        NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info)
+        NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info)
                 throws CommitFailedException {
             throw ex;
         }

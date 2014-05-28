@@ -16,6 +16,9 @@
  */
 package org.apache.jackrabbit.oak.plugins.document;
 
+import static com.google.common.base.Preconditions.checkState;
+import static org.apache.jackrabbit.oak.api.CommitFailedException.MERGE;
+
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReadWriteLock;
 
@@ -24,13 +27,10 @@ import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeStoreBranch;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-
-import static com.google.common.base.Preconditions.checkState;
-import static org.apache.jackrabbit.oak.api.CommitFailedException.MERGE;
 
 /**
  * Implementation of a DocumentMK based node store branch.
@@ -123,10 +123,10 @@ class DocumentNodeStoreBranch
 
     @Nonnull
     @Override
-    public NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info)
+    public NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info)
             throws CommitFailedException {
         try {
-            return super.merge(hook, info);
+            return super.merge(provider, info);
         } catch (CommitFailedException e) {
             if (!e.isOfType(MERGE)) {
                 throw e;
@@ -136,7 +136,7 @@ class DocumentNodeStoreBranch
         // concurrent writes
         mergeLock.writeLock().lock();
         try {
-            return super.merge(hook, info);
+            return super.merge(provider, info);
         } finally {
             mergeLock.writeLock().unlock();
         }

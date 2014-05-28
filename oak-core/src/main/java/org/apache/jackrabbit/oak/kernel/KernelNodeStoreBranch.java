@@ -16,6 +16,8 @@
  */
 package org.apache.jackrabbit.oak.kernel;
 
+import static org.apache.jackrabbit.oak.api.CommitFailedException.MERGE;
+
 import java.io.IOException;
 import java.util.concurrent.locks.Lock;
 
@@ -26,12 +28,10 @@ import org.apache.jackrabbit.mk.api.MicroKernelException;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeStoreBranch;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-
-import static org.apache.jackrabbit.oak.api.CommitFailedException.MERGE;
 
 /**
  * {@code NodeStoreBranch} based on {@link MicroKernel} branching and merging.
@@ -129,10 +129,9 @@ public class KernelNodeStoreBranch extends
 
     @Nonnull
     @Override
-    public NodeState merge(@Nonnull CommitHook hook, @Nonnull CommitInfo info)
-            throws CommitFailedException {
+    public NodeState merge(@Nonnull EditorProvider provider, @Nonnull CommitInfo info) throws CommitFailedException {
         try {
-            return super.merge(hook, info);
+            return super.merge(provider, info);
         } catch (MicroKernelException e) {
             throw new CommitFailedException(MERGE, 1,
                     "Failed to merge changes to the underlying MicroKernel", e);

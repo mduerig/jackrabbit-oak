@@ -78,9 +78,7 @@ import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.blob.GarbageCollectableBlobStore;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
-import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.commit.Observable;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
@@ -228,7 +226,7 @@ public final class DocumentNodeStore
      * shared read lock and can proceed concurrently. An exclusive write lock
      * is acquired when the merge fails even after some retries and a final
      * retry cycle is done.
-     * See {@link DocumentNodeStoreBranch#merge(CommitHook, CommitInfo)}.
+     * See {@link DocumentNodeStoreBranch#merge(EditorProvider, CommitInfo)}.
      */
     private final ReadWriteLock mergeLock = new ReentrantReadWriteLock();
 
@@ -1279,7 +1277,7 @@ public final class DocumentNodeStore
             @Nonnull EditorProvider provider,
             @Nonnull CommitInfo info)
             throws CommitFailedException {
-        return asDocumentRootBuilder(builder).merge(new EditorHook(provider, builder), info);
+        return asDocumentRootBuilder(builder).merge(provider, info);
     }
 
     @Nonnull

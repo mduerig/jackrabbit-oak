@@ -123,7 +123,6 @@ public class SegmentNodeStore implements NodeStore, Observable {
     @Override
     public NodeState merge(@Nonnull final NodeBuilder builder, @Nonnull final EditorProvider provider,
             @Nullable CommitInfo info) throws CommitFailedException {
-        CommitHook commitHook = new EditorHook(checkNotNull(provider), builder);
         checkArgument(builder instanceof SegmentNodeBuilder);
 
         SegmentNodeBuilder snb = (SegmentNodeBuilder) builder;
@@ -131,7 +130,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
         try {
             commitSemaphore.acquire();
             try {
-                Commit commit = new Commit(snb, commitHook, info);
+                Commit commit = new Commit(snb, provider, info);
                 NodeState merged = commit.execute();
                 snb.reset(merged);
                 return merged;
@@ -264,17 +263,17 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
         private SegmentNodeState after;
 
-        private final CommitHook hook;
+        private final EditorProvider provider;
 
         private final CommitInfo info;
 
         Commit(@Nonnull SegmentNodeBuilder builder,
-                @Nonnull CommitHook hook, @Nonnull CommitInfo info) {
+                @Nonnull EditorProvider provider, @Nonnull CommitInfo info) {
             checkNotNull(builder);
             this.before = builder.getBaseState();
             this.after = builder.getNodeState();
 
-            this.hook = checkNotNull(hook);
+            this.provider = checkNotNull(provider);
             this.info = checkNotNull(info);
         }
 
@@ -297,6 +296,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
             SegmentNodeState state = head.get();
             SegmentNodeBuilder builder = state.builder();
             if (fastEquals(before, state.getChildNode(ROOT))) {
+                CommitHook hook = new EditorHook(provider, after.builder());
                 // use a shortcut when there are no external changes
                 builder.setChildNode(
                         ROOT, hook.processCommit(before, after, info));
@@ -306,6 +306,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
                         new ConflictAnnotatingRebaseDiff(builder.child(ROOT));
                 after.compareAgainstBaseState(before, diff);
                 // apply commit hooks on the rebased changes
+                CommitHook hook = new EditorHook(provider, builder.getNodeState().getChildNode(ROOT).builder());
                 builder.setChildNode(ROOT, hook.processCommit(
                         builder.getBaseState().getChildNode(ROOT),
                         builder.getNodeState().getChildNode(ROOT),
