@@ -97,7 +97,9 @@ class QueueingHandler extends DefaultEventHandler {
     @Override
     public EventHandler getChildHandler(
             String name, NodeState before, NodeState after) {
-        return new QueueingHandler(this, name, before, after);
+        return queue.isFull()
+            ? null
+            : new QueueingHandler(this, name, before, after);
     }
 
     @Override

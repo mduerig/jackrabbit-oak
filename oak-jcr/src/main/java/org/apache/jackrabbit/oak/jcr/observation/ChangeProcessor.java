@@ -21,6 +21,7 @@ package org.apache.jackrabbit.oak.jcr.observation;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newConcurrentHashSet;
+import static com.google.common.collect.Sets.newHashSet;
 import static org.apache.jackrabbit.api.stats.RepositoryStatistics.Type.OBSERVATION_EVENT_COUNTER;
 import static org.apache.jackrabbit.api.stats.RepositoryStatistics.Type.OBSERVATION_EVENT_DURATION;
 import static org.apache.jackrabbit.oak.plugins.observation.filter.VisibleFilter.VISIBLE_FILTER;
@@ -29,7 +30,6 @@ import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerO
 import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.scheduleWithFixedDelay;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -302,7 +302,7 @@ class ChangeProcessor implements Observer {
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
             EventFactory eventFactory = new EventFactory(namePathMapper, info);
-            List<EventDispatcher> dispatchers = newArrayList();
+            Set<EventDispatcher> dispatchers = newHashSet();
             for (Listener listener : listeners) {
                 EventDispatcher dispatcher = listener.createDispatcher(root, info, eventFactory);
                 if (dispatcher != null) {
@@ -310,33 +310,57 @@ class ChangeProcessor implements Observer {
                 }
             }
 
-            // Create a composite event handler for all dispatchers and use a single generator
-            // for generating the events. This causes the events for the first dispatcher
-            // to be generated as the client iterates through the passed node iterator. The
-            // events for all other dispatchers will be cached while piggy backing on the
-            // associated of the first dispatcher.
-            EventHandler handler = new FilteredHandler(VISIBLE_FILTER, createCompositeHandler(dispatchers));
-            EventGenerator generator = new EventGenerator(previousRoot, root, handler);  // michid put sub tree optimisation back
-            for (EventDispatcher dispatcher : dispatchers) {
-                try {
-                    dispatcher.dispatchEvents(generator);
-                } catch (Exception e) {
-                    LOG.warn("Error while dispatching observation events", e);
-                }
-            }
+            dispatch(root, dispatchers);
         }
         previousRoot = root;
     }
 
-    // Note: Making EventDispatcher implement EventHandler and direct composition would be
-    // cleaner here but but it seems prohibitively expensive given all the extra instances
-    // necessary.
-    private EventHandler createCompositeHandler(Iterable<EventDispatcher> dispatchers) {
+    private void dispatch(NodeState root, Set<EventDispatcher> dispatchers) {
+        // Create a composite event handler for all dispatchers and use a single generator
+        // for generating the events. This causes the events for the first dispatcher
+        // to be generated as the client iterates through the passed node iterator. The
+        // events for all other dispatchers will be cached while piggy backing on the
+        // associated of the first dispatcher.
+        if (!dispatchers.isEmpty()) {
+            EventGenerator generator = createGenerator(root, dispatchers);
+            for (EventDispatcher dispatcher : newHashSet(dispatchers)) {
+                try {
+                    if (dispatcher.dispatchEvents(generator)) {
+                        dispatchers.remove(dispatcher);
+                    }
+                } catch (Exception e) {
+                    LOG.warn("Error while dispatching observation events to " + dispatcher, e);
+                }
+            }
+        }
+
+        // Split the set of dispatcher for which dispatching failed
+        // into two equally sized sets and retry.
+        if (!dispatchers.isEmpty()) {
+            Set<EventDispatcher> d1 = newHashSet();
+            Set<EventDispatcher> d2 = newHashSet();
+            for (EventDispatcher dispatcher : dispatchers) {
+                if (d1.size() * 2 < dispatchers.size()) {
+                    d1.add(dispatcher);
+                } else {
+                    d2.add(dispatcher);
+                }
+            }
+            dispatch(root, d1);
+            dispatch(root, d2);
+        }
+    }
+
+    private EventGenerator createGenerator(NodeState root, Iterable<EventDispatcher> dispatchers) {
+        // Note: Making EventDispatcher implement EventHandler and direct composition would be
+        // cleaner here but but it seems prohibitively expensive given all the extra instances
+        // necessary.
         ArrayList<EventHandler> handlers = newArrayList();
         for (EventDispatcher dispatcher : dispatchers) {
-            handlers.add(dispatcher.getEventHandler());
+            handlers.add(dispatcher.createEventHandler());
         }
-        return CompositeHandler.create(handlers);
+        EventHandler handler = new FilteredHandler(VISIBLE_FILTER, CompositeHandler.create(handlers));
+        return new EventGenerator(previousRoot, root, handler);
     }
 
     private static class RunningGuard extends Guard {
@@ -414,23 +438,39 @@ class ChangeProcessor implements Observer {
     }
 
     private class EventDispatcher {
-        private final EventQueue queue = new EventQueue();
+        private final EventQueue queue = new EventQueue(EventGenerator.MAX_CHANGES_PER_CONTINUATION);
+        private final NodeState root;
         private final EventHandler handler;
         private final EventListener listener;
 
         public EventDispatcher(NodeState root, EventFilter filter, EventFactory eventFactory,
                 EventListener listener) {
-            EventHandler handler = new QueueingHandler(queue, eventFactory, previousRoot, root);
-            this.handler = new FilteredHandler(filter, handler);
+            this.root = root;
+            this.handler = new FilteredHandler(filter,
+                    new QueueingHandler(queue, eventFactory, previousRoot, root));
             this.listener = listener;
         }
 
-        public EventHandler getEventHandler() {
+        /**
+         * Create a new event handler for this dispatcher.
+         * @return
+         */
+        public EventHandler createEventHandler() {
+            queue.clear();
             return handler;
         }
 
-        public void dispatchEvents(EventGenerator generator) {
+        /**
+         * Dispatch events from the passed generator.
+         * @param generator  generator to generate the events
+         * @return  {@code true} on success, {@code false} otherwise.
+         */
+        public boolean dispatchEvents(EventGenerator generator) {
             EventIterator events = queue.getEvents(generator);
+            if (events == null) {
+                return false;
+            }
+
             if (events.hasNext() && runningMonitor.enterIf(running)) {
                 try {
                     CountingIterator countingEvents = new CountingIterator(events);
@@ -440,6 +480,7 @@ class ChangeProcessor implements Observer {
                     runningMonitor.leave();
                 }
             }
+            return true;
         }
     }
 

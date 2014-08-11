@@ -64,7 +64,8 @@ public class EventGenerator {
      * Maximum number of content changes to process during the
      * execution of a single diff continuation.
      */
-    private static final int MAX_CHANGES_PER_CONTINUATION = 10000;
+    public static final int MAX_CHANGES_PER_CONTINUATION = Integer.getInteger(
+            "max-changes-per-continuation", 10000);
 
     /**
      * Maximum number of continuations queued for future processing.

@@ -34,8 +34,10 @@
   <packaging>pom</packaging>
 
   <properties>
-    <test.opts.memory>-Xmx512m -XX:MaxPermSize=64m</test.opts.memory>
-    <test.opts>${test.opts.coverage} ${test.opts.memory} -XX:+HeapDumpOnOutOfMemoryError -Dupdate.limit=100 -Djava.awt.headless=true</test.opts>
+    <test.opts.memory>-Xmx512m -XX:MaxPermSize=64m -XX:+HeapDumpOnOutOfMemoryError</test.opts.memory>
+    <test.opts>${test.opts.coverage} ${test.opts.memory} -Djava.awt.headless=true</test.opts>
+    <update.limit>100</update.limit>
+    <max-changes-per-continuation>50</max-changes-per-continuation>
     <skip.deployment>false</skip.deployment>
     <skip.coverage>true</skip.coverage>
     <known.issues />
@@ -182,6 +184,8 @@
               <mongo.db>${mongo.db}</mongo.db>
               <mongo.db2>${mongo.db2}</mongo.db2>
               <segment.db>${segment.db}</segment.db>
+              <update.limit>${update.limit}</update.limit>
+              <max-changes-per-continuation>${max-changes-per-continuation}</max-changes-per-continuation>
               <nsfixtures>${fixtures}</nsfixtures>
             </systemPropertyVariables>
             <redirectTestOutputToFile>true</redirectTestOutputToFile>
@@ -197,6 +201,8 @@
               <mongo.port>${mongo.port}</mongo.port>
               <mongo.db>${mongo.db}</mongo.db>
               <mongo.db2>${mongo.db2}</mongo.db2>
+              <update.limit>${update.limit}</update.limit>
+              <max-changes-per-continuation>${max-changes-per-continuation}</max-changes-per-continuation>
               <nsfixtures>${fixtures}</nsfixtures>
             </systemPropertyVariables>
           </configuration>

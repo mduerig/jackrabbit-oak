@@ -33,12 +33,46 @@ import org.apache.jackrabbit.oak.plugins.observation.EventGenerator;
  */
 class EventQueue {
     private final LinkedList<Event> queue = newLinkedList();
+    private final int capacity;
+
+    private boolean full;
+
+    /**
+     * Create a new event queue with the given capacity.
+     * @param capacity
+     */
+    EventQueue(int capacity) {
+        this.capacity = capacity;
+    }
+
+    /**
+     * Determine whether the number of items added to the queue exceeded its
+     * capacity.
+     * @return  {@code true} if full {@code false} otherwise.
+     */
+    public boolean isFull() {
+        return full;
+    }
+
+    /**
+     * Remove all elements from the queue
+     */
+    public void clear() {
+        queue.clear();
+        full = false;
+    }
 
     /**
      * Called by the {@link QueueingHandler} to add new events to the queue.
      */
-    void addEvent(Event event) {
-        queue.add(event);
+    public void addEvent(Event event) {
+        if (!full) {
+            queue.add(event);
+            if (queue.size() > capacity) {
+                queue.clear();
+                full = true;
+            }
+        }
     }
 
     //-----------------------------------------------------< EventIterator >--
@@ -46,84 +80,86 @@ class EventQueue {
     /**
      * Create a event iterator for this queue using the passed generator
      * @param generator  the generator for generating the events for this queue
-     * @return  a new event iterator
+     * @return  a new event iterator or {@code null} if the queue is full.
      */
     public EventIterator getEvents(final EventGenerator generator) {
-        return new EventIterator() {
-            private long position = 0;
+        return full
+            ? null
+            : new EventIterator() {
+                private long position = 0;
 
-            @Override
-            public long getSize() {
-                if (generator.isDone()) {
-                    // no more new events will be generated, so count just those
-                    // that have already been iterated and those left in the queue
-                    return position + queue.size();
-                } else {
-                    // the generator is not yet done, so there's no way
-                    // to know how many events may still be generated
-                    return -1;
-                }
-            }
-
-            @Override
-            public long getPosition() {
-                return position;
-            }
-
-            @Override
-            public boolean hasNext() {
-                while (queue.isEmpty()) {
+                @Override
+                public long getSize() {
                     if (generator.isDone()) {
-                        return false;
+                        // no more new events will be generated, so count just those
+                        // that have already been iterated and those left in the queue
+                        return position + queue.size();
                     } else {
-                        generator.generate();
-                    }
-                }
-                return true;
-            }
-
-            @Override
-            public void skip(long skipNum) {
-                // generate events until all events to skip have been queued
-                while (skipNum > queue.size()) {
-                    // drop all currently queued events as we're skipping them all
-                    position += queue.size();
-                    skipNum -= queue.size();
-                    queue.clear();
-
-                    // generate more events if possible, otherwise fail
-                    if (!generator.isDone()) {
-                        generator.generate();
-                    } else {
-                        throw new NoSuchElementException("Not enough events to skip");
+                        // the generator is not yet done, so there's no way
+                        // to know how many events may still be generated
+                        return -1;
                     }
                 }
 
-                // the remaining events to skip are guaranteed to all be in the
-                // queue, so we can just drop those events and advance the position
-                queue.subList(0, (int) skipNum).clear();
-                position += skipNum;
-            }
-
-            @Override
-            public Event nextEvent() {
-                if (hasNext()) {
-                    position++;
-                    return queue.removeFirst();
-                } else {
-                    throw new NoSuchElementException();
+                @Override
+                public long getPosition() {
+                    return position;
                 }
-            }
 
-            @Override
-            public Event next() {
-                return nextEvent();
-            }
+                @Override
+                public boolean hasNext() {
+                    while (queue.isEmpty()) {
+                        if (generator.isDone()) {
+                            return false;
+                        } else {
+                            generator.generate();
+                        }
+                    }
+                    return true;
+                }
 
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
+                @Override
+                public void skip(long skipNum) {
+                    // generate events until all events to skip have been queued
+                    while (skipNum > queue.size()) {
+                        // drop all currently queued events as we're skipping them all
+                        position += queue.size();
+                        skipNum -= queue.size();
+                        queue.clear();
+
+                        // generate more events if possible, otherwise fail
+                        if (!generator.isDone()) {
+                            generator.generate();
+                        } else {
+                            throw new NoSuchElementException("Not enough events to skip");
+                        }
+                    }
+
+                    // the remaining events to skip are guaranteed to all be in the
+                    // queue, so we can just drop those events and advance the position
+                    queue.subList(0, (int) skipNum).clear();
+                    position += skipNum;
+                }
+
+                @Override
+                public Event nextEvent() {
+                    if (hasNext()) {
+                        position++;
+                        return queue.removeFirst();
+                    } else {
+                        throw new NoSuchElementException();
+                    }
+                }
+
+                @Override
+                public Event next() {
+                    return nextEvent();
+                }
+
+                @Override
+                public void remove() {
+                    throw new UnsupportedOperationException();
+                }
         };
     }
 

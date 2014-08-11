@@ -19,6 +19,7 @@
 package org.apache.jackrabbit.oak.jcr.observation;
 
 import static com.google.common.base.Objects.equal;
+import static java.lang.Integer.getInteger;
 import static java.util.Collections.synchronizedList;
 import static java.util.Collections.synchronizedSet;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
@@ -79,9 +80,12 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.jcr.AbstractRepositoryTest;
 import org.apache.jackrabbit.oak.jcr.NodeStoreFixture;
+import org.apache.jackrabbit.oak.plugins.nodetype.NodeTypeConstants;
+import org.apache.jackrabbit.oak.plugins.observation.EventGenerator;
 import org.apache.jackrabbit.oak.plugins.observation.filter.FilterBuilder;
 import org.apache.jackrabbit.oak.plugins.observation.filter.Selectors;
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -492,6 +496,13 @@ public class ObservationTest extends AbstractRepositoryTest {
 
     @Test
     public void multipleListeners() throws RepositoryException, ExecutionException, InterruptedException {
+        // Only run for reasonably low values of max-changes-per-continuation as otherwise
+        // the test takes too long to execute.
+        Assume.assumeTrue(getInteger("max-changes-per-continuation", Integer.MAX_VALUE) <= 100);
+
+        Node test = getNode("/").addNode("test", NodeTypeConstants.NT_OAK_UNSTRUCTURED);
+        test.getSession().save();
+
         ExpectationListener allListener = new ExpectationListener();
         ExpectationListener propertyListener = new ExpectationListener();
         ExpectationListener nodeListener = new ExpectationListener();
@@ -501,22 +512,15 @@ public class ObservationTest extends AbstractRepositoryTest {
                 PROPERTY_REMOVED, "/", true, null, null, false);
         observationManager.addEventListener(nodeListener, NODE_ADDED | NODE_REMOVED, "/", true,
                 null, null, false);
+
         try {
-            Node root = getNode("/");
-
-            Node a1 = root.addNode("a1");
-            Node a2 = root.addNode("a2");
-
-            allListener.expectAdd(a1);
-            allListener.expectAdd(a2);
-
-            propertyListener.expectAdd(a1.getProperty(JCR_PRIMARYTYPE));
-            propertyListener.expectAdd(a2.getProperty(JCR_PRIMARYTYPE));
-
-            nodeListener.expect(a1.getPath(), NODE_ADDED);
-            nodeListener.expect(a2.getPath(), NODE_ADDED);
-
-            root.getSession().save();
+            for (int k = 0; k < EventGenerator.MAX_CHANGES_PER_CONTINUATION; k++) {
+                Node ak = test.addNode("a" + k);
+                allListener.expectAdd(ak);
+                propertyListener.expectAdd(ak.getProperty(JCR_PRIMARYTYPE));
+                nodeListener.expect(ak.getPath(), NODE_ADDED);
+            }
+            test.getSession().save();
 
             for (ExpectationListener listener : ImmutableList.of(allListener, propertyListener, nodeListener)) {
                 List<Expectation> missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
