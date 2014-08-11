@@ -471,7 +471,7 @@ class ChangeProcessor implements Observer {
     }
 
     private class EventDispatcher {
-        private final EventQueue queue = new EventQueue(EventGenerator.MAX_CHANGES_PER_CONTINUATION);
+        private final EventQueue queue = new EventQueue();
         private final Iterable<String> subTrees;
         private final NodeState root;
         private final EventHandler handler;

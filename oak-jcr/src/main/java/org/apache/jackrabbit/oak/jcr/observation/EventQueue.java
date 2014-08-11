@@ -18,64 +18,73 @@
  */
 package org.apache.jackrabbit.oak.jcr.observation;
 
-import static com.google.common.collect.Lists.newLinkedList;
+import static java.lang.Integer.getInteger;
 
-import java.util.LinkedList;
 import java.util.NoSuchElementException;
 
 import javax.jcr.observation.Event;
 import javax.jcr.observation.EventIterator;
 
+import org.apache.jackrabbit.oak.jcr.observation.queues.HybridQueue;
+import org.apache.jackrabbit.oak.jcr.observation.queues.Queue;
+import org.apache.jackrabbit.oak.jcr.observation.queues.Queue.Reader;
 import org.apache.jackrabbit.oak.plugins.observation.EventGenerator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Queue of JCR Events generated from a given content change
+ * Queue of JCR Events generated from a given content change.
+ * <p>
+ * This implementation delegates back to a  {@link HybridQueue} to store the
+ * actual events. Once that queue becomes it is discarded to free up memory
+ * and {@link #isFull()} returns {@code true}.
  */
 class EventQueue {
-    private final LinkedList<Event> queue = newLinkedList();
-    private final int capacity;
+    private static final Logger LOG = LoggerFactory.getLogger(EventQueue.class);
+    private static final int SOFT_QUEUE_CAPACITY =
+            getInteger("observation.soft-queue-capacity", Integer.MAX_VALUE);
 
-    private boolean full;
+    /** The backing queue */
+    private Queue queue;
 
     /**
-     * Create a new event queue with the given capacity.
-     * @param capacity
+     * Create a new event queue.
      */
-    EventQueue(int capacity) {
-        this.capacity = capacity;
+    EventQueue() {
+        clear();
     }
 
     /**
-     * Determine whether the number of items added to the queue exceeded its
-     * capacity.
      * @return  {@code true} if full {@code false} otherwise.
      */
     public boolean isFull() {
-        return full;
+        return queue == null;
     }
 
     /**
      * Remove all elements from the queue
      */
-    public void clear() {
-        queue.clear();
-        full = false;
+    public final void clear() {
+        this.queue = new HybridQueue(EventGenerator.MAX_CHANGES_PER_CONTINUATION, SOFT_QUEUE_CAPACITY);
     }
 
     /**
      * Called by the {@link QueueingHandler} to add new events to the queue.
+     * Does nothing if this queue is full.
      */
     public void addEvent(Event event) {
-        if (!full) {
-            queue.add(event);
-            if (queue.size() > capacity) {
-                queue.clear();
-                full = true;
+        if (queue != null) {
+            if (!queue.add(event)) {
+                queue = null;
             }
         }
     }
 
     //-----------------------------------------------------< EventIterator >--
+
+    private Reader getReader() {
+        return queue == null ? null : this.queue.getReader();
+    }
 
     /**
      * Create a event iterator for this queue using the passed generator
@@ -83,83 +92,82 @@ class EventQueue {
      * @return  a new event iterator or {@code null} if the queue is full.
      */
     public EventIterator getEvents(final EventGenerator generator) {
-        return full
-            ? null
-            : new EventIterator() {
-                private long position = 0;
+        final Reader queueReader = getReader();
+        return queueReader == null ? null : new EventIterator() {
+            private long position = 0;
 
-                @Override
-                public long getSize() {
+            @Override
+            public long getSize() {
+                if (generator.isDone()) {
+                    // no more new events will be generated, so count just those
+                    // that have already been iterated and those left in the queue
+                    return position + queueReader.size();
+                } else {
+                    // the generator is not yet done, so there's no way
+                    // to know how many events may still be generated
+                    return -1;
+                }
+            }
+
+            @Override
+            public long getPosition() {
+                return position;
+            }
+
+            @Override
+            public boolean hasNext() {
+                while (queueReader.isEmpty()) {
                     if (generator.isDone()) {
-                        // no more new events will be generated, so count just those
-                        // that have already been iterated and those left in the queue
-                        return position + queue.size();
+                        return false;
                     } else {
-                        // the generator is not yet done, so there's no way
-                        // to know how many events may still be generated
-                        return -1;
+                        generator.generate();
                     }
                 }
+                return true;
+            }
 
-                @Override
-                public long getPosition() {
-                    return position;
-                }
+            @Override
+            public void skip(long skipNum) {
+                // generate events until all events to skip have been queued
+                while (skipNum > queueReader.size()) {
+                    // drop all currently queued events as we're skipping them all
+                    position += queueReader.size();
+                    skipNum -= queueReader.size();
+                    queueReader.clear();
 
-                @Override
-                public boolean hasNext() {
-                    while (queue.isEmpty()) {
-                        if (generator.isDone()) {
-                            return false;
-                        } else {
-                            generator.generate();
-                        }
-                    }
-                    return true;
-                }
-
-                @Override
-                public void skip(long skipNum) {
-                    // generate events until all events to skip have been queued
-                    while (skipNum > queue.size()) {
-                        // drop all currently queued events as we're skipping them all
-                        position += queue.size();
-                        skipNum -= queue.size();
-                        queue.clear();
-
-                        // generate more events if possible, otherwise fail
-                        if (!generator.isDone()) {
-                            generator.generate();
-                        } else {
-                            throw new NoSuchElementException("Not enough events to skip");
-                        }
-                    }
-
-                    // the remaining events to skip are guaranteed to all be in the
-                    // queue, so we can just drop those events and advance the position
-                    queue.subList(0, (int) skipNum).clear();
-                    position += skipNum;
-                }
-
-                @Override
-                public Event nextEvent() {
-                    if (hasNext()) {
-                        position++;
-                        return queue.removeFirst();
+                    // generate more events if possible, otherwise fail
+                    if (!generator.isDone()) {
+                        generator.generate();
                     } else {
-                        throw new NoSuchElementException();
+                        throw new NoSuchElementException("Not enough events to skip");
                     }
                 }
 
-                @Override
-                public Event next() {
-                    return nextEvent();
-                }
+                // the remaining events to skip are guaranteed to all be in the
+                // queue, so we can just drop those events and advance the position
+                queueReader.removeFirst(skipNum);
+                position += skipNum;
+            }
 
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
+            @Override
+            public Event nextEvent() {
+                if (hasNext()) {
+                    position++;
+                    return queueReader.removeFirst();
+                } else {
+                    throw new NoSuchElementException();
                 }
+            }
+
+            @Override
+            public Event next() {
+                return nextEvent();
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
