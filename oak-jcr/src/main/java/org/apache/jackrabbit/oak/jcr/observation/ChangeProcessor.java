@@ -49,8 +49,8 @@ import javax.jcr.observation.EventListener;
 import com.google.common.util.concurrent.Monitor;
 import com.google.common.util.concurrent.Monitor.Guard;
 import org.apache.jackrabbit.api.jmx.EventListenerMBean;
-import org.apache.jackrabbit.commons.observation.ListenerTracker;
 import org.apache.jackrabbit.oak.api.ContentSession;
+import org.apache.jackrabbit.oak.jcr.observation.temp.ListenerTracker;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.observation.CommitRateLimiter;
 import org.apache.jackrabbit.oak.plugins.observation.CompositeHandler;
@@ -477,6 +477,8 @@ class ChangeProcessor implements Observer {
         private final EventHandler handler;
         private final EventListener listener;
 
+        private int attempts;
+
         public EventDispatcher(Iterable<String> subTrees, NodeState root, EventFilter filter,
                 EventFactory eventFactory, EventListener listener) {
             this.subTrees = subTrees;
@@ -501,8 +503,11 @@ class ChangeProcessor implements Observer {
          * @return  {@code true} on success, {@code false} otherwise.
          */
         public boolean dispatchEvents(EventGenerator generator) {
+            attempts++;
             EventIterator events = queue.getEvents(generator);
             if (events == null) {
+                LOG.warn("{}: event queue overflowed during piggyback diffing (attempt {}). " +
+                        "Retrying...", listener, attempts);
                 return false;
             }
 
@@ -511,11 +516,17 @@ class ChangeProcessor implements Observer {
                     CountingIterator countingEvents = new CountingIterator(events);
                     listener.onEvent(countingEvents);
                     countingEvents.updateCounters(eventCount, eventDuration);
+                    LOG.debug("{}: diffing succeeded after {} attempts.", listener, attempts);
                 } finally {
                     runningMonitor.leave();
                 }
             }
             return true;
+        }
+
+        @Override
+        public String toString() {
+            return listener.toString();
         }
     }
 
