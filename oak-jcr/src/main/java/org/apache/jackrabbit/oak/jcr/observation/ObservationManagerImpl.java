@@ -46,9 +46,9 @@ import org.apache.jackrabbit.api.observation.JackrabbitEventFilter;
 import org.apache.jackrabbit.api.observation.JackrabbitObservationManager;
 import org.apache.jackrabbit.commons.iterator.EventListenerIteratorAdapter;
 import org.apache.jackrabbit.commons.observation.ListenerTracker;
-import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.jcr.delegate.SessionDelegate;
+import org.apache.jackrabbit.oak.jcr.observation.ChangeProcessor.ListenerRegistration;
 import org.apache.jackrabbit.oak.jcr.session.SessionContext;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.nodetype.ReadOnlyNodeTypeManager;
@@ -59,11 +59,9 @@ import org.apache.jackrabbit.oak.plugins.observation.filter.FilterBuilder.Condit
 import org.apache.jackrabbit.oak.plugins.observation.filter.FilterProvider;
 import org.apache.jackrabbit.oak.plugins.observation.filter.PermissionProviderFactory;
 import org.apache.jackrabbit.oak.plugins.observation.filter.Selectors;
-import org.apache.jackrabbit.oak.spi.commit.Observable;
 import org.apache.jackrabbit.oak.spi.security.authorization.AuthorizationConfiguration;
 import org.apache.jackrabbit.oak.spi.security.authorization.permission.PermissionProvider;
 import org.apache.jackrabbit.oak.spi.whiteboard.Whiteboard;
-import org.apache.jackrabbit.oak.stats.StatisticManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Marker;
@@ -79,22 +77,19 @@ public class ObservationManagerImpl implements JackrabbitObservationManager {
     private static final Marker DEPRECATED =
             MarkerFactory.getMarker("deprecated");
 
-    private final Map<EventListener, ChangeProcessor> processors =
-            new HashMap<EventListener, ChangeProcessor>();
+    private final Map<EventListener, ListenerRegistration> listeners =
+            new HashMap<EventListener, ListenerRegistration>();
 
     private final SessionDelegate sessionDelegate;
     private final ReadOnlyNodeTypeManager ntMgr;
     private final AuthorizationConfiguration authorizationConfig;
     private final NamePathMapper namePathMapper;
-    private final Whiteboard whiteboard;
-    private final StatisticManager statisticManager;
-    private final int queueLength;
-    private final CommitRateLimiter commitRateLimiter;
     private final PermissionProviderFactory permissionProviderFactory;
+    private final ChangeProcessor changeProcessor;
 
     /**
-     * Create a new instance based on a {@link ContentSession} that needs to implement
-     * {@link Observable}.
+     * Create a new instance based on a {@link org.apache.jackrabbit.oak.api.ContentSession} that needs to implement
+     * {@link org.apache.jackrabbit.oak.spi.commit.Observable}.
      *
      * @param sessionContext   session delegate of the session in whose context this observation manager
      *                         operates.
@@ -105,15 +100,11 @@ public class ObservationManagerImpl implements JackrabbitObservationManager {
     public ObservationManagerImpl(
             SessionContext sessionContext, ReadOnlyNodeTypeManager nodeTypeManager,
             Whiteboard whiteboard, int queueLength, CommitRateLimiter commitRateLimiter) {
-
         this.sessionDelegate = sessionContext.getSessionDelegate();
-        this.authorizationConfig = sessionContext.getSecurityProvider().getConfiguration(AuthorizationConfiguration.class);
         this.ntMgr = nodeTypeManager;
+        this.authorizationConfig = sessionContext.getSecurityProvider()
+                .getConfiguration(AuthorizationConfiguration.class);
         this.namePathMapper = sessionContext;
-        this.whiteboard = whiteboard;
-        this.statisticManager = sessionContext.getStatisticManager();
-        this.queueLength = queueLength;
-        this.commitRateLimiter = commitRateLimiter;
         this.permissionProviderFactory = new PermissionProviderFactory() {
             Set<Principal> principals = sessionDelegate.getAuthInfo().getPrincipals();
             @Nonnull
@@ -123,40 +114,35 @@ public class ObservationManagerImpl implements JackrabbitObservationManager {
                         sessionDelegate.getWorkspaceName(), principals);
             }
         };
+        changeProcessor = new ChangeProcessor(whiteboard, sessionDelegate.getContentSession(),
+                namePathMapper, sessionContext.getStatisticManager(), queueLength, commitRateLimiter);
+        changeProcessor.start();
     }
 
     public void dispose() {
-        List<ChangeProcessor> toBeStopped;
-
-        synchronized (this) {
-            toBeStopped = newArrayList(processors.values());
-            processors.clear();
-        }
-
-        for (ChangeProcessor processor : toBeStopped) {
-            stop(processor);
+        if (!changeProcessor.stopAndWait(STOP_TIME_OUT, MILLISECONDS)) {
+            LOG.warn(OBSERVATION, "Timed out waiting for change processor to stop after " +
+                    STOP_TIME_OUT + " milliseconds. Falling back to asynchronous stop.");
+            changeProcessor.stop();
         }
     }
 
     private synchronized void addEventListener(EventListener listener, ListenerTracker tracker,
             FilterProvider filterProvider) {
 
-        ChangeProcessor processor = processors.get(listener);
-        if (processor == null) {
+        ListenerRegistration registration = listeners.get(listener);
+        if (registration == null) {
             LOG.debug(OBSERVATION,
                     "Registering event listener {} with filter {}", listener, filterProvider);
             // TODO sharing the namePathMapper across different thread might lead to lock contention.
             // If this turns out to be problematic we might create a dedicated snapshot for each
             // session. See OAK-1368.
-            processor = new ChangeProcessor(sessionDelegate.getContentSession(), namePathMapper,
-                    tracker, filterProvider, statisticManager, queueLength,
-                    commitRateLimiter);
-            processors.put(listener, processor);
-            processor.start(whiteboard);
+            registration = changeProcessor.addListener(tracker, filterProvider);
+            listeners.put(listener, registration);
         } else {
             LOG.debug(OBSERVATION,
                     "Changing event listener {} to filter {}", listener, filterProvider);
-            processor.setFilterProvider(filterProvider);
+            registration.setFilterProvider(filterProvider);
         }
     }
 
@@ -297,18 +283,18 @@ public class ObservationManagerImpl implements JackrabbitObservationManager {
 
     @Override
     public void removeEventListener(EventListener listener) {
-        ChangeProcessor processor;
+        ListenerRegistration registration;
         synchronized (this) {
-            processor = processors.remove(listener);
+            registration = listeners.remove(listener);
         }
-        if (processor != null) {
-            stop(processor); // needs to happen outside synchronization
+        if (registration != null) {
+            registration.unregister();
         }
     }
 
     @Override
     public EventListenerIterator getRegisteredEventListeners() throws RepositoryException {
-        return new EventListenerIteratorAdapter(processors.keySet());
+        return new EventListenerIteratorAdapter(listeners.keySet());
     }
 
     @Override

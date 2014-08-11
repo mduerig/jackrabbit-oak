@@ -64,6 +64,7 @@ import javax.jcr.observation.EventListener;
 import javax.jcr.observation.ObservationManager;
 
 import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ForwardingListenableFuture;
@@ -486,6 +487,48 @@ public class ObservationTest extends AbstractRepositoryTest {
         }
         finally {
             observationManager.removeEventListener(listener);
+        }
+    }
+
+    @Test
+    public void multipleListeners() throws RepositoryException, ExecutionException, InterruptedException {
+        ExpectationListener allListener = new ExpectationListener();
+        ExpectationListener propertyListener = new ExpectationListener();
+        ExpectationListener nodeListener = new ExpectationListener();
+
+        observationManager.addEventListener(allListener, ALL_EVENTS, "/", true, null, null, false);
+        observationManager.addEventListener(propertyListener, PROPERTY_ADDED | PROPERTY_CHANGED |
+                PROPERTY_REMOVED, "/", true, null, null, false);
+        observationManager.addEventListener(nodeListener, NODE_ADDED | NODE_REMOVED, "/", true,
+                null, null, false);
+        try {
+            Node root = getNode("/");
+
+            Node a1 = root.addNode("a1");
+            Node a2 = root.addNode("a2");
+
+            allListener.expectAdd(a1);
+            allListener.expectAdd(a2);
+
+            propertyListener.expectAdd(a1.getProperty(JCR_PRIMARYTYPE));
+            propertyListener.expectAdd(a2.getProperty(JCR_PRIMARYTYPE));
+
+            nodeListener.expect(a1.getPath(), NODE_ADDED);
+            nodeListener.expect(a2.getPath(), NODE_ADDED);
+
+            root.getSession().save();
+
+            for (ExpectationListener listener : ImmutableList.of(allListener, propertyListener, nodeListener)) {
+                List<Expectation> missing = listener.getMissing(TIME_OUT, TimeUnit.SECONDS);
+                assertTrue("Missing events: " + missing, missing.isEmpty());
+                List<Event> unexpected = listener.getUnexpected();
+                assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
+            }
+        }
+        finally {
+            observationManager.removeEventListener(allListener);
+            observationManager.removeEventListener(propertyListener);
+            observationManager.removeEventListener(nodeListener);
         }
     }
 

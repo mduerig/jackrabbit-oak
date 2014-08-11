@@ -19,6 +19,8 @@
 package org.apache.jackrabbit.oak.jcr.observation;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Sets.newConcurrentHashSet;
 import static org.apache.jackrabbit.api.stats.RepositoryStatistics.Type.OBSERVATION_EVENT_COUNTER;
 import static org.apache.jackrabbit.api.stats.RepositoryStatistics.Type.OBSERVATION_EVENT_DURATION;
 import static org.apache.jackrabbit.oak.plugins.observation.filter.VisibleFilter.VISIBLE_FILTER;
@@ -26,6 +28,9 @@ import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerM
 import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerObserver;
 import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.scheduleWithFixedDelay;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,9 +48,12 @@ import org.apache.jackrabbit.commons.observation.ListenerTracker;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.observation.CommitRateLimiter;
+import org.apache.jackrabbit.oak.plugins.observation.CompositeHandler;
+import org.apache.jackrabbit.oak.plugins.observation.EventGenerator;
+import org.apache.jackrabbit.oak.plugins.observation.EventHandler;
+import org.apache.jackrabbit.oak.plugins.observation.FilteredHandler;
 import org.apache.jackrabbit.oak.plugins.observation.filter.EventFilter;
 import org.apache.jackrabbit.oak.plugins.observation.filter.FilterProvider;
-import org.apache.jackrabbit.oak.plugins.observation.filter.Filters;
 import org.apache.jackrabbit.oak.spi.commit.BackgroundObserver;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
@@ -61,7 +69,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * A {@code ChangeProcessor} generates observation {@link javax.jcr.observation.Event}s
- * based on a {@link FilterProvider filter} and delivers them to an {@link EventListener}.
+ * based on a {@link FilterProvider filter} and delivers them to the registered
+ * {@link EventListener}.
  * <p>
  * After instantiation a {@code ChangeProcessor} must be started in order to start
  * delivering observation events and stopped to stop doing so.
@@ -81,11 +90,10 @@ class ChangeProcessor implements Observer {
      */
     public static final int MAX_DELAY = 10000;
 
-    private final ContentSession contentSession;
+    private final Set<Listener> listeners = newConcurrentHashSet();
+    private final Whiteboard whiteboard;
+    private final String sessionId;
     private final NamePathMapper namePathMapper;
-    private final ListenerTracker tracker;
-    private final EventListener eventListener;
-    private final AtomicReference<FilterProvider> filterProvider;
     private final AtomicLong eventCount;
     private final AtomicLong eventDuration;
     private final TimeSeriesMax maxQueueLength;
@@ -93,21 +101,33 @@ class ChangeProcessor implements Observer {
     private final CommitRateLimiter commitRateLimiter;
 
     private CompositeRegistration registration;
+    private BackgroundObserver observer;
     private volatile NodeState previousRoot;
 
+    /**
+     * {@code ListenerRegistration} instances represent listeners
+     * registered with a {@code ChangeProcessor}.
+     */
+    public interface ListenerRegistration extends Registration {
+
+        /**
+         * Atomically change the filter condition for the
+         * registered listener.
+         * @param filterProvider  filter condition
+         */
+        void setFilterProvider(FilterProvider filterProvider);
+    }
+
     public ChangeProcessor(
+            Whiteboard whiteboard,
             ContentSession contentSession,
             NamePathMapper namePathMapper,
-            ListenerTracker tracker,
-            FilterProvider filter,
             StatisticManager statisticManager,
             int queueLength,
             CommitRateLimiter commitRateLimiter) {
-        this.contentSession = contentSession;
+        this.whiteboard = whiteboard;
+        this.sessionId = contentSession.toString();
         this.namePathMapper = namePathMapper;
-        this.tracker = tracker;
-        eventListener = tracker.getTrackedListener();
-        filterProvider = new AtomicReference<FilterProvider>(filter);
         this.eventCount = statisticManager.getCounter(OBSERVATION_EVENT_COUNTER);
         this.eventDuration = statisticManager.getCounter(OBSERVATION_EVENT_DURATION);
         this.maxQueueLength = statisticManager.maxQueLengthRecorder();
@@ -116,28 +136,16 @@ class ChangeProcessor implements Observer {
     }
 
     /**
-     * Set the filter for the events this change processor will generate.
-     * @param filter
-     */
-    public void setFilterProvider(FilterProvider filter) {
-        filterProvider.set(filter);
-    }
-
-    /**
      * Start this change processor
-     * @param whiteboard  the whiteboard instance to used for scheduling individual
-     *                    runs of this change processor.
      * @throws IllegalStateException if started already
      */
-    public synchronized void start(Whiteboard whiteboard) {
+    public synchronized void start() {
         checkState(registration == null, "Change processor started already");
         final WhiteboardExecutor executor = new WhiteboardExecutor();
         executor.start(whiteboard);
-        final BackgroundObserver observer = createObserver(executor);
+        observer = createObserver(executor);
         registration = new CompositeRegistration(
             registerObserver(whiteboard, observer),
-            registerMBean(whiteboard, EventListenerMBean.class,
-                    tracker.getListenerMBean(), "EventListener", tracker.toString()),
             new Registration() {
                 @Override
                 public void unregister() {
@@ -215,6 +223,25 @@ class ChangeProcessor implements Observer {
         };
     }
 
+    /**
+     * Add a listener to this change processor
+     * @param tracker  the listener
+     * @param filterProvider  the filter for the listener
+     * @return  a listener registration instance
+     */
+    public ListenerRegistration addListener(ListenerTracker tracker, FilterProvider filterProvider) {
+        final Listener listener = new Listener(whiteboard, tracker, filterProvider);
+        observer.addCallback(new Runnable() {
+            // Make sure the listener is only enabled once we reach the "current revision"
+            // as otherwise we might receive events from the past.
+            @Override
+            public void run() {
+                listener.setEnabled(true);
+            }
+        });
+        return listener;
+    }
+
     private final Monitor runningMonitor = new Monitor();
     private final RunningGuard running = new RunningGuard(runningMonitor);
 
@@ -237,7 +264,7 @@ class ChangeProcessor implements Observer {
         checkState(registration != null, "Change processor not started");
         if (running.stop()) {
             if (runningMonitor.enter(timeOut, unit)) {
-                registration.unregister();
+                unregisterAll();
                 runningMonitor.leave();
                 return true;
             } else {
@@ -259,37 +286,161 @@ class ChangeProcessor implements Observer {
     public synchronized void stop() {
         checkState(registration != null, "Change processor not started");
         if (running.stop()) {
-            registration.unregister();
+            unregisterAll();
             runningMonitor.leave();
+        }
+    }
+
+    private void unregisterAll() {
+        registration.unregister();
+        for (Listener listener : listeners) {
+            listener.unregister();
         }
     }
 
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            try {
-                FilterProvider provider = filterProvider.get();
-                // FIXME don't rely on toString for session id
-                if (provider.includeCommit(contentSession.toString(), info)) {
-                    EventFilter filter = provider.getFilter(previousRoot, root);
-                    EventIterator events = new EventQueue(namePathMapper, info, previousRoot, root,
-                            provider.getSubTrees(), Filters.all(filter, VISIBLE_FILTER));
-
-                    if (events.hasNext() && runningMonitor.enterIf(running)) {
-                        try {
-                            CountingIterator countingEvents = new CountingIterator(events);
-                            eventListener.onEvent(countingEvents);
-                            countingEvents.updateCounters(eventCount, eventDuration);
-                        } finally {
-                            runningMonitor.leave();
-                        }
-                    }
+            EventFactory eventFactory = new EventFactory(namePathMapper, info);
+            List<EventDispatcher> dispatchers = newArrayList();
+            for (Listener listener : listeners) {
+                EventDispatcher dispatcher = listener.createDispatcher(root, info, eventFactory);
+                if (dispatcher != null) {
+                    dispatchers.add(dispatcher);
                 }
-            } catch (Exception e) {
-                LOG.warn("Error while dispatching observation events for " + tracker, e);
+            }
+
+            // Create a composite event handler for all dispatchers and use a single generator
+            // for generating the events. This causes the events for the first dispatcher
+            // to be generated as the client iterates through the passed node iterator. The
+            // events for all other dispatchers will be cached while piggy backing on the
+            // associated of the first dispatcher.
+            EventHandler handler = new FilteredHandler(VISIBLE_FILTER, createCompositeHandler(dispatchers));
+            EventGenerator generator = new EventGenerator(previousRoot, root, handler);  // michid put sub tree optimisation back
+            for (EventDispatcher dispatcher : dispatchers) {
+                try {
+                    dispatcher.dispatchEvents(generator);
+                } catch (Exception e) {
+                    LOG.warn("Error while dispatching observation events", e);
+                }
             }
         }
         previousRoot = root;
+    }
+
+    // Note: Making EventDispatcher implement EventHandler and direct composition would be
+    // cleaner here but but it seems prohibitively expensive given all the extra instances
+    // necessary.
+    private EventHandler createCompositeHandler(Iterable<EventDispatcher> dispatchers) {
+        ArrayList<EventHandler> handlers = newArrayList();
+        for (EventDispatcher dispatcher : dispatchers) {
+            handlers.add(dispatcher.getEventHandler());
+        }
+        return CompositeHandler.create(handlers);
+    }
+
+    private static class RunningGuard extends Guard {
+        private boolean stopped;
+
+        public RunningGuard(Monitor monitor) {
+            super(monitor);
+        }
+
+        @Override
+        public boolean isSatisfied() {
+            return !stopped;
+        }
+
+        /**
+         * @return  {@code true} if this call set this guard to stopped,
+         *          {@code false} if another call set this guard to stopped before.
+         */
+        public boolean stop() {
+            boolean wasStopped = stopped;
+            stopped = true;
+            return !wasStopped;
+        }
+    }
+
+    private class Listener implements ListenerRegistration {
+        private final EventListener eventListener;
+        private final AtomicReference<FilterProvider> filterProvider;
+        private final Registration mBean;
+
+        private volatile boolean enabled;
+
+        public Listener(Whiteboard whiteboard, ListenerTracker tracker, FilterProvider filterProvider) {
+            this.eventListener = tracker.getTrackedListener();
+            this.filterProvider = new AtomicReference<FilterProvider>(filterProvider);
+            mBean = registerMBean(whiteboard, EventListenerMBean.class,
+                    tracker.getListenerMBean(), "EventListener", tracker.toString());
+            listeners.add(this);
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        /**
+         * Create an event dispatcher for this listener using its current
+         * filter conditions.
+         *
+         * @param root    root node state whose changes to dispatch
+         * @param info    commit info associate with the changes
+         * @param eventFactory
+         * @return  a new event dispatcher
+         */
+        public EventDispatcher createDispatcher(NodeState root, CommitInfo info,
+                EventFactory eventFactory) {
+            FilterProvider provider = filterProvider.get();
+            if (enabled && provider.includeCommit(sessionId, info)) {
+                EventFilter filter = provider.getFilter(previousRoot, root);
+                return new EventDispatcher(root, filter, eventFactory, eventListener);
+            } else {
+                return null;
+            }
+        }
+
+        @Override
+        public void setFilterProvider(FilterProvider filterProvider) {
+            this.filterProvider.set(filterProvider);
+        }
+
+        @Override
+        public void unregister() {
+            mBean.unregister();
+            listeners.remove(this);
+        }
+    }
+
+    private class EventDispatcher {
+        private final EventQueue queue = new EventQueue();
+        private final EventHandler handler;
+        private final EventListener listener;
+
+        public EventDispatcher(NodeState root, EventFilter filter, EventFactory eventFactory,
+                EventListener listener) {
+            EventHandler handler = new QueueingHandler(queue, eventFactory, previousRoot, root);
+            this.handler = new FilteredHandler(filter, handler);
+            this.listener = listener;
+        }
+
+        public EventHandler getEventHandler() {
+            return handler;
+        }
+
+        public void dispatchEvents(EventGenerator generator) {
+            EventIterator events = queue.getEvents(generator);
+            if (events.hasNext() && runningMonitor.enterIf(running)) {
+                try {
+                    CountingIterator countingEvents = new CountingIterator(events);
+                    listener.onEvent(countingEvents);
+                    countingEvents.updateCounters(eventCount, eventDuration);
+                } finally {
+                    runningMonitor.leave();
+                }
+            }
+        }
     }
 
     private static class CountingIterator implements EventIterator {
@@ -313,7 +464,7 @@ class ChangeProcessor implements Observer {
         public Event next() {
             if (eventCount == -1) {
                 LOG.warn("Access to EventIterator outside the onEvent callback detected. This will " +
-                    "cause observation related values in RepositoryStatistics to become unreliable.");
+                        "cause observation related values in RepositoryStatistics to become unreliable.");
                 eventCount = -2;
             }
 
@@ -364,29 +515,6 @@ class ChangeProcessor implements Observer {
         @Override
         public void remove() {
             throw new UnsupportedOperationException();
-        }
-    }
-
-    private static class RunningGuard extends Guard {
-        private boolean stopped;
-
-        public RunningGuard(Monitor monitor) {
-            super(monitor);
-        }
-
-        @Override
-        public boolean isSatisfied() {
-            return !stopped;
-        }
-
-        /**
-         * @return  {@code true} if this call set this guard to stopped,
-         *          {@code false} if another call set this guard to stopped before.
-         */
-        public boolean stop() {
-            boolean wasStopped = stopped;
-            stopped = true;
-            return !wasStopped;
         }
     }
 }

@@ -22,6 +22,8 @@ package org.apache.jackrabbit.oak.spi.commit;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Queues.newArrayBlockingQueue;
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
+import static org.apache.jackrabbit.oak.spi.commit.CommitInfo.OAK_UNKNOWN;
 
 import java.io.Closeable;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -34,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +52,11 @@ import org.slf4j.LoggerFactory;
  * To help prevent such cases, any sequential external content changes that
  * the background observer thread has yet to process are automatically merged
  * to just one change.
+ * <p>
+ * A callback can be aligned with the change queue by calling
+ * {@link #addCallback(Runnable)}. Such a callback will be called on the
+ * background thread once it reaches the revision this observer handled
+ * last before the callback was added.
  */
 public class BackgroundObserver implements Observer, Closeable {
 
@@ -56,6 +64,14 @@ public class BackgroundObserver implements Observer, Closeable {
      * Signal for the background thread to stop processing changes.
      */
     private static final ContentChange STOP = new ContentChange(null, null);
+
+    /**
+     * This synthetic node state is used to mark call backs in the stream
+     * of revisions.
+     * @see #addCallback(Runnable)
+     */
+    private static final NodeState CALLBACK = EMPTY_NODE.builder()
+            .setProperty("CALLBACK", "CALLBACK").getNodeState();
 
     /**
      * The receiving observer being notified off the background thread.
@@ -119,7 +135,13 @@ public class BackgroundObserver implements Observer, Closeable {
                 try {
                     ContentChange change = queue.poll();
                     if (change != null && change != STOP) {
-                        observer.contentChanged(change.root, change.info);
+                        NodeState root = change.root;
+                        CommitInfo info = change.info;
+                        if (root == CALLBACK) {
+                            runCallback(root, info);
+                        } else {
+                            observer.contentChanged(root, info);
+                        }
                         currentTask.onComplete(completionHandler);
                     }
                 } catch (Throwable t) {
@@ -172,6 +194,20 @@ public class BackgroundObserver implements Observer, Closeable {
     }
 
     /**
+     * Add a callback at the current position of the change queue.
+     * @param callback  A call back
+     */
+    public void addCallback(Runnable callback) {
+        ImmutableMap<String, Object> infoMap = ImmutableMap.of("CALLBACK", (Object)callback);
+        CommitInfo info = new CommitInfo(OAK_UNKNOWN, OAK_UNKNOWN, infoMap);
+        contentChanged(CALLBACK, info);
+    }
+
+    private static void runCallback(NodeState nodeState, CommitInfo info) {
+        ((Runnable)info.getInfo().get("CALLBACK")).run();
+    }
+
+    /**
      * Called when ever an item has been added to the queue
      * @param queueSize  size of the queue
      */
@@ -212,7 +248,7 @@ public class BackgroundObserver implements Observer, Closeable {
         checkState(!stopped);
         checkNotNull(root);
 
-        if (info == null && last != null && last.info == null) {
+        if (info == null && last != CALLBACK && last != null && last.info == null) {
             // This is an external change. If the previous change was
             // also external, we can drop it from the queue (since external
             // changes in any case can cover multiple commits) to help
