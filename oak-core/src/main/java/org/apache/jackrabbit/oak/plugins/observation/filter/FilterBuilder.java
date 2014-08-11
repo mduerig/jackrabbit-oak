@@ -77,7 +77,7 @@ public final class FilterBuilder {
      */
     @Nonnull
     public FilterBuilder addSubTree(@Nonnull String absPath) {
-        if (absPath.endsWith("/")) {
+        if (!"/".equals(checkNotNull(absPath)) && absPath.endsWith("/")) {
             absPath = absPath.substring(0, absPath.length() - 1);
         }
         for (String path : subTrees) {

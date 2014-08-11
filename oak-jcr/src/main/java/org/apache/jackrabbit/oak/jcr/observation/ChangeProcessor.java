@@ -19,11 +19,16 @@
 package org.apache.jackrabbit.oak.jcr.observation;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.addAll;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newConcurrentHashSet;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.apache.jackrabbit.api.stats.RepositoryStatistics.Type.OBSERVATION_EVENT_COUNTER;
 import static org.apache.jackrabbit.api.stats.RepositoryStatistics.Type.OBSERVATION_EVENT_DURATION;
+import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
+import static org.apache.jackrabbit.oak.commons.PathUtils.getName;
+import static org.apache.jackrabbit.oak.commons.PathUtils.getParentPath;
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.plugins.observation.filter.VisibleFilter.VISIBLE_FILTER;
 import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerMBean;
 import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerObserver;
@@ -57,6 +62,7 @@ import org.apache.jackrabbit.oak.plugins.observation.filter.FilterProvider;
 import org.apache.jackrabbit.oak.spi.commit.BackgroundObserver;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.whiteboard.CompositeRegistration;
 import org.apache.jackrabbit.oak.spi.whiteboard.Registration;
@@ -356,11 +362,38 @@ class ChangeProcessor implements Observer {
         // cleaner here but but it seems prohibitively expensive given all the extra instances
         // necessary.
         ArrayList<EventHandler> handlers = newArrayList();
+        Set<String> subTrees = newHashSet();
         for (EventDispatcher dispatcher : dispatchers) {
             handlers.add(dispatcher.createEventHandler());
+            addAll(subTrees, dispatcher.subTrees);
         }
+        NodeState before = preFilter(previousRoot, subTrees);
+        NodeState after = preFilter(root, subTrees);
         EventHandler handler = new FilteredHandler(VISIBLE_FILTER, CompositeHandler.create(handlers));
-        return new EventGenerator(previousRoot, root, handler);
+        return new EventGenerator(before, after, handler);
+    }
+
+    /**
+     * Create a synthetic tree only consisting of the subtrees at the
+     * specified paths.
+     */
+    private static NodeState preFilter(NodeState root, Set<String> paths) {
+        if (paths.contains("/")) {
+            return root;
+        }
+
+        NodeBuilder rootBuilder = EMPTY_NODE.builder();
+        for (String path : paths) {
+            NodeState child = root;
+            NodeBuilder builder = rootBuilder;
+            for (String name : elements(getParentPath(path))) {
+                child = child.getChildNode(name);
+                builder = builder.child(name);
+            }
+            String name = getName(path);
+            builder.setChildNode(name, child.getChildNode(name));
+        }
+        return rootBuilder.getNodeState();
     }
 
     private static class RunningGuard extends Guard {
@@ -419,7 +452,7 @@ class ChangeProcessor implements Observer {
             FilterProvider provider = filterProvider.get();
             if (enabled && provider.includeCommit(sessionId, info)) {
                 EventFilter filter = provider.getFilter(previousRoot, root);
-                return new EventDispatcher(root, filter, eventFactory, eventListener);
+                return new EventDispatcher(provider.getSubTrees(), root, filter, eventFactory, eventListener);
             } else {
                 return null;
             }
@@ -439,12 +472,14 @@ class ChangeProcessor implements Observer {
 
     private class EventDispatcher {
         private final EventQueue queue = new EventQueue(EventGenerator.MAX_CHANGES_PER_CONTINUATION);
+        private final Iterable<String> subTrees;
         private final NodeState root;
         private final EventHandler handler;
         private final EventListener listener;
 
-        public EventDispatcher(NodeState root, EventFilter filter, EventFactory eventFactory,
-                EventListener listener) {
+        public EventDispatcher(Iterable<String> subTrees, NodeState root, EventFilter filter,
+                EventFactory eventFactory, EventListener listener) {
+            this.subTrees = subTrees;
             this.root = root;
             this.handler = new FilteredHandler(filter,
                     new QueueingHandler(queue, eventFactory, previousRoot, root));
