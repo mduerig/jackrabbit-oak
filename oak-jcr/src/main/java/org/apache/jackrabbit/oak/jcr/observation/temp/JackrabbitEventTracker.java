@@ -23,7 +23,7 @@ import javax.jcr.observation.Event;
 
 import org.apache.jackrabbit.api.observation.JackrabbitEvent;
 
-// FIXME replace with org.apache.jackrabbit.commons.observation.JackrabbitEventTracker. See JCR-3801
+// michid replace with org.apache.jackrabbit.commons.observation.JackrabbitEventTracker. See JCR-3801
 class JackrabbitEventTracker extends EventTracker
         implements JackrabbitEvent {
 

@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -462,6 +463,89 @@ public class ObservationTest extends AbstractRepositoryTest {
                 assertTrue("Unexpected events: " + unexpected, unexpected.isEmpty());
             }
             finally {
+                observationManager.removeEventListener(listener);
+            }
+        }
+    }
+
+    // michid remove
+    @Test
+    @Ignore
+    public void memoryPressure() throws RepositoryException, ExecutionException, InterruptedException {
+        Assume.assumeTrue(Integer.getInteger("max-changes-per-continuation", Integer.MAX_VALUE) <= 100);
+
+        Node test = getNode("/").addNode("test", NodeTypeConstants.NT_OAK_UNSTRUCTURED);
+        test.getSession().save();
+
+        int count = 5000;
+        final CountDownLatch all = new CountDownLatch(count * 2);
+        final CountDownLatch node = new CountDownLatch(count);
+        final CountDownLatch prop = new CountDownLatch(count);
+
+        EventListener allListener = new EventListener() {
+            @Override
+            public void onEvent(EventIterator events) {
+                while (events.hasNext()) {
+                    events.nextEvent();
+                    all.countDown();
+                }
+            }
+        };
+        EventListener propertyListener = new ExpectationListener() {
+            @Override
+            public void onEvent(EventIterator events) {
+                while (events.hasNext()) {
+                    events.nextEvent();
+                    prop.countDown();
+                }
+            }
+        };
+        EventListener nodeListener = new ExpectationListener() {
+            @Override
+            public void onEvent(EventIterator events) {
+                while (events.hasNext()) {
+                    events.nextEvent();
+                    node.countDown();
+                }
+            }
+        };
+
+        observationManager.addEventListener(allListener, ALL_EVENTS, "/", true, null, null, false);
+        observationManager.addEventListener(propertyListener, PROPERTY_ADDED | PROPERTY_CHANGED |
+                PROPERTY_REMOVED, "/", true, null, null, false);
+        observationManager.addEventListener(nodeListener, NODE_ADDED | NODE_REMOVED, "/", true,
+                null, null, false);
+
+        int lCount = 1000;
+        EventListener[] listeners = new EventListener[lCount];
+        for (int k = 0; k < lCount; k++) {
+            listeners[k] = new EventListener() {
+                @Override
+                public void onEvent(EventIterator events) {
+                    while (events.hasNext()) {
+                        events.nextEvent();
+                    }
+                }
+            };
+            observationManager.addEventListener(listeners[k], ALL_EVENTS, "/", true, null, null, false);
+        }
+
+        try {
+            for (int k = 0; k < count; k++) {
+                Node ak = test.addNode("a" + k);
+            }
+            test.getSession().save();
+
+            all.await(TIME_OUT, TimeUnit.SECONDS);
+            node.await(TIME_OUT, TimeUnit.SECONDS);
+            prop.await(TIME_OUT, TimeUnit.SECONDS);
+        }
+        finally {
+            observationManager.removeEventListener(allListener);
+            observationManager.removeEventListener(propertyListener);
+            observationManager.removeEventListener(nodeListener);
+
+            for (EventListener listener : listeners) {
                 observationManager.removeEventListener(listener);
             }
         }

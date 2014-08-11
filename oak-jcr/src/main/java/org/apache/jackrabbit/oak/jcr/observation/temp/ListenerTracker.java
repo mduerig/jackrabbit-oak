@@ -40,7 +40,7 @@ import org.apache.jackrabbit.commons.iterator.EventIteratorAdapter;
  * Tracks event deliveries to an event listener and the way the listener
  * processes the events. The collected information is made available through
  * the {@link org.apache.jackrabbit.api.jmx.EventListenerMBean} interface.
- * FIXME replace with org.apache.jackrabbit.commons.observation.ListenerTracker. See JCR-3801
+ * michid replace with org.apache.jackrabbit.commons.observation.ListenerTracker. See JCR-3801
  */
 public class ListenerTracker {
 

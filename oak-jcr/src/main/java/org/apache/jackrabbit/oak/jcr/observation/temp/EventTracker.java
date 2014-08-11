@@ -30,7 +30,7 @@ import javax.jcr.observation.Event;
  * accessed from external events or without checking for externality.
  *
  * @see org.apache.jackrabbit.commons.observation.ListenerTracker
- * FIXME replace with org.apache.jackrabbit.commons.observation.EventTracker. See JCR-3801
+ * michid replace with org.apache.jackrabbit.commons.observation.EventTracker. See JCR-3801
  */
 class EventTracker implements Event {
 
