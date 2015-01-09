@@ -16,7 +16,11 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import static java.util.Collections.newSetFromMap;
+
+import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,6 +58,12 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     // TODO: possibly we could remove the volatile
     private volatile Segment segment;
+
+    /**
+     * In memory references to properties from this segment. Once this segment
+     * is collected those properties are copied to heap.
+     */
+    private final Set<CachedPropertyState> properties = newSetFromMap(new WeakHashMap<CachedPropertyState, Boolean>());
 
     private SegmentId(SegmentTracker tracker, long msb, long lsb,
             Segment segment, long creationTime) {
@@ -157,6 +167,32 @@ public class SegmentId implements Comparable<SegmentId> {
     @Override
     public int hashCode() {
         return (int) lsb;
+    }
+
+    //------------------------------------------------------------< internal >---
+
+    /**
+     * Track the given property as being referenced from the heap.
+     * @param property
+     */
+    void track(CachedPropertyState property) {
+        properties.add(property);
+    }
+
+    /**
+     * Notification about the segment being garbage collected. This causes
+     * {@link CachedPropertyState#cache() caching} of all
+     * {@link #track(CachedPropertyState) tracked} properties.
+     * <p>
+     * <em>Note:</em> this method is only expected to be called for old
+     * segments where no new properties are acquired from. Otherwise concurrent
+     * modifications of the tracked properties would lead to a race, which
+     * might cause missing properties.
+     */
+    void dispose() {
+        for (CachedPropertyState property : properties) {
+            property.cache();
+        }
     }
 
 }

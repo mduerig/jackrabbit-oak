@@ -154,6 +154,7 @@ public class SegmentIdTable {
                 SegmentId id = reference.get();
                 if (id != null) {
                     if (strategy.canRemove(id)) {
+                        id.dispose();
                         reference.clear();
                         references.set(i, null);
                         dirty = true;

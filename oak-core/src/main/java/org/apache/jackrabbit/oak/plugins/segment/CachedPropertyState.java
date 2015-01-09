@@ -27,40 +27,70 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 
 /**
- * michid document
+ * This specialisation of {@code SegmentPropertyState} caches the
+ * property on the heap once {@link #cache()} is called.
  */
 public final class CachedPropertyState extends SegmentPropertyState {
-    private final PropertyState cached;
+    private volatile PropertyState cached;
 
     public CachedPropertyState(RecordId id, PropertyTemplate template) {
         super(id, template);
-        cached = createProperty(getName(), super.getValue(getType()), getType());
+        id.getSegmentId().track(this);
     }
 
     @Override
     public int count() {
-        return cached.count();
+        if (cached == null) {
+            return super.count();
+        } else {
+            return cached.count();
+        }
     }
 
     @Nonnull
     @Override
     public <T> T getValue(Type<T> type) {
-        return cached.getValue(type);
+        if (cached == null) {
+            return super.getValue(type);
+        } else {
+            return cached.getValue(type);
+        }
     }
 
     @Override
     public long size() {
-        return cached.size();
+        if (cached == null) {
+            return super.size();
+        } else {
+            return cached.size();
+        }
     }
 
     @Nonnull
     @Override
     public <T> T getValue(Type<T> type, int index) {
-        return cached.getValue(type, index);
+        if (cached == null) {
+            return super.getValue(type, index);
+        } else {
+            return cached.getValue(type, index);
+        }
     }
 
     @Override
     public long size(int index) {
-        return cached.size(index);
+        if (cached == null) {
+            return super.size(index);
+        } else {
+            return cached.size(index);
+        }
+    }
+
+    /**
+     * Cache this property on the heap
+     */
+    void cache() {
+        if (cached == null) {
+            cached = createProperty(getName(), super.getValue(getType()), getType());
+        }
     }
 }
