@@ -57,6 +57,7 @@ public class AggregatingEditor extends DefaultEditor {
     @Override
     public void propertyAdded(PropertyState after) throws CommitFailedException {
         String name = after.getName();
+        // FIXME loop over all delta- properties in case there are many
         if (name.startsWith("delta-") && after.getType() == LONG) {
             count += after.getValue(LONG);
             update = true;
