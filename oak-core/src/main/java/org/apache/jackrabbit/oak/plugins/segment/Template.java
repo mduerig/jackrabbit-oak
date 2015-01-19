@@ -20,7 +20,6 @@ import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NODE;
-import static org.apache.jackrabbit.oak.plugins.segment.Record.fastEquals;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 
 import java.util.Arrays;
@@ -32,7 +31,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.Lists;
-
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
@@ -246,7 +244,7 @@ public class Template {
             // TODO: Leverage the HAMT data structure for the comparison
             MapRecord thisMap = getChildNodeMap(thisId);
             MapRecord thatMap = getChildNodeMap(thatId);
-            if (fastEquals(thisMap, thatMap)) {
+            if (thisMap.equals(thatMap)) {
                 return true; // shortcut
             } else if (thisMap.size() != thatMap.size()) {
                 return false; // shortcut
