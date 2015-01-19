@@ -16,17 +16,6 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import java.util.List;
-import java.util.Map;
-import javax.annotation.Nonnull;
-import javax.jcr.PropertyType;
-
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.api.Type;
-import org.apache.jackrabbit.oak.plugins.memory.AbstractPropertyState;
-import org.apache.jackrabbit.oak.plugins.value.Conversions;
-import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
-
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -49,6 +38,18 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.api.Type.URI;
 import static org.apache.jackrabbit.oak.api.Type.WEAKREFERENCE;
 
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.Nonnull;
+import javax.jcr.PropertyType;
+
+import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.memory.AbstractPropertyState;
+import org.apache.jackrabbit.oak.plugins.value.Conversions;
+import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
+
 /**
  * A property, which can read a value or list record from a segment. It
  * currently doesn't cache data.
@@ -56,22 +57,26 @@ import static org.apache.jackrabbit.oak.api.Type.WEAKREFERENCE;
  * Depending on the property type, this is a record of type "VALUE" or a record
  * of type "LIST" (for arrays).
  */
-public class SegmentPropertyState extends Record implements PropertyState {
-
+public class SegmentPropertyState implements PropertyState {
+    private final Record record;
     private final PropertyTemplate template;
 
     public SegmentPropertyState(RecordId id, PropertyTemplate template) {
-        super(id);
+        this.record = new Record(checkNotNull(id));
         this.template = checkNotNull(template);
     }
 
+    public RecordId getRecordId() {
+        return record.getRecordId();
+    }
+
     private ListRecord getValueList(Segment segment) {
-        RecordId listId = getRecordId();
+        RecordId listId = record.getRecordId();
         int size = 1;
         if (isArray()) {
-            size = segment.readInt(getOffset());
+            size = segment.readInt(record.getOffset());
             if (size > 0) {
-                listId = segment.readRecordId(getOffset(4));
+                listId = segment.readRecordId(record.getOffset(4));
             }
         }
         return new ListRecord(listId, size);
@@ -84,7 +89,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
 
         Map<String, RecordId> map = newHashMap();
 
-        Segment segment = getSegment();
+        Segment segment = record.getSegment();
         ListRecord values = getValueList(segment);
         for (int i = 0; i < values.size(); i++) {
             RecordId valueId = values.getEntry(i);
@@ -113,7 +118,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
     @Override
     public int count() {
         if (isArray()) {
-            return getSegment().readInt(getOffset());
+            return record.getSegment().readInt(record.getOffset());
         } else {
             return 1;
         }
@@ -121,7 +126,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
 
     @Override @Nonnull @SuppressWarnings("unchecked")
     public <T> T getValue(Type<T> type) {
-        Segment segment = getSegment();
+        Segment segment = record.getSegment();
         if (isArray()) {
             checkState(type.isArray());
             ListRecord values = getValueList(segment);
@@ -139,7 +144,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
                 return (T) list;
             }
         } else {
-            RecordId id = getRecordId();
+            RecordId id = record.getRecordId();
             if (type.isArray()) {
                 return (T) singletonList(
                         getValue(segment, id, type.getBaseType()));
@@ -159,7 +164,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
         checkNotNull(type);
         checkArgument(!type.isArray(), "Type must not be an array type");
 
-        Segment segment = getSegment();
+        Segment segment = record.getSegment();
         ListRecord values = getValueList(segment);
         checkElementIndex(index, values.size());
         return getValue(segment, values.getEntry(index), type);
@@ -199,7 +204,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
 
     @Override
     public long size(int index) {
-        Segment segment = getSegment();
+        Segment segment = record.getSegment();
         ListRecord values = getValueList(segment);
         checkElementIndex(index, values.size());
         return segment.readLength(values.getEntry(0));
@@ -217,7 +222,7 @@ public class SegmentPropertyState extends Record implements PropertyState {
             SegmentPropertyState that = (SegmentPropertyState) object;
             if (!template.equals(that.template)) {
                 return false;
-            } else if (getRecordId().equals(that.getRecordId())) {
+            } else if (record.getRecordId().equals(that.record.getRecordId())) {
                 return true;
             }
         }
