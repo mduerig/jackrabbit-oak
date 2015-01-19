@@ -23,12 +23,12 @@ import static com.google.common.base.Preconditions.checkPositionIndexes;
 /**
  * A record of type "BLOCK".
  */
-class BlockRecord extends Record {
-
+class BlockRecord {
+    private final Record record;
     private final int size;
 
     BlockRecord(RecordId id, int size) {
-        super(id);
+        this.record = new Record(checkNotNull(id));
         this.size = size;
     }
 
@@ -52,9 +52,28 @@ class BlockRecord extends Record {
             length = size - position;
         }
         if (length > 0) {
-            getSegment().readBytes(getOffset(position), buffer, offset, length);
+            record.getSegment().readBytes(record.getOffset(position), buffer, offset, length);
         }
         return length;
     }
 
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        } else {
+            return object instanceof BlockRecord &&
+                Record.fastEquals(record, ((BlockRecord) object).record);
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return record.hashCode() ^ size;
+    }
+
+    @Override
+    public String toString() {
+        return record.toString();
+    }
 }
