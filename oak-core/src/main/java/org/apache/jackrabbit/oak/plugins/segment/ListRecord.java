@@ -18,6 +18,7 @@ package org.apache.jackrabbit.oak.plugins.segment;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkElementIndex;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static java.util.Collections.emptyList;
@@ -28,16 +29,17 @@ import java.util.List;
 /**
  * A record of type "LIST".
  */
-class ListRecord extends Record {
-
+class ListRecord {
     static final int LEVEL_SIZE = Segment.SEGMENT_REFERENCE_LIMIT;
+
+    private final Record record;
 
     private final int size;
 
     private final int bucketSize;
 
     ListRecord(RecordId id, int size) {
-        super(id);
+        this.record = new Record(checkNotNull(id));
         checkArgument(size >= 0);
         this.size = size;
 
@@ -55,12 +57,12 @@ class ListRecord extends Record {
     public RecordId getEntry(int index) {
         checkElementIndex(index, size);
         if (size == 1) {
-            return getRecordId();
+            return record.getRecordId();
         } else {
             int bucketIndex = index / bucketSize;
             int bucketOffset = index % bucketSize;
-            Segment segment = getSegment();
-            RecordId id = segment.readRecordId(getOffset(0, bucketIndex));
+            Segment segment = record.getSegment();
+            RecordId id = segment.readRecordId(record.getOffset(0, bucketIndex));
             ListRecord bucket = new ListRecord(
                     id, Math.min(bucketSize, size - bucketIndex * bucketSize));
             return bucket.getEntry(bucketOffset);
@@ -88,18 +90,18 @@ class ListRecord extends Record {
 
     private void getEntries(int index, int count, List<RecordId> ids) {
         checkPositionIndexes(index, index + count, size);
-        Segment segment = getSegment();
+        Segment segment = record.getSegment();
         if (size == 1) {
-            ids.add(getRecordId());
+            ids.add(record.getRecordId());
         } else if (bucketSize == 1) {
             for (int i = 0; i < count; i++) {
-                ids.add(segment.readRecordId(getOffset(0, index + i)));
+                ids.add(segment.readRecordId(record.getOffset(0, index + i)));
             }
         } else {
             while (count > 0) {
                 int bucketIndex = index / bucketSize;
                 int bucketOffset = index % bucketSize;
-                RecordId id = segment.readRecordId(getOffset(0, bucketIndex));
+                RecordId id = segment.readRecordId(record.getOffset(0, bucketIndex));
                 ListRecord bucket = new ListRecord(
                         id, Math.min(bucketSize, size - bucketIndex * bucketSize));
                 int n = Math.min(bucket.size() - bucketOffset, count);
@@ -110,4 +112,23 @@ class ListRecord extends Record {
         }
     }
 
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) {
+            return true;
+        } else {
+            return object instanceof ListRecord &&
+                    Record.fastEquals(record, ((ListRecord) object).record);
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return record.hashCode() ^ size;
+    }
+
+    @Override
+    public String toString() {
+        return record.toString();
+    }
 }
