@@ -166,7 +166,6 @@ public class SegmentTracker {
     }
 
     public void setCompactionMap(CompactionMap compaction) {
-        compaction.merge(compactionMap.get());
         compactionMap.set(compaction);
     }
 
@@ -183,7 +182,21 @@ public class SegmentTracker {
     public synchronized Set<SegmentId> getReferencedSegmentIds() {
         Set<SegmentId> ids = newHashSet();
         for (SegmentIdTable table : tables) {
-            table.collectReferencedIds(ids);
+            Set<SegmentId> sids = newHashSet();
+            table.collectReferencedIds(sids);
+            for (SegmentId id : sids) {
+                if (id.hasRefs()) {
+                    ids.add(id);
+                }
+            }
+        }
+        return ids;
+    }
+
+    public Set<RecordId> getReferencedRecordIds() {
+        Set<RecordId> ids = newHashSet();
+        for (SegmentId seg : getReferencedSegmentIds()) {
+            seg.collectRefs(ids);
         }
         return ids;
     }

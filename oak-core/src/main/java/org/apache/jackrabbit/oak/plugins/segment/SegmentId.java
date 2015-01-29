@@ -16,10 +16,16 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import static java.util.Collections.newSetFromMap;
 
 /**
  * Segment identifier. There are two types of segments: data segments, and bulk
@@ -157,6 +163,131 @@ public class SegmentId implements Comparable<SegmentId> {
     @Override
     public int hashCode() {
         return (int) lsb;
+    }
+
+    // ------------------------------------------------------------< Gc >--
+
+    private Set<GCRecordIdCb> refs = newSetFromMap(new WeakHashMap<GCRecordIdCb, Boolean>());
+
+    private volatile boolean stale = false;
+    private volatile boolean hasRefs = false;
+
+    public interface GCRecordIdCb {
+
+        RecordId getRecordId();
+
+        void gcRecordId(RecordId newRI);
+
+        void missing();
+    }
+
+    private static class GCRecordIDWrapper implements GCRecordIdCb {
+
+        // this helps to work around the SegmentNodeStore#equals (heavy) check
+        private final GCRecordIdCb cb;
+
+        public GCRecordIDWrapper(GCRecordIdCb cb) {
+            this.cb = cb;
+        }
+
+        @Override
+        public RecordId getRecordId() {
+            return cb.getRecordId();
+        }
+
+        @Override
+        public void gcRecordId(RecordId newRI) {
+            cb.gcRecordId(newRI);
+        }
+
+        @Override
+        public void missing() {
+            cb.missing();
+        }
+
+        @Override
+        public int hashCode() {
+            return cb.getRecordId().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj)
+                return true;
+            if (obj == null)
+                return false;
+            if (getClass() != obj.getClass())
+                return false;
+            GCRecordIDWrapper other = (GCRecordIDWrapper) obj;
+            if (cb == null) {
+                if (other.cb != null)
+                    return false;
+            } else if (!cb.getRecordId().equals(other.cb.getRecordId()))
+                return false;
+            return true;
+        }
+
+    }
+
+    boolean hasRefs() {
+        return hasRefs;
+    }
+
+    boolean isStale() {
+        return stale;
+    }
+
+    synchronized void collectRefs(Collection<RecordId> ids) {
+        for (GCRecordIdCb cb : refs) {
+            ids.add(cb.getRecordId());
+        }
+    }
+
+    synchronized void track(GCRecordIdCb cb) {
+        if (stale) {
+            gc(cb, tracker.getCompactionMap());
+        } else {
+            refs.add(new GCRecordIDWrapper(cb));
+            if (!hasRefs) {
+                hasRefs = true;
+            }
+        }
+    }
+
+    synchronized void gc(CompactionMap compaction) {
+        Iterator<GCRecordIdCb> iterator = refs.iterator();
+        while (iterator.hasNext()) {
+            if (gc(iterator.next(), compaction)) {
+                iterator.remove();
+            } else {
+                // TODO why are there still missing items from the compaction
+                // map?
+                iterator.remove();
+            }
+        }
+        stale = true;
+        if (refs.isEmpty()) {
+            refs = null;
+            hasRefs = false;
+        } else {
+            // this should reduce the internal allocated table size from a few
+            // thousands to 2,3 items
+            Set<GCRecordIdCb> refsNew = newSetFromMap(new WeakHashMap<GCRecordIdCb, Boolean>());
+            refsNew.addAll(refs);
+            refs = refsNew;
+        }
+    }
+
+    private static boolean gc(GCRecordIdCb cb, CompactionMap compaction) {
+        RecordId rid = cb.getRecordId();
+        RecordId newRI = compaction.get(rid);
+        if (newRI != null) {
+            cb.gcRecordId(newRI);
+            return true;
+        } else {
+            cb.missing();
+        }
+        return false;
     }
 
 }

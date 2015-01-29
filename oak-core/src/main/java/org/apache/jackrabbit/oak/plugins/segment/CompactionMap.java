@@ -397,9 +397,11 @@ public class CompactionMap {
      * as it contains the entire history, but don't change any values as it
      * might still be in use by other threads)
      */
-    void merge(CompactionMap prev) {
-        this.prev = prev;
-        this.prevWeight = prev.getEstimatedWeight();
+    public void merge(CompactionMap prev) {
+        if (prev != null) {
+            this.prev = prev;
+            this.prevWeight = prev.getEstimatedWeight();
+        }
     }
 
     public String getCompactionStats() {

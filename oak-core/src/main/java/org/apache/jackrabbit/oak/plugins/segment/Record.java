@@ -32,7 +32,11 @@ class Record {
     }
 
     static boolean fastEquals(Record a, Record b) {
-        return a.segmentId == b.segmentId && a.offset == b.offset;
+        return fastEquals(a.getRecordId(), b.getRecordId());
+    }
+
+    static boolean fastEquals(RecordId a, RecordId b) {
+        return a.getSegmentId() == b.getSegmentId() && a.getOffset() == b.getOffset();
     }
 
     /**
@@ -57,11 +61,6 @@ class Record {
     protected Record(@Nonnull SegmentId segmentId, int offset) {
         this.segmentId = segmentId;
         this.offset = offset;
-    }
-
-    protected boolean wasCompactedTo(Record after) {
-        CompactionMap map = segmentId.getTracker().getCompactionMap();
-        return map.wasCompactedTo(getRecordId(), after.getRecordId());
     }
 
     /**

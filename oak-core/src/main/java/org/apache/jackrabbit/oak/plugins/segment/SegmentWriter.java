@@ -118,6 +118,7 @@ public class SegmentWriter {
      * avoid storing duplicates of frequently occurring data.
      * Should only be accessed from synchronized blocks to prevent corruption.
      */
+    @SuppressWarnings("serial")
     private final Map<Object, RecordId> records =
         new LinkedHashMap<Object, RecordId>(15000, 0.75f, true) {
             @Override
@@ -1003,12 +1004,21 @@ public class SegmentWriter {
      * @return the compacted node (if it was compacted)
      */
     private SegmentNodeState uncompact(SegmentNodeState state) {
-        RecordId id = tracker.getCompactionMap().get(state.getRecordId());
-        if (id != null) {
-            return new SegmentNodeState(id);
-        } else {
-            return state;
-        }
+
+        // the trouble is with #testMixedSegments
+        // in order to remove this check we need to add a #gc call in the
+        // SegmentId#track in the case where the segment is already stale
+        //
+        // RecordId id = tracker.getCompactionMap().get(state.getRecordId());
+        // if (id != null) {
+        // return new SegmentNodeState(id);
+        // } else {
+        // return state;
+        // }
+        //
+        // we're otherwise assuming that the RecordId is already up to date
+        // thanks to the tracking mechanism
+        return new SegmentNodeState(state.getRecordId());
     }
 
     public SegmentNodeState writeNode(NodeState state) {

@@ -106,7 +106,8 @@ public class SegmentIdTable {
             WeakReference<SegmentId> reference = references.get(i);
             if (reference != null) {
                 SegmentId id = reference.get();
-                if (id != null) {
+                //TODO remove me and run #testMixedSegment
+                if (id != null /* && id.hasRefs() */ ) {
                     ids.put(id, reference);
                     hashCollisions = hashCollisions || (i != getIndex(id));
                 } else {
@@ -153,7 +154,9 @@ public class SegmentIdTable {
             if (reference != null) {
                 SegmentId id = reference.get();
                 if (id != null) {
-                    if (strategy.canRemove(id)) {
+                    // TODO what about the freshly created segments?
+                    id.gc(strategy.getCompactionMap());
+                    if (strategy.canRemove(id) || !id.hasRefs()) {
                         reference.clear();
                         references.set(i, null);
                         dirty = true;

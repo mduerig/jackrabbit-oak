@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -76,6 +77,13 @@ public class Compactor {
      */
     private final boolean cloneBinaries;
 
+    /**
+     * referenced recordIds coming from all the segmentids,
+     * used to filter referenced properties so the compaction map doesn't grow too much.
+     * TODO should this be used for NodeStates as well?
+     */
+    private final Set<RecordId> refsRId;
+
     public Compactor(SegmentWriter writer) {
         this(writer, false);
     }
@@ -84,6 +92,7 @@ public class Compactor {
         this.writer = writer;
         this.map = new CompactionMap(100000, writer.getTracker());
         this.cloneBinaries = cloneBinaries;
+        refsRId = writer.getTracker().getReferencedRecordIds();
     }
 
     protected SegmentNodeBuilder process(NodeState before, NodeState after) {
@@ -102,6 +111,20 @@ public class Compactor {
     public CompactionMap getCompactionMap() {
         map.compress();
         return map;
+    }
+
+    private static void extractPropertyMapping(SegmentNodeState before,
+            SegmentNodeState after, Set<RecordId> refsRId, CompactionMap cm) {
+        for (PropertyState ps : before.getProperties()) {
+            if (ps instanceof SegmentPropertyState) {
+                RecordId rib = ((SegmentPropertyState) ps).getRecordId();
+                if (refsRId.contains(rib) && cm.get(rib) == null) {
+                    RecordId ria = ((SegmentPropertyState) after.getProperty(ps
+                            .getName())).getRecordId();
+                    cm.put(rib, ria);
+                }
+            }
+        }
     }
 
     private class CompactDiff extends ApplyDiff {
@@ -139,6 +162,7 @@ public class Compactor {
 
             if (success) {
                 SegmentNodeState state = writer.writeNode(child.getNodeState());
+                extractPropertyMapping((SegmentNodeState) after, state, refsRId, map);
                 builder.setChildNode(name, state);
                 if (id != null) {
                     map.put(id, state.getRecordId());
@@ -166,10 +190,11 @@ public class Compactor {
                     new CompactDiff(child));
 
             if (success) {
-                RecordId compactedId = writer.writeNode(child.getNodeState())
-                        .getRecordId();
+                SegmentNodeState state = writer.writeNode(child.getNodeState());
+                extractPropertyMapping((SegmentNodeState) after, state,
+                        refsRId, map);
                 if (id != null) {
-                    map.put(id, compactedId);
+                    map.put(id, state.getRecordId());
                 }
             }
 

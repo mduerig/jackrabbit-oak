@@ -304,7 +304,7 @@ public class FileStore implements SegmentStore {
 
         CompactionGainEstimate estimate = estimateCompactionGain();
         long gain = estimate.estimateCompactionGain();
-        if (gain >= 10) {
+        if (gain >= compactionStrategy.getGainThreshold()) {
             log.info(
                     "Estimated compaction in {}, gain is {}% ({}/{}) or ({}/{}), so running compaction",
                     watch, gain, estimate.getReachableSize(),
@@ -500,9 +500,10 @@ public class FileStore implements SegmentStore {
                     id.getMostSignificantBits(),
                     id.getLeastSignificantBits()));
         }
+        log.info("    tracker.getReferencedSegmentIds() size {}", ids.size());
         writer.cleanup(ids);
 
-        CompactionMap cm = tracker.getCompactionMap();
+        CompactionMap cm = compactionStrategy.getCompactionMap();
         List<TarReader> list = newArrayListWithCapacity(readers.size());
         for (TarReader reader : readers) {
             TarReader cleaned = reader.cleanup(ids, cm);
@@ -867,6 +868,7 @@ public class FileStore implements SegmentStore {
             // might result in mixed segments. See OAK-2192.
             if (setHead(before, after)) {
                 CompactionMap cm = compactor.getCompactionMap();
+                cm.merge(compactionStrategy.getCompactionMap());
                 tracker.setCompactionMap(cm);
                 compactionStrategy.setCompactionMap(cm);
 
@@ -875,6 +877,8 @@ public class FileStore implements SegmentStore {
                 // content. TODO: There should be a cleaner way to do this.
                 tracker.getWriter().dropCache();
                 tracker.getWriter().flush();
+
+                // TODO consider dropping the SegmentTracker#segments cache too
                 tracker.clearSegmentIdTables(compactionStrategy);
                 return true;
             } else {

@@ -76,6 +76,8 @@ public abstract class CompactionStrategy {
 
     public static final byte MEMORY_THRESHOLD_DEFAULT = 5;
 
+    public static final byte GAIN_THRESHOLD_DEFAULT = 10;
+
     /**
      * No compaction at all
      */
@@ -103,6 +105,8 @@ public abstract class CompactionStrategy {
     private long olderThan;
 
     private byte memoryThreshold = MEMORY_THRESHOLD_DEFAULT;
+
+    private byte gainThreshold = GAIN_THRESHOLD_DEFAULT;
 
     private CompactionMap compactionMap;
 
@@ -189,6 +193,14 @@ public abstract class CompactionStrategy {
 
     public void setMemoryThreshold(byte memoryThreshold) {
         this.memoryThreshold = memoryThreshold;
+    }
+
+    public byte getGainThreshold() {
+        return gainThreshold;
+    }
+
+    public void setGainThreshold(byte gainThreshold) {
+        this.gainThreshold = gainThreshold;
     }
 
     public abstract boolean compacted(@Nonnull Callable<Boolean> setHead) throws Exception;

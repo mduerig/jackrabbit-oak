@@ -88,4 +88,14 @@ public class DefaultCompactionStrategyMBean implements CompactionStrategyMBean {
         }
         return "";
     }
+
+    @Override
+    public byte getGainThreshold() {
+        return strategy.getGainThreshold();
+    }
+
+    @Override
+    public void setGainThreshold(byte gain) {
+        strategy.setGainThreshold(gain);
+    }
 }

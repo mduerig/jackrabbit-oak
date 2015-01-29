@@ -47,6 +47,7 @@ import javax.jcr.PropertyType;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.AbstractPropertyState;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentId.GCRecordIdCb;
 import org.apache.jackrabbit.oak.plugins.value.Conversions;
 import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
 
@@ -57,26 +58,36 @@ import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
  * Depending on the property type, this is a record of type "VALUE" or a record
  * of type "LIST" (for arrays).
  */
-public class SegmentPropertyState implements PropertyState {
-    private final Record record;
+public class SegmentPropertyState implements PropertyState, GCRecordIdCb {
+
+    private volatile RecordId id;
     private final PropertyTemplate template;
 
     public SegmentPropertyState(RecordId id, PropertyTemplate template) {
-        this.record = new Record(checkNotNull(id));
+        this(id, template, true);
+    }
+
+    public SegmentPropertyState(RecordId id, PropertyTemplate template,
+            boolean track) {
+        this.id = checkNotNull(id);
         this.template = checkNotNull(template);
+        if (track) {
+            id.getSegmentId().track(this);
+        }
     }
 
     public RecordId getRecordId() {
-        return record.getRecordId();
+        return id;
     }
 
     private ListRecord getValueList(Segment segment) {
-        RecordId listId = record.getRecordId();
+        RecordId listId = id;
         int size = 1;
         if (isArray()) {
-            size = segment.readInt(record.getOffset());
+            size = segment.readInt(id.getOffset());
             if (size > 0) {
-                listId = segment.readRecordId(record.getOffset(4));
+                int poz = id.getOffset(4);
+                listId = segment.readRecordId(poz);
             }
         }
         return new ListRecord(listId, size);
@@ -89,7 +100,7 @@ public class SegmentPropertyState implements PropertyState {
 
         Map<String, RecordId> map = newHashMap();
 
-        Segment segment = record.getSegment();
+        Segment segment = id.getSegment();
         ListRecord values = getValueList(segment);
         for (int i = 0; i < values.size(); i++) {
             RecordId valueId = values.getEntry(i);
@@ -118,7 +129,7 @@ public class SegmentPropertyState implements PropertyState {
     @Override
     public int count() {
         if (isArray()) {
-            return record.getSegment().readInt(record.getOffset());
+            return id.getSegment().readInt(id.getOffset());
         } else {
             return 1;
         }
@@ -126,7 +137,7 @@ public class SegmentPropertyState implements PropertyState {
 
     @Override @Nonnull @SuppressWarnings("unchecked")
     public <T> T getValue(Type<T> type) {
-        Segment segment = record.getSegment();
+        Segment segment = id.getSegment();
         if (isArray()) {
             checkState(type.isArray());
             ListRecord values = getValueList(segment);
@@ -144,7 +155,6 @@ public class SegmentPropertyState implements PropertyState {
                 return (T) list;
             }
         } else {
-            RecordId id = record.getRecordId();
             if (type.isArray()) {
                 return (T) singletonList(
                         getValue(segment, id, type.getBaseType()));
@@ -164,7 +174,7 @@ public class SegmentPropertyState implements PropertyState {
         checkNotNull(type);
         checkArgument(!type.isArray(), "Type must not be an array type");
 
-        Segment segment = record.getSegment();
+        Segment segment = id.getSegment();
         ListRecord values = getValueList(segment);
         checkElementIndex(index, values.size());
         return getValue(segment, values.getEntry(index), type);
@@ -204,7 +214,7 @@ public class SegmentPropertyState implements PropertyState {
 
     @Override
     public long size(int index) {
-        Segment segment = record.getSegment();
+        Segment segment = id.getSegment();
         ListRecord values = getValueList(segment);
         checkElementIndex(index, values.size());
         return segment.readLength(values.getEntry(0));
@@ -222,7 +232,7 @@ public class SegmentPropertyState implements PropertyState {
             SegmentPropertyState that = (SegmentPropertyState) object;
             if (!template.equals(that.template)) {
                 return false;
-            } else if (record.getRecordId().equals(that.record.getRecordId())) {
+            } else if (id.equals(that.getRecordId())) {
                 return true;
             }
         }
@@ -241,4 +251,23 @@ public class SegmentPropertyState implements PropertyState {
         return AbstractPropertyState.toString(this);
     }
 
+    //------------------------------------------------------------< Gc >--
+
+
+    boolean stale = false;
+
+    boolean missingGc = false;
+
+    @Override
+    public void gcRecordId(RecordId newRI) {
+        this.id = newRI;
+        stale = true;
+        missingGc = false;
+        // TODO template needs to be set to null and refreshed on next access
+    }
+
+    @Override
+    public void missing() {
+        missingGc = true;
+    }
 }

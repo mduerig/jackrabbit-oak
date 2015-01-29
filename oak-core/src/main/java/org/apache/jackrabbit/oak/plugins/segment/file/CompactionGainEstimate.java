@@ -62,7 +62,7 @@ class CompactionGainEstimate implements TarEntryVisitor {
         ThinRecordId tr = ThinRecordId.apply(node.getRecordId());
         if (!visited.contains(tr)) {
             uuids.put(asUUID(node.getRecordId().getSegmentId()));
-            for (PropertyState property : node.getProperties()) {
+            for (PropertyState property : node.getProperties(false)) {
                 if (property instanceof SegmentPropertyState) {
                     uuids.put(asUUID(((SegmentPropertyState) property)
                             .getRecordId().getSegmentId()));
@@ -73,7 +73,7 @@ class CompactionGainEstimate implements TarEntryVisitor {
                     }
                 }
             }
-            for (ChildNodeEntry child : node.getChildNodeEntries()) {
+            for (ChildNodeEntry child : node.getChildNodeEntries(false)) {
                 collectReferencedSegments((SegmentNodeState) child.getNodeState(),
                         visited);
             }

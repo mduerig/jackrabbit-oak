@@ -124,4 +124,26 @@ public final class RecordId implements Comparable<RecordId> {
         }
     }
 
+    /**
+     * Returns the segment offset of the given byte position in this record.
+     *
+     * @param position byte position within this record
+     * @return segment offset of the given byte position
+     */
+    protected final int getOffset(int position) {
+        return getOffset() + position;
+    }
+
+    /**
+     * Returns the segment offset of a byte position in this record.
+     * The position is calculated from the given number of raw bytes and
+     * record identifiers.
+     *
+     * @param bytes number of raw bytes before the position
+     * @param ids number of record identifiers before the position
+     * @return segment offset of the specified byte position
+     */
+    protected final int getOffset(int bytes, int ids) {
+        return getOffset(bytes + ids * Segment.RECORD_ID_BYTES);
+    }
 }

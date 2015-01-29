@@ -43,6 +43,7 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentId.GCRecordIdCb;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -52,19 +53,27 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
  * A record of type "NODE". This class can read a node record from a segment. It
  * currently doesn't cache data (but the template is fully loaded).
  */
-public class SegmentNodeState implements NodeState {
-    private final Record record;
+public class SegmentNodeState implements NodeState, GCRecordIdCb {
+
+    private volatile RecordId id;
 
     private volatile RecordId templateId = null;
 
     private volatile Template template = null;
 
     public SegmentNodeState(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this(id, true);
+    }
+
+    SegmentNodeState(RecordId id, boolean trackNodeState) {
+        this.id = checkNotNull(id);
+        if (trackNodeState) {
+            id.getSegmentId().track(this);
+        }
     }
 
     public RecordId getRecordId() {
-        return record.getRecordId();
+        return id;
     }
 
     public static boolean fastEquals(Object a, Object b) {
@@ -76,7 +85,7 @@ public class SegmentNodeState implements NodeState {
     }
 
     public static boolean fastEquals(SegmentNodeState a, SegmentNodeState b) {
-        return Record.fastEquals(a.record, b.record);
+        return Record.fastEquals(a.id, b.id);
     }
 
     /**
@@ -85,14 +94,14 @@ public class SegmentNodeState implements NodeState {
      * @return segment tracker
      */
     SegmentTracker getTracker() {
-        return record.getRecordId().getSegmentId().getTracker();
+        return id.getSegmentId().getTracker();
     }
 
     RecordId getTemplateId() {
         if (templateId == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            templateId = record.getSegment().readRecordId(record.getOffset(0));
+            templateId = id.getSegment().readRecordId(id.getOffset());
         }
         return templateId;
     }
@@ -101,14 +110,14 @@ public class SegmentNodeState implements NodeState {
         if (template == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            template = record.getSegment().readTemplate(getTemplateId());
+            template = id.getSegment().readTemplate(getTemplateId());
         }
         return template;
     }
 
     MapRecord getChildNodeMap() {
-        Segment segment = record.getSegment();
-        return segment.readMap(segment.readRecordId(record.getOffset(0, 1)));
+        Segment segment = id.getSegment();
+        return segment.readMap(segment.readRecordId(id.getOffset(0, 1)));
     }
 
     @Override
@@ -159,13 +168,13 @@ public class SegmentNodeState implements NodeState {
         PropertyTemplate propertyTemplate =
                 template.getPropertyTemplate(name);
         if (propertyTemplate != null) {
-            Segment segment = record.getSegment();
+            Segment segment = id.getSegment();
             int ids = 1 + propertyTemplate.getIndex();
             if (template.getChildName() != Template.ZERO_CHILD_NODES) {
                 ids++;
             }
             return new SegmentPropertyState(
-                    segment.readRecordId(record.getOffset(0, ids)), propertyTemplate);
+                    segment.readRecordId(id.getOffset(0, ids)), propertyTemplate);
         } else {
             return null;
         }
@@ -173,6 +182,10 @@ public class SegmentNodeState implements NodeState {
 
     @Override @Nonnull
     public Iterable<PropertyState> getProperties() {
+        return getProperties(true);
+    }
+
+    public Iterable<PropertyState> getProperties(boolean track) {
         Template template = getTemplate();
         PropertyTemplate[] propertyTemplates = template.getPropertyTemplates();
         List<PropertyState> list =
@@ -188,15 +201,15 @@ public class SegmentNodeState implements NodeState {
             list.add(mixinTypes);
         }
 
-        Segment segment = record.getSegment();
+        Segment segment = id.getSegment();
         int ids = 1;
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
         for (int i = 0; i < propertyTemplates.length; i++) {
-            RecordId propertyId = segment.readRecordId(record.getOffset(0, ids++));
+            RecordId propertyId = segment.readRecordId(id.getOffset(0, ids++));
             list.add(new SegmentPropertyState(
-                    propertyId, propertyTemplates[i]));
+                    propertyId, propertyTemplates[i], track));
         }
 
         return list;
@@ -272,12 +285,12 @@ public class SegmentNodeState implements NodeState {
             return null;
         }
 
-        Segment segment = record.getSegment();
+        Segment segment = id.getSegment();
         int ids = 1 + propertyTemplate.getIndex();
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
-        return segment.readString(segment.readRecordId(record.getOffset(0, ids)));
+        return segment.readString(segment.readRecordId(id.getOffset(0, ids)));
     }
 
     /**
@@ -313,13 +326,13 @@ public class SegmentNodeState implements NodeState {
             return emptyList();
         }
 
-        Segment segment = record.getSegment();
+        Segment segment = this.id.getSegment();
         int ids = 1 + propertyTemplate.getIndex();
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
 
-        RecordId id = segment.readRecordId(record.getOffset(0, ids));
+        RecordId id = segment.readRecordId(this.id.getOffset(0, ids));
         segment = id.getSegment();
         int size = segment.readInt(id.getOffset());
         if (size == 0) {
@@ -373,8 +386,8 @@ public class SegmentNodeState implements NodeState {
             }
         } else if (childName != Template.ZERO_CHILD_NODES
                 && childName.equals(name)) {
-            Segment segment = record.getSegment();
-            RecordId childNodeId = segment.readRecordId(record.getOffset(0, 1));
+            Segment segment = id.getSegment();
+            RecordId childNodeId = segment.readRecordId(id.getOffset(0, 1));
             return new SegmentNodeState(childNodeId);
         }
         checkValidName(name);
@@ -395,16 +408,27 @@ public class SegmentNodeState implements NodeState {
 
     @Override @Nonnull
     public Iterable<? extends ChildNodeEntry> getChildNodeEntries() {
+        return getChildNodeEntries(true);
+    }
+
+    /**
+     * Just a test to see if it is feasible in some cases (compaction gain
+     * estimation) to not track the nodestate reference as 'in use' on the
+     * segmentid
+     * 
+     */
+    public Iterable<? extends ChildNodeEntry> getChildNodeEntries(
+            boolean trackNodeState) {
         String childName = getTemplate().getChildName();
         if (childName == Template.ZERO_CHILD_NODES) {
             return Collections.emptyList();
         } else if (childName == Template.MANY_CHILD_NODES) {
             return getChildNodeMap().getEntries();
         } else {
-            Segment segment = record.getSegment();
-            RecordId childNodeId = segment.readRecordId(record.getOffset(0, 1));
+            Segment segment = id.getSegment();
+            RecordId childNodeId = segment.readRecordId(id.getOffset(0, 1));
             return Collections.singletonList(new MemoryChildNodeEntry(
-                    childName, new SegmentNodeState(childNodeId)));
+                    childName, new SegmentNodeState(childNodeId, trackNodeState)));
         }
     }
 
@@ -424,7 +448,7 @@ public class SegmentNodeState implements NodeState {
         }
 
         SegmentNodeState that = (SegmentNodeState) base;
-        if (that.record.wasCompactedTo(this.record)) {
+        if (that.getRecordId().equals(this.getRecordId())) {
             return true; // no changes during compaction
         }
 
@@ -603,7 +627,7 @@ public class SegmentNodeState implements NodeState {
 
     @Override
     public int hashCode() {
-        return 31 * record.hashCode() + templateId.hashCode();
+        return 31 * id.hashCode() + getTemplateId().hashCode();
     }
 
     @Override
@@ -611,4 +635,23 @@ public class SegmentNodeState implements NodeState {
         return AbstractNodeState.toString(this);
     }
 
+    //------------------------------------------------------------< Gc >--
+
+    boolean stale = false;
+
+    boolean missingGc = false;
+
+    @Override
+    public void gcRecordId(RecordId newRI) {
+        this.id = newRI;
+        this.templateId = null;
+        this.template = null;
+        this.stale = true;
+        missingGc = false;
+    }
+
+    @Override
+    public void missing() {
+        missingGc = true;
+    }
 }

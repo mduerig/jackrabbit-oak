@@ -43,5 +43,9 @@ public interface CompactionStrategyMBean {
 
     void setMemoryThreshold(byte memory);
 
+    byte getGainThreshold();
+
+    void setGainThreshold(byte gain);
+
     String getCompactionMapStats();
 }

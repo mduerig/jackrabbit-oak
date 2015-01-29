@@ -17,7 +17,6 @@
 package org.apache.jackrabbit.oak.plugins.segment;
 
 import static com.google.common.base.Charsets.UTF_8;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Sets.newIdentityHashSet;
 import static java.util.Collections.emptySet;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MEDIUM_LIMIT;
@@ -34,13 +33,14 @@ import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.memory.AbstractBlob;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentId.GCRecordIdCb;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 
 /**
  * A BLOB (stream of bytes). This is a record of type "VALUE".
  */
-public class SegmentBlob implements Blob {
-    private final Record record;
+public class SegmentBlob implements Blob, GCRecordIdCb {
+    private volatile RecordId id;
 
     public static Iterable<SegmentId> getBulkSegmentIds(Blob blob) {
         if (blob instanceof SegmentBlob) {
@@ -51,24 +51,25 @@ public class SegmentBlob implements Blob {
     }
 
     SegmentBlob(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this.id = id;
+        this.id.getSegmentId().track(this);
     }
 
     public RecordId getRecordId() {
-        return record.getRecordId();
+        return id;
     }
 
     private InputStream getInlineStream(
             Segment segment, int offset, int length) {
         byte[] inline = new byte[length];
         segment.readBytes(offset, inline, 0, length);
-        return new SegmentStream(record.getRecordId(), inline);
+        return new SegmentStream(id, inline);
     }
 
     @Override @Nonnull
     public InputStream getNewStream() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
+        Segment segment = id.getSegment();
+        int offset = id.getOffset();
         byte head = segment.readByte(offset);
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
@@ -83,7 +84,7 @@ public class SegmentBlob implements Blob {
             int listSize = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
             ListRecord list = new ListRecord(
                     segment.readRecordId(offset + 8), listSize);
-            return new SegmentStream(record.getRecordId(), list, length);
+            return new SegmentStream(id, list, length);
         } else if ((head & 0xf0) == 0xe0) {
             // 1110 xxxx: external value
             String refererence = readReference(segment, offset, head);
@@ -97,8 +98,8 @@ public class SegmentBlob implements Blob {
 
     @Override
     public long length() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
+        Segment segment = id.getSegment();
+        int offset = id.getOffset();
         byte head = segment.readByte(offset);
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
@@ -130,7 +131,7 @@ public class SegmentBlob implements Blob {
     public String getReference() {
         String blobId = getBlobId();
         if (blobId != null) {
-            BlobStore blobStore = record.getSegment().getSegmentId().getTracker().
+            BlobStore blobStore = id.getSegmentId().getTracker().
                     getStore().getBlobStore();
             if (blobStore != null) {
                 return blobStore.getReference(blobId);
@@ -145,20 +146,20 @@ public class SegmentBlob implements Blob {
 
     @Override
     public String getContentIdentity() {
-        return record.getRecordId().toString();
+        return id.toString();
     }
 
     public boolean isExternal() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
+        Segment segment = id.getSegment();
+        int offset = id.getOffset();
         byte head = segment.readByte(offset);
         // 1110 xxxx: external value
         return (head & 0xf0) == 0xe0;
     }
 
     public String getBlobId() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
+        Segment segment = id.getSegment();
+        int offset = id.getOffset();
         byte head = segment.readByte(offset);
         if ((head & 0xf0) == 0xe0) {
             // 1110 xxxx: external value
@@ -169,8 +170,8 @@ public class SegmentBlob implements Blob {
     }
 
     public SegmentBlob clone(SegmentWriter writer, boolean cloneLargeBinaries) throws IOException {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
+        Segment segment = id.getSegment();
+        int offset = id.getOffset();
         byte head = segment.readByte(offset);
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
@@ -209,7 +210,7 @@ public class SegmentBlob implements Blob {
             return true;
         } else if (object instanceof SegmentBlob) {
             SegmentBlob that = (SegmentBlob) object;
-            if (this.record.wasCompactedTo(that.record) || that.record.wasCompactedTo(this.record)) {
+            if (this.id.equals(that.getRecordId())) {
                 return true;
             }
         }
@@ -218,7 +219,7 @@ public class SegmentBlob implements Blob {
     }
 
     private boolean fastEquals(Object other) {
-        return other instanceof SegmentBlob && Record.fastEquals(this.record, ((SegmentBlob) other).record);
+        return other instanceof SegmentBlob && Record.fastEquals(this.id, ((SegmentBlob) other).id);
     }
 
     @Override
@@ -237,8 +238,8 @@ public class SegmentBlob implements Blob {
     }
 
     private Iterable<SegmentId> getBulkSegmentIds() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
+        Segment segment = id.getSegment();
+        int offset = id.getOffset();
         byte head = segment.readByte(offset);
         if ((head & 0xe0) == 0xc0) {
             // 110x xxxx: long value
@@ -256,4 +257,20 @@ public class SegmentBlob implements Blob {
         }
     }
 
+
+    boolean stale = false;
+
+    boolean missingGc = false;
+
+    @Override
+    public void gcRecordId(RecordId newRI) {
+        this.id = newRI;
+        stale = true;
+        missingGc = false;
+    }
+
+    @Override
+    public void missing() {
+        missingGc = true;
+    }
 }

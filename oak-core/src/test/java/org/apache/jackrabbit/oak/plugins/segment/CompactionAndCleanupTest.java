@@ -163,7 +163,7 @@ public class CompactionAndCleanupTest {
             // fileStore.size() in [blobSize + dataSize, blobSize + 2xdataSize]
             assertTrue(fileStore.maybeCompact(false));
             fileStore.cleanup();
-            assertSize("post cleanup", fileStore.size(), blobSize + dataSize,
+            assertSize("post cleanup", fileStore.size(), /* blobSize + */ dataSize,
                     blobSize + 2 * dataSize);
 
             // refresh the ts ref, to simulate a long wait time
@@ -307,7 +307,6 @@ public class CompactionAndCleanupTest {
     }
 
     @Test
-    @Ignore("OAK-2384")  // FIXME OAK-2384
     public void propertyRetention() throws IOException, CommitFailedException, InterruptedException {
         FileStore fileStore = new NonCachingFileStore(directory, 1);
         try {
