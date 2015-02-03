@@ -52,7 +52,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
  * A record of type "NODE". This class can read a node record from a segment. It
  * currently doesn't cache data (but the template is fully loaded).
  */
-public class SegmentNodeState implements NodeState {
+public class SegmentNodeState implements Writable, NodeState {
     private final Record record;
 
     private volatile RecordId templateId = null;
@@ -60,7 +60,7 @@ public class SegmentNodeState implements NodeState {
     private volatile Template template = null;
 
     public SegmentNodeState(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this.record = new Record(checkNotNull(id), this);
     }
 
     public RecordId getRecordId() {
@@ -109,6 +109,11 @@ public class SegmentNodeState implements NodeState {
     MapRecord getChildNodeMap() {
         Segment segment = record.getSegment();
         return segment.readMap(segment.readRecordId(record.getOffset(0, 1)));
+    }
+
+    @Override
+    public RecordId writeTo(SegmentWriter writer) {
+        return writer.writeNode(this).getRecordId();
     }
 
     @Override

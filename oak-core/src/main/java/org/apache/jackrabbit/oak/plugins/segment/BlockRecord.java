@@ -23,12 +23,12 @@ import static com.google.common.base.Preconditions.checkPositionIndexes;
 /**
  * A record of type "BLOCK".
  */
-class BlockRecord {
+class BlockRecord implements Writable {
     private final Record record;
     private final int size;
 
     BlockRecord(RecordId id, int size) {
-        this.record = new Record(checkNotNull(id));
+        this.record = new Record(checkNotNull(id), this);
         this.size = size;
     }
 
@@ -55,6 +55,13 @@ class BlockRecord {
             record.getSegment().readBytes(record.getOffset(position), buffer, offset, length);
         }
         return length;
+    }
+
+    @Override
+    public RecordId writeTo(SegmentWriter writer) {
+        byte[] bytes = new byte[size];
+        read(0, bytes, 0, size);
+        return writer.writeBlock(bytes, 0, size);
     }
 
     @Override

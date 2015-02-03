@@ -23,6 +23,9 @@ import javax.annotation.Nonnull;
  */
 class Record {
     private final RecordId id;
+    private final Writable writable;
+
+    private RecordId persistId;
 
     static boolean fastEquals(Object a, Object b) {
         return a instanceof Record && fastEquals((Record) a, b);
@@ -33,7 +36,7 @@ class Record {
     }
 
     static boolean fastEquals(Record a, Record b) {
-        return RecordId.fastEquals(a.id, b.id);
+        return RecordId.fastEquals(a.persistId, b.persistId);
     }
 
     /**
@@ -41,13 +44,21 @@ class Record {
      *
      * @param id record identified
      */
-    Record(@Nonnull RecordId id) {
+    Record(@Nonnull RecordId id, @Nonnull Writable writable) {
         this.id = id;
+        this.writable = writable;
+        this.persistId = id;
     }
 
+    // michid review wasCompactedTo
     boolean wasCompactedTo(Record after) {
         CompactionMap map = getSegmentId().getTracker().getCompactionMap();
         return map.wasCompactedTo(getRecordId(), after.getRecordId());
+    }
+
+    void rewrite(SegmentWriter writer) {
+        // michid sync?
+        persistId = writable.writeTo(writer);
     }
 
     /**

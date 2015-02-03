@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * A record of type "LIST".
  */
-class ListRecord {
+class ListRecord implements Writable {
     static final int LEVEL_SIZE = Segment.SEGMENT_REFERENCE_LIMIT;
 
     private final Record record;
@@ -39,7 +39,7 @@ class ListRecord {
     private final int bucketSize;
 
     ListRecord(RecordId id, int size) {
-        this.record = new Record(checkNotNull(id));
+        this.record = new Record(checkNotNull(id), this);
         checkArgument(size >= 0);
         this.size = size;
 
@@ -48,6 +48,11 @@ class ListRecord {
             bs *= LEVEL_SIZE;
         }
         this.bucketSize = bs;
+    }
+
+    @Override
+    public RecordId writeTo(SegmentWriter writer) {
+        return writer.writeList(getEntries());
     }
 
     public int size() {

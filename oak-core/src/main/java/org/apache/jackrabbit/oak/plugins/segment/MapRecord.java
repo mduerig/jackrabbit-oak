@@ -38,7 +38,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
  * A map. The top level record is either a record of type "BRANCH" or "LEAF"
  * (depending on the data).
  */
-class MapRecord {
+class MapRecord implements Writable {
 
     /**
      * Magic constant from a random number generator, used to generate
@@ -93,11 +93,17 @@ class MapRecord {
     private final Record record;
 
     protected MapRecord(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this.record = new Record(checkNotNull(id), this);
     }
 
     public RecordId getRecordId() {
         return record.getRecordId();
+    }
+
+    @Override
+    public RecordId writeTo(SegmentWriter writer) {
+        Iterable<MapEntry> entries = getEntries();
+        return writer.writeMap(this, Collections.<String, RecordId>emptyMap()).getRecordId();
     }
 
     int getOffset(int position) {

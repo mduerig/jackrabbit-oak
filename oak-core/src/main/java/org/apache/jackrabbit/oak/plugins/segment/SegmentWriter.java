@@ -861,7 +861,7 @@ public class SegmentWriter {
         return writeValueRecord(length, writeList(blockIds));
     }
 
-    private RecordId writeProperty(PropertyState state) {
+    RecordId writeProperty(PropertyState state) {
         Map<String, RecordId> previousValues = emptyMap();
         return writeProperty(state, previousValues);
     }

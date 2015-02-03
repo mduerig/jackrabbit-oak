@@ -57,12 +57,12 @@ import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
  * Depending on the property type, this is a record of type "VALUE" or a record
  * of type "LIST" (for arrays).
  */
-public class SegmentPropertyState implements PropertyState {
+public class SegmentPropertyState implements PropertyState, Writable {
     private final Record record;
     private final PropertyTemplate template;
 
     public SegmentPropertyState(RecordId id, PropertyTemplate template) {
-        this.record = new Record(checkNotNull(id));
+        this.record = new Record(checkNotNull(id), this);
         this.template = checkNotNull(template);
     }
 
@@ -98,6 +98,11 @@ public class SegmentPropertyState implements PropertyState {
         }
 
         return map;
+    }
+
+    @Override
+    public RecordId writeTo(SegmentWriter writer) {
+        return writer.writeProperty(this);
     }
 
     @Override @Nonnull

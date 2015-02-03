@@ -39,7 +39,7 @@ import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 /**
  * A BLOB (stream of bytes). This is a record of type "VALUE".
  */
-public class SegmentBlob implements Blob {
+public class SegmentBlob implements Writable, Blob {
     private final Record record;
 
     public static Iterable<SegmentId> getBulkSegmentIds(Blob blob) {
@@ -51,7 +51,7 @@ public class SegmentBlob implements Blob {
     }
 
     SegmentBlob(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this.record = new Record(checkNotNull(id), this);
     }
 
     public RecordId getRecordId() {
@@ -63,6 +63,16 @@ public class SegmentBlob implements Blob {
         byte[] inline = new byte[length];
         segment.readBytes(offset, inline, 0, length);
         return new SegmentStream(record.getRecordId(), inline);
+    }
+
+    @Override
+    public RecordId writeTo(SegmentWriter writer) {
+        try {
+            return writer.writeBlob(this).getRecordId();
+        } catch (IOException e) {
+            e.printStackTrace();  // michid implement catch e
+            throw new IllegalStateException(e);
+        }
     }
 
     @Override @Nonnull
