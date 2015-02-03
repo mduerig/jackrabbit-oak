@@ -58,6 +58,10 @@ public final class RecordId implements Comparable<RecordId> {
         }
     }
 
+    public static boolean fastEquals(RecordId a, RecordId b) {
+        return a.offset == b.offset && a.segmentId == b.segmentId;
+    }
+
     private final SegmentId segmentId;
 
     private final int offset;
