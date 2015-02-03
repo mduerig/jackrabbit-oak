@@ -22,15 +22,7 @@ import javax.annotation.Nonnull;
  * Record within a segment.
  */
 class Record {
-    /**
-     * Identifier of the segment that contains this record.
-     */
-    private final SegmentId segmentId;
-
-    /**
-     * Segment offset of this record.
-     */
-    private final int offset;
+    private final RecordId id;
 
     static boolean fastEquals(Object a, Object b) {
         return a instanceof Record && fastEquals((Record) a, b);
@@ -41,7 +33,7 @@ class Record {
     }
 
     static boolean fastEquals(Record a, Record b) {
-        return a.segmentId == b.segmentId && a.offset == b.offset;
+        return RecordId.fastEquals(a.id, b.id);
     }
 
     /**
@@ -50,22 +42,12 @@ class Record {
      * @param id record identified
      */
     Record(@Nonnull RecordId id) {
-        this.segmentId = id.getSegmentId();
-        this.offset = id.getOffset();
+        this.id = id;
     }
 
     boolean wasCompactedTo(Record after) {
-        CompactionMap map = segmentId.getTracker().getCompactionMap();
+        CompactionMap map = getSegmentId().getTracker().getCompactionMap();
         return map.wasCompactedTo(getRecordId(), after.getRecordId());
-    }
-
-    /**
-     * Returns the segment that contains this record.
-     *
-     * @return segment that contains this record
-     */
-    Segment getSegment() {
-        return segmentId.getSegment();
     }
 
     /**
@@ -74,7 +56,20 @@ class Record {
      * @return record identifier
      */
     RecordId getRecordId() {
-        return new RecordId(segmentId, offset);
+        return id;
+    }
+
+    SegmentId getSegmentId() {
+        return id.getSegmentId();
+    }
+
+    /**
+     * Returns the segment that contains this record.
+     *
+     * @return segment that contains this record
+     */
+    Segment getSegment() {
+        return getSegmentId().getSegment();
     }
 
     /**
@@ -83,7 +78,7 @@ class Record {
      * @return segment offset of this record
      */
     final int getOffset() {
-        return offset;
+        return id.getOffset();
     }
 
     /**
@@ -119,7 +114,7 @@ class Record {
 
     @Override
     public int hashCode() {
-        return segmentId.hashCode() ^ offset;
+        return getSegmentId().hashCode() ^ getOffset();
     }
 
     @Override
