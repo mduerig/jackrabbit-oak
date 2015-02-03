@@ -22,6 +22,15 @@ import javax.annotation.Nonnull;
  * Record within a segment.
  */
 class Record {
+    /**
+     * Identifier of the segment that contains this record.
+     */
+    private final SegmentId segmentId;
+
+    /**
+     * Segment offset of this record.
+     */
+    private final int offset;
 
     static boolean fastEquals(Object a, Object b) {
         return a instanceof Record && fastEquals((Record) a, b);
@@ -36,30 +45,16 @@ class Record {
     }
 
     /**
-     * Identifier of the segment that contains this record.
-     */
-    private final SegmentId segmentId;
-
-    /**
-     * Segment offset of this record.
-     */
-    private final int offset;
-
-    /**
      * Creates a new object for the identified record.
      *
      * @param id record identified
      */
-    protected Record(@Nonnull RecordId id) {
-        this(id.getSegmentId(), id.getOffset());
+    Record(@Nonnull RecordId id) {
+        this.segmentId = id.getSegmentId();
+        this.offset = id.getOffset();
     }
 
-    protected Record(@Nonnull SegmentId segmentId, int offset) {
-        this.segmentId = segmentId;
-        this.offset = offset;
-    }
-
-    protected boolean wasCompactedTo(Record after) {
+    boolean wasCompactedTo(Record after) {
         CompactionMap map = segmentId.getTracker().getCompactionMap();
         return map.wasCompactedTo(getRecordId(), after.getRecordId());
     }
@@ -69,7 +64,7 @@ class Record {
      *
      * @return segment that contains this record
      */
-    protected Segment getSegment() {
+    Segment getSegment() {
         return segmentId.getSegment();
     }
 
@@ -78,7 +73,7 @@ class Record {
      *
      * @return record identifier
      */
-    public RecordId getRecordId() {
+    RecordId getRecordId() {
         return new RecordId(segmentId, offset);
     }
 
@@ -87,7 +82,7 @@ class Record {
      *
      * @return segment offset of this record
      */
-    protected final int getOffset() {
+    final int getOffset() {
         return offset;
     }
 
@@ -97,7 +92,7 @@ class Record {
      * @param position byte position within this record
      * @return segment offset of the given byte position
      */
-    protected final int getOffset(int position) {
+    final int getOffset(int position) {
         return getOffset() + position;
     }
 
@@ -110,7 +105,7 @@ class Record {
      * @param ids number of record identifiers before the position
      * @return segment offset of the specified byte position
      */
-    protected final int getOffset(int bytes, int ids) {
+    final int getOffset(int bytes, int ids) {
         return getOffset(bytes + ids * Segment.RECORD_ID_BYTES);
     }
 
@@ -118,6 +113,7 @@ class Record {
 
     @Override
     public boolean equals(Object that) {
+        // michid clarify semantics/usages of equals/fastEquals
         return fastEquals(this, that);
     }
 
