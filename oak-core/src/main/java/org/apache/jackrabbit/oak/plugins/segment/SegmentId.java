@@ -16,7 +16,9 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import java.util.Map;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +64,20 @@ public class SegmentId implements Comparable<SegmentId> {
         this.lsb = lsb;
         this.segment = segment;
         this.creationTime = creationTime;
+    }
+
+    private final Map<RecordId, Record> records = new WeakHashMap<RecordId, Record>();
+
+    Record getRecord(Record record) {
+        synchronized (records) {
+            Record r = records.get(record.getRecordId());
+            if (r == null) {
+                records.put(record.getRecordId(), record);
+                return record;
+            } else {
+                return r;
+            }
+        }
     }
 
     public SegmentId(SegmentTracker tracker, long msb, long lsb) {

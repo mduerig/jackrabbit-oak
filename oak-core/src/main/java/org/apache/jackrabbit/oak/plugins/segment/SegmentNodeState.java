@@ -60,7 +60,7 @@ public class SegmentNodeState implements NodeState {
     private volatile Template template = null;
 
     public SegmentNodeState(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this.record = Record.getRecord(checkNotNull(id));
     }
 
     public RecordId getRecordId() {

@@ -28,7 +28,7 @@ class BlockRecord {
     private final int size;
 
     BlockRecord(RecordId id, int size) {
-        this.record = new Record(checkNotNull(id));
+        this.record = Record.getRecord(checkNotNull(id));
         this.size = size;
     }
 

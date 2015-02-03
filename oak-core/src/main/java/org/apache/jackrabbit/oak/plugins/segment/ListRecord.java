@@ -39,7 +39,7 @@ class ListRecord {
     private final int bucketSize;
 
     ListRecord(RecordId id, int size) {
-        this.record = new Record(checkNotNull(id));
+        this.record = Record.getRecord(checkNotNull(id));
         checkArgument(size >= 0);
         this.size = size;
 

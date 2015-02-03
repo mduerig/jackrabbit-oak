@@ -51,7 +51,7 @@ public class SegmentBlob implements Blob {
     }
 
     SegmentBlob(RecordId id) {
-        this.record = new Record(checkNotNull(id));
+        this.record = Record.getRecord(checkNotNull(id));
     }
 
     public RecordId getRecordId() {
