@@ -28,7 +28,7 @@ class BlockRecord implements Writable {
     private final int size;
 
     BlockRecord(RecordId id, int size) {
-        this.record = new Record(checkNotNull(id), this);
+        this.record = Record.getRecord(checkNotNull(id), this);
         this.size = size;
     }
 

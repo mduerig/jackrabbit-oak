@@ -39,12 +39,16 @@ class Record {
         return RecordId.fastEquals(a.persistId, b.persistId);
     }
 
+    static Record getRecord(@Nonnull RecordId id, @Nonnull Writable writable) {
+        return id.getSegmentId().getRecord(new Record(id, writable));
+    }
+
     /**
      * Creates a new object for the identified record.
      *
      * @param id record identified
      */
-    Record(@Nonnull RecordId id, @Nonnull Writable writable) {
+    private Record(RecordId id, Writable writable) {
         this.id = id;
         this.writable = writable;
         this.persistId = id;

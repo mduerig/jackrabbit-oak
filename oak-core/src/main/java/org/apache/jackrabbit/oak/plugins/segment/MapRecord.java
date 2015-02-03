@@ -93,7 +93,7 @@ class MapRecord implements Writable {
     private final Record record;
 
     protected MapRecord(RecordId id) {
-        this.record = new Record(checkNotNull(id), this);
+        this.record = Record.getRecord(checkNotNull(id), this);
     }
 
     public RecordId getRecordId() {

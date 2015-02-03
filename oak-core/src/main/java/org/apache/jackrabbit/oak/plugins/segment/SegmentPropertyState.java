@@ -62,7 +62,7 @@ public class SegmentPropertyState implements PropertyState, Writable {
     private final PropertyTemplate template;
 
     public SegmentPropertyState(RecordId id, PropertyTemplate template) {
-        this.record = new Record(checkNotNull(id), this);
+        this.record = Record.getRecord(checkNotNull(id), this);
         this.template = checkNotNull(template);
     }
 

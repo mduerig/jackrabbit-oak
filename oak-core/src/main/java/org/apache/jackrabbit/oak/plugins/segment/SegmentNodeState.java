@@ -60,7 +60,7 @@ public class SegmentNodeState implements Writable, NodeState {
     private volatile Template template = null;
 
     public SegmentNodeState(RecordId id) {
-        this.record = new Record(checkNotNull(id), this);
+        this.record = Record.getRecord(checkNotNull(id), this);
     }
 
     public RecordId getRecordId() {

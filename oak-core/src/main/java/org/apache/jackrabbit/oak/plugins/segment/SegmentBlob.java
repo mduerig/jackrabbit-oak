@@ -51,7 +51,7 @@ public class SegmentBlob implements Writable, Blob {
     }
 
     SegmentBlob(RecordId id) {
-        this.record = new Record(checkNotNull(id), this);
+        this.record = Record.getRecord(checkNotNull(id), this);
     }
 
     public RecordId getRecordId() {
