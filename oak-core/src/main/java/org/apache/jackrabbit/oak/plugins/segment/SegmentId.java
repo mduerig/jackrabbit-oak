@@ -16,6 +16,8 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import static com.google.common.collect.Maps.newHashMap;
+
 import java.util.Map;
 import java.util.UUID;
 import java.util.WeakHashMap;
@@ -32,6 +34,8 @@ public class SegmentId implements Comparable<SegmentId> {
 
     /** Logger instance */
     private static final Logger log = LoggerFactory.getLogger(SegmentId.class);
+
+    private final boolean proxy;
 
     /**
      * Checks whether this is a data segment identifier.
@@ -58,12 +62,13 @@ public class SegmentId implements Comparable<SegmentId> {
     private volatile Segment segment;
 
     private SegmentId(SegmentTracker tracker, long msb, long lsb,
-            Segment segment, long creationTime) {
+            Segment segment, long creationTime, boolean proxy) {
         this.tracker = tracker;
         this.msb = msb;
         this.lsb = lsb;
         this.segment = segment;
         this.creationTime = creationTime;
+        this.proxy = proxy;
     }
 
     private final Map<RecordId, Record> records = new WeakHashMap<RecordId, Record>();
@@ -80,8 +85,25 @@ public class SegmentId implements Comparable<SegmentId> {
         }
     }
 
+    // michid think about atomicity of access to proxy segment vs. the original segment
+    // michid separate rewrite/relink?
+    void rewrite() {
+        SegmentWriter writer = new SegmentWriter(tracker.getStore(), tracker);
+        Map<Integer, Integer> offsets = newHashMap();
+
+        synchronized (records) {
+            for (Record record : records.values()) {
+                offsets.put(record.getRecordId().getOffset(), record.rewrite(writer).getOffset());
+            }
+        }
+
+        SegmentId proxyId = new SegmentId(tracker, msb, lsb, segment, creationTime, true);
+        writer.writeProxy(proxyId, this, offsets);
+        writer.flush();
+    }
+
     public SegmentId(SegmentTracker tracker, long msb, long lsb) {
-        this(tracker, msb, lsb, null, System.currentTimeMillis());
+        this(tracker, msb, lsb, null, System.currentTimeMillis(), false);
     }
 
     /**
@@ -175,4 +197,7 @@ public class SegmentId implements Comparable<SegmentId> {
         return (int) lsb;
     }
 
+    public boolean isProxy() {
+        return proxy;
+    }
 }

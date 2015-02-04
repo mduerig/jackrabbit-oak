@@ -60,9 +60,11 @@ class Record {
         return map.wasCompactedTo(getRecordId(), after.getRecordId());
     }
 
-    void rewrite(SegmentWriter writer) {
+    // michid separate rewrite/relink?
+    RecordId rewrite(SegmentWriter writer) {
         // michid sync?
         persistId = writable.writeTo(writer);
+        return persistId;
     }
 
     /**

@@ -362,7 +362,7 @@ public class SegmentWriter {
     /**
      * Write a record id, and marks the record id as referenced (removes it from
      * the unreferenced set).
-     * 
+     *
      * @param recordId the record id
      */
     private synchronized void writeRecordId(RecordId recordId) {
@@ -1128,6 +1128,36 @@ public class SegmentWriter {
 
     public SegmentTracker getTracker() {
         return tracker;
+    }
+
+    private static void writeInt(ByteBuffer buffer, int value) {
+        buffer.put((byte) (value >> 24));
+        buffer.put((byte) (value >> 16));
+        buffer.put((byte) (value >> 8));
+        buffer.put((byte) value);
+    }
+
+    private static void writeLong(ByteBuffer buffer, long value) {
+        writeInt(buffer, (int) (value >> 32));
+        writeInt(buffer, (int) value);
+    }
+
+    private static void writeSegmentId(ByteBuffer buffer, SegmentId segmentId) {
+        writeLong(buffer, segmentId.getMostSignificantBits());
+        writeLong(buffer, segmentId.getLeastSignificantBits());
+    }
+
+    public void writeProxy(SegmentId proxyId, SegmentId segmentId, Map<Integer, Integer> proxy) {
+        byte[] bytes = new byte[proxy.size() * 2 * ((2 * Long.SIZE) + Integer.SIZE)];
+        ByteBuffer buffer = ByteBuffer.wrap(bytes);
+
+        writeSegmentId(buffer, segmentId);
+        for (Entry<Integer, Integer> entry : proxy.entrySet()) {
+            writeInt(buffer, entry.getKey());
+            writeInt(buffer, entry.getValue());
+        }
+
+        store.writeSegment(proxyId, bytes, 0, bytes.length);
     }
 
 }
