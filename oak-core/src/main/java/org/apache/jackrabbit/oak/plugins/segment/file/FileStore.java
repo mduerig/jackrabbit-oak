@@ -110,6 +110,10 @@ public class FileStore implements SegmentStore {
 
     private TarWriter writer;
 
+    private File proxyFile;
+
+    private TarWriter proxyWriter;
+
     private final RandomAccessFile journalFile;
 
     private final FileLock journalLock;
@@ -218,6 +222,9 @@ public class FileStore implements SegmentStore {
                 directory,
                 String.format(FILE_NAME_FORMAT, writeNumber, "a"));
         this.writer = new TarWriter(writeFile);
+
+        this.proxyFile = new File(directory, "proxy.tar");
+        this.proxyWriter = new TarWriter(proxyFile);
 
         RecordId id = null;
         JournalReader journalReader = new JournalReader(new File(directory, JOURNAL_FILE_NAME));
@@ -405,7 +412,7 @@ public class FileStore implements SegmentStore {
     }
 
     public synchronized long size() throws IOException {
-        long size = writeFile.length();
+        long size = writeFile.length() + proxyFile.length();
         for (TarReader reader : readers) {
             size += reader.size();
         }
@@ -418,7 +425,7 @@ public class FileStore implements SegmentStore {
      * @return number of segments
      */
     private synchronized int count() {
-        int count = writer.count();
+        int count = writer.count() + proxyWriter.count();
         for (TarReader reader : readers) {
             count += reader.count();
         }
@@ -449,6 +456,7 @@ public class FileStore implements SegmentStore {
                 // needs to happen outside the synchronization block below to
                 // prevent the flush from stopping concurrent reads and writes
                 writer.flush();
+                proxyWriter.flush();
 
                 synchronized (this) {
                     log.debug("TarMK journal update {} -> {}", before, after);
@@ -502,6 +510,7 @@ public class FileStore implements SegmentStore {
                     id.getLeastSignificantBits()));
         }
         writer.cleanup(ids);
+        // michid cleanup proxyWriter?
 
         CompactionMap cm = tracker.getCompactionMap();
         List<TarReader> list = newArrayListWithCapacity(readers.size());
@@ -567,6 +576,7 @@ public class FileStore implements SegmentStore {
         }
     }
 
+    // michid what about proxy segments here?
     public synchronized Iterable<SegmentId> getSegmentIds() {
         List<SegmentId> ids = newArrayList();
         for (UUID uuid : writer.getUUIDs()) {
@@ -613,6 +623,7 @@ public class FileStore implements SegmentStore {
                 flush();
 
                 writer.close();
+                proxyWriter.close();
 
                 List<TarReader> list = readers;
                 readers = newArrayList();
@@ -652,7 +663,7 @@ public class FileStore implements SegmentStore {
         }
 
         synchronized (this) {
-            if (writer.containsEntry(msb, lsb)) {
+            if (proxyWriter.containsEntry(msb, lsb) || writer.containsEntry(msb, lsb)) {
                 return true;
             }
         }
@@ -686,7 +697,19 @@ public class FileStore implements SegmentStore {
 
         synchronized (this) {
             try {
-                ByteBuffer buffer = writer.readEntry(msb, lsb);
+                ByteBuffer buffer = proxyWriter.readEntry(msb, lsb);
+                if (buffer != null) {
+                    // michid FIX resolve the proxy segment:
+                    // proxiedSegmentId = readProxiedSegmentId(buffer)
+                    // s = readSegment(proxiedSegmentId)           (might lead to proxy resolution)
+                    // offsetAdjustmentMap = readOffsetAdjustmentMap(buffer)
+                    // s.adjustOffsets(offsetAdjustmentMap)
+                    // In reality inject right into the Segment constructor.
+                    // For that we need to introduce a byte[] readSegment(SegmentId) method and implement
+                    // Segment readSegment(SegmentId) method in terms of it.
+                    return new Segment(tracker, id, buffer);
+                }
+                buffer = writer.readEntry(msb, lsb);
                 if (buffer != null) {
                     return new Segment(tracker, id, buffer);
                 }
@@ -712,8 +735,27 @@ public class FileStore implements SegmentStore {
     }
 
     @Override
-    public synchronized void writeSegment(
+    public void writeSegment(
             SegmentId id, byte[] data, int offset, int length) {
+        if (id.isProxy()) {
+            writeProxySegment(id, data, offset, length);
+        } else {
+            writeDataSegment(id, data, offset, length);
+        }
+    }
+
+    private synchronized void writeProxySegment(SegmentId id, byte[] data, int offset, int length) {
+        try {
+            proxyWriter.writeEntry(
+                    id.getMostSignificantBits(),
+                    id.getLeastSignificantBits(),
+                    data, offset, length);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private synchronized void writeDataSegment(SegmentId id, byte[] data, int offset, int length) {
         try {
             long size = writer.writeEntry(
                     id.getMostSignificantBits(),
