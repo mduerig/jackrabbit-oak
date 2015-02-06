@@ -171,6 +171,13 @@ public class Segment {
         return accessed != 0;
     }
 
+    private int mapOffset(int offset) {
+        // michid implement mapOffset to take rewritten segments into account
+        int pos = data.limit() - MAX_SEGMENT_SIZE + offset;
+        checkState(pos >= data.position());
+        return pos;
+    }
+
     public class Reader {
         private final RecordId id;
         private final int pos0;
@@ -181,13 +188,6 @@ public class Segment {
             this.id = id;
             this.pos0 = mapOffset(id.getOffset()) + offset;
             this.pos = pos0;
-        }
-
-        private int mapOffset(int offset) {
-            // michid implement mapOffset to take rewritten segments into account
-            int pos = data.limit() - MAX_SEGMENT_SIZE + offset;
-            checkState(pos >= data.position());
-            return pos;
         }
 
         public Reader skip(int n) {
@@ -205,20 +205,8 @@ public class Segment {
             return Segment.this.readRecordId(consume(RECORD_ID_BYTES));
         }
 
-        public RecordId readRecordId(int offset) {
-            return Segment.this.readRecordId(pos0 + offset);
-        }
-
-        public RecordId readRecordId(int offset, int ids) {
-            return readRecordId(offset + ids * RECORD_ID_BYTES);
-        }
-
         public int readInt() {
             return Segment.this.readInt(consume(4));
-        }
-
-        public int readInt(int offset) {
-            return Segment.this.readInt(pos0 + offset);
         }
 
         public byte readByte() {
@@ -229,32 +217,24 @@ public class Segment {
             return Segment.this.readShort(consume(2));
         }
 
-        public int readShort(int offset) {
-            return Segment.this.readShort(pos0 + offset);
-        }
-
         public long readLong() {
             return Segment.this.readLong(consume(8));
-        }
-
-        public long readLong(int offset) {
-            return Segment.this.readLong(pos0 + offset);
         }
 
         public void readBytes(byte[] buffer, int offset, int length) {
             Segment.this.readBytes(consume(length), buffer, offset, length);
         }
 
-        public String readString() {
-            return Segment.this.readString(pos);
+        public RecordId readRecordId(int offset, int ids) {
+            return Segment.this.readRecordId(pos0 + offset + ids * RECORD_ID_BYTES);
         }
 
-        public long readLength() {
-            return Segment.this.readLength(pos);
+        public RecordId readRecordId(int offset) {
+            return Segment.this.readRecordId(pos0 + offset);
         }
 
-        public Template readTemplate() {
-            return Segment.this.readTemplate(pos);
+        public int readInt(int offset) {
+            return Segment.this.readInt(pos0 + offset);
         }
     }
 
@@ -415,10 +395,6 @@ public class Segment {
         return new RecordId(refid, offset << RECORD_ALIGN_BITS);
     }
 
-    static String readString(RecordId id) {
-        return createReader(id).readString();
-    }
-
     private String readString(int pos) {
         String string = strings.get(pos);
         if (string == null) {
@@ -458,12 +434,14 @@ public class Segment {
         }
     }
 
-    MapRecord readMap(RecordId id) {
+    static MapRecord readMap(RecordId id) {
         return new MapRecord(id);
     }
 
     static Template readTemplate(RecordId id) {
-        return createReader(id).readTemplate();
+        Segment segment = id.getSegment();
+        int pos = segment.mapOffset(id.getOffset());
+        return segment.readTemplate(pos);
     }
 
     private Template readTemplate(int pos) {
@@ -529,8 +507,16 @@ public class Segment {
                 primaryType, mixinTypes, properties, childName);
     }
 
+    static String readString(RecordId id) {
+        Segment segment = id.getSegment();
+        int pos = segment.mapOffset(id.getOffset());
+        return segment.readString(pos);
+    }
+
     static long readLength(RecordId id) {
-        return createReader(id).readLength();
+        Segment segment = id.getSegment();
+        int pos = segment.mapOffset(id.getOffset());
+        return segment.readLength(pos);
     }
 
     private long readLength(int pos) {

@@ -182,7 +182,7 @@ public class Template {
         Segment segment = recordId.getSegment();
         Reader reader = segment.getReader(recordId, RECORD_ID_BYTES);
         RecordId childNodesId = reader.readRecordId();
-        return segment.readMap(childNodesId);
+        return Segment.readMap(childNodesId);
     }
 
     public NodeState getChildNode(String name, RecordId recordId) {

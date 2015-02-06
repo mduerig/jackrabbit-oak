@@ -110,7 +110,7 @@ public class SegmentNodeState implements Writable, NodeState {
     MapRecord getChildNodeMap() {
         Segment segment = record.getSegment();
         Reader reader = record.getReader(0, 1);
-        return segment.readMap(reader.readRecordId());
+        return Segment.readMap(reader.readRecordId());
     }
 
     @Override
