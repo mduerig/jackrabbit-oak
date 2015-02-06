@@ -63,6 +63,7 @@ class Record {
     // michid separate rewrite/relink?
     RecordId rewrite(SegmentWriter writer) {
         // michid sync?
+        // michid we can probably do this without the callback traversing down from the root records
         persistId = writable.writeTo(writer);
         return persistId;
     }
