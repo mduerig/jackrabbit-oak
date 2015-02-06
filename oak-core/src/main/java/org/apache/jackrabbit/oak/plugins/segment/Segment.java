@@ -171,20 +171,104 @@ public class Segment {
         return accessed != 0;
     }
 
-    /**
-     * Maps the given record offset to the respective position within the
-     * internal {@link #data} array. The validity of a record with the given
-     * length at the given offset is also verified.
-     *
-     * @param offset record offset
-     * @param length record length
-     * @return position within the data array
-     */
-    private int pos(int offset, int length) {
-        checkPositionIndexes(offset, offset + length, MAX_SEGMENT_SIZE);
-        int pos = data.limit() - MAX_SEGMENT_SIZE + offset;
-        checkState(pos >= data.position());
-        return pos;
+    public class Reader {
+        private final RecordId id;
+        private final int pos0;
+
+        private int pos;
+
+        public Reader(RecordId id, int offset) {
+            this.id = id;
+            this.pos0 = mapOffset(id.getOffset()) + offset;
+            this.pos = pos0;
+        }
+
+        private int mapOffset(int offset) {
+            // michid implement mapOffset to take rewritten segments into account
+            int pos = data.limit() - MAX_SEGMENT_SIZE + offset;
+            checkState(pos >= data.position());
+            return pos;
+        }
+
+        public Reader skip(int n) {
+            pos += n;
+            return this;
+        }
+
+        private int consume(int n) {
+            int p = pos;
+            pos += n;
+            return p;
+        }
+
+        public RecordId readRecordId() {
+            return Segment.this.readRecordId(consume(RECORD_ID_BYTES));
+        }
+
+        public RecordId readRecordId(int offset) {
+            return Segment.this.readRecordId(pos0 + offset);
+        }
+
+        public RecordId readRecordId(int offset, int ids) {
+            return readRecordId(offset + ids * RECORD_ID_BYTES);
+        }
+
+        public int readInt() {
+            return Segment.this.readInt(consume(4));
+        }
+
+        public int readInt(int offset) {
+            return Segment.this.readInt(pos0 + offset);
+        }
+
+        public byte readByte() {
+            return Segment.this.readByte(consume(1));
+        }
+
+        public short readShort() {
+            return Segment.this.readShort(consume(2));
+        }
+
+        public int readShort(int offset) {
+            return Segment.this.readShort(pos0 + offset);
+        }
+
+        public long readLong() {
+            return Segment.this.readLong(consume(8));
+        }
+
+        public long readLong(int offset) {
+            return Segment.this.readLong(pos0 + offset);
+        }
+
+        public void readBytes(byte[] buffer, int offset, int length) {
+            Segment.this.readBytes(consume(length), buffer, offset, length);
+        }
+
+        public String readString() {
+            return Segment.this.readString(pos);
+        }
+
+        public long readLength() {
+            return Segment.this.readLength(pos);
+        }
+
+        public Template readTemplate() {
+            return Segment.this.readTemplate(pos);
+        }
+    }
+
+    public static Reader createReader(RecordId id) {
+        return id.getSegment().getReader(id);
+    }
+
+    // michid overload with getReader(Record id)!?
+    public Reader getReader(RecordId id) {
+        return getReader(id, 0);
+    }
+
+    public Reader getReader(RecordId id, int offset) {
+        return new Reader(id, offset);
     }
 
     public SegmentId getSegmentId() {
@@ -292,66 +376,60 @@ public class Segment {
         }
     }
 
-    byte readByte(int offset) {
-        return data.get(pos(offset, 1));
+    private byte readByte(int pos) {
+        return data.get(pos);
     }
 
-    short readShort(int offset) {
-        return data.getShort(pos(offset, 2));
+    private short readShort(int pos) {
+        return data.getShort(pos);
     }
 
-    int readInt(int offset) {
-        return data.getInt(pos(offset, 4));
+    private int readInt(int pos) {
+        return data.getInt(pos);
     }
 
-    long readLong(int offset) {
-        return data.getLong(pos(offset, 8));
+    private long readLong(int pos) {
+        return data.getLong(pos);
     }
 
     /**
-     * Reads the given number of bytes starting from the given position
+     * Reads the given number of bytes starting from the given offset
      * in this segment.
      *
-     * @param position position within segment
+     * @param pos offset within segment
      * @param buffer target buffer
      * @param offset offset within target buffer
      * @param length number of bytes to read
      */
-    void readBytes(int position, byte[] buffer, int offset, int length) {
+    private void readBytes(int pos, byte[] buffer, int offset, int length) {
         checkNotNull(buffer);
         checkPositionIndexes(offset, offset + length, buffer.length);
         ByteBuffer d = data.duplicate();
-        d.position(pos(position, length));
+        d.position(pos);
         d.get(buffer, offset, length);
     }
 
-    RecordId readRecordId(int offset) {
-        int pos = pos(offset, RECORD_ID_BYTES);
-        return internalReadRecordId(pos);
-    }
-
-    private RecordId internalReadRecordId(int pos) {
+    private RecordId readRecordId(int pos) {
         SegmentId refid = getRefId(data.get(pos) & 0xff);
         int offset = ((data.get(pos + 1) & 0xff) << 8) | (data.get(pos + 2) & 0xff);
         return new RecordId(refid, offset << RECORD_ALIGN_BITS);
     }
 
-    String readString(final RecordId id) {
-        return id.getSegmentId().getSegment().readString(id.getOffset());
+    static String readString(RecordId id) {
+        return createReader(id).readString();
     }
 
-    private String readString(int offset) {
-        String string = strings.get(offset);
+    private String readString(int pos) {
+        String string = strings.get(pos);
         if (string == null) {
-            string = loadString(offset);
-            strings.putIfAbsent(offset, string); // only keep the first copy
+            string = loadString(pos);
+            strings.putIfAbsent(pos, string); // only keep the first copy
         }
         return string;
     }
 
-    private String loadString(int offset) {
-        int pos = pos(offset, 1);
-        long length = internalReadLength(pos);
+    private String loadString(int pos) {
+        long length = readLength(pos);
         if (length < SMALL_LIMIT) {
             byte[] bytes = new byte[(int) length];
             ByteBuffer buffer = data.duplicate();
@@ -367,9 +445,9 @@ public class Segment {
         } else if (length < Integer.MAX_VALUE) {
             int size = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
             ListRecord list =
-                    new ListRecord(internalReadRecordId(pos + 8), size);
+                    new ListRecord(readRecordId(pos + 8), size);
             SegmentStream stream = new SegmentStream(
-                    new RecordId(id, offset), list, length);
+                    new RecordId(id, pos), list, length);
             try {
                 return stream.getString();
             } finally {
@@ -384,44 +462,44 @@ public class Segment {
         return new MapRecord(id);
     }
 
-    Template readTemplate(final RecordId id) {
-        return id.getSegment().readTemplate(id.getOffset());
+    static Template readTemplate(RecordId id) {
+        return createReader(id).readTemplate();
     }
 
-    private Template readTemplate(int offset) {
-        Template template = templates.get(offset);
+    private Template readTemplate(int pos) {
+        Template template = templates.get(pos);
         if (template == null) {
-            template = loadTemplate(offset);
-            templates.putIfAbsent(offset, template); // only keep the first copy
+            template = loadTemplate(pos);
+            templates.putIfAbsent(pos, template); // only keep the first copy
         }
         return template;
     }
 
-    private Template loadTemplate(int offset) {
-        int head = readInt(offset);
+    private Template loadTemplate(int pos) {
+        int head = readInt(pos);
         boolean hasPrimaryType = (head & (1 << 31)) != 0;
         boolean hasMixinTypes = (head & (1 << 30)) != 0;
         boolean zeroChildNodes = (head & (1 << 29)) != 0;
         boolean manyChildNodes = (head & (1 << 28)) != 0;
         int mixinCount = (head >> 18) & ((1 << 10) - 1);
         int propertyCount = head & ((1 << 18) - 1);
-        offset += 4;
+        pos += 4;
 
         PropertyState primaryType = null;
         if (hasPrimaryType) {
-            RecordId primaryId = readRecordId(offset);
+            RecordId primaryId = readRecordId(pos);
             primaryType = PropertyStates.createProperty(
                     "jcr:primaryType", readString(primaryId), Type.NAME);
-            offset += Segment.RECORD_ID_BYTES;
+            pos += RECORD_ID_BYTES;
         }
 
         PropertyState mixinTypes = null;
         if (hasMixinTypes) {
             String[] mixins = new String[mixinCount];
             for (int i = 0; i < mixins.length; i++) {
-                RecordId mixinId = readRecordId(offset);
+                RecordId mixinId = readRecordId(pos);
                 mixins[i] =  readString(mixinId);
-                offset += Segment.RECORD_ID_BYTES;
+                pos += RECORD_ID_BYTES;
             }
             mixinTypes = PropertyStates.createProperty(
                     "jcr:mixinTypes", Arrays.asList(mixins), Type.NAMES);
@@ -431,17 +509,17 @@ public class Segment {
         if (manyChildNodes) {
             childName = Template.MANY_CHILD_NODES;
         } else if (!zeroChildNodes) {
-            RecordId childNameId = readRecordId(offset);
+            RecordId childNameId = readRecordId(pos);
             childName = readString(childNameId);
-            offset += Segment.RECORD_ID_BYTES;
+            pos += RECORD_ID_BYTES;
         }
 
         PropertyTemplate[] properties =
                 new PropertyTemplate[propertyCount];
         for (int i = 0; i < properties.length; i++) {
-            RecordId propertyNameId = readRecordId(offset);
-            offset += Segment.RECORD_ID_BYTES;
-            byte type = readByte(offset++);
+            RecordId propertyNameId = readRecordId(pos);
+            pos += RECORD_ID_BYTES;
+            byte type = readByte(pos++);
             properties[i] = new PropertyTemplate(
                     i, readString(propertyNameId),
                     Type.fromTag(Math.abs(type), type < 0));
@@ -451,15 +529,11 @@ public class Segment {
                 primaryType, mixinTypes, properties, childName);
     }
 
-    long readLength(RecordId id) {
-        return id.getSegment().readLength(id.getOffset());
+    static long readLength(RecordId id) {
+        return createReader(id).readLength();
     }
 
-    long readLength(int offset) {
-        return internalReadLength(pos(offset, 1));
-    }
-
-    private long internalReadLength(int pos) {
+    private long readLength(int pos) {
         int length = data.get(pos++) & 0xff;
         if ((length & 0x80) == 0) {
             return length;
@@ -482,7 +556,7 @@ public class Segment {
 
     //------------------------------------------------------------< Object >--
 
-    @Override
+    @Override  // michid fix toString -> remap offsets
     public String toString() {
         StringWriter string = new StringWriter();
         PrintWriter writer = new PrintWriter(string);

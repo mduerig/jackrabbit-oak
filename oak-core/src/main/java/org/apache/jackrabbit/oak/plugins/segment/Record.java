@@ -16,7 +16,11 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
+
 import javax.annotation.Nonnull;
+
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 
 /**
  * Record within a segment.
@@ -82,15 +86,6 @@ class Record {
     }
 
     /**
-     * Returns the segment that contains this record.
-     *
-     * @return segment that contains this record
-     */
-    Segment getSegment() {
-        return getSegmentId().getSegment();
-    }
-
-    /**
      * Returns the segment offset of this record.
      *
      * @return segment offset of this record
@@ -100,26 +95,24 @@ class Record {
     }
 
     /**
-     * Returns the segment offset of the given byte position in this record.
+     * Returns the segment that contains this record.
      *
-     * @param position byte position within this record
-     * @return segment offset of the given byte position
+     * @return segment that contains this record
      */
-    final int getOffset(int position) {
-        return getOffset() + position;
+    Segment getSegment() {
+        return getSegmentId().getSegment();
     }
 
-    /**
-     * Returns the segment offset of a byte position in this record.
-     * The position is calculated from the given number of raw bytes and
-     * record identifiers.
-     *
-     * @param bytes number of raw bytes before the position
-     * @param ids number of record identifiers before the position
-     * @return segment offset of the specified byte position
-     */
-    final int getOffset(int bytes, int ids) {
-        return getOffset(bytes + ids * Segment.RECORD_ID_BYTES);
+    Reader getReader() {
+        return getSegment().getReader(id);
+    }
+
+    Reader getReader(int offset) {
+        return getSegment().getReader(id, offset);
+    }
+
+    Reader getReader(int offset, int ids) {
+        return getReader(offset + ids * RECORD_ID_BYTES);  // michid push to Segment!?
     }
 
     //------------------------------------------------------------< Object >--

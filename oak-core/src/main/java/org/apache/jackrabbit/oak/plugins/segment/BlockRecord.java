@@ -20,6 +20,8 @@ import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
+
 /**
  * A record of type "BLOCK".
  */
@@ -52,7 +54,8 @@ class BlockRecord implements Writable {
             length = size - position;
         }
         if (length > 0) {
-            record.getSegment().readBytes(record.getOffset(position), buffer, offset, length);
+            Reader reader = record.getReader(position);
+            reader.readBytes(buffer, offset, length);
         }
         return length;
     }

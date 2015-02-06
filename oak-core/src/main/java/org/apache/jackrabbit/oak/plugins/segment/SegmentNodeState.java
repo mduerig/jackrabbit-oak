@@ -43,6 +43,7 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryChildNodeEntry;
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -92,7 +93,7 @@ public class SegmentNodeState implements Writable, NodeState {
         if (templateId == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            templateId = record.getSegment().readRecordId(record.getOffset(0));
+            templateId = record.getReader().readRecordId();
         }
         return templateId;
     }
@@ -101,14 +102,15 @@ public class SegmentNodeState implements Writable, NodeState {
         if (template == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            template = record.getSegment().readTemplate(getTemplateId());
+            template = Segment.readTemplate(getTemplateId());
         }
         return template;
     }
 
     MapRecord getChildNodeMap() {
         Segment segment = record.getSegment();
-        return segment.readMap(segment.readRecordId(record.getOffset(0, 1)));
+        Reader reader = record.getReader(0, 1);
+        return segment.readMap(reader.readRecordId());
     }
 
     @Override
@@ -169,8 +171,8 @@ public class SegmentNodeState implements Writable, NodeState {
             if (template.getChildName() != Template.ZERO_CHILD_NODES) {
                 ids++;
             }
-            return new SegmentPropertyState(
-                    segment.readRecordId(record.getOffset(0, ids)), propertyTemplate);
+            Reader reader = record.getReader(0, ids);
+            return new SegmentPropertyState(reader.readRecordId(), propertyTemplate);
         } else {
             return null;
         }
@@ -198,10 +200,9 @@ public class SegmentNodeState implements Writable, NodeState {
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
-        for (int i = 0; i < propertyTemplates.length; i++) {
-            RecordId propertyId = segment.readRecordId(record.getOffset(0, ids++));
-            list.add(new SegmentPropertyState(
-                    propertyId, propertyTemplates[i]));
+        Reader reader = record.getReader(0, ids);
+        for (PropertyTemplate propertyTemplate : propertyTemplates) {
+            list.add(new SegmentPropertyState(reader.readRecordId(), propertyTemplate));
         }
 
         return list;
@@ -282,7 +283,8 @@ public class SegmentNodeState implements Writable, NodeState {
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
-        return segment.readString(segment.readRecordId(record.getOffset(0, ids)));
+        Reader reader = record.getReader(0, ids);
+        return Segment.readString(reader.readRecordId());
     }
 
     /**
@@ -318,28 +320,28 @@ public class SegmentNodeState implements Writable, NodeState {
             return emptyList();
         }
 
-        Segment segment = record.getSegment();
         int ids = 1 + propertyTemplate.getIndex();
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
 
-        RecordId id = segment.readRecordId(record.getOffset(0, ids));
-        segment = id.getSegment();
-        int size = segment.readInt(id.getOffset());
+        RecordId id = record.getReader(0, ids).readRecordId();
+        Segment segment = id.getSegment();
+        Reader reader = segment.getReader(id);
+        int size = reader.readInt();
         if (size == 0) {
             return emptyList();
         }
 
-        id = segment.readRecordId(id.getOffset() + 4);
+        id = reader.readRecordId();
         if (size == 1) {
-            return singletonList(segment.readString(id));
+            return singletonList(Segment.readString(id));
         }
 
         List<String> values = newArrayListWithCapacity(size);
         ListRecord list = new ListRecord(id, size);
         for (RecordId value : list.getEntries()) {
-            values.add(segment.readString(value));
+            values.add(Segment.readString(value));
         }
         return values;
     }
@@ -378,8 +380,8 @@ public class SegmentNodeState implements Writable, NodeState {
             }
         } else if (childName != Template.ZERO_CHILD_NODES
                 && childName.equals(name)) {
-            Segment segment = record.getSegment();
-            RecordId childNodeId = segment.readRecordId(record.getOffset(0, 1));
+            Reader reader = record.getReader(0, 1);
+            RecordId childNodeId = reader.readRecordId();
             return new SegmentNodeState(childNodeId);
         }
         checkValidName(name);
@@ -406,8 +408,8 @@ public class SegmentNodeState implements Writable, NodeState {
         } else if (childName == Template.MANY_CHILD_NODES) {
             return getChildNodeMap().getEntries();
         } else {
-            Segment segment = record.getSegment();
-            RecordId childNodeId = segment.readRecordId(record.getOffset(0, 1));
+            Reader reader = record.getReader(0, 1);
+            RecordId childNodeId = reader.readRecordId();
             return Collections.singletonList(new MemoryChildNodeEntry(
                     childName, new SegmentNodeState(childNodeId)));
         }

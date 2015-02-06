@@ -61,6 +61,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -661,12 +662,15 @@ public class SegmentWriter {
     MapRecord writeMap(MapRecord base, Map<String, RecordId> changes) {
         if (base != null && base.isDiff()) {
             Segment segment = base.getSegment();
-            RecordId key = segment.readRecordId(base.getOffset(8));
-            String name = segment.readString(key);
+            Reader reader = base.getReader(8);
+            RecordId key = reader.readRecordId();
+            String name = Segment.readString(key);
             if (!changes.containsKey(name)) {
-                changes.put(name, segment.readRecordId(base.getOffset(8, 1)));
+                reader = base.getReader(8, 1);
+                changes.put(name, reader.readRecordId());
             }
-            base = new MapRecord(segment.readRecordId(base.getOffset(8, 2)));
+            reader = base.getReader(8, 2);
+            base = new MapRecord(reader.readRecordId());
         }
 
         if (base != null && changes.size() == 1) {

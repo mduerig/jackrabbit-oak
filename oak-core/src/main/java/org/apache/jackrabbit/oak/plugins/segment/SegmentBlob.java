@@ -34,6 +34,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.memory.AbstractBlob;
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 
 /**
@@ -58,10 +59,9 @@ public class SegmentBlob implements Writable, Blob {
         return record.getRecordId();
     }
 
-    private InputStream getInlineStream(
-            Segment segment, int offset, int length) {
+    private InputStream getInlineStream(Reader reader, int length) {
         byte[] inline = new byte[length];
-        segment.readBytes(offset, inline, 0, length);
+        reader.readBytes(inline, 0, length);
         return new SegmentStream(record.getRecordId(), inline);
     }
 
@@ -77,28 +77,26 @@ public class SegmentBlob implements Writable, Blob {
 
     @Override @Nonnull
     public InputStream getNewStream() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
-        byte head = segment.readByte(offset);
+        Reader reader = record.getReader();
+        byte head = reader.readByte();
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
-            return getInlineStream(segment, offset + 1, head);
+            return getInlineStream(reader, head);
         } else if ((head & 0xc0) == 0x80) {
             // 10xx xxxx: medium value
-            int length = (segment.readShort(offset) & 0x3fff) + SMALL_LIMIT;
-            return getInlineStream(segment, offset + 2, length);
+            int length = (reader.skip(-1).readShort() & 0x3fff) + SMALL_LIMIT;
+            return getInlineStream(reader, length);
         } else if ((head & 0xe0) == 0xc0) {
             // 110x xxxx: long value
-            long length = (segment.readLong(offset) & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
+            long length = (reader.skip(-1).readLong() & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
             int listSize = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-            ListRecord list = new ListRecord(
-                    segment.readRecordId(offset + 8), listSize);
+            ListRecord list = new ListRecord(reader.readRecordId(), listSize);
             return new SegmentStream(record.getRecordId(), list, length);
         } else if ((head & 0xf0) == 0xe0) {
             // 1110 xxxx: external value
-            String refererence = readReference(segment, offset, head);
-            return segment.getSegmentId().getTracker().getStore()
-                    .readBlob(refererence).getNewStream();
+            String reference = readReference(reader, head);
+            return record.getSegment().getSegmentId().getTracker().getStore()
+                    .readBlob(reference).getNewStream();
         } else {
             throw new IllegalStateException(String.format(
                     "Unexpected value record type: %02x", head & 0xff));
@@ -107,22 +105,21 @@ public class SegmentBlob implements Writable, Blob {
 
     @Override
     public long length() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
-        byte head = segment.readByte(offset);
+        Reader reader = record.getReader();
+        byte head = reader.readByte();
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
             return head;
         } else if ((head & 0xc0) == 0x80) {
             // 10xx xxxx: medium value
-            return (segment.readShort(offset) & 0x3fff) + SMALL_LIMIT;
+            return (reader.skip(-1).readShort() & 0x3fff) + SMALL_LIMIT;
         } else if ((head & 0xe0) == 0xc0) {
             // 110x xxxx: long value
-            return (segment.readLong(offset) & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
+            return (reader.skip(-1).readLong() & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
         } else if ((head & 0xf0) == 0xe0) {
             // 1110 xxxx: external value
-            String reference = readReference(segment, offset, head);
-            long length = segment.getSegmentId().getTracker().getStore()
+            String reference = readReference(reader, head);
+            long length = record.getSegment().getSegmentId().getTracker().getStore()
                     .readBlob(reference).length();
             if (length == -1) {
                 throw new IllegalStateException(
@@ -159,29 +156,26 @@ public class SegmentBlob implements Writable, Blob {
     }
 
     public boolean isExternal() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
-        byte head = segment.readByte(offset);
+        Reader reader = record.getReader();
+        byte head = reader.readByte();
         // 1110 xxxx: external value
         return (head & 0xf0) == 0xe0;
     }
 
     public String getBlobId() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
-        byte head = segment.readByte(offset);
+        Reader reader = record.getReader();
+        byte head = reader.readByte();
         if ((head & 0xf0) == 0xe0) {
             // 1110 xxxx: external value
-            return readReference(segment, offset, head);
+            return readReference(reader, head);
         } else {
             return null;
         }
     }
 
     public SegmentBlob clone(SegmentWriter writer, boolean cloneLargeBinaries) throws IOException {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
-        byte head = segment.readByte(offset);
+        Reader reader = record.getReader();
+        byte head = reader.readByte();
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
             return writer.writeStream(new BufferedInputStream(getNewStream()));
@@ -195,11 +189,9 @@ public class SegmentBlob implements Writable, Blob {
                         getNewStream()));
             } else {
                 // this was the previous (default) behavior
-                long length = (segment.readLong(offset) & 0x1fffffffffffffffL)
-                        + MEDIUM_LIMIT;
+                long length = (reader.skip(-1).readLong() & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
                 int listSize = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-                ListRecord list = new ListRecord(
-                        segment.readRecordId(offset + 8), listSize);
+                ListRecord list = new ListRecord(reader.readRecordId(), listSize);
                 return writer.writeLargeBlob(length, list.getEntries());
             }
         } else if ((head & 0xf0) == 0xe0) {
@@ -238,24 +230,21 @@ public class SegmentBlob implements Writable, Blob {
 
     //-----------------------------------------------------------< private >--
 
-    private static String readReference(
-            Segment segment, int offset, byte head) {
-        int length = (head & 0x0f) << 8 | (segment.readByte(offset + 1) & 0xff);
+    private static String readReference(Reader reader, byte head) {
+        int length = (head & 0x0f) << 8 | (reader.readByte() & 0xff);
         byte[] bytes = new byte[length];
-        segment.readBytes(offset + 2, bytes, 0, length);
+        reader.readBytes(bytes, 0, length);
         return new String(bytes, UTF_8);
     }
 
     private Iterable<SegmentId> getBulkSegmentIds() {
-        Segment segment = record.getSegment();
-        int offset = record.getOffset();
-        byte head = segment.readByte(offset);
+        Reader reader = record.getReader();
+        byte head = reader.readByte();
         if ((head & 0xe0) == 0xc0) {
             // 110x xxxx: long value
-            long length = (segment.readLong(offset) & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
+            long length = (reader.skip(-1).readLong() & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
             int listSize = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-            ListRecord list = new ListRecord(
-                    segment.readRecordId(offset + 8), listSize);
+            ListRecord list = new ListRecord(reader.readRecordId(), listSize);
             Set<SegmentId> ids = newIdentityHashSet();
             for (RecordId id : list.getEntries()) {
                 ids.add(id.getSegmentId());

@@ -26,6 +26,8 @@ import static java.util.Collections.singletonList;
 
 import java.util.List;
 
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
+
 /**
  * A record of type "LIST".
  */
@@ -66,8 +68,8 @@ class ListRecord implements Writable {
         } else {
             int bucketIndex = index / bucketSize;
             int bucketOffset = index % bucketSize;
-            Segment segment = record.getSegment();
-            RecordId id = segment.readRecordId(record.getOffset(0, bucketIndex));
+            Reader reader = record.getReader(0, bucketIndex);
+            RecordId id = reader.readRecordId();
             ListRecord bucket = new ListRecord(
                     id, Math.min(bucketSize, size - bucketIndex * bucketSize));
             return bucket.getEntry(bucketOffset);
@@ -95,18 +97,19 @@ class ListRecord implements Writable {
 
     private void getEntries(int index, int count, List<RecordId> ids) {
         checkPositionIndexes(index, index + count, size);
-        Segment segment = record.getSegment();
         if (size == 1) {
             ids.add(record.getRecordId());
         } else if (bucketSize == 1) {
+            Reader reader = record.getReader(0, index);
             for (int i = 0; i < count; i++) {
-                ids.add(segment.readRecordId(record.getOffset(0, index + i)));
+                ids.add(reader.readRecordId());
             }
         } else {
             while (count > 0) {
                 int bucketIndex = index / bucketSize;
                 int bucketOffset = index % bucketSize;
-                RecordId id = segment.readRecordId(record.getOffset(0, bucketIndex));
+                Reader reader = record.getReader(0, bucketIndex);
+                RecordId id = reader.readRecordId();
                 ListRecord bucket = new ListRecord(
                         id, Math.min(bucketSize, size - bucketIndex * bucketSize));
                 int n = Math.min(bucket.size() - bucketOffset, count);
