@@ -189,7 +189,7 @@ class MapRecord implements Writable {
                     return new MapEntry(name, key, value);
                 }
             }
-            RecordId base = reader.readRecordId();
+            RecordId base = reader.readRecordId(8, 2);
             return new MapRecord(base).getEntry(name);
         }
 
@@ -292,8 +292,7 @@ class MapRecord implements Writable {
         // this is a leaf record; scan the list to find a matching entry
         Long h = hash & HASH_MASK;
         for (int i = 0; i < size; i++) {
-            int hashOffset = 4 + i * 4;
-            int diff = h.compareTo(reader.readInt(hashOffset) & HASH_MASK);
+            int diff = h.compareTo(reader.readInt(4 + i * 4) & HASH_MASK);
             if (diff > 0) {
                 return null;
             } else if (diff == 0) {
