@@ -33,6 +33,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.base.Charsets;
@@ -136,6 +137,10 @@ public class Segment {
 
     private volatile long accessed = 0;
 
+    // michid make offsetMap final
+    // michid optimise offset map to int
+    private Map<Integer, Integer> offsetMap;
+
     public Segment(SegmentTracker tracker, SegmentId id, ByteBuffer data) {
         this.tracker = checkNotNull(tracker);
         this.id = checkNotNull(id);
@@ -171,9 +176,20 @@ public class Segment {
         return accessed != 0;
     }
 
+    // michid remove and pass with constructor
+    public void setOffsetMap(Map<Integer, Integer> offsetMap) {
+        this.offsetMap = offsetMap;
+    }
+
     private int mapOffset(int offset) {
-        // michid implement mapOffset to take rewritten segments into account
-        int pos = data.limit() - MAX_SEGMENT_SIZE + offset;
+        Integer o;
+        if (offsetMap == null) {
+            o = offset;
+        } else {
+            o = offsetMap.get(offset);
+            checkState(o != null);
+        }
+        int pos = data.limit() - MAX_SEGMENT_SIZE + o;
         checkState(pos >= data.position());
         return pos;
     }

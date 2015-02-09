@@ -51,7 +51,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Stopwatch;
-import com.google.common.collect.Maps;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.segment.CompactionMap;
@@ -699,15 +698,21 @@ public class FileStore implements SegmentStore {
             try {
                 ByteBuffer buffer = proxyWriter.readEntry(msb, lsb);
                 if (buffer != null) {
-                    // michid FIX resolve the proxy segment:
                     // proxiedSegmentId = readProxiedSegmentId(buffer)
+                    SegmentId proxiedId = tracker.getSegmentId(buffer.getLong(), buffer.getLong());
+
                     // s = readSegment(proxiedSegmentId)           (might lead to proxy resolution)
+                    Segment proxiedSegment = readSegment(proxiedId);
+
                     // offsetAdjustmentMap = readOffsetAdjustmentMap(buffer)
+                    Map<Integer, Integer> offsetMap = newHashMap();  // michid use specialised int map
+                    while (buffer.remaining() > 0) {
+                        offsetMap.put(buffer.getInt(), buffer.getInt());
+                    }
+
                     // s.adjustOffsets(offsetAdjustmentMap)
-                    // In reality inject right into the Segment constructor.
-                    // For that we need to introduce a byte[] readSegment(SegmentId) method and implement
-                    // Segment readSegment(SegmentId) method in terms of it.
-                    return new Segment(tracker, id, buffer);
+                    proxiedSegment.setOffsetMap(offsetMap);
+                    return proxiedSegment;
                 }
                 buffer = writer.readEntry(msb, lsb);
                 if (buffer != null) {
@@ -814,7 +819,7 @@ public class FileStore implements SegmentStore {
     public Map<UUID, List<UUID>> getTarGraph(String fileName) throws IOException {
         for (TarReader reader : readers) {
             if (fileName.equals(reader.getFile().getName())) {
-                Map<UUID, List<UUID>> graph = Maps.newHashMap();
+                Map<UUID, List<UUID>> graph = newHashMap();
                 for (UUID uuid : reader.getUUIDs()) {
                     graph.put(uuid, null);
                 }
