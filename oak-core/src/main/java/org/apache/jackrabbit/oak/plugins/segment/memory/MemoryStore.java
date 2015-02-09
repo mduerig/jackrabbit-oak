@@ -109,6 +109,11 @@ public class MemoryStore implements SegmentStore {
     }
 
     @Override
+    public void writeProxy(SegmentId id, byte[] bytes, int offset, int length) {
+        throw new UnsupportedOperationException(); // michid implement writeProxy
+    }
+
+    @Override
     public void close() {
     }
 

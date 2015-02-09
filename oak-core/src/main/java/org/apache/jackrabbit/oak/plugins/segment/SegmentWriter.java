@@ -227,8 +227,8 @@ public class SegmentWriter {
             }
 
             SegmentId id = segment.getSegmentId();
-            log.debug("Writing data segment {} ({} bytes)", id, length);
-            store.writeSegment(id, buffer, buffer.length - length, length);
+                log.debug("Writing data segment {} ({} bytes)", id, length);
+                store.writeSegment(id, buffer, buffer.length - length, length);
 
             // Keep this segment in memory as it's likely to be accessed soon
             ByteBuffer data;
@@ -1016,8 +1016,16 @@ public class SegmentWriter {
         }
     }
 
+    SegmentNodeState forceWriteNode(NodeState state) {
+        return writeNode(state, true);
+    }
+
     public SegmentNodeState writeNode(NodeState state) {
-        if (state instanceof SegmentNodeState) {
+        return writeNode(state, false);
+    }
+
+    private SegmentNodeState writeNode(NodeState state, boolean force) {
+        if (!force && state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
             if (sns != state || store.containsSegment(
                     sns.getRecordId().getSegmentId())) {
@@ -1151,17 +1159,20 @@ public class SegmentWriter {
         writeLong(buffer, segmentId.getLeastSignificantBits());
     }
 
-    public void writeProxy(SegmentId proxyId, SegmentId segmentId, Map<Integer, Integer> proxy) {
-        byte[] bytes = new byte[proxy.size() * 2 * ((2 * Long.SIZE) + Integer.SIZE)];
+    public void writeProxy(SegmentId segmentId, Map<Integer, Integer> proxy) {
+        SegmentId proxiedId = segment.getSegmentId();
+        flush();
+
+        byte[] bytes = new byte[2 * (Long.SIZE >> 3) + proxy.size() * 2 * (Integer.SIZE >> 3)];
         ByteBuffer buffer = ByteBuffer.wrap(bytes);
 
-        writeSegmentId(buffer, segmentId);
+        writeSegmentId(buffer, proxiedId);
         for (Entry<Integer, Integer> entry : proxy.entrySet()) {
             writeInt(buffer, entry.getKey());
             writeInt(buffer, entry.getValue());
         }
 
-        store.writeSegment(proxyId, bytes, 0, bytes.length);
+        store.writeProxy(segmentId, bytes, 0, bytes.length);
     }
 
 }

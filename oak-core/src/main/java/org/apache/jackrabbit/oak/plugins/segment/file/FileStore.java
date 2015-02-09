@@ -683,6 +683,25 @@ public class FileStore implements SegmentStore {
         long msb = id.getMostSignificantBits();
         long lsb = id.getLeastSignificantBits();
 
+        synchronized (this) {
+            try {
+                ByteBuffer buffer = proxyWriter.readEntry(msb, lsb);
+                if (buffer != null) {
+                    SegmentId proxiedId = tracker.getSegmentId(buffer.getLong(), buffer.getLong());
+                    Map<Integer, Integer> offsetMap = newHashMap();  // michid use specialised int map
+                    while (buffer.remaining() > 0) {
+                        offsetMap.put(buffer.getInt(), buffer.getInt());
+                    }
+
+                    Segment proxiedSegment = readSegment(proxiedId);
+                    proxiedSegment.setOffsetMap(offsetMap);
+                    return proxiedSegment;
+                }
+            } catch (IOException e) {
+                log.warn("Failed to read from tar file " + writer, e);
+            }
+        }
+
         for (TarReader reader : readers) {
             try {
                 ByteBuffer buffer = reader.readEntry(msb, lsb);
@@ -696,25 +715,7 @@ public class FileStore implements SegmentStore {
 
         synchronized (this) {
             try {
-                ByteBuffer buffer = proxyWriter.readEntry(msb, lsb);
-                if (buffer != null) {
-                    // proxiedSegmentId = readProxiedSegmentId(buffer)
-                    SegmentId proxiedId = tracker.getSegmentId(buffer.getLong(), buffer.getLong());
-
-                    // s = readSegment(proxiedSegmentId)           (might lead to proxy resolution)
-                    Segment proxiedSegment = readSegment(proxiedId);
-
-                    // offsetAdjustmentMap = readOffsetAdjustmentMap(buffer)
-                    Map<Integer, Integer> offsetMap = newHashMap();  // michid use specialised int map
-                    while (buffer.remaining() > 0) {
-                        offsetMap.put(buffer.getInt(), buffer.getInt());
-                    }
-
-                    // s.adjustOffsets(offsetAdjustmentMap)
-                    proxiedSegment.setOffsetMap(offsetMap);
-                    return proxiedSegment;
-                }
-                buffer = writer.readEntry(msb, lsb);
+                ByteBuffer buffer = writer.readEntry(msb, lsb);
                 if (buffer != null) {
                     return new Segment(tracker, id, buffer);
                 }
@@ -740,27 +741,7 @@ public class FileStore implements SegmentStore {
     }
 
     @Override
-    public void writeSegment(
-            SegmentId id, byte[] data, int offset, int length) {
-        if (id.isProxy()) {
-            writeProxySegment(id, data, offset, length);
-        } else {
-            writeDataSegment(id, data, offset, length);
-        }
-    }
-
-    private synchronized void writeProxySegment(SegmentId id, byte[] data, int offset, int length) {
-        try {
-            proxyWriter.writeEntry(
-                    id.getMostSignificantBits(),
-                    id.getLeastSignificantBits(),
-                    data, offset, length);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private synchronized void writeDataSegment(SegmentId id, byte[] data, int offset, int length) {
+    public synchronized void writeSegment(SegmentId id, byte[] data, int offset, int length) {
         try {
             long size = writer.writeEntry(
                     id.getMostSignificantBits(),
@@ -781,6 +762,18 @@ public class FileStore implements SegmentStore {
                         String.format(FILE_NAME_FORMAT, writeNumber, "a"));
                 writer = new TarWriter(writeFile);
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public synchronized void writeProxy(SegmentId id, byte[] data, int offset, int length) {
+        try {
+            proxyWriter.writeProxyEntry(
+                    id.getMostSignificantBits(),
+                    id.getLeastSignificantBits(),
+                    data, offset, length);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

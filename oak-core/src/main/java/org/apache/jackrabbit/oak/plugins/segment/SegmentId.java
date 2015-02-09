@@ -35,8 +35,6 @@ public class SegmentId implements Comparable<SegmentId> {
     /** Logger instance */
     private static final Logger log = LoggerFactory.getLogger(SegmentId.class);
 
-    private final boolean proxy;
-
     /**
      * Checks whether this is a data segment identifier.
      *
@@ -60,16 +58,6 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     // TODO: possibly we could remove the volatile
     private volatile Segment segment;
-
-    private SegmentId(SegmentTracker tracker, long msb, long lsb,
-            Segment segment, long creationTime, boolean proxy) {
-        this.tracker = tracker;
-        this.msb = msb;
-        this.lsb = lsb;
-        this.segment = segment;
-        this.creationTime = creationTime;
-        this.proxy = proxy;
-    }
 
     private final Map<RecordId, Record> records = new WeakHashMap<RecordId, Record>();
 
@@ -97,13 +85,14 @@ public class SegmentId implements Comparable<SegmentId> {
             }
         }
 
-        SegmentId proxyId = new SegmentId(tracker, msb, lsb, segment, creationTime, true);
-        writer.writeProxy(proxyId, this, offsets);
-        writer.flush();
+        writer.writeProxy(this, offsets);
     }
 
     public SegmentId(SegmentTracker tracker, long msb, long lsb) {
-        this(tracker, msb, lsb, null, System.currentTimeMillis(), false);
+        this.tracker = tracker;
+        this.msb = msb;
+        this.lsb = lsb;
+        this.creationTime = System.currentTimeMillis();
     }
 
     /**
@@ -195,9 +184,5 @@ public class SegmentId implements Comparable<SegmentId> {
     @Override
     public int hashCode() {
         return (int) lsb;
-    }
-
-    public boolean isProxy() {
-        return proxy;
     }
 }

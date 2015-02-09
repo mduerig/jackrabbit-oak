@@ -184,8 +184,20 @@ class TarWriter {
         }
     }
 
+    long writeProxyEntry(
+            long msb, long lsb, byte[] data, int offset, int size)
+            throws IOException {
+        return writeEntry(msb, lsb, data, offset, size, true);
+    }
+
     long writeEntry(
             long msb, long lsb, byte[] data, int offset, int size)
+            throws IOException {
+        return writeEntry(msb, lsb, data, offset, size, false);
+    }
+
+    private long writeEntry(
+            long msb, long lsb, byte[] data, int offset, int size, boolean proxy)
             throws IOException {
         checkNotNull(data);
         checkPositionIndexes(offset, offset + size, data.length);
@@ -197,11 +209,11 @@ class TarWriter {
         byte[] header = newEntryHeader(entryName, size);
 
         log.debug("Writing segment {} to {}", uuid, file);
-        return writeEntry(uuid, header, data, offset, size);
+        return writeEntry(uuid, header, data, offset, size, proxy);
     }
 
     private synchronized long writeEntry(
-            UUID uuid, byte[] header, byte[] data, int offset, int size)
+            UUID uuid, byte[] header, byte[] data, int offset, int size, boolean proxy)
             throws IOException {
         checkState(!closed);
         if (access == null) {
@@ -222,7 +234,7 @@ class TarWriter {
                 (int) (length - size - padding), size);
         index.put(uuid, entry);
 
-        if (isDataSegmentId(uuid.getLeastSignificantBits())) {
+        if (!proxy && isDataSegmentId(uuid.getLeastSignificantBits())) {
             ByteBuffer segment = ByteBuffer.wrap(data, offset, size);
             int pos = segment.position();
             int refcount = segment.get(pos + REF_COUNT_OFFSET) & 0xff;

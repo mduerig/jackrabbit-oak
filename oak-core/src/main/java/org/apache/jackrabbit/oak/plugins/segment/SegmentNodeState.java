@@ -115,7 +115,7 @@ public class SegmentNodeState implements Writable, NodeState {
 
     @Override
     public RecordId writeTo(SegmentWriter writer) {
-        return writer.writeNode(this).getRecordId();
+        return writer.forceWriteNode(this).getRecordId();
     }
 
     @Override

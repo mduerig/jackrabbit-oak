@@ -66,6 +66,8 @@ public interface SegmentStore {
      */
     void writeSegment(SegmentId id, byte[] bytes, int offset, int length);
 
+    void writeProxy(SegmentId id, byte[] bytes, int offset, int length);
+
     void close();
 
     /**
@@ -86,5 +88,4 @@ public interface SegmentStore {
      * Triggers removal of segments that are no longer referenceable.
      */
     void gc();
-
 }

@@ -18,10 +18,10 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import javax.annotation.Nonnull;
+
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
-
-import javax.annotation.Nonnull;
 
 public class DebugSegmentStore implements SegmentStore {
 
@@ -61,6 +61,11 @@ public class DebugSegmentStore implements SegmentStore {
     @Override
     public void writeSegment(SegmentId id, byte[] bytes, int offset, int length) {
         this.target.writeSegment(id, bytes, offset, length);
+    }
+
+    @Override
+    public void writeProxy(SegmentId id, byte[] bytes, int offset, int length) {
+        throw new UnsupportedOperationException(); // michid implement writeProxy
     }
 
     @Override
