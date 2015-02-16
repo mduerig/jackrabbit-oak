@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.api;
 
 import java.io.Closeable;
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 /**
@@ -69,4 +70,29 @@ public interface ContentSession extends Closeable {
      */
     @Nonnull
     Root getLatestRoot();
+
+    /**
+     * Return the root associated with the given revision.
+     *
+     * @param revision The revision that will be used to retrieve the associated
+     *                 root.
+     * @return The root associated with the given revision, or {@code null} if
+     * the revision is not valid anymore.
+     */
+    @CheckForNull
+    Root getRoot(Revision revision);
+
+    /**
+     * Return the root associated with the given string representation of a
+     * revision. This is the same as invoking {@link #getRoot(Revision)} with
+     * the value returned by {@link org.apache.jackrabbit.oak.api.Revision#asString()}.
+     *
+     * @param revision The string representation of the revision that will be
+     *                 used to retrieve the associated root.
+     * @return The root associated with the given revision, or {@code null} if
+     * the revision is not valid anymore.
+     */
+    @CheckForNull
+    Root getRoot(String revision);
+
 }

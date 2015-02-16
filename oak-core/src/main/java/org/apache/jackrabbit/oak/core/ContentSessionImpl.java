@@ -27,12 +27,14 @@ import javax.security.auth.login.LoginException;
 
 import org.apache.jackrabbit.oak.api.AuthInfo;
 import org.apache.jackrabbit.oak.api.ContentSession;
+import org.apache.jackrabbit.oak.api.Revision;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.query.QueryEngineSettings;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
 import org.apache.jackrabbit.oak.spi.security.SecurityProvider;
 import org.apache.jackrabbit.oak.spi.security.authentication.LoginContext;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -125,6 +127,30 @@ class ContentSessionImpl implements ContentSession {
     @Override
     public String toString() {
         return sessionName;
+    }
+
+    @Override
+    public Root getRoot(Revision revision) {
+        checkLive();
+
+        if (revision instanceof CheckpointRevision) {
+            return getRoot(revision.asString());
+        }
+
+        throw new IllegalArgumentException("invalid revision");
+    }
+
+    @Override
+    public Root getRoot(String revision) {
+        NodeState state = store.retrieve(revision);
+
+        if (state == null) {
+            return null;
+        }
+
+        return new MutableRoot(store, state, hook, workspaceName,
+                loginContext.getSubject(), securityProvider,
+                queryEngineSettings, indexProvider, this);
     }
 
 }

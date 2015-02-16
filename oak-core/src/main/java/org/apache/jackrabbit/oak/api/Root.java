@@ -176,4 +176,13 @@ public interface Root {
     @Nonnull
     ContentSession getContentSession();
 
+    /**
+     * Return a revision that can be used to retrieve non-transient state
+     * represented by this root.
+     *
+     * @return A revision associated to the non-transient state of this root.
+     */
+    @Nonnull
+    Revision getRevision();
+
 }

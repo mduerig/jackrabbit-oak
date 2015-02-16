@@ -38,6 +38,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.QueryEngine;
+import org.apache.jackrabbit.oak.api.Revision;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.index.diffindex.UUIDDiffIndexProviderWrapper;
@@ -64,6 +65,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 
 class MutableRoot implements Root {
+
+    private static final long DEFAULT_CHECKPOINT_LIFETIME = 1000;
 
     /**
      * The underlying store to which this root belongs
@@ -148,6 +151,19 @@ class MutableRoot implements Root {
                  QueryEngineSettings queryEngineSettings,
                  QueryIndexProvider indexProvider,
                  ContentSessionImpl session) {
+        this(store, store.getRoot(), hook, workspaceName, subject,
+                securityProvider, queryEngineSettings, indexProvider, session);
+    }
+
+    MutableRoot(NodeStore store,
+                NodeState state,
+                CommitHook hook,
+                String workspaceName,
+                Subject subject,
+                SecurityProvider securityProvider,
+                QueryEngineSettings queryEngineSettings,
+                QueryIndexProvider indexProvider,
+                ContentSessionImpl session) {
         this.store = checkNotNull(store);
         this.hook = checkNotNull(hook);
         this.workspaceName = checkNotNull(workspaceName);
@@ -157,7 +173,7 @@ class MutableRoot implements Root {
         this.indexProvider = indexProvider;
         this.session = checkNotNull(session);
 
-        builder = store.getRoot().builder();
+        builder = state.builder();
         secureBuilder = new SecureNodeBuilder(builder, permissionProvider, getAcContext());
         rootTree = new MutableTree(this, secureBuilder, lastMove);
     }
@@ -320,6 +336,11 @@ class MutableRoot implements Root {
     @Override
     public Blob getBlob(@Nonnull String reference) {
         return store.getBlob(reference);
+    }
+
+    @Override
+    public Revision getRevision() {
+        return new CheckpointRevision(store.checkpoint(DEFAULT_CHECKPOINT_LIFETIME));
     }
 
     //-----------------------------------------------------------< internal >---

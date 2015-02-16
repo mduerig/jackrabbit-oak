@@ -29,6 +29,7 @@ import javax.annotation.Nonnull;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.QueryEngine;
+import org.apache.jackrabbit.oak.api.Revision;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.index.property.PropertyIndexProvider;
@@ -145,6 +146,11 @@ public final class ImmutableRoot implements Root {
     @Nonnull
     @Override
     public ContentSession getContentSession() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Revision getRevision() {
         throw new UnsupportedOperationException();
     }
 

@@ -31,6 +31,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.api.QueryEngine;
+import org.apache.jackrabbit.oak.api.Revision;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.api.Tree;
 import org.apache.jackrabbit.oak.plugins.tree.impl.NodeBuilderTree;
@@ -131,7 +132,23 @@ class UpgradeRoot implements Root {
             public void close() throws IOException {
                 // nothing to do
             }
+
+            @Override
+            public Root getRoot(Revision revision) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Root getRoot(String revision) {
+                throw new UnsupportedOperationException();
+            }
+
         };
+    }
+
+    @Override
+    public Revision getRevision() {
+        throw new UnsupportedOperationException();
     }
 
 }
