@@ -63,7 +63,7 @@ public class RevisionTest extends OakBaseTest {
         Revision revision = root.getRevision();
 
         ContentSession anotherSession = createContentSession();
-        Root anotherRoot = anotherSession.getRoot(revision);
+        Root anotherRoot = anotherSession.getRoot(revision.asString());
         Assert.assertTrue(anotherRoot.getTree("/test").exists());
     }
 
@@ -80,16 +80,8 @@ public class RevisionTest extends OakBaseTest {
         Assert.assertTrue(anotherRoot.getTree("/test").exists());
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testInvalidRevision() throws Exception {
-        session.getRoot(new Revision() {
-
-            @Override
-            public String asString() {
-                return null;
-            }
-
-        });
+        Assert.assertNull(session.getRoot("any"));
     }
 
 }

@@ -19,19 +19,21 @@
 
 package org.apache.jackrabbit.oak.api;
 
+import javax.annotation.Nonnull;
+
 /**
  * Represents a handle to a specific state of the repository. It can be used to
- * retrieve the root and to access the state this revision represents.
+ * retrieve the root at the state this revision represents.
  */
 public interface Revision {
 
     /**
      * Returns a string representation of this revision. How this revision is
      * represented is a detail of this implementation. The string should be
-     * treated as an opaque value.
+     * treated as an opaque value by clients.
      *
      * @return String representation of this revision.
      */
+    @Nonnull
     String asString();
-
 }

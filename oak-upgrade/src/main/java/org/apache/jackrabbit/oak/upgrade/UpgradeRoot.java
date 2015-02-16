@@ -134,13 +134,8 @@ class UpgradeRoot implements Root {
             }
 
             @Override
-            public Root getRoot(Revision revision) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
             public Root getRoot(String revision) {
-                throw new UnsupportedOperationException();
+                return null;
             }
 
         };

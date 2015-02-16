@@ -16,6 +16,7 @@
  */
 package org.apache.jackrabbit.oak.core;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 import java.io.IOException;
@@ -27,7 +28,6 @@ import javax.security.auth.login.LoginException;
 
 import org.apache.jackrabbit.oak.api.AuthInfo;
 import org.apache.jackrabbit.oak.api.ContentSession;
-import org.apache.jackrabbit.oak.api.Revision;
 import org.apache.jackrabbit.oak.api.Root;
 import org.apache.jackrabbit.oak.query.QueryEngineSettings;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
@@ -130,19 +130,8 @@ class ContentSessionImpl implements ContentSession {
     }
 
     @Override
-    public Root getRoot(Revision revision) {
-        checkLive();
-
-        if (revision instanceof CheckpointRevision) {
-            return getRoot(revision.asString());
-        }
-
-        throw new IllegalArgumentException("invalid revision");
-    }
-
-    @Override
-    public Root getRoot(String revision) {
-        NodeState state = store.retrieve(revision);
+    public Root getRoot(@Nonnull String revision) {
+        NodeState state = store.retrieve(checkNotNull(revision));
 
         if (state == null) {
             return null;

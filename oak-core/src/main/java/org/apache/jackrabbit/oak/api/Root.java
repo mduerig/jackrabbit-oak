@@ -177,10 +177,10 @@ public interface Root {
     ContentSession getContentSession();
 
     /**
-     * Return a revision that can be used to retrieve non-transient state
-     * represented by this root.
+     * Return a {@code Revision} that can be used to retrieve a non head
+     * state of the repository.
      *
-     * @return A revision associated to the non-transient state of this root.
+     * @return A {@code Revision} instance.
      */
     @Nonnull
     Revision getRevision();
