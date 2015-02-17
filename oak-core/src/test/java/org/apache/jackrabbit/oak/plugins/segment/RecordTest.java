@@ -183,10 +183,10 @@ public class RecordTest {
 
         Segment segment = large.getSegmentId().getSegment();
 
-        assertEquals("", segment.readString(empty));
-        assertEquals(" ", segment.readString(space));
-        assertEquals("Hello, World!", segment.readString(hello));
-        assertEquals(builder.toString(), segment.readString(large));
+        assertEquals("", Segment.readString(empty));
+        assertEquals(" ", Segment.readString(space));
+        assertEquals("Hello, World!", Segment.readString(hello));
+        assertEquals(builder.toString(), Segment.readString(large));
     }
 
     @Test

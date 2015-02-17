@@ -29,6 +29,7 @@ import static org.apache.jackrabbit.oak.plugins.segment.ListRecord.LEVEL_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MEDIUM_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.SMALL_LIMIT;
+import static org.apache.jackrabbit.oak.plugins.segment.Segment.createReader;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentWriter.BLOCK_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Template.MANY_CHILD_NODES;
 import static org.apache.jackrabbit.oak.plugins.segment.Template.ZERO_CHILD_NODES;
@@ -37,6 +38,7 @@ import java.util.Formatter;
 import java.util.Map;
 
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
@@ -199,17 +201,16 @@ public class RecordUsageAnalyser {
     public void analyseNode(RecordId nodeId) {
         if (notSeen(nodeId)) {
             nodeCount++;
-            Segment segment = nodeId.getSegment();
-            int offset = nodeId.getOffset();
-            RecordId templateId = segment.readRecordId(offset);
+            Reader reader = createReader(nodeId);
+            RecordId templateId = reader.readRecordId();
             analyseTemplate(templateId);
 
-            Template template = segment.readTemplate(templateId);
+            Template template = Segment.readTemplate(templateId);
 
             // Recurses into child nodes in this segment
             if (template.getChildName() == MANY_CHILD_NODES) {
-                RecordId childMapId = segment.readRecordId(offset + RECORD_ID_BYTES);
-                MapRecord childMap = segment.readMap(childMapId);
+                RecordId childMapId = reader.readRecordId();
+                MapRecord childMap = Segment.readMap(childMapId);
                 analyseMap(childMapId, childMap);
                 for (ChildNodeEntry childNodeEntry : childMap.getEntries()) {
                     NodeState child = childNodeEntry.getNodeState();
@@ -219,7 +220,7 @@ public class RecordUsageAnalyser {
                     }
                 }
             } else if (template.getChildName() != ZERO_CHILD_NODES) {
-                RecordId childId = segment.readRecordId(offset + RECORD_ID_BYTES);
+                RecordId childId = reader.readRecordId();
                 analyseNode(childId);
             }
 
@@ -229,7 +230,7 @@ public class RecordUsageAnalyser {
             PropertyTemplate[] propertyTemplates = template.getPropertyTemplates();
             for (PropertyTemplate propertyTemplate : propertyTemplates) {
                 nodeSize += RECORD_ID_BYTES;
-                RecordId propertyId = segment.readRecordId(offset + ids++ * RECORD_ID_BYTES);
+                RecordId propertyId = reader.readRecordId();
                 analyseProperty(propertyId, propertyTemplate);
             }
         }
@@ -263,10 +264,9 @@ public class RecordUsageAnalyser {
     private void analyseTemplate(RecordId templateId) {
         if (notSeen(templateId)) {
             templateCount++;
-            Segment segment = templateId.getSegment();
+            Reader reader = createReader(templateId);
             int size = 0;
-            int offset = templateId.getOffset();
-            int head = segment.readInt(offset + size);
+            int head = reader.readInt();
             boolean hasPrimaryType = (head & (1 << 31)) != 0;
             boolean hasMixinTypes = (head & (1 << 30)) != 0;
             boolean zeroChildNodes = (head & (1 << 29)) != 0;
@@ -276,27 +276,27 @@ public class RecordUsageAnalyser {
             size += 4;
 
             if (hasPrimaryType) {
-                RecordId primaryId = segment.readRecordId(offset + size);
+                RecordId primaryId = reader.readRecordId();
                 analyseString(primaryId);
                 size += Segment.RECORD_ID_BYTES;
             }
 
             if (hasMixinTypes) {
                 for (int i = 0; i < mixinCount; i++) {
-                    RecordId mixinId = segment.readRecordId(offset + size);
+                    RecordId mixinId = reader.readRecordId();
                     analyseString(mixinId);
                     size += Segment.RECORD_ID_BYTES;
                 }
             }
 
             if (!zeroChildNodes && !manyChildNodes) {
-                RecordId childNameId = segment.readRecordId(offset + size);
+                RecordId childNameId = reader.readRecordId();
                 analyseString(childNameId);
                 size += Segment.RECORD_ID_BYTES;
             }
 
             for (int i = 0; i < propertyCount; i++) {
-                RecordId propertyNameId = segment.readRecordId(offset + size);
+                RecordId propertyNameId = reader.readRecordId();
                 size += Segment.RECORD_ID_BYTES;
                 size++;  // type
                 analyseString(propertyNameId);
@@ -325,8 +325,8 @@ public class RecordUsageAnalyser {
         mapSize += RECORD_ID_BYTES;                  // value
         mapSize += RECORD_ID_BYTES;                  // base
 
-        RecordId baseId = mapId.getSegment().readRecordId(
-                mapId.getOffset() + 8 + 2 * RECORD_ID_BYTES);
+        Reader reader = createReader(mapId);
+        RecordId baseId = reader.readRecordId(8 + 2 * RECORD_ID_BYTES);
         analyseMap(baseId, new MapRecord(baseId));
     }
 
@@ -354,17 +354,16 @@ public class RecordUsageAnalyser {
     private void analyseProperty(RecordId propertyId, PropertyTemplate template) {
         if (!contains(propertyId)) {
             propertyCount++;
-            Segment segment = propertyId.getSegment();
-            int offset = propertyId.getOffset();
+            Reader reader = createReader(propertyId);
             Type<?> type = template.getType();
 
             if (type.isArray()) {
                 notSeen(propertyId);
-                int size = segment.readInt(offset);
+                int size = reader.readInt();
                 valueSize += 4;
 
                 if (size > 0) {
-                    RecordId listId = segment.readRecordId(offset + 4);
+                    RecordId listId = reader.readRecordId();
                     valueSize += RECORD_ID_BYTES;
                     for (RecordId valueId : new ListRecord(listId, size).getEntries()) {
                         analyseValue(valueId, type.getBaseType());
@@ -388,29 +387,28 @@ public class RecordUsageAnalyser {
 
     private void analyseBlob(RecordId blobId) {
         if (notSeen(blobId)) {
-            Segment segment = blobId.getSegment();
-            int offset = blobId.getOffset();
-            byte head = segment.readByte(offset);
+            Reader reader = createReader(blobId);
+            byte head = reader.readByte();
             if ((head & 0x80) == 0x00) {
                 // 0xxx xxxx: small value
                 valueSize += (1 + head);
                 smallBlobCount++;
             } else if ((head & 0xc0) == 0x80) {
                 // 10xx xxxx: medium value
-                int length = (segment.readShort(offset) & 0x3fff) + SMALL_LIMIT;
+                int length = (reader.skip(-1).readShort() & 0x3fff) + SMALL_LIMIT;
                 valueSize += (2 + length);
                 mediumBlobCount++;
             } else if ((head & 0xe0) == 0xc0) {
                 // 110x xxxx: long value
-                long length = (segment.readLong(offset) & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
+                long length = (reader.skip(-1).readLong() & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
                 int size = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-                RecordId listId = segment.readRecordId(offset + 8);
+                RecordId listId = reader.readRecordId();
                 analyseList(listId, size);
                 valueSize += (8 + RECORD_ID_BYTES + length);
                 longBlobCount++;
             } else if ((head & 0xf0) == 0xe0) {
                 // 1110 xxxx: external value
-                int length = (head & 0x0f) << 8 | (segment.readByte(offset + 1) & 0xff);
+                int length = (head & 0x0f) << 8 | (reader.readByte() & 0xff);
                 valueSize += (2 + length);
                 externalBlobCount++;
             } else {
@@ -422,24 +420,24 @@ public class RecordUsageAnalyser {
 
     private void analyseString(RecordId stringId) {
         if (notSeen(stringId)) {
-            Segment segment = stringId.getSegment();
-            int offset = stringId.getOffset();
-
-            long length = segment.readLength(offset);
-            if (length < Segment.SMALL_LIMIT) {
-                valueSize += (1 + length);
+            Reader reader = createReader(stringId);
+            byte head = reader.readByte();
+            if ((head & 0x80) == 0x00) {
+                valueSize += (1 + head);
                 smallStringCount++;
-            } else if (length < Segment.MEDIUM_LIMIT) {
+            } else if ((head & 0xc0) == 0x80) {
+                int length = (reader.skip(-1).readShort() & 0x3fff)+ SMALL_LIMIT;
                 valueSize += (2 + length);
                 mediumStringCount++;
-            } else if (length < Integer.MAX_VALUE) {
+            } else if ((head & 0xe0) == 0xc0) {
+                long length = (reader.skip(-1).readLong() & 0x1fffffffffffffffL)+ MEDIUM_LIMIT;
                 int size = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-                RecordId listId = segment.readRecordId(offset + 8);
+                RecordId listId = reader.readRecordId();
                 analyseList(listId, size);
                 valueSize += (8 + RECORD_ID_BYTES + length);
                 longStringCount++;
             } else {
-                throw new IllegalStateException("String is too long: " + length);
+                throw new IllegalStateException("String is too long");
             }
         }
     }

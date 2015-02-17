@@ -47,6 +47,7 @@ import javax.jcr.PropertyType;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.AbstractPropertyState;
+import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 import org.apache.jackrabbit.oak.plugins.value.Conversions;
 import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
 
@@ -74,9 +75,10 @@ public class SegmentPropertyState implements PropertyState {
         RecordId listId = record.getRecordId();
         int size = 1;
         if (isArray()) {
-            size = segment.readInt(record.getOffset());
+            Reader reader = record.getReader();
+            size = reader.readInt();
             if (size > 0) {
-                listId = segment.readRecordId(record.getOffset(4));
+                listId = reader.readRecordId();
             }
         }
         return new ListRecord(listId, size);
@@ -93,7 +95,7 @@ public class SegmentPropertyState implements PropertyState {
         ListRecord values = getValueList(segment);
         for (int i = 0; i < values.size(); i++) {
             RecordId valueId = values.getEntry(i);
-            String value = segment.readString(valueId);
+            String value = Segment.readString(valueId);
             map.put(value, valueId);
         }
 
@@ -118,7 +120,7 @@ public class SegmentPropertyState implements PropertyState {
     @Override
     public int count() {
         if (isArray()) {
-            return record.getSegment().readInt(record.getOffset());
+            return record.getReader().readInt();
         } else {
             return 1;
         }
@@ -176,7 +178,7 @@ public class SegmentPropertyState implements PropertyState {
             return (T) new SegmentBlob(id); // load binaries lazily
         }
 
-        String value = segment.readString(id);
+        String value = Segment.readString(id);
         if (type == STRING || type == URI || type == DATE
                 || type == NAME || type == PATH
                 || type == REFERENCE || type == WEAKREFERENCE) {
@@ -207,7 +209,7 @@ public class SegmentPropertyState implements PropertyState {
         Segment segment = record.getSegment();
         ListRecord values = getValueList(segment);
         checkElementIndex(index, values.size());
-        return segment.readLength(values.getEntry(0));
+        return Segment.readLength(values.getEntry(0));
     }
 
 
