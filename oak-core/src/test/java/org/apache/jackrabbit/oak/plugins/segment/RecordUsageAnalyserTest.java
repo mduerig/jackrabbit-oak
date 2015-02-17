@@ -41,6 +41,7 @@ import org.apache.jackrabbit.oak.plugins.memory.ArrayBasedBlob;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 public class RecordUsageAnalyserTest {
     private SegmentStore store;
@@ -269,6 +270,8 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("longBlob", createRandomBlob(MEDIUM_LIMIT));
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
+        when(store.readSegment(Mockito.<SegmentId>any()))
+                .thenReturn(node.getRecordId().getSegment());
         analyser.analyseNode(node.getRecordId());
         assertCounts(analyser, 1, 3, 6, 1, 1, 1, 0, 10, 1, 1, 2, 3);
     }
