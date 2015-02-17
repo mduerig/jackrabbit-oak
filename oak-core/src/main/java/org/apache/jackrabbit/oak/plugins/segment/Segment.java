@@ -242,7 +242,6 @@ public class Segment {
         return id.getSegment().getReader(id);
     }
 
-    // michid overload with getReader(Record id)!?
     public Reader getReader(RecordId id) {
         return getReader(id, 0);
     }

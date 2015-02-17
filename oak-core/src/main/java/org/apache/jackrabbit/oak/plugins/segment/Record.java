@@ -108,7 +108,7 @@ class Record {
     }
 
     Reader getReader(int offset, int ids) {
-        return getReader(offset + ids * RECORD_ID_BYTES);  // michid push to Segment!?
+        return getReader(offset + ids * RECORD_ID_BYTES);
     }
 
     //------------------------------------------------------------< Object >--
