@@ -59,46 +59,43 @@ import org.apache.jackrabbit.oak.plugins.value.Conversions.Converter;
  * of type "LIST" (for arrays).
  */
 public class SegmentPropertyState implements PropertyState {
-    private final Record record;
+    private final Page page;
     private final PropertyTemplate template;
 
-    public SegmentPropertyState(RecordId id, PropertyTemplate template) {
-        this.record = Record.getRecord(checkNotNull(id));
+    public SegmentPropertyState(@Nonnull Page page, @Nonnull PropertyTemplate template) {
+        this.page = checkNotNull(page);
         this.template = checkNotNull(template);
     }
 
-    public RecordId getRecordId() {
-        return record.getRecordId();
+    public Page getPage() {
+        return page;
     }
 
-    private ListRecord getValueList(Segment segment) {
-        RecordId listId = record.getRecordId();
+    private ListRecord getValueList() {
+        Page listPage = page;
         int size = 1;
         if (isArray()) {
-            Reader reader = record.getReader();
+            Reader reader = page.getReader();
             size = reader.readInt();
             if (size > 0) {
-                listId = reader.readRecordId();
+                listPage = reader.readPage();
             }
         }
-        return new ListRecord(listId, size);
+        return new ListRecord(listPage, size);
     }
 
-    Map<String, RecordId> getValueRecords() {
+    Map<String, Page> getValueRecords() {
         if (getType().tag() == PropertyType.BINARY) {
             return emptyMap();
         }
 
-        Map<String, RecordId> map = newHashMap();
-
-        Segment segment = record.getSegment();
-        ListRecord values = getValueList(segment);
+        Map<String, Page> map = newHashMap();
+        ListRecord values = getValueList();
         for (int i = 0; i < values.size(); i++) {
-            RecordId valueId = values.getEntry(i);
-            String value = Segment.readString(valueId);
-            map.put(value, valueId);
+            Page valuePage = values.getEntry(i);
+            String value = valuePage.readString(0);
+            map.put(value, valuePage);
         }
-
         return map;
     }
 
@@ -120,7 +117,7 @@ public class SegmentPropertyState implements PropertyState {
     @Override
     public int count() {
         if (isArray()) {
-            return record.getReader().readInt();
+            return page.readInt(0);
         } else {
             return 1;
         }
@@ -128,30 +125,26 @@ public class SegmentPropertyState implements PropertyState {
 
     @Override @Nonnull @SuppressWarnings("unchecked")
     public <T> T getValue(Type<T> type) {
-        Segment segment = record.getSegment();
         if (isArray()) {
             checkState(type.isArray());
-            ListRecord values = getValueList(segment);
+            ListRecord values = getValueList();
             if (values.size() == 0) {
                 return (T) emptyList();
             } else if (values.size() == 1) {
-                return (T) singletonList(getValue(
-                        segment, values.getEntry(0), type.getBaseType()));
+                return (T) singletonList(getValue(values.getEntry(0), type.getBaseType()));
             } else {
                 Type<?> base = type.getBaseType();
                 List<Object> list = newArrayListWithCapacity(values.size());
-                for (RecordId id : values.getEntries()) {
-                    list.add(getValue(segment, id, base));
+                for (Page valuePage : values.getEntries()) {
+                    list.add(getValue(valuePage, base));
                 }
                 return (T) list;
             }
         } else {
-            RecordId id = record.getRecordId();
             if (type.isArray()) {
-                return (T) singletonList(
-                        getValue(segment, id, type.getBaseType()));
+                return (T) singletonList(getValue(page, type.getBaseType()));
             } else {
-                return getValue(segment, id, type);
+                return getValue(page, type);
             }
         }
     }
@@ -166,19 +159,18 @@ public class SegmentPropertyState implements PropertyState {
         checkNotNull(type);
         checkArgument(!type.isArray(), "Type must not be an array type");
 
-        Segment segment = record.getSegment();
-        ListRecord values = getValueList(segment);
+        ListRecord values = getValueList();
         checkElementIndex(index, values.size());
-        return getValue(segment, values.getEntry(index), type);
+        return getValue(values.getEntry(index), type);
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T getValue(Segment segment, RecordId id, Type<T> type) {
+    private <T> T getValue(Page page, Type<T> type) {
         if (type == BINARY) {
-            return (T) new SegmentBlob(id); // load binaries lazily
+            return (T) new SegmentBlob(page); // load binaries lazily
         }
 
-        String value = Segment.readString(id);
+        String value = page.readString(0);
         if (type == STRING || type == URI || type == DATE
                 || type == NAME || type == PATH
                 || type == REFERENCE || type == WEAKREFERENCE) {
@@ -206,10 +198,9 @@ public class SegmentPropertyState implements PropertyState {
 
     @Override
     public long size(int index) {
-        Segment segment = record.getSegment();
-        ListRecord values = getValueList(segment);
+        ListRecord values = getValueList();
         checkElementIndex(index, values.size());
-        return Segment.readLength(values.getEntry(0));
+        return values.getEntry(0).readLength(0);
     }
 
 
@@ -224,7 +215,7 @@ public class SegmentPropertyState implements PropertyState {
             SegmentPropertyState that = (SegmentPropertyState) object;
             if (!template.equals(that.template)) {
                 return false;
-            } else if (record.getRecordId().equals(that.record.getRecordId())) {
+            } else if (page.equals(that.page)) {
                 return true;
             }
         }

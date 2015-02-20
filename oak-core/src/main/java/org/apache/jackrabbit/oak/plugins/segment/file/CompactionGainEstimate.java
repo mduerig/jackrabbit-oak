@@ -59,16 +59,16 @@ class CompactionGainEstimate implements TarEntryVisitor {
 
     private void collectReferencedSegments(SegmentNodeState node,
             Set<ThinRecordId> visited) {
-        ThinRecordId tr = ThinRecordId.apply(node.getRecordId());
+        ThinRecordId tr = ThinRecordId.apply(node.getPage());
         if (!visited.contains(tr)) {
-            uuids.put(asUUID(node.getRecordId().getSegmentId()));
+            uuids.put(asUUID(node.getPage().getSegmentId()));
             for (PropertyState property : node.getProperties()) {
                 if (property instanceof SegmentPropertyState) {
                     uuids.put(asUUID(((SegmentPropertyState) property)
-                            .getRecordId().getSegmentId()));
+                            .getPage().getSegmentId()));
                 }
                 for (Blob blob : property.getValue(BINARIES)) {
-                    for (SegmentId id : SegmentBlob.getBulkSegmentIds(blob)) {
+                    for (SegmentId id : SegmentBlob.getBulkPages(blob)) {
                         uuids.put(asUUID(id));
                     }
                 }

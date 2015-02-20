@@ -20,17 +20,17 @@ import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 
-import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
+import javax.annotation.Nonnull;
 
 /**
  * A record of type "BLOCK".
  */
 class BlockRecord {
-    private final Record record;
+    private final Page page;
     private final int size;
 
-    BlockRecord(RecordId id, int size) {
-        this.record = Record.getRecord(checkNotNull(id));
+    BlockRecord(@Nonnull Page page, int size) {
+        this.page = page;
         this.size = size;
     }
 
@@ -54,8 +54,7 @@ class BlockRecord {
             length = size - position;
         }
         if (length > 0) {
-            Reader reader = record.getReader(position);
-            reader.readBytes(buffer, offset, length);
+            page.readBytes(position, buffer, offset, length);
         }
         return length;
     }
@@ -66,17 +65,17 @@ class BlockRecord {
             return true;
         } else {
             return object instanceof BlockRecord &&
-                Record.fastEquals(record, ((BlockRecord) object).record);
+                Record.fastEquals(page, ((BlockRecord) object).page);
         }
     }
 
     @Override
     public int hashCode() {
-        return record.hashCode() ^ size;
+        return page.hashCode() ^ size;
     }
 
     @Override
     public String toString() {
-        return record.toString();
+        return page.toString();
     }
 }

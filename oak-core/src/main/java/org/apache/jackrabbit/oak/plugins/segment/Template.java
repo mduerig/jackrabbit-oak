@@ -19,6 +19,7 @@ package org.apache.jackrabbit.oak.plugins.segment;
 import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.Collections.singletonList;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NODE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 
@@ -164,32 +165,29 @@ public class Template {
         return childName;
     }
 
-    SegmentPropertyState getProperty(RecordId recordId, int index) {
+    SegmentPropertyState getProperty(Page page, int index) {
         checkElementIndex(index, properties.length);
-        Segment segment = checkNotNull(recordId).getSegment();
 
-        Reader reader = segment.getReader(recordId, RECORD_ID_BYTES);
+        Reader reader = page.getReader(RECORD_ID_BYTES);
         if (childName != ZERO_CHILD_NODES) {
             reader.skip(RECORD_ID_BYTES);
         }
         reader.skip(index * RECORD_ID_BYTES);
-        return new SegmentPropertyState(
-                reader.readRecordId(), properties[index]);
+        return new SegmentPropertyState(reader.readPage(), properties[index]);
     }
 
-    MapRecord getChildNodeMap(RecordId recordId) {
+    MapRecord getChildNodeMap(Page page) {
         checkState(childName != ZERO_CHILD_NODES);
-        Segment segment = recordId.getSegment();
-        Reader reader = segment.getReader(recordId, RECORD_ID_BYTES);
-        RecordId childNodesId = reader.readRecordId();
-        return Segment.readMap(childNodesId);
+        Reader reader = page.getReader(RECORD_ID_BYTES);
+        Page childNodesPage = reader.readPage();
+        return childNodesPage.readMap();
     }
 
-    public NodeState getChildNode(String name, RecordId recordId) {
+    public NodeState getChildNode(String name, Page page) {
         if (childName == ZERO_CHILD_NODES) {
             return MISSING_NODE;
         } else if (childName == MANY_CHILD_NODES) {
-            MapRecord map = getChildNodeMap(recordId);
+            MapRecord map = getChildNodeMap(page);
             MapEntry child = map.getEntry(name);
             if (child != null) {
                 return child.getNodeState();
@@ -197,31 +195,27 @@ public class Template {
                 return MISSING_NODE;
             }
         } else if (name.equals(childName)) {
-            Segment segment = recordId.getSegment();
-            Reader reader = segment.getReader(recordId, RECORD_ID_BYTES);
-            RecordId childNodeId = reader.readRecordId();
-            return new SegmentNodeState(childNodeId);
+            Reader reader = page.getReader(RECORD_ID_BYTES);
+            return new SegmentNodeState(reader.readPage());
         } else {
             return MISSING_NODE;
         }
     }
 
-    Iterable<? extends ChildNodeEntry> getChildNodeEntries(RecordId recordId) {
+    Iterable<? extends ChildNodeEntry> getChildNodeEntries(Page page) {
         if (childName == ZERO_CHILD_NODES) {
             return Collections.emptyList();
         } else if (childName == MANY_CHILD_NODES) {
-            MapRecord map = getChildNodeMap(recordId);
+            MapRecord map = getChildNodeMap(page);
             return map.getEntries();
         } else {
-            Segment segment = recordId.getSegment();
-            Reader reader = segment.getReader(recordId, RECORD_ID_BYTES);
-            RecordId childNodeId = reader.readRecordId();
-            return Collections.singletonList(new MemoryChildNodeEntry(
-                    childName, new SegmentNodeState(childNodeId)));
+            Reader reader = page.getReader(RECORD_ID_BYTES);
+            return singletonList(new MemoryChildNodeEntry(
+                    childName, new SegmentNodeState(reader.readPage())));
         }
     }
 
-    public boolean compare(RecordId thisId, RecordId thatId) {
+    public boolean compare(Page thisId, Page thatId) {
         checkNotNull(thisId);
         checkNotNull(thatId);
 

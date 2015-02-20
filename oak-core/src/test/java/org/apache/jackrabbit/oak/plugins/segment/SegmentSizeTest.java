@@ -75,17 +75,17 @@ public class SegmentSizeTest {
 
         builder.setProperty(PropertyStates.createProperty(
                 "test", Collections.nCopies(1, string), Type.STRINGS));
-        RecordId id1 = builder.getNodeState().getRecordId();
+        RecordId id1 = builder.getNodeState().getPage();
 
         builder.setProperty(PropertyStates.createProperty(
                 "test", Collections.nCopies(12, string), Type.STRINGS));
-        RecordId id2 = builder.getNodeState().getRecordId();
+        RecordId id2 = builder.getNodeState().getPage();
         assertEquals(16 + 12 * Segment.RECORD_ID_BYTES,
                 id1.getOffset() - id2.getOffset());
 
         builder.setProperty(PropertyStates.createProperty(
                 "test", Collections.nCopies(100, string), Type.STRINGS));
-        RecordId id3 = builder.getNodeState().getRecordId();
+        RecordId id3 = builder.getNodeState().getPage();
         assertEquals(16 + 100 * Segment.RECORD_ID_BYTES,
                 id2.getOffset() - id3.getOffset());
     }
@@ -99,17 +99,17 @@ public class SegmentSizeTest {
 
         builder.setProperty(PropertyStates.createProperty(
                 "test", Collections.nCopies(1, now), Type.DATES));
-        RecordId id1 = builder.getNodeState().getRecordId();
+        RecordId id1 = builder.getNodeState().getPage();
 
         builder.setProperty(PropertyStates.createProperty(
                 "test", Collections.nCopies(12, now), Type.DATES));
-        RecordId id2 = builder.getNodeState().getRecordId();
+        RecordId id2 = builder.getNodeState().getPage();
         assertEquals(16 + 12 * Segment.RECORD_ID_BYTES,
                 id1.getOffset() - id2.getOffset());
 
         builder.setProperty(PropertyStates.createProperty(
                 "test", Collections.nCopies(100, now), Type.DATES));
-        RecordId id3 = builder.getNodeState().getRecordId();
+        RecordId id3 = builder.getNodeState().getPage();
         assertEquals(16 + 100 * Segment.RECORD_ID_BYTES,
                 id2.getOffset() - id3.getOffset());
     }
@@ -167,7 +167,7 @@ public class SegmentSizeTest {
 
         SegmentNodeState state = writer.writeNode(builder.getNodeState());
         writer.flush();
-        Segment segment = store.readSegment(state.getRecordId().getSegmentId());
+        Segment segment = store.readSegment(state.getPage().getSegmentId());
         assertEquals(27520, segment.size());
 
         writer.flush(); // force flushing of the previous segment
@@ -176,13 +176,13 @@ public class SegmentSizeTest {
         builder.child("child1000");
         state = writer.writeNode(builder.getNodeState());
         writer.flush();
-        segment = store.readSegment(state.getRecordId().getSegmentId());
+        segment = store.readSegment(state.getPage().getSegmentId());
         assertEquals(496, segment.size());
     }
 
     private int getSize(NodeBuilder builder) {
         SegmentWriter writer = new MemoryStore().getTracker().getWriter();
-        RecordId id = writer.writeNode(builder.getNodeState()).getRecordId();
+        RecordId id = writer.writeNode(builder.getNodeState()).getPage();
         writer.flush();
         return id.getSegment().size();
     }
@@ -190,8 +190,8 @@ public class SegmentSizeTest {
     private int getAmortizedSize(NodeBuilder builder) {
         SegmentWriter writer = new MemoryStore().getTracker().getWriter();
         NodeState state = builder.getNodeState();
-        RecordId id1 = writer.writeNode(state).getRecordId();
-        RecordId id2 = writer.writeNode(state).getRecordId();
+        RecordId id1 = writer.writeNode(state).getPage();
+        RecordId id2 = writer.writeNode(state).getPage();
         return id1.getOffset() - id2.getOffset();
     }
 

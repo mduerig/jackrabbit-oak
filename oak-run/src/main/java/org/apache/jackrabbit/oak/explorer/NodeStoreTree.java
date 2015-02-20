@@ -140,7 +140,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
             if (state instanceof SegmentNodeState) {
                 SegmentNodeState sns = (SegmentNodeState) state;
                 sb.append("Record ");
-                sb.append(sns.getRecordId().toString());
+                sb.append(sns.getPage().toString());
                 sb.append(newline);
             }
             log.setText(sb.toString());
@@ -183,7 +183,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
 
         if (state instanceof SegmentNodeState) {
             SegmentNodeState s = (SegmentNodeState) state;
-            RecordId recordId = s.getRecordId();
+            RecordId recordId = s.getPage();
             sb.append("Record " + recordId);
             tarFile = getFile(recordId);
             if (tarFile.length() > 0) {
@@ -243,7 +243,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
                 l.append(toString(ps, 0, tarFile));
             }
             if (ps instanceof SegmentPropertyState) {
-                RecordId rid = ((SegmentPropertyState) ps).getRecordId();
+                RecordId rid = ((SegmentPropertyState) ps).getPage();
                 l.append(" (" + rid);
                 String f = getFile(rid);
                 if (!f.equals(tarFile)) {
@@ -270,7 +270,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
             l.append("  + " + ce.getName());
             NodeState c = ce.getNodeState();
             if (c instanceof SegmentNodeState) {
-                RecordId rid = ((SegmentNodeState) c).getRecordId();
+                RecordId rid = ((SegmentNodeState) c).getPage();
                 l.append(" (" + rid);
                 String f = getFile(rid);
                 if (!f.equals(tarFile)) {
@@ -313,7 +313,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
             info += "ref:" + safeGetReference(b) + ";";
             info += "id:" + b.getContentIdentity() + ";";
             info += safeGetLength(b) + ">";
-            for (SegmentId sid : SegmentBlob.getBulkSegmentIds(b)) {
+            for (SegmentId sid : SegmentBlob.getBulkPages(b)) {
                 info += newline + "        Bulk Segment Id " + sid;
                 String f = getFile(sid);
                 if (!f.equals(tarFile)) {
@@ -473,7 +473,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
         for (PropertyState ps : state.getProperties()) {
             if (ps instanceof SegmentPropertyState) {
                 SegmentPropertyState sps = (SegmentPropertyState) ps;
-                RecordId recordId = sps.getRecordId();
+                RecordId recordId = sps.getPage();
                 SegmentId sid = recordId.getSegmentId();
                 UUID id = new UUID(sid.getMostSignificantBits(),
                         sid.getLeastSignificantBits());
@@ -484,7 +484,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
                 if (ps.getType().tag() == PropertyType.BINARY) {
                     for (int i = 0; i < ps.count(); i++) {
                         Blob b = ps.getValue(Type.BINARY, i);
-                        for (SegmentId sbid : SegmentBlob.getBulkSegmentIds(b)) {
+                        for (SegmentId sbid : SegmentBlob.getBulkPages(b)) {
                             UUID bid = new UUID(sbid.getMostSignificantBits(),
                                     sbid.getLeastSignificantBits());
                             if (!bid.equals(id) && uuids.contains(bid)) {
@@ -498,7 +498,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
             }
         }
 
-        RecordId stateId = state.getRecordId();
+        RecordId stateId = state.getPage();
         SegmentId segmentId = stateId.getSegmentId();
         if (uuids.contains(new UUID(segmentId.getMostSignificantBits(),
                 segmentId.getLeastSignificantBits()))) {
@@ -584,7 +584,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
     }
 
     private boolean safeRevert(String revision, boolean rollback) {
-        String head = store.getHead().getRecordId().toString();
+        String head = store.getHead().getPage().toString();
         store.setRevision(revision);
         try {
             refreshModel();
@@ -712,7 +712,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
 
     private static Long[] exploreSize(SegmentNodeState ns,
             Map<RecordIdKey, Long[]> sizeCache) {
-        RecordIdKey key = new RecordIdKey(ns.getRecordId());
+        RecordIdKey key = new RecordIdKey(ns.getPage());
         if (sizeCache.containsKey(key)) {
             return sizeCache.get(key);
         }
@@ -739,7 +739,7 @@ public class NodeStoreTree extends JPanel implements TreeSelectionListener {
 
         for (String n : names) {
             SegmentNodeState k = (SegmentNodeState) ns.getChildNode(n);
-            RecordIdKey ckey = new RecordIdKey(k.getRecordId());
+            RecordIdKey ckey = new RecordIdKey(k.getPage());
             if (sizeCache.containsKey(ckey)) {
                 // already been here, record size under 'link'
                 Long[] ks = sizeCache.get(ckey);

@@ -58,7 +58,7 @@ public class StandbyServerHandler extends SimpleChannelInboundHandler<String> {
 
     private RecordId headId() {
         if (store != null) {
-            return store.getHead().getRecordId();
+            return store.getHead().getPage();
         }
         return null;
     }

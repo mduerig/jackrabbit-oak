@@ -21,10 +21,15 @@ import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
+import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.apache.jackrabbit.oak.plugins.segment.Record.fastEquals;
+import static org.apache.jackrabbit.oak.plugins.segment.Segment.SEGMENT_REFERENCE_LIMIT;
 
 import java.util.List;
+
+import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
 
@@ -32,16 +37,16 @@ import org.apache.jackrabbit.oak.plugins.segment.Segment.Reader;
  * A record of type "LIST".
  */
 class ListRecord {
-    static final int LEVEL_SIZE = Segment.SEGMENT_REFERENCE_LIMIT;
+    static final int LEVEL_SIZE = SEGMENT_REFERENCE_LIMIT;
 
-    private final Record record;
+    private final Page page;
 
     private final int size;
 
     private final int bucketSize;
 
-    ListRecord(RecordId id, int size) {
-        this.record = Record.getRecord(checkNotNull(id));
+    ListRecord(@Nonnull Page page, int size) {
+        this.page = checkNotNull(page);
         checkArgument(size >= 0);
         this.size = size;
 
@@ -56,26 +61,25 @@ class ListRecord {
         return size;
     }
 
-    public RecordId getEntry(int index) {
+    public Page getEntry(int index) {
         checkElementIndex(index, size);
         if (size == 1) {
-            return record.getRecordId();
+            return page;
         } else {
             int bucketIndex = index / bucketSize;
             int bucketOffset = index % bucketSize;
-            Reader reader = record.getReader(0, bucketIndex);
-            RecordId id = reader.readRecordId();
+            Page bucketPage = page.readPage(0, bucketIndex);
             ListRecord bucket = new ListRecord(
-                    id, Math.min(bucketSize, size - bucketIndex * bucketSize));
+                    bucketPage, min(bucketSize, size - bucketIndex * bucketSize));
             return bucket.getEntry(bucketOffset);
         }
     }
 
-    public List<RecordId> getEntries() {
+    public List<Page> getEntries() {
         return getEntries(0, size);
     }
 
-    public List<RecordId> getEntries(int index, int count) {
+    public List<Page> getEntries(int index, int count) {
         if (index + count > size) {
             count = size - index;
         }
@@ -84,31 +88,30 @@ class ListRecord {
         } else if (count == 1) {
             return singletonList(getEntry(index));
         } else {
-            List<RecordId> ids = newArrayListWithCapacity(count);
-            getEntries(index, count, ids);
-            return ids;
+            List<Page> pages = newArrayListWithCapacity(count);
+            getEntries(index, count, pages);
+            return pages;
         }
     }
 
-    private void getEntries(int index, int count, List<RecordId> ids) {
+    private void getEntries(int index, int count, List<Page> pages) {
         checkPositionIndexes(index, index + count, size);
         if (size == 1) {
-            ids.add(record.getRecordId());
+            pages.add(page);
         } else if (bucketSize == 1) {
-            Reader reader = record.getReader(0, index);
+            Reader reader = page.getReader(0, index);
             for (int i = 0; i < count; i++) {
-                ids.add(reader.readRecordId());
+                pages.add(reader.readPage());
             }
         } else {
             while (count > 0) {
                 int bucketIndex = index / bucketSize;
                 int bucketOffset = index % bucketSize;
-                Reader reader = record.getReader(0, bucketIndex);
-                RecordId id = reader.readRecordId();
+                Page buckedPage = page.readPage(0, bucketIndex);
                 ListRecord bucket = new ListRecord(
-                        id, Math.min(bucketSize, size - bucketIndex * bucketSize));
-                int n = Math.min(bucket.size() - bucketOffset, count);
-                bucket.getEntries(bucketOffset, n, ids);
+                        buckedPage, min(bucketSize, size - bucketIndex * bucketSize));
+                int n = min(bucket.size() - bucketOffset, count);
+                bucket.getEntries(bucketOffset, n, pages);
                 index += n;
                 count -= n;
             }
@@ -121,17 +124,17 @@ class ListRecord {
             return true;
         } else {
             return object instanceof ListRecord &&
-                    Record.fastEquals(record, ((ListRecord) object).record);
+                    fastEquals(page, ((ListRecord) object).page);
         }
     }
 
     @Override
     public int hashCode() {
-        return record.hashCode() ^ size;
+        return page.hashCode() ^ size;
     }
 
     @Override
     public String toString() {
-        return record.toString();
+        return page.toString();
     }
 }

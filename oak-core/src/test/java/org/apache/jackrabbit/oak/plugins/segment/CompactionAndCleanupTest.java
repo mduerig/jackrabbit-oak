@@ -275,7 +275,7 @@ public class CompactionAndCleanupTest {
     }
 
     private static void collectSegments(SegmentNodeState s, Set<UUID> segmentIds) {
-        SegmentId sid = s.getRecordId().getSegmentId();
+        SegmentId sid = s.getPage().getSegmentId();
         UUID id = new UUID(sid.getMostSignificantBits(),
                 sid.getLeastSignificantBits());
         segmentIds.add(id);
@@ -283,7 +283,7 @@ public class CompactionAndCleanupTest {
             collectSegments((SegmentNodeState) cne.getNodeState(), segmentIds);
         }
         for (PropertyState propertyState : s.getProperties()) {
-            sid = ((SegmentPropertyState) propertyState).getRecordId().getSegmentId();
+            sid = ((SegmentPropertyState) propertyState).getPage().getSegmentId();
             id = new UUID(sid.getMostSignificantBits(),
                     sid.getLeastSignificantBits());
             segmentIds.add(id);
@@ -327,7 +327,7 @@ public class CompactionAndCleanupTest {
 
             // Segment id of the current segment
             NodeState test = nodeStore.getRoot().getChildNode("test");
-            SegmentId id = ((SegmentNodeState) test).getRecordId().getSegmentId();
+            SegmentId id = ((SegmentNodeState) test).getPage().getSegmentId();
             assertTrue(fileStore.containsSegment(id));
 
             // Add enough content to fill up the current tar file

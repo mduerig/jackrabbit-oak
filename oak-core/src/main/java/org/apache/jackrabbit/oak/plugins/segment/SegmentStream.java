@@ -20,6 +20,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.jackrabbit.oak.plugins.segment.Page.contains;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentWriter.BLOCK_SIZE;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.io.InputStream;
 import java.util.List;
 
 import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
 
 import com.google.common.base.Charsets;
 import com.google.common.io.ByteStreams;
@@ -37,20 +39,19 @@ import com.google.common.io.ByteStreams;
 public class SegmentStream extends InputStream {
 
     @CheckForNull
-    public static RecordId getRecordIdIfAvailable(
+    public static Page getPageIdIfAvailable(
             InputStream stream, SegmentStore store) {
         if (stream instanceof SegmentStream) {
             SegmentStream sstream = (SegmentStream) stream;
-            RecordId id = sstream.recordId;
-            if (sstream.position == 0
-                    && store.containsSegment(id.getSegmentId())) {
-                return id;
+            Page streamPage = sstream.page;
+            if (sstream.position == 0 && contains(store, streamPage)) {
+                return streamPage;
             }
         }
         return null;
     }
 
-    private final RecordId recordId;
+    private final Page page;
 
     private final byte[] inline;
 
@@ -62,16 +63,16 @@ public class SegmentStream extends InputStream {
 
     private long mark = 0;
 
-    SegmentStream(RecordId recordId, ListRecord blocks, long length) {
-        this.recordId = checkNotNull(recordId);
+    SegmentStream(@Nonnull Page page, @Nonnull ListRecord blocks, long length) {
+        this.page = checkNotNull(page);
         this.inline = null;
         this.blocks = checkNotNull(blocks);
         checkArgument(length >= 0);
         this.length = length;
     }
 
-    SegmentStream(RecordId recordId, byte[] inline) {
-        this.recordId = checkNotNull(recordId);
+    SegmentStream(@Nonnull Page page, @Nonnull byte[] inline) {
+        this.page = checkNotNull(page);
         this.inline = checkNotNull(inline);
         this.blocks = null;
         this.length = inline.length;
@@ -87,7 +88,7 @@ public class SegmentStream extends InputStream {
         } else if (length > Integer.MAX_VALUE) {
             throw new IllegalStateException("Too long value: " + length);
         } else {
-            SegmentStream stream = new SegmentStream(recordId, blocks, length);
+            SegmentStream stream = new SegmentStream(page, blocks, length);
             try {
                 byte[] data = new byte[(int) length];
                 ByteStreams.readFully(stream, data);
@@ -150,13 +151,13 @@ public class SegmentStream extends InputStream {
                     / BLOCK_SIZE;
 
             int remaining = len;
-            List<RecordId> ids = blocks.getEntries(blockIndex, blockCount);
-            RecordId first = ids.get(0); // guaranteed to contain at least one
+            List<Page> pages = blocks.getEntries(blockIndex, blockCount);
+            Page first = pages.get(0); // guaranteed to contain at least one
             int count = 1;
-            for (int i = 1; i <= ids.size(); i++) {
-                RecordId id = null;
-                if (i < ids.size()) {
-                    id = ids.get(i);
+            for (int i = 1; i <= pages.size(); i++) {
+                Page id = null;
+                if (i < pages.size()) {
+                    id = pages.get(i);
                 }
 
                 if (id != null

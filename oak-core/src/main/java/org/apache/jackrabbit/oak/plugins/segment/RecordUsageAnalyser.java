@@ -215,7 +215,7 @@ public class RecordUsageAnalyser {
                 for (ChildNodeEntry childNodeEntry : childMap.getEntries()) {
                     NodeState child = childNodeEntry.getNodeState();
                     if (child instanceof SegmentNodeState) {
-                        RecordId childId = ((SegmentNodeState) child).getRecordId();
+                        RecordId childId = ((SegmentNodeState) child).getPage();
                         analyseNode(childId);
                     }
                 }
@@ -346,7 +346,7 @@ public class RecordUsageAnalyser {
         for (MapRecord bucket : map.getBuckets()) {
             if (bucket != null) {
                 mapSize += RECORD_ID_BYTES;
-                analyseMap(bucket.getRecordId(), bucket);
+                analyseMap(bucket.getPage(), bucket);
             }
         }
     }

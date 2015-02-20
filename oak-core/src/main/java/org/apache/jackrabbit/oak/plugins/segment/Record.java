@@ -42,10 +42,6 @@ class Record {
         return RecordId.fastEquals(a.persistId, b.persistId);
     }
 
-    static Record getRecord(@Nonnull RecordId id) {
-        return id.getSegmentId().getRecord(new Record(id));
-    }
-
     /**
      * Creates a new object for the identified record.
      *

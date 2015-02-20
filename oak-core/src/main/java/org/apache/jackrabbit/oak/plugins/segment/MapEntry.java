@@ -32,15 +32,15 @@ import com.google.common.collect.ComparisonChain;
  * Representation of a single key-value entry in a map.
  */
 class MapEntry extends AbstractChildNodeEntry
-        implements Map.Entry<RecordId, RecordId>, Comparable<MapEntry> {
+        implements Map.Entry<Page, Page>, Comparable<MapEntry> {
 
     private final String name;
 
-    private final RecordId key;
+    private final Page key;
 
-    private final RecordId value;
+    private final Page value;
 
-    MapEntry(String name, RecordId key, RecordId value) {
+    MapEntry(String name, Page key, Page value) {
         this.name = checkNotNull(name);
         this.key = checkNotNull(key);
         this.value = value;
@@ -66,17 +66,17 @@ class MapEntry extends AbstractChildNodeEntry
     //---------------------------------------------------------< Map.Entry >--
 
     @Override
-    public RecordId getKey() {
+    public Page getKey() {
         return key;
     }
 
     @Override
-    public RecordId getValue() {
+    public Page getValue() {
         return value;
     }
 
     @Override
-    public RecordId setValue(RecordId value) {
+    public Page setValue(Page value) {
         throw new UnsupportedOperationException();
     }
 
@@ -87,7 +87,7 @@ class MapEntry extends AbstractChildNodeEntry
         return ComparisonChain.start()
                 .compare(getHash() & HASH_MASK, that.getHash() & HASH_MASK)
                 .compare(name, that.name)
-                .compare(value, that.value)
+                .compare(value.hashCode(), that.value.hashCode())
                 .result();
     }
 

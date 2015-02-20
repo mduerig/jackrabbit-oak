@@ -54,18 +54,18 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
  * currently doesn't cache data (but the template is fully loaded).
  */
 public class SegmentNodeState implements NodeState {
-    private final Record record;
+    private final Page page;
 
-    private volatile RecordId templateId = null;
+    private volatile Page templatePage = null;
 
     private volatile Template template = null;
 
-    public SegmentNodeState(RecordId id) {
-        this.record = Record.getRecord(checkNotNull(id));
+    public SegmentNodeState(@Nonnull Page page) {
+        this.page = checkNotNull(page);
     }
 
-    public RecordId getRecordId() {
-        return record.getRecordId();
+    public Page getPage() {
+        return page;
     }
 
     public static boolean fastEquals(Object a, Object b) {
@@ -77,40 +77,29 @@ public class SegmentNodeState implements NodeState {
     }
 
     public static boolean fastEquals(SegmentNodeState a, SegmentNodeState b) {
-        return Record.fastEquals(a.record, b.record);
+        return Record.fastEquals(a.page, b.page);
     }
 
-    /**
-     * Returns the tracker of the segment that contains this record.
-     *
-     * @return segment tracker
-     */
-    SegmentTracker getTracker() {
-        return record.getRecordId().getSegmentId().getTracker();
-    }
-
-    RecordId getTemplateId() {
-        if (templateId == null) {
+    Page getTemplatePage() {
+        if (templatePage == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            templateId = record.getReader().readRecordId();
+            templatePage = page.readPage();
         }
-        return templateId;
+        return templatePage;
     }
 
     Template getTemplate() {
         if (template == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            template = Segment.readTemplate(getTemplateId());
+            template = getTemplatePage().readTemplate();
         }
         return template;
     }
 
     MapRecord getChildNodeMap() {
-        Segment segment = record.getSegment();
-        Reader reader = record.getReader(0, 1);
-        return Segment.readMap(reader.readRecordId());
+        return page.readMap(0, 1);
     }
 
     @Override
@@ -161,13 +150,11 @@ public class SegmentNodeState implements NodeState {
         PropertyTemplate propertyTemplate =
                 template.getPropertyTemplate(name);
         if (propertyTemplate != null) {
-            Segment segment = record.getSegment();
             int ids = 1 + propertyTemplate.getIndex();
             if (template.getChildName() != Template.ZERO_CHILD_NODES) {
                 ids++;
             }
-            Reader reader = record.getReader(0, ids);
-            return new SegmentPropertyState(reader.readRecordId(), propertyTemplate);
+            return new SegmentPropertyState(page.readPage(0, ids), propertyTemplate);
         } else {
             return null;
         }
@@ -190,14 +177,12 @@ public class SegmentNodeState implements NodeState {
             list.add(mixinTypes);
         }
 
-        Segment segment = record.getSegment();
         int ids = 1;
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
-        Reader reader = record.getReader(0, ids);
         for (PropertyTemplate propertyTemplate : propertyTemplates) {
-            list.add(new SegmentPropertyState(reader.readRecordId(), propertyTemplate));
+            list.add(new SegmentPropertyState(page.readPage(0, ids), propertyTemplate));
         }
 
         return list;
@@ -273,13 +258,11 @@ public class SegmentNodeState implements NodeState {
             return null;
         }
 
-        Segment segment = record.getSegment();
         int ids = 1 + propertyTemplate.getIndex();
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
-        Reader reader = record.getReader(0, ids);
-        return Segment.readString(reader.readRecordId());
+        return page.readPage(0, ids).readString(0);
     }
 
     /**
@@ -320,23 +303,21 @@ public class SegmentNodeState implements NodeState {
             ids++;
         }
 
-        RecordId id = record.getReader(0, ids).readRecordId();
-        Segment segment = id.getSegment();
-        Reader reader = segment.getReader(id);
+        Reader reader = page.readPage(0, ids).getReader();
         int size = reader.readInt();
         if (size == 0) {
             return emptyList();
         }
 
-        id = reader.readRecordId();
+        Page valuePage = reader.readPage();
         if (size == 1) {
-            return singletonList(Segment.readString(id));
+            return singletonList(valuePage.readString(0));
         }
 
         List<String> values = newArrayListWithCapacity(size);
-        ListRecord list = new ListRecord(id, size);
-        for (RecordId value : list.getEntries()) {
-            values.add(Segment.readString(value));
+        ListRecord list = new ListRecord(valuePage, size);
+        for (Page entry : list.getEntries()) {
+            values.add(entry.readString(0));
         }
         return values;
     }
@@ -375,9 +356,8 @@ public class SegmentNodeState implements NodeState {
             }
         } else if (childName != Template.ZERO_CHILD_NODES
                 && childName.equals(name)) {
-            Reader reader = record.getReader(0, 1);
-            RecordId childNodeId = reader.readRecordId();
-            return new SegmentNodeState(childNodeId);
+            Page childPage = page.readPage(0, 1);
+            return new SegmentNodeState(childPage);
         }
         checkValidName(name);
         return MISSING_NODE;
@@ -403,10 +383,9 @@ public class SegmentNodeState implements NodeState {
         } else if (childName == Template.MANY_CHILD_NODES) {
             return getChildNodeMap().getEntries();
         } else {
-            Reader reader = record.getReader(0, 1);
-            RecordId childNodeId = reader.readRecordId();
+            Page childPage = page.readPage(0, 1);
             return Collections.singletonList(new MemoryChildNodeEntry(
-                    childName, new SegmentNodeState(childNodeId)));
+                    childName, new SegmentNodeState(childPage)));
         }
     }
 
@@ -426,15 +405,12 @@ public class SegmentNodeState implements NodeState {
         }
 
         SegmentNodeState that = (SegmentNodeState) base;
-        if (that.record.wasCompactedTo(this.record)) {
-            return true; // no changes during compaction
-        }
 
         Template beforeTemplate = that.getTemplate();
-        RecordId beforeId = that.getRecordId();
+        Page beforePage = that.getPage();
 
         Template afterTemplate = getTemplate();
-        RecordId afterId = getRecordId();
+        Page afterPage = getPage();
 
         // Compare type properties
         if (!compareProperties(
@@ -466,16 +442,12 @@ public class SegmentNodeState implements NodeState {
             PropertyState beforeProperty = null;
             PropertyState afterProperty = null;
             if (d < 0) {
-                afterProperty =
-                        afterTemplate.getProperty(afterId, afterIndex++);
+                afterProperty = afterTemplate.getProperty(afterPage, afterIndex++);
             } else if (d > 0) {
-                beforeProperty =
-                        beforeTemplate.getProperty(beforeId, beforeIndex++);
+                beforeProperty = beforeTemplate.getProperty(beforePage, beforeIndex++);
             } else {
-                afterProperty =
-                        afterTemplate.getProperty(afterId, afterIndex++);
-                beforeProperty =
-                        beforeTemplate.getProperty(beforeId, beforeIndex++);
+                afterProperty = afterTemplate.getProperty(afterPage, afterIndex++);
+                beforeProperty = beforeTemplate.getProperty(beforePage, beforeIndex++);
             }
             if (!compareProperties(beforeProperty, afterProperty, diff)) {
                 return false;
@@ -483,13 +455,13 @@ public class SegmentNodeState implements NodeState {
         }
         while (afterIndex < afterProperties.length) {
             if (!diff.propertyAdded(
-                    afterTemplate.getProperty(afterId, afterIndex++))) {
+                    afterTemplate.getProperty(afterPage, afterIndex++))) {
                 return false;
             }
         }
         while (beforeIndex < beforeProperties.length) {
             PropertyState beforeProperty =
-                    beforeTemplate.getProperty(beforeId, beforeIndex++);
+                    beforeTemplate.getProperty(beforePage, beforeIndex++);
             if (!diff.propertyDeleted(beforeProperty)) {
                 return false;
             }
@@ -500,7 +472,7 @@ public class SegmentNodeState implements NodeState {
         if (afterChildName == Template.ZERO_CHILD_NODES) {
             if (beforeChildName != Template.ZERO_CHILD_NODES) {
                 for (ChildNodeEntry entry
-                        : beforeTemplate.getChildNodeEntries(beforeId)) {
+                        : beforeTemplate.getChildNodeEntries(beforePage)) {
                     if (!diff.childNodeDeleted(
                             entry.getName(), entry.getNodeState())) {
                         return false;
@@ -508,10 +480,8 @@ public class SegmentNodeState implements NodeState {
                 }
             }
         } else if (afterChildName != Template.MANY_CHILD_NODES) {
-            NodeState afterNode =
-                    afterTemplate.getChildNode(afterChildName, afterId);
-            NodeState beforeNode =
-                    beforeTemplate.getChildNode(afterChildName, beforeId);
+            NodeState afterNode = afterTemplate.getChildNode(afterChildName, afterPage);
+            NodeState beforeNode = beforeTemplate.getChildNode(afterChildName, beforePage);
             if (!beforeNode.exists()) {
                 if (!diff.childNodeAdded(afterChildName, afterNode)) {
                     return false;
@@ -526,7 +496,7 @@ public class SegmentNodeState implements NodeState {
                     || (beforeChildName != Template.ZERO_CHILD_NODES
                         && !beforeNode.exists())) {
                 for (ChildNodeEntry entry
-                        : beforeTemplate.getChildNodeEntries(beforeId)) {
+                        : beforeTemplate.getChildNodeEntries(beforePage)) {
                     if (!afterChildName.equals(entry.getName())) {
                         if (!diff.childNodeDeleted(
                                 entry.getName(), entry.getNodeState())) {
@@ -537,7 +507,7 @@ public class SegmentNodeState implements NodeState {
             }
         } else if (beforeChildName == Template.ZERO_CHILD_NODES) {
             for (ChildNodeEntry entry
-                    : afterTemplate.getChildNodeEntries(afterId)) {
+                    : afterTemplate.getChildNodeEntries(afterPage)) {
                 if (!diff.childNodeAdded(
                         entry.getName(), entry.getNodeState())) {
                     return false;
@@ -545,12 +515,12 @@ public class SegmentNodeState implements NodeState {
             }
         } else if (beforeChildName != Template.MANY_CHILD_NODES) {
             for (ChildNodeEntry entry
-                    : afterTemplate.getChildNodeEntries(afterId)) {
+                    : afterTemplate.getChildNodeEntries(afterPage)) {
                 String childName = entry.getName();
                 NodeState afterChild = entry.getNodeState();
                 if (beforeChildName.equals(childName)) {
                     NodeState beforeChild =
-                            beforeTemplate.getChildNode(beforeChildName, beforeId);
+                            beforeTemplate.getChildNode(beforeChildName, beforePage);
                     if (beforeChild.exists()) {
                         if (!fastEquals(afterChild, beforeChild)
                                 && !diff.childNodeChanged(
@@ -567,8 +537,8 @@ public class SegmentNodeState implements NodeState {
                 }
             }
         } else {
-            MapRecord afterMap = afterTemplate.getChildNodeMap(afterId);
-            MapRecord beforeMap = beforeTemplate.getChildNodeMap(beforeId);
+            MapRecord afterMap = afterTemplate.getChildNodeMap(afterPage);
+            MapRecord beforeMap = beforeTemplate.getChildNodeMap(beforePage);
             return afterMap.compare(beforeMap, diff);
         }
 
@@ -596,7 +566,7 @@ public class SegmentNodeState implements NodeState {
             SegmentNodeState that = (SegmentNodeState) object;
             Template template = getTemplate();
             return template.equals(that.getTemplate())
-                    && template.compare(getRecordId(), that.getRecordId());
+                    && template.compare(getPage(), that.getPage());
         } else {
             return object instanceof NodeState
                     && AbstractNodeState.equals(this, (NodeState) object); // TODO
@@ -605,7 +575,7 @@ public class SegmentNodeState implements NodeState {
 
     @Override
     public int hashCode() {
-        return 31 * record.hashCode() + templateId.hashCode();
+        return 31 * page.hashCode() + templatePage.hashCode();
     }
 
     @Override

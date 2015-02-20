@@ -25,7 +25,7 @@ public class SegmentNodeStateHelper {
     }
 
     public static RecordId getTemplateId(SegmentNodeState s) {
-        return s.getTemplateId();
+        return s.getTemplatePage();
     }
 
 }

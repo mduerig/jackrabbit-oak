@@ -82,7 +82,7 @@ public class StandbyClientHandler extends SimpleChannelInboundHandler<RecordId>
 
     synchronized void setHead(RecordId head) {
 
-        if (store.getHead().getRecordId().equals(head)) {
+        if (store.getHead().getPage().equals(head)) {
             // all sync'ed up
             log.debug("no changes on sync.");
             ctx.close();

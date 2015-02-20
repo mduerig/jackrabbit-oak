@@ -60,7 +60,7 @@ public class RecordUsageAnalyserTest {
     @Test
     public void emptyNode() {
         SegmentNodeState node = writer.writeNode(EMPTY_NODE);
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 0, 4, 3);
     }
 
@@ -70,7 +70,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("one", 1);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 6, 8, 6);
     }
 
@@ -80,7 +80,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("two", "222");
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 8, 8, 6);
     }
 
@@ -90,7 +90,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("medium", repeat("a", SMALL_LIMIT + 1));
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 138, 8, 6);
     }
 
@@ -100,7 +100,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("large", repeat("b", MEDIUM_LIMIT + 1));
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 15, 16530, 8, 6);
     }
 
@@ -110,7 +110,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("two", "two");
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 4, 8, 6);
     }
 
@@ -120,7 +120,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("multi", ImmutableList.of(1L, 2L, 3L, 4L), LONGS);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 12, 21, 8, 6);
     }
 
@@ -130,7 +130,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("multi", nCopies(LEVEL_SIZE + 1, 1L), LONGS);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 771, 15, 8, 6);
     }
 
@@ -140,7 +140,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("multi", nCopies(LEVEL_SIZE + 2, 1L), LONGS);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 777, 15, 8, 6);
     }
 
@@ -150,7 +150,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("multi", ImmutableList.of("one", "one", "two", "two", "three"), STRINGS);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 15, 27, 8, 6);
     }
 
@@ -160,7 +160,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("blob", createRandomBlob(4));
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 10, 8, 6);
     }
 
@@ -170,7 +170,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("mediumBlob", createRandomBlob(SMALL_LIMIT + 1));
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 142, 8, 6);
     }
 
@@ -180,7 +180,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("largeBlob", createRandomBlob(MEDIUM_LIMIT + 1));
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 15, 16534, 8, 6);
     }
 
@@ -190,7 +190,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("jcr:primaryType", "type", NAME);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 5, 7, 3);
     }
 
@@ -200,7 +200,7 @@ public class RecordUsageAnalyserTest {
         builder.setProperty("jcr:mixinTypes", ImmutableList.of("type1", "type2"), NAMES);
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 12, 10, 3);
     }
 
@@ -210,7 +210,7 @@ public class RecordUsageAnalyserTest {
         builder.setChildNode("child");
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 0, 0, 6, 11, 9);
     }
 
@@ -221,7 +221,7 @@ public class RecordUsageAnalyserTest {
         builder.setChildNode("child2");
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 24, 0, 14, 8, 12);
     }
 
@@ -233,7 +233,7 @@ public class RecordUsageAnalyserTest {
         }
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 457, 0, 254, 8, 105);
     }
 
@@ -244,16 +244,16 @@ public class RecordUsageAnalyserTest {
         builder.setChildNode("child2");
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 24, 0, 14, 8, 12);
 
         builder = node.builder();
         builder.child("child1").setProperty("p", "q");
 
-        when(store.containsSegment(node.getRecordId().getSegmentId())).thenReturn(true);
+        when(store.containsSegment(node.getPage().getSegmentId())).thenReturn(true);
         node = (SegmentNodeState) builder.getNodeState();
 
-        analyser.analyseNode(node.getRecordId());
+        analyser.analyseNode(node.getPage());
         assertSizes(analyser, 41, 0, 18, 16, 24);
     }
 
@@ -271,8 +271,8 @@ public class RecordUsageAnalyserTest {
 
         SegmentNodeState node = writer.writeNode(builder.getNodeState());
         when(store.readSegment(Mockito.<SegmentId>any()))
-                .thenReturn(node.getRecordId().getSegment());
-        analyser.analyseNode(node.getRecordId());
+                .thenReturn(node.getPage().getSegment());
+        analyser.analyseNode(node.getPage());
         assertCounts(analyser, 1, 3, 6, 1, 1, 1, 0, 10, 1, 1, 2, 3);
     }
 

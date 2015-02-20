@@ -65,7 +65,7 @@ public abstract class SegmentServlet extends HttpServlet {
         if (info == null || info.equals("") || info.equals("/")) {
             response.setContentType("text/plain; charset=UTF-8");
             SegmentNodeState head = getSegmentStore().getHead();
-            response.getWriter().write(head.getRecordId().toString());
+            response.getWriter().write(head.getPage().toString());
         } else if (info.startsWith("/")) {
             doGetSegment(info.substring(1, info.length()), response);
         } else {

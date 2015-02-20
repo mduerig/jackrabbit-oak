@@ -163,7 +163,7 @@ class StandbyApplyDiff implements NodeStateDiff {
                 log.trace("childNodeAdded {}, RO:{}", path + name, logOnly);
             }
             if (!logOnly) {
-                RecordId id = ((SegmentNodeState) after).getRecordId();
+                RecordId id = ((SegmentNodeState) after).getPage();
                 builder.setChildNode(name, new SegmentNodeState(id));
             }
             return after.compareAgainstBaseState(EmptyNodeState.EMPTY_NODE,
@@ -181,10 +181,10 @@ class StandbyApplyDiff implements NodeStateDiff {
         }
 
         if (after instanceof SegmentNodeState) {
-            RecordId id = ((SegmentNodeState) after).getRecordId();
+            RecordId id = ((SegmentNodeState) after).getPage();
 
             if (log.isTraceEnabled()) {
-                RecordId oldId = ((SegmentNodeState) before).getRecordId();
+                RecordId oldId = ((SegmentNodeState) before).getPage();
                 log.trace("childNodeChanged {}, {} -> {}, RO:{}", path + name,
                         oldId, id, logOnly);
             }

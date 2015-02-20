@@ -122,7 +122,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      */
     private void refreshHead() {
         SegmentNodeState state = store.getHead();
-        if (!state.getRecordId().equals(head.get().getRecordId())) {
+        if (!state.getPage().equals(head.get().getPage())) {
             head.set(state);
             changeDispatcher.contentChanged(state.getChildNode(ROOT), null);
         }

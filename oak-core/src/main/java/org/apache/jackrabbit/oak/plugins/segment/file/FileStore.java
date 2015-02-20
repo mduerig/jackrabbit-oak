@@ -248,7 +248,7 @@ public class FileStore implements SegmentStore {
             NodeBuilder builder = EMPTY_NODE.builder();
             builder.setChildNode("root", initial);
             head = new AtomicReference<RecordId>(tracker.getWriter().writeNode(
-                    builder.getNodeState()).getRecordId());
+                    builder.getNodeState()).getPage());
             persistedHead = new AtomicReference<RecordId>(null);
         }
 
@@ -597,8 +597,8 @@ public class FileStore implements SegmentStore {
     @Override
     public boolean setHead(SegmentNodeState base, SegmentNodeState head) {
         RecordId id = this.head.get();
-        return id.equals(base.getRecordId())
-                && this.head.compareAndSet(id, head.getRecordId());
+        return id.equals(base.getPage())
+                && this.head.compareAndSet(id, head.getPage());
     }
 
     @Override

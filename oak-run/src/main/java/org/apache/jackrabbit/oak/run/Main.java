@@ -794,7 +794,7 @@ public class Main {
                         uuid.getLeastSignificantBits());
                 System.out.println(id.getSegment());
             } else {
-                RecordId id1 = store.getHead().getRecordId();
+                RecordId id1 = store.getHead().getPage();
                 RecordId id2 = null;
                 if (matcher.group(2) != null) {
                     id1 = RecordId.fromString(store.getTracker(),
@@ -816,7 +816,7 @@ public class Main {
                         node = node.getChildNode(name);
                         RecordId nid = null;
                         if (node instanceof SegmentNodeState) {
-                            nid = ((SegmentNodeState) node).getRecordId();
+                            nid = ((SegmentNodeState) node).getPage();
                         }
                         System.out.println("  " + name + " (" + nid + ") -> "
                                 + node);
@@ -867,7 +867,7 @@ public class Main {
 
         Set<SegmentId> garbage = newHashSet(idmap.keySet());
         Queue<SegmentId> queue = Queues.newArrayDeque();
-        queue.add(store.getHead().getRecordId().getSegmentId());
+        queue.add(store.getHead().getPage().getSegmentId());
         while (!queue.isEmpty()) {
             SegmentId id = queue.remove();
             if (garbage.remove(id)) {

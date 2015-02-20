@@ -178,7 +178,7 @@ public class Segment {
         return pos;
     }
 
-    public class Reader {
+    public class Reader {  // michid move to Page
         private final RecordId id;
         private final int pos0;
 
@@ -190,7 +190,7 @@ public class Segment {
             this.pos = pos0;
         }
 
-        public Reader skip(int n) {
+        public Reader skip(int n) {  // michid remove
             pos += n;
             return this;
         }
@@ -235,6 +235,10 @@ public class Segment {
 
         public int readInt(int offset) {
             return Segment.this.readInt(pos0 + offset);
+        }
+
+        public Page readPage() {
+            return null; // michid implement readPage
         }
     }
 
@@ -342,10 +346,8 @@ public class Segment {
 
     void collectBlobReferences(ReferenceCollector collector) {
         int refcount = getRefCount();
-        int rootcount =
-                data.getShort(data.position() + ROOT_COUNT_OFFSET) & 0xffff;
-        int blobrefcount =
-                data.getShort(data.position() + BLOBREF_COUNT_OFFSET) & 0xffff;
+        int rootcount = data.getShort(data.position() + ROOT_COUNT_OFFSET) & 0xffff;
+        int blobrefcount = data.getShort(data.position() + BLOBREF_COUNT_OFFSET) & 0xffff;
         int blobrefpos = data.position() + refcount * 16 + rootcount * 3;
 
         for (int i = 0; i < blobrefcount; i++) {
@@ -433,11 +435,11 @@ public class Segment {
         }
     }
 
-    static MapRecord readMap(RecordId id) {
+    private static MapRecord readMap(RecordId id) {
         return new MapRecord(id);
     }
 
-    static Template readTemplate(RecordId id) {
+    private static Template readTemplate(RecordId id) {
         Segment segment = id.getSegment();
         int pos = segment.mapOffset(id.getOffset());
         return segment.readTemplate(pos);
@@ -506,13 +508,13 @@ public class Segment {
                 primaryType, mixinTypes, properties, childName);
     }
 
-    static String readString(RecordId id) {
+    private static String readString(RecordId id) {  // michid remove
         Segment segment = id.getSegment();
         int pos = segment.mapOffset(id.getOffset());
         return segment.readString(pos);
     }
 
-    static long readLength(RecordId id) {
+    private static long readLength(RecordId id) {  // michid remove
         Segment segment = id.getSegment();
         int pos = segment.mapOffset(id.getOffset());
         return segment.readLength(pos);

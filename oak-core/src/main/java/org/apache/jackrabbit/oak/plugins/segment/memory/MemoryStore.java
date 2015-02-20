@@ -74,7 +74,7 @@ public class MemoryStore implements SegmentStore {
 
     @Override
     public synchronized boolean setHead(SegmentNodeState base, SegmentNodeState head) {
-        if (this.head.getRecordId().equals(base.getRecordId())) {
+        if (this.head.getPage().equals(base.getPage())) {
             this.head = head;
             return true;
         } else {

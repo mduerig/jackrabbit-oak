@@ -125,7 +125,7 @@ public class Compactor {
         public boolean childNodeAdded(String name, NodeState after) {
             RecordId id = null;
             if (after instanceof SegmentNodeState) {
-                id = ((SegmentNodeState) after).getRecordId();
+                id = ((SegmentNodeState) after).getPage();
                 RecordId compactedId = map.get(id);
                 if (compactedId != null) {
                     builder.setChildNode(name, new SegmentNodeState(compactedId));
@@ -141,7 +141,7 @@ public class Compactor {
                 SegmentNodeState state = writer.writeNode(child.getNodeState());
                 builder.setChildNode(name, state);
                 if (id != null) {
-                    map.put(id, state.getRecordId());
+                    map.put(id, state.getPage());
                 }
             }
 
@@ -153,7 +153,7 @@ public class Compactor {
                 String name, NodeState before, NodeState after) {
             RecordId id = null;
             if (after instanceof SegmentNodeState) {
-                id = ((SegmentNodeState) after).getRecordId();
+                id = ((SegmentNodeState) after).getPage();
                 RecordId compactedId = map.get(id);
                 if (compactedId != null) {
                     builder.setChildNode(name, new SegmentNodeState(compactedId));
@@ -167,7 +167,7 @@ public class Compactor {
 
             if (success) {
                 RecordId compactedId = writer.writeNode(child.getNodeState())
-                        .getRecordId();
+                        .getPage();
                 if (id != null) {
                     map.put(id, compactedId);
                 }
@@ -208,7 +208,7 @@ public class Compactor {
 
             try {
                 // else check if we've already cloned this specific record
-                RecordId id = sb.getRecordId();
+                RecordId id = sb.getPage();
                 RecordId compactedId = map.get(id);
                 if (compactedId != null) {
                     return new SegmentBlob(compactedId);
@@ -217,7 +217,7 @@ public class Compactor {
                 // if the blob is inlined or external, just clone it
                 if (sb.isExternal() || sb.length() < Segment.MEDIUM_LIMIT) {
                     SegmentBlob clone = sb.clone(writer, cloneBinaries);
-                    map.put(id, clone.getRecordId());
+                    map.put(id, clone.getPage());
                     return clone;
                 }
 
@@ -235,12 +235,12 @@ public class Compactor {
 
                 // if not, clone the blob and keep track of the result
                 sb = sb.clone(writer, cloneBinaries);
-                map.put(id, sb.getRecordId());
+                map.put(id, sb.getPage());
                 if (ids == null) {
                     ids = newArrayList();
                     binaries.put(key, ids);
                 }
-                ids.add(sb.getRecordId());
+                ids.add(sb.getPage());
 
                 return sb;
             } catch (IOException e) {

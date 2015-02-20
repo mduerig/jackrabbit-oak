@@ -52,7 +52,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 
 import javax.jcr.PropertyType;
@@ -430,7 +429,7 @@ public class SegmentWriter {
         for (int i = 0; i < buckets.length; i++) {
             if (buckets[i] != null) {
                 bitmap |= 1L << i;
-                ids.add(buckets[i].getRecordId());
+                ids.add(buckets[i].getPage());
             }
         }
 
@@ -685,12 +684,12 @@ public class SegmentWriter {
                     } else {
                         synchronized (this) {
                             RecordId id = prepare(RecordType.BRANCH, 8, asList(
-                                    entry.getKey(), value, base.getRecordId()));
+                                    entry.getKey(), value, base.getPage()));
                             writeInt(-1);
                             writeInt(entry.getHash());
                             writeRecordId(entry.getKey());
                             writeRecordId(value);
-                            writeRecordId(base.getRecordId());
+                            writeRecordId(base.getPage());
                             return new MapRecord(id);
                         }
                     }
@@ -773,7 +772,7 @@ public class SegmentWriter {
 
     public SegmentBlob writeBlob(Blob blob) throws IOException {
         if (blob instanceof SegmentBlob
-                && store.containsSegment(((SegmentBlob) blob).getRecordId().getSegmentId())) {
+                && store.containsSegment(((SegmentBlob) blob).getPage().getSegmentId())) {
             return (SegmentBlob) blob;
         }
 
@@ -796,7 +795,7 @@ public class SegmentWriter {
         return new SegmentBlob(id);
     }
 
-    SegmentBlob writeLargeBlob(long length, List<RecordId> list) {
+    SegmentBlob writeLargeBlob(long length, List<Page> list) {
         RecordId id = writeValueRecord(length, writeList(list));
         return new SegmentBlob(id);
     }
@@ -816,7 +815,7 @@ public class SegmentWriter {
     public SegmentBlob writeStream(InputStream stream) throws IOException {
         boolean threw = true;
         try {
-            RecordId id = SegmentStream.getRecordIdIfAvailable(stream, store);
+            RecordId id = SegmentStream.getPageIdIfAvailable(stream, store);
             if (id == null) {
                 id = internalWriteStream(stream);
             }
@@ -881,7 +880,7 @@ public class SegmentWriter {
                 try {
                     SegmentBlob blob =
                             writeBlob(state.getValue(Type.BINARY, i));
-                    valueIds.add(blob.getRecordId());
+                    valueIds.add(blob.getPage());
                 } catch (IOException e) {
                     throw new IllegalStateException("Unexpected IOException", e);
                 }
@@ -1008,7 +1007,7 @@ public class SegmentWriter {
      * @return the compacted node (if it was compacted)
      */
     private SegmentNodeState uncompact(SegmentNodeState state) {
-        RecordId id = tracker.getCompactionMap().get(state.getRecordId());
+        RecordId id = tracker.getCompactionMap().get(state.getPage());
         if (id != null) {
             return new SegmentNodeState(id);
         } else {
@@ -1020,7 +1019,7 @@ public class SegmentWriter {
         if (state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
             if (sns != state || store.containsSegment(
-                    sns.getRecordId().getSegmentId())) {
+                    sns.getPage().getSegmentId())) {
                 return sns;
             }
         }
@@ -1034,7 +1033,7 @@ public class SegmentWriter {
             if (base instanceof SegmentNodeState) {
                 SegmentNodeState sns = uncompact((SegmentNodeState) base);
                 if (sns != base || store.containsSegment(
-                        sns.getRecordId().getSegmentId())) {
+                        sns.getPage().getSegmentId())) {
                     before = sns;
                     beforeTemplate = before.getTemplate();
                 }
@@ -1044,7 +1043,7 @@ public class SegmentWriter {
         Template template = new Template(state);
         RecordId templateId;
         if (before != null && template.equals(beforeTemplate)) {
-            templateId = before.getTemplateId();
+            templateId = before.getTemplatePage();
         } else {
             templateId = writeTemplate(template);
         }
@@ -1063,13 +1062,13 @@ public class SegmentWriter {
                 after.compareAgainstBaseState(before, new DefaultNodeStateDiff() {
                     @Override
                     public boolean childNodeAdded(String name, NodeState after) {
-                        childNodes.put(name, writeNode(after).getRecordId());
+                        childNodes.put(name, writeNode(after).getPage());
                         return true;
                     }
                     @Override
                     public boolean childNodeChanged(
                             String name, NodeState before, NodeState after) {
-                        childNodes.put(name, writeNode(after).getRecordId());
+                        childNodes.put(name, writeNode(after).getPage());
                         return true;
                     }
                     @Override
@@ -1083,12 +1082,12 @@ public class SegmentWriter {
                 for (ChildNodeEntry entry : state.getChildNodeEntries()) {
                     childNodes.put(
                             entry.getName(),
-                            writeNode(entry.getNodeState()).getRecordId());
+                            writeNode(entry.getNodeState()).getPage());
                 }
             }
-            ids.add(writeMap(base, childNodes).getRecordId());
+            ids.add(writeMap(base, childNodes).getPage());
         } else if (childName != Template.ZERO_CHILD_NODES) {
-            ids.add(writeNode(state.getChildNode(template.getChildName())).getRecordId());
+            ids.add(writeNode(state.getChildNode(template.getChildName())).getPage());
         }
 
         for (PropertyTemplate pt : template.getPropertyTemplates()) {
@@ -1096,10 +1095,10 @@ public class SegmentWriter {
             PropertyState property = state.getProperty(name);
 
             if (property instanceof SegmentPropertyState
-                    && store.containsSegment(((SegmentPropertyState) property).getRecordId().getSegmentId())) {
-                ids.add(((SegmentPropertyState) property).getRecordId());
+                    && store.containsSegment(((SegmentPropertyState) property).getPage().getSegmentId())) {
+                ids.add(((SegmentPropertyState) property).getPage());
             } else if (before == null
-                    || !store.containsSegment(before.getRecordId().getSegmentId())) {
+                    || !store.containsSegment(before.getPage().getSegmentId())) {
                 ids.add(writeProperty(property));
             } else {
                 // reuse previously stored property, if possible
@@ -1108,9 +1107,9 @@ public class SegmentWriter {
                     ids.add(writeProperty(property)); // new property
                 } else {
                     SegmentPropertyState bp = beforeTemplate.getProperty(
-                            before.getRecordId(), bt.getIndex());
+                            before.getPage(), bt.getIndex());
                     if (property.equals(bp)) {
-                        ids.add(bp.getRecordId()); // no changes
+                        ids.add(bp.getPage()); // no changes
                     } else if (bp.isArray() && bp.getType() != BINARIES) {
                         // reuse entries from the previous list
                         ids.add(writeProperty(property, bp.getValueRecords()));
