@@ -113,6 +113,20 @@ class ContentSessionImpl implements ContentSession {
                 securityProvider, queryEngineSettings, indexProvider, this);
     }
 
+    @Override
+    public Root getRoot(@Nonnull String revision) {
+        checkLive();
+        NodeState state = store.retrieve(checkNotNull(revision));
+
+        if (state == null) {
+            return null;
+        }
+
+        return new MutableRoot(store, state, hook, workspaceName,
+                loginContext.getSubject(), securityProvider,
+                queryEngineSettings, indexProvider, this);
+    }
+
     //-----------------------------------------------------------< Closable >---
     @Override
     public synchronized void close() throws IOException {
@@ -127,19 +141,6 @@ class ContentSessionImpl implements ContentSession {
     @Override
     public String toString() {
         return sessionName;
-    }
-
-    @Override
-    public Root getRoot(@Nonnull String revision) {
-        NodeState state = store.retrieve(checkNotNull(revision));
-
-        if (state == null) {
-            return null;
-        }
-
-        return new MutableRoot(store, state, hook, workspaceName,
-                loginContext.getSubject(), securityProvider,
-                queryEngineSettings, indexProvider, this);
     }
 
 }

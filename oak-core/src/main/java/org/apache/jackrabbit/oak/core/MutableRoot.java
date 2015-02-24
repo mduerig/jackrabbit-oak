@@ -34,6 +34,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.security.auth.Subject;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.ContentSession;
@@ -340,7 +341,9 @@ class MutableRoot implements Root {
 
     @Override
     public Revision getRevision() {
-        return new CheckpointRevision(store.checkpoint(DEFAULT_CHECKPOINT_LIFETIME));
+        String checkpoint = store.checkpoint(DEFAULT_CHECKPOINT_LIFETIME, ImmutableMap.of(
+                "creator", subject.toString()));
+        return new CheckpointRevision(checkpoint);
     }
 
     //-----------------------------------------------------------< internal >---
