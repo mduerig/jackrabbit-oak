@@ -49,7 +49,6 @@ import javax.jcr.observation.EventListener;
 import com.google.common.util.concurrent.Monitor;
 import com.google.common.util.concurrent.Monitor.Guard;
 import org.apache.jackrabbit.api.jmx.EventListenerMBean;
-import org.apache.jackrabbit.oak.api.ContentSession;
 import org.apache.jackrabbit.oak.jcr.observation.temp.ListenerTracker;
 import org.apache.jackrabbit.oak.namepath.NamePathMapper;
 import org.apache.jackrabbit.oak.plugins.observation.CommitRateLimiter;
@@ -98,8 +97,6 @@ class ChangeProcessor implements Observer {
 
     private final Set<Listener> listeners = newConcurrentHashSet();
     private final Whiteboard whiteboard;
-    private final String sessionId;
-    private final NamePathMapper namePathMapper;
     private final AtomicLong eventCount;
     private final AtomicLong eventDuration;
     private final TimeSeriesMax maxQueueLength;
@@ -126,14 +123,10 @@ class ChangeProcessor implements Observer {
 
     public ChangeProcessor(
             Whiteboard whiteboard,
-            ContentSession contentSession,
-            NamePathMapper namePathMapper,
             StatisticManager statisticManager,
             int queueLength,
             CommitRateLimiter commitRateLimiter) {
         this.whiteboard = whiteboard;
-        this.sessionId = contentSession.toString();
-        this.namePathMapper = namePathMapper;
         this.eventCount = statisticManager.getCounter(OBSERVATION_EVENT_COUNTER);
         this.eventDuration = statisticManager.getCounter(OBSERVATION_EVENT_DURATION);
         this.maxQueueLength = statisticManager.maxQueLengthRecorder();
@@ -235,8 +228,9 @@ class ChangeProcessor implements Observer {
      * @param filterProvider  the filter for the listener
      * @return  a listener registration instance
      */
-    public ListenerRegistration addListener(ListenerTracker tracker, FilterProvider filterProvider) {
-        final Listener listener = new Listener(whiteboard, tracker, filterProvider);
+    public ListenerRegistration addListener(ListenerTracker tracker, FilterProvider filterProvider,
+            String sessionId, NamePathMapper namePathMapper) {
+        final Listener listener = new Listener(whiteboard, tracker, filterProvider, sessionId, namePathMapper);
         observer.addCallback(new Runnable() {
             // Make sure the listener is only enabled once we reach the "current revision"
             // as otherwise we might receive events from the past.
@@ -307,10 +301,9 @@ class ChangeProcessor implements Observer {
     @Override
     public void contentChanged(@Nonnull NodeState root, @Nullable CommitInfo info) {
         if (previousRoot != null) {
-            EventFactory eventFactory = new EventFactory(namePathMapper, info);
             Set<EventDispatcher> dispatchers = newHashSet();
             for (Listener listener : listeners) {
-                EventDispatcher dispatcher = listener.createDispatcher(root, info, eventFactory);
+                EventDispatcher dispatcher = listener.createDispatcher(root, info);
                 if (dispatcher != null) {
                     dispatchers.add(dispatcher);
                 }
@@ -423,12 +416,17 @@ class ChangeProcessor implements Observer {
         private final EventListener eventListener;
         private final AtomicReference<FilterProvider> filterProvider;
         private final Registration mBean;
+        private final String sessionId;
+        private final NamePathMapper namePathMapper;
 
         private volatile boolean enabled;
 
-        public Listener(Whiteboard whiteboard, ListenerTracker tracker, FilterProvider filterProvider) {
+        public Listener(Whiteboard whiteboard, ListenerTracker tracker, FilterProvider filterProvider,
+                String sessionId, NamePathMapper namePathMapper) {
             this.eventListener = tracker.getTrackedListener();
             this.filterProvider = new AtomicReference<FilterProvider>(filterProvider);
+            this.sessionId = sessionId;
+            this.namePathMapper = namePathMapper;
             mBean = registerMBean(whiteboard, EventListenerMBean.class,
                     tracker.getListenerMBean(), "EventListener", tracker.toString());
             listeners.add(this);
@@ -444,11 +442,10 @@ class ChangeProcessor implements Observer {
          *
          * @param root    root node state whose changes to dispatch
          * @param info    commit info associate with the changes
-         * @param eventFactory
          * @return  a new event dispatcher
          */
-        public EventDispatcher createDispatcher(NodeState root, CommitInfo info,
-                EventFactory eventFactory) {
+        public EventDispatcher createDispatcher(NodeState root, CommitInfo info) {
+            EventFactory eventFactory = new EventFactory(namePathMapper, info);
             FilterProvider provider = filterProvider.get();
             if (enabled && provider.includeCommit(sessionId, info)) {
                 EventFilter filter = provider.getFilter(previousRoot, root);

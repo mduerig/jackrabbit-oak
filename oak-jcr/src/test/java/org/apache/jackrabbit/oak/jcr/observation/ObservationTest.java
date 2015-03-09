@@ -470,7 +470,7 @@ public class ObservationTest extends AbstractRepositoryTest {
 
     // michid remove
     @Test
-    @Ignore
+//    @Ignore
     public void memoryPressure() throws RepositoryException, ExecutionException, InterruptedException {
         Assume.assumeTrue(Integer.getInteger("max-changes-per-continuation", Integer.MAX_VALUE) <= 100);
 

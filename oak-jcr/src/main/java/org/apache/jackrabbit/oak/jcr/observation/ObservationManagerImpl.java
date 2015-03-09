@@ -114,8 +114,8 @@ public class ObservationManagerImpl implements JackrabbitObservationManager {
                         sessionDelegate.getWorkspaceName(), principals);
             }
         };
-        changeProcessor = new ChangeProcessor(whiteboard, sessionDelegate.getContentSession(),
-                namePathMapper, sessionContext.getStatisticManager(), queueLength, commitRateLimiter);
+        changeProcessor = new ChangeProcessor(whiteboard, sessionContext.getStatisticManager(),
+                queueLength, commitRateLimiter);
         changeProcessor.start();
     }
 
@@ -137,7 +137,8 @@ public class ObservationManagerImpl implements JackrabbitObservationManager {
             // TODO sharing the namePathMapper across different thread might lead to lock contention.
             // If this turns out to be problematic we might create a dedicated snapshot for each
             // session. See OAK-1368.
-            registration = changeProcessor.addListener(tracker, filterProvider);
+            registration = changeProcessor.addListener(tracker, filterProvider,
+                    sessionDelegate.getContentSession().toString(), namePathMapper);
             listeners.put(listener, registration);
         } else {
             LOG.debug(OBSERVATION,
