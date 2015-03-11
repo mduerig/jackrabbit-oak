@@ -38,6 +38,8 @@
 
   <logger name="org.apache.jackrabbit.oak.plugins.segment.file.tooling.ConsistencyChecker" level="DEBUG"/>
 
+  <logger name="org.apache.jackrabbit.oak.plugins.segment.file.TarReader-GC" level="INFO"/>
+
   <root level="warn">
     <appender-ref ref="STDERR" />
   </root>
