@@ -354,6 +354,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>com.sun.jdmk</groupId>
+      <artifactId>jmxtools</artifactId>
+      <version>1.2.1</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-math3</artifactId>
       <scope>test</scope>
