@@ -142,6 +142,10 @@ public interface SegmentCompactionMBean {
      */
     int getCompactionMapDepth();
 
+    String getFileStoreSizes();
+    String getCompactionMapWeights();
+    String getCompactionMapDepths();
+
     /**
      * @return  last error
      */

@@ -65,6 +65,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import com.sun.jdmk.comm.HtmlAdaptorServer;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.jmx.AnnotatedStandardMBean;
@@ -102,8 +103,10 @@ public class SegmentCompactionIT {
     private static final boolean ENABLED =
             SegmentCompactionIT.class.getSimpleName().equals(getProperty("test"));
     private static final Logger LOG = LoggerFactory.getLogger(SegmentCompactionIT.class);
+    private static final int HTTP_PORT = Integer.getInteger("http-port", 8000);
 
     private final MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+    private final HtmlAdaptorServer httpMBeanServer = new HtmlAdaptorServer(HTTP_PORT);
 
     private final Random rnd = new Random();
     private final ListeningScheduledExecutorService scheduler =
@@ -198,6 +201,9 @@ public class SegmentCompactionIT {
             InstanceAlreadyExistsException, MBeanRegistrationException {
         assumeTrue(ENABLED);
 
+        mBeanServer.registerMBean(httpMBeanServer, new ObjectName("Adaptor:name=html,port=" + HTTP_PORT));
+        httpMBeanServer.start();
+
         mBeanRegistration = new CompositeRegistration(
             registerMBean(segmentCompactionMBean, new ObjectName("IT:TYPE=Segment Compaction")),
             registerMBean(new DefaultCompactionStrategyMBean(compactionStrategy),
@@ -233,6 +239,7 @@ public class SegmentCompactionIT {
             if (directory != null) {
                 deleteDirectory(directory);
             }
+            httpMBeanServer.stop();
         } catch (IOException e) {
             LOG.error("Error cleaning directory", e);
         }
@@ -595,9 +602,22 @@ public class SegmentCompactionIT {
 
     private class SegmentCompactionITMBean extends AnnotatedStandardMBean implements SegmentCompactionMBean {
         private String lastError;
+        private final StringBuilder fileStoreSizes = new StringBuilder();
+        private final StringBuilder compactionMapWeights = new StringBuilder();
+        private final StringBuilder compactionMapDepths = new StringBuilder();
 
         SegmentCompactionITMBean() {
             super(SegmentCompactionMBean.class);
+            scheduler.scheduleAtFixedRate(new Runnable() {
+                @Override
+                public void run() {
+                    synchronized (SegmentCompactionIT.this) {
+                        fileStoreSizes.append(',').append(getFileStoreSize());
+                        compactionMapWeights.append(',').append(getCompactionMapWeight());
+                        compactionMapDepths.append(',').append(getCompactionMapDepth());
+                    }
+                }
+            }, 1, 1, MINUTES);
         }
 
         @Override
@@ -736,6 +756,21 @@ public class SegmentCompactionIT {
         @Override
         public int getCompactionMapDepth() {
             return fileStore.getTracker().getCompactionMap().getDepth();
+        }
+
+        @Override
+        public synchronized String getFileStoreSizes() {
+            return fileStoreSizes.toString();
+        }
+
+        @Override
+        public synchronized String getCompactionMapWeights() {
+            return compactionMapWeights.toString();
+        }
+
+        @Override
+        public synchronized String getCompactionMapDepths() {
+            return compactionMapDepths.toString();
         }
 
         @Override
