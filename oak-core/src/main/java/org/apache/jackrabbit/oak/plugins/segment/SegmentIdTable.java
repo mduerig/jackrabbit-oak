@@ -51,6 +51,8 @@ public class SegmentIdTable {
 
     private final SegmentTracker tracker;
 
+    private int count;
+
     SegmentIdTable(SegmentTracker tracker) {
         this.tracker = tracker;
     }
@@ -65,7 +67,6 @@ public class SegmentIdTable {
     synchronized SegmentId getSegmentId(long msb, long lsb) {
         int first = getIndex(lsb);
         int index = first;
-        boolean shouldRefresh = false;
 
         WeakReference<SegmentId> reference = references.get(index);
         while (reference != null) {
@@ -75,14 +76,13 @@ public class SegmentIdTable {
                     && id.getLeastSignificantBits() == lsb) {
                 return id;
             }
-            shouldRefresh = shouldRefresh || id == null;
             index = (index + 1) % references.size();
             reference = references.get(index);
         }
 
         SegmentId id = new SegmentId(tracker, msb, lsb);
         references.set(index, new WeakReference<SegmentId>(id));
-        if (shouldRefresh) {
+        if (++count * 4 / 3 > references.size()) {
             refresh();
         }
         return id;
@@ -113,6 +113,7 @@ public class SegmentIdTable {
                     hashCollisions = hashCollisions || (i != getIndex(id));
                 } else {
                     references.set(i, null);
+                    count--;
                     emptyReferences = true;
                 }
             }
@@ -158,6 +159,7 @@ public class SegmentIdTable {
                     if (strategy.canRemove(id)) {
                         reference.clear();
                         references.set(i, null);
+                        count--;
                         dirty = true;
                     }
                 }
