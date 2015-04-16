@@ -40,10 +40,9 @@ import java.util.SortedMap;
 import java.util.UUID;
 import java.util.zip.CRC32;
 
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.Lists;
 
 /**
  * A writer for tar files. It is also used to read entries while the file is
@@ -421,7 +420,7 @@ class TarWriter {
 
         // Checksum for header record
         System.arraycopy(
-                new byte[] { ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ' }, 0,
+                new byte[] {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '}, 0,
                 header, 148, 8);
 
         // Type flag
@@ -439,9 +438,36 @@ class TarWriter {
         return header;
     }
 
+    /**
+     * Add all segment ids that are reachable from {@code referencedIds} via
+     * this writer's segment graph and subsequently remove those segment ids
+     * from {@code referencedIds} that are in this {{TarWriter}} as those can't
+     * be cleaned up anyway.
+     * @param referencedIds
+     * @throws IOException
+     */
     synchronized void cleanup(Set<UUID> referencedIds) throws IOException {
-        referencedIds.removeAll(index.keySet());
+        Set<UUID> references = newHashSet();
+        for (UUID id : referencedIds) {
+            collectReferences(id, references);
+        }
         referencedIds.addAll(references);
+        referencedIds.removeAll(index.keySet());
+    }
+
+    /**
+     * Irreflexive, transitive closure of {@code id} wrt. {@code graph}
+     */
+    private void collectReferences(UUID id, Set<UUID> references) {
+        List<UUID> refs = graph.get(id);
+        if (refs != null) {
+            for (UUID ref : refs) {
+                if (!references.contains(ref)) {
+                    references.add(ref);
+                    collectReferences(ref, references);
+                }
+            }
+        }
     }
 
     //------------------------------------------------------------< Object >--
