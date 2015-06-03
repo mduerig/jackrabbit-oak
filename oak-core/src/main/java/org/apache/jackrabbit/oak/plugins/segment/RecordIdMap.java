@@ -21,58 +21,16 @@ package org.apache.jackrabbit.oak.plugins.segment;
 
 import static java.lang.System.arraycopy;
 import static java.util.Arrays.binarySearch;
-import static org.apache.jackrabbit.oak.plugins.segment.Segment.decode;
-import static org.apache.jackrabbit.oak.plugins.segment.Segment.encode;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 /**
  * A memory optimised map of {@code short} key to {@link RecordId} values.
- * <p>
- * The map doesn't keep references to the actual record ids
- * it contains.
  */
 public class RecordIdMap {
-    private final SegmentTracker tracker;
-
     private short[] keys;
-    private byte[] values;
-
-    public RecordIdMap(SegmentTracker tracker) {
-        this.tracker = tracker;
-    }
-
-    private static void putLong(byte[] bytes, int index, long value) {
-        bytes[(index)] = (byte) (value >> 56);
-        bytes[(index + 1)] = (byte) (value >> 48);
-        bytes[(index + 2)] = (byte) (value >> 40);
-        bytes[(index + 3)] = (byte) (value >> 32);
-        bytes[(index + 4)] = (byte) (value >> 24);
-        bytes[(index + 5)] = (byte) (value >> 16);
-        bytes[(index + 6)] = (byte) (value >> 8);
-        bytes[(index + 7)] = (byte) (value);
-    }
-
-    private static long getLong(byte[] bytes, int index) {
-        return ((((long) bytes[(index)] & 0xff) << 56) |
-                (((long) bytes[(index + 1)] & 0xff) << 48) |
-                (((long) bytes[(index + 2)] & 0xff) << 40) |
-                (((long) bytes[(index + 3)] & 0xff) << 32) |
-                (((long) bytes[(index + 4)] & 0xff) << 24) |
-                (((long) bytes[(index + 5)] & 0xff) << 16) |
-                (((long) bytes[(index + 6)] & 0xff) <<  8) |
-                (((long) bytes[(index + 7)] & 0xff)));
-    }
-
-    private static void putShort(byte[] bytes, int index, short value) {
-        bytes[(index)] = (byte) (value >> 8);
-        bytes[(index + 1)] = (byte) (value);
-    }
-
-    private static short getShortValue(byte[] bytes, int index) {
-        return (short)((bytes[index] << 8) | (bytes[index + 1] & 0xff));
-    }
+    private RecordId[] values;
 
     /**
      * Associates {@code key} with {@code value} if not already present
@@ -83,28 +41,24 @@ public class RecordIdMap {
     public boolean put(short key, @Nonnull RecordId value) {
         if (keys == null) {
             keys = new short[1];
+            values = new RecordId[1];
             keys[0] = key;
-            values = new byte[18];
-            putLong(values, 0, value.getSegmentId().getMostSignificantBits());
-            putLong(values, 8, value.getSegmentId().getLeastSignificantBits());
-            putShort(values, 16, encode(value.getOffset()));
+            values[0] = value;
             return true;
         } else {
             int k = binarySearch(keys, key);
             if (k < 0) {
                 int l = -k - 1;
                 short[] newKeys = new short[keys.length + 1];
-                byte[] newValues = new byte[(values.length + 18)];
+                RecordId[] newValues = new RecordId[(values.length + 1)];
                 arraycopy(keys, 0, newKeys, 0, l);
-                arraycopy(values, 0, newValues, 0, l * 18);
+                arraycopy(values, 0, newValues, 0, l);
                 newKeys[l] = key;
-                putLong(newValues, l * 18, value.getSegmentId().getMostSignificantBits());
-                putLong(newValues, l * 18 + 8, value.getSegmentId().getLeastSignificantBits());
-                putShort(newValues, l * 18 + 16, encode(value.getOffset()));
+                newValues[l] = value;
                 int c = keys.length - l;
                 if (c > 0) {
                     arraycopy(keys, l, newKeys, l + 1, c);
-                    arraycopy(values, l * 18, newValues, (l + 1) * 18, c * 18);
+                    arraycopy(values, l, newValues, l + 1, c);
                 }
                 keys = newKeys;
                 values = newValues;
@@ -124,7 +78,7 @@ public class RecordIdMap {
     public RecordId get(short key) {
         int k = binarySearch(keys, key);
         if (k >= 0) {
-            return getRecordId(k);
+            return values[k];
         } else {
             return null;
         }
@@ -164,8 +118,6 @@ public class RecordIdMap {
      */
     @Nonnull
     public RecordId getRecordId(int index) {
-        return new RecordId(
-            new SegmentId(tracker, getLong(values, index * 18), getLong(values, index * 18 + 8)),
-            decode(getShortValue(values, index * 18 + 16)));
+        return values[index];
     }
 }

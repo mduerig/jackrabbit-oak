@@ -136,7 +136,7 @@ public class PersistedCompactionMap implements PartialCompactionMap {
         UUID uuid = asUUID(before.getSegmentId());
         RecordIdMap entry = recent.get(uuid);
         if (entry == null) {
-            entry = new RecordIdMap(writer.getTracker());
+            entry = new RecordIdMap();
             recent.put(uuid, entry);
         }
         entry.put(encode(before.getOffset()), after);

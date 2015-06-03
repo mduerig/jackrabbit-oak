@@ -44,7 +44,7 @@ public class RecordIdMapTest {
         Random r = new Random(seed);
 
         SegmentTracker tracker = new MemoryStore().getTracker();
-        RecordIdMap map = new RecordIdMap(tracker);
+        RecordIdMap map = new RecordIdMap();
         Map<Short, RecordId> reference = newHashMap();
         int segments = r.nextInt(maxSegments);
         for (int i = 0; i < segments; i++) {
