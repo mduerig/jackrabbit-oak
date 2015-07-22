@@ -35,7 +35,7 @@
 
   <properties>
     <test.opts.memory>-Xmx512m -XX:MaxPermSize=64m</test.opts.memory>
-    <test.opts>${test.opts.coverage} ${test.opts.memory} -XX:+HeapDumpOnOutOfMemoryError -Dupdate.limit=100 -Djava.awt.headless=true</test.opts>
+    <test.opts>${test.opts.coverage} ${test.opts.memory} -XX:+HeapDumpOnOutOfMemoryError -Djava.awt.headless=true</test.opts>
     <skip.deployment>false</skip.deployment>
     <skip.coverage>true</skip.coverage>
     <known.issues />
