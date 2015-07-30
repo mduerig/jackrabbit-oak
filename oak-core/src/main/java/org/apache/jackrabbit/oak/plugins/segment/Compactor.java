@@ -94,6 +94,7 @@ public class Compactor {
         this.cloneBinaries = compactionStrategy.cloneBinaries();
     }
 
+    // michid why?
     protected SegmentNodeBuilder process(NodeState before, NodeState after) {
         SegmentNodeBuilder builder = new SegmentNodeBuilder(
                 writer.writeNode(before), writer);
@@ -103,6 +104,14 @@ public class Compactor {
 
     public SegmentNodeState compact(NodeState before, NodeState after) {
         SegmentNodeState compacted = process(before, after).getNodeState();
+        writer.flush();
+        return compacted;
+    }
+
+    public SegmentNodeState compact(NodeState before, NodeState after, NodeState onto) {
+        SegmentNodeBuilder builder = new SegmentNodeBuilder(writer.writeNode(onto), writer);
+        after.compareAgainstBaseState(before, new CompactDiff(builder));
+        SegmentNodeState compacted = builder.getNodeState();
         writer.flush();
         return compacted;
     }
