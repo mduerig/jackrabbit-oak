@@ -16,11 +16,13 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Queues.newArrayDeque;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.Boolean.getBoolean;
 
 import java.security.SecureRandom;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -76,7 +78,6 @@ public class SegmentTracker {
 
     private final SegmentStore store;
 
-    private final SegmentWriter writer;
 
     /**
      * Serialized map that contains the link between old record
@@ -106,14 +107,16 @@ public class SegmentTracker {
      */
     private final CacheLIRS<SegmentId, Segment> segmentCache;
 
+    private final SegmentVersion version;
+
     public SegmentTracker(SegmentStore store, int cacheSizeMB,
             SegmentVersion version) {
+        this.version = version;
         for (int i = 0; i < tables.length; i++) {
             tables[i] = new SegmentIdTable(this);
         }
 
         this.store = store;
-        this.writer = new SegmentWriter(store, this, version);
         this.compactionMap = new AtomicReference<CompactionMap>(
                 CompactionMap.EMPTY);
         StringCache c;
@@ -159,8 +162,28 @@ public class SegmentTracker {
             : stringCache.getStats();
     }
 
+    private final Map<Thread, SegmentWriter> writers = newHashMap();
+
+    public void flushWriters(boolean dropCache) {
+        synchronized (writers) {
+            for (SegmentWriter writer : writers.values()) {
+                if (writer != null) {
+                    writer.flush();
+                    writer.dropCache();
+                }
+            }
+        }
+    }
+
     public SegmentWriter getWriter() {
-        return writer;
+        synchronized (writers) {
+            SegmentWriter writer = writers.get(Thread.currentThread());
+            if (writer == null) {
+                writer = new SegmentWriter(store, this, version);
+                writers.put(Thread.currentThread(), writer);
+            }
+            return writer;
+        }
     }
 
     public SegmentStore getStore() {
@@ -260,7 +283,7 @@ public class SegmentTracker {
     public void collectBlobReferences(ReferenceCollector collector) {
         Set<SegmentId> processed = newHashSet();
         Queue<SegmentId> queue = newArrayDeque(getReferencedSegmentIds());
-        writer.flush(); // force the current segment to have root record info
+        flushWriters(false); // force the current segment to have root record info
         while (!queue.isEmpty()) {
             SegmentId id = queue.remove();
             if (id.isDataSegmentId() && processed.add(id)) {
