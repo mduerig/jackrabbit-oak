@@ -50,7 +50,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -118,13 +117,13 @@ public class SegmentWriter {
      * Should only be accessed from synchronized blocks to prevent corruption.
      */
     @SuppressWarnings("serial")
-    private final Map<Object, RecordId> records =
-        new LinkedHashMap<Object, RecordId>(15000, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<Object, RecordId> e) {
-                return size() > 10000;
-            }
-        };
+//    private final Map<Object, RecordId> records =
+//        new LinkedHashMap<Object, RecordId>(15000, 0.75f, true) {
+//            @Override
+//            protected boolean removeEldestEntry(Map.Entry<Object, RecordId> e) {
+//                return size() > 10000;
+//            }
+//        };
 
     /**
      * The set of root records (i.e. ones not referenced by other records)
@@ -792,7 +791,7 @@ public class SegmentWriter {
      */
     public RecordId writeString(String string) {
         synchronized (this) {
-            RecordId id = records.get(string);
+            RecordId id = null;
             if (id != null) {
                 return id; // shortcut if the same string was recently stored
             }
@@ -803,10 +802,10 @@ public class SegmentWriter {
         if (data.length < Segment.MEDIUM_LIMIT) {
             // only cache short strings to avoid excessive memory use
             synchronized (this) {
-                RecordId id = records.get(string);
+                RecordId id = null;
                 if (id == null) {
                     id = writeValueRecord(data.length, data);
-                    records.put(string, id);
+//                    records.put(string, id);
                 }
                 return id;
             }
@@ -867,7 +866,7 @@ public class SegmentWriter {
     }
 
     public synchronized void dropCache() {
-        records.clear();
+//        records.clear();
     }
 
     /**
@@ -983,7 +982,7 @@ public class SegmentWriter {
     public synchronized RecordId writeTemplate(Template template) {
         checkNotNull(template);
 
-        RecordId id = records.get(template);
+        RecordId id = null;
         if (id != null) {
             return id; // shortcut if the same template was recently stored
         }
@@ -1077,7 +1076,7 @@ public class SegmentWriter {
             buffer[position++] = propertyTypes[i];
         }
 
-        records.put(template, id);
+//        records.put(template, id);
 
         return id;
     }
