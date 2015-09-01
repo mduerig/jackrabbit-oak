@@ -56,7 +56,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Maps;
-
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.segment.CompactionMap;
@@ -960,6 +959,11 @@ public class FileStore implements SegmentStore {
             }
         }
 
+        Segment segment = cache.get(new UUID(msb, lsb));
+        if (segment != null) {
+            return segment;
+        }
+
         if (writer != null) {
             synchronized (this) {
                 try {
@@ -996,6 +1000,8 @@ public class FileStore implements SegmentStore {
         throw new SegmentNotFoundException(id);
     }
 
+    final Map<UUID, Segment> cache = Maps.newConcurrentMap();
+
     @Override
     public synchronized void writeSegment(
             SegmentId id, byte[] data, int offset, int length) {
@@ -1004,6 +1010,8 @@ public class FileStore implements SegmentStore {
                     id.getMostSignificantBits(),
                     id.getLeastSignificantBits(),
                     data, offset, length);
+            ByteBuffer bb = ByteBuffer.wrap(data, offset, length);
+            cache.put(id.asUUID(), new Segment(id.getTracker(), id, bb));
             if (size >= maxFileSize) {
                 newWriter();
             }
@@ -1015,6 +1023,7 @@ public class FileStore implements SegmentStore {
     private void newWriter() throws IOException {
         if (writer.isDirty()) {
             writer.close();
+            cache.clear();
 
             List<TarReader> list =
                     newArrayListWithCapacity(1 + readers.size());
