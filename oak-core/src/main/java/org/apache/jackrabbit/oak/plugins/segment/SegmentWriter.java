@@ -224,10 +224,7 @@ public class SegmentWriter {
             }
 
             SegmentId id = segment.getSegmentId();
-            log.debug("Writing data segment {} ({} bytes)", id, length);
-            store.writeSegment(id, buffer, buffer.length - length, length);
 
-            // Keep this segment in memory as it's likely to be accessed soon
             ByteBuffer data;
             if (buffer.length - length > 4096) {
                 data = ByteBuffer.allocate(length);
@@ -236,6 +233,11 @@ public class SegmentWriter {
             } else {
                 data = ByteBuffer.wrap(buffer, buffer.length - length, length);
             }
+
+            log.debug("Writing data segment {} ({} bytes)", id, length);
+            store.writeSegment(id, data.array(), data.position(), length);
+
+            // Keep this segment in memory as it's likely to be accessed soon
             tracker.setSegment(id, new Segment(tracker, id, data));
 
             buffer = createNewBuffer(version);
