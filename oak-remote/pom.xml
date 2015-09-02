@@ -188,7 +188,7 @@
                 <artifactId>maven-bundle-plugin</artifactId>
                 <configuration>
                     <instructions>
-                        <Export-Package/>
+                        <Export-Package />
                         <Embed-Dependency>
                             jackson-core,
                             jackson-databind,
