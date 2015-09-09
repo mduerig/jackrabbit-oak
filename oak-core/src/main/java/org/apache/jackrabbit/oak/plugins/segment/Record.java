@@ -69,7 +69,7 @@ class Record {
      *
      * @return segment tracker
      */
-    protected SegmentTracker getTracker() {
+    public SegmentTracker getTracker() {  // michid undo
         return segmentId.getTracker();
     }
 

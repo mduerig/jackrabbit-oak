@@ -18,7 +18,9 @@ package org.apache.jackrabbit.oak.plugins.segment;
 
 import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.collect.Sets.newHashSet;
+import static com.google.common.hash.Hashing.sha1;
 import static java.util.Collections.emptySet;
+import static org.apache.jackrabbit.oak.commons.IOUtils.readFully;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MEDIUM_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.SMALL_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentWriter.BLOCK_SIZE;
@@ -48,7 +50,7 @@ public class SegmentBlob extends Record implements Blob {
         }
     }
 
-    SegmentBlob(RecordId id) {
+    public SegmentBlob(RecordId id) {  // michid review / undo
         super(id);
     }
 
@@ -57,6 +59,17 @@ public class SegmentBlob extends Record implements Blob {
         byte[] inline = new byte[length];
         segment.readBytes(offset, inline, 0, length);
         return new SegmentStream(getRecordId(), inline);
+    }
+
+    public String getBlobKey() throws IOException {  // michid also use from compactor
+        InputStream stream = getNewStream();
+        try {
+            byte[] buffer = new byte[BLOCK_SIZE];
+            int n = readFully(stream, buffer, 0, buffer.length);
+            return length() + ":" + sha1().hashBytes(buffer, 0, n);
+        } finally {
+            stream.close();
+        }
     }
 
     @Override @Nonnull
