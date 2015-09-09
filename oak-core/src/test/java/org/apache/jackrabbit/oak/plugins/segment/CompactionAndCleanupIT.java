@@ -67,7 +67,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -361,7 +360,6 @@ public class CompactionAndCleanupIT {
      * Test asserting OAK-3348: Cross gc sessions might introduce references to pre-compacted segments
      */
     @Test
-    @Ignore("OAK-3348")  // FIXME OAK-3348
     public void preCompactionReferences() throws IOException, CommitFailedException, InterruptedException {
         for (String ref : new String[] {"merge-before-compact", "merge-after-compact"}) {
             File repoDir = new File(directory, ref);
