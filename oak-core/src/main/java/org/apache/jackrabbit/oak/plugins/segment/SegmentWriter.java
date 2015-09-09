@@ -86,7 +86,7 @@ public class SegmentWriter {
     private static final Logger log =
             LoggerFactory.getLogger(SegmentWriter.class);
 
-    static final int BLOCK_SIZE = 1 << 12; // 4kB
+    public static final int BLOCK_SIZE = 1 << 12; // 4kB  michid review / undo
 
     static byte[] createNewBuffer(SegmentVersion v) {
         byte[] buffer = new byte[Segment.MAX_SEGMENT_SIZE];
