@@ -141,7 +141,7 @@ public class SegmentCompactionIT {
     private Registration mBeanRegistration;
 
     private volatile ListenableFuture<?> compactor = immediateCancelledFuture();
-    private volatile ReadWriteLock compactionLock = new ReentrantReadWriteLock();
+    private volatile ReadWriteLock compactionLock = null;
     private volatile int lockWaitTime = 60;
     private volatile int maxReaders = 10;
     private volatile int maxWriters = 1;
