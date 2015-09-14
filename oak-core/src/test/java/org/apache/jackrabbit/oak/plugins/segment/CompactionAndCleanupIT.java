@@ -386,10 +386,10 @@ public class CompactionAndCleanupIT {
                 // with a new builder simulate exceeding the update limit.
                 // This will cause changes to be pre-written to segments
                 root = nodeStore.getRoot().builder();
+                root.setChildNode("test").setChildNode("a").setChildNode("b").setProperty("foo", "bar");
                 for (int k = 0; k < getInteger("update.limit", 10000); k += 2) {
-                    root.setChildNode("test").remove();
+                    root.setChildNode("dummy").remove();
                 }
-                root.setChildNode("test");
 
                 // case 1: merge above changes before compact
                 if ("merge-before-compact".equals(ref)) {

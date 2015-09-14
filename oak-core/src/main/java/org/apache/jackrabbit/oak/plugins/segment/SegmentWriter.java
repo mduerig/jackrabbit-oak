@@ -774,7 +774,7 @@ public class SegmentWriter {
      */
     public RecordId writeString(String string) {
         synchronized (this) {
-            RecordId id = records.get(string);
+            RecordId id = getRecord(string);
             if (id != null) {
                 return id; // shortcut if the same string was recently stored
             }
@@ -785,10 +785,10 @@ public class SegmentWriter {
         if (data.length < Segment.MEDIUM_LIMIT) {
             // only cache short strings to avoid excessive memory use
             synchronized (this) {
-                RecordId id = records.get(string);
+                RecordId id = getRecord(string);
                 if (id == null) {
                     id = writeValueRecord(data.length, data);
-                    records.put(string, id);
+                    putRecord(string, id);
                 }
                 return id;
             }
@@ -965,7 +965,7 @@ public class SegmentWriter {
     public synchronized RecordId writeTemplate(Template template) {
         checkNotNull(template);
 
-        RecordId id = records.get(template);
+        RecordId id = getRecord(template);
         if (id != null) {
             return id; // shortcut if the same template was recently stored
         }
@@ -1059,9 +1059,18 @@ public class SegmentWriter {
             buffer[position++] = propertyTypes[i];
         }
 
-        records.put(template, id);
+        putRecord(template, id);
 
         return id;
+    }
+
+    private RecordId getRecord(Object o) {
+//        return records.get(o);
+        return null;
+    }
+
+    private void putRecord(Object key, RecordId value) {
+        records.put(key, value);
     }
 
     /**
