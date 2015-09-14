@@ -19,13 +19,12 @@
 
 package org.apache.jackrabbit.oak.spi.state;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static org.apache.jackrabbit.oak.api.Type.BINARIES;
 import static org.apache.jackrabbit.oak.api.Type.BINARY;
 import static org.apache.jackrabbit.oak.plugins.memory.BinaryPropertyState.binaryProperty;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.compareAgainstEmptyState;
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState.binaryPropertyFromBlob;
 import static org.apache.jackrabbit.oak.plugins.memory.PropertyStates.createProperty;
 
@@ -33,6 +32,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -42,30 +43,29 @@ import org.apache.jackrabbit.oak.plugins.segment.Segment;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentBlob;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentWriter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public class CopyDiff implements NodeStateDiff {
-    private static final Logger LOG = LoggerFactory.getLogger(CopyDiff.class);
-
-    private final NodeBuilder builder;
+/**
+ * michid document
+ */
+public class CopyingCARD extends ConflictAnnotatingRebaseDiff {
     private final SegmentWriter writer;
-    private final NodeState empty;
+    private final SegmentNodeState empty;
 
-    public CopyDiff(NodeBuilder builder, NodeState empty) {
-        this(builder, toSegmentNodeState(empty).getTracker().getWriter(), empty);
+    public CopyingCARD(NodeBuilder builder, SegmentWriter writer) {
+        this(builder, writer, writer.writeNode(EMPTY_NODE));
     }
 
-    private static SegmentNodeState toSegmentNodeState(NodeState empty) {
-        // michid this should work for any node state
-        checkArgument(empty instanceof SegmentNodeState);
-        return (SegmentNodeState) empty;
-    }
-
-    private CopyDiff(NodeBuilder builder, SegmentWriter writer, NodeState empty) {
-        this.builder = builder;
+    private CopyingCARD(NodeBuilder builder, SegmentWriter writer, SegmentNodeState empty) {
+        super(builder);
         this.writer = writer;
         this.empty = empty;
+    }
+
+    @Nonnull
+    private NodeState copy(NodeState after) {
+        NodeBuilder builder = empty.builder();
+        empty.compareAgainstBaseState(after, new CopyingCARD(builder, writer, empty));
+        return builder.getNodeState();
     }
 
     // michid move to common location and share with dup in CompactorDiff
@@ -122,7 +122,7 @@ public class CopyDiff implements NodeStateDiff {
 
                 return sb;
             } catch (IOException e) {
-                LOG.warn("Failed to copy a blob", e);
+                // michid LOG.warn("Failed to copy a blob", e);
                 // fall through
             }
         }
@@ -131,44 +131,38 @@ public class CopyDiff implements NodeStateDiff {
         return blob;
     }
 
-    private NodeState copy(NodeState nodeState) {
-        NodeBuilder builder = empty.builder();
-        compareAgainstEmptyState(nodeState, new ApplyDiff(builder));
-        return builder.getNodeState();
+    @Override
+    protected ConflictAnnotatingRebaseDiff createDiff(NodeBuilder builder, String name) {
+        return new CopyingCARD(builder.child(name), writer, empty);
     }
 
     @Override
     public boolean propertyAdded(PropertyState after) {
-        builder.setProperty(copy(after));
-        return true;
+        return super.propertyAdded(copy(after));
     }
 
     @Override
     public boolean propertyChanged(PropertyState before, PropertyState after) {
-        builder.setProperty(copy(after));
-        return true;
+        return super.propertyChanged(copy(before), copy(after));
     }
 
     @Override
     public boolean propertyDeleted(PropertyState before) {
-        builder.removeProperty(before.getName());
-        return true;
+        return super.propertyDeleted(copy(before));
     }
 
     @Override
     public boolean childNodeAdded(String name, NodeState after) {
-        builder.setChildNode(name, copy(after));
-        return true;
+        return super.childNodeAdded(name, copy(after));
     }
 
     @Override
     public boolean childNodeChanged(String name, NodeState before, NodeState after) {
-        return after.compareAgainstBaseState(before, new CopyDiff(builder.getChildNode(name), writer, empty));
+        return super.childNodeChanged(name, copy(before), copy(after));
     }
 
     @Override
     public boolean childNodeDeleted(String name, NodeState before) {
-        builder.getChildNode(name).remove();
-        return true;
+        return super.childNodeDeleted(name, copy(before));
     }
 }

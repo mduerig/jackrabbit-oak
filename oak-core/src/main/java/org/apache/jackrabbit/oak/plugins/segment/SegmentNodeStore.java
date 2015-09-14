@@ -23,7 +23,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.plugins.segment.Record.fastEquals;
 
 import java.io.Closeable;
@@ -55,9 +54,10 @@ import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.Observable;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
 import org.apache.jackrabbit.oak.spi.state.ConflictAnnotatingRebaseDiff;
-import org.apache.jackrabbit.oak.spi.state.CopyDiff;
+import org.apache.jackrabbit.oak.spi.state.CopyingCARD;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -233,14 +233,15 @@ public class SegmentNodeStore implements NodeStore, Observable {
         if (!fastEquals(before, root)) {
             SegmentNodeState after = snb.getNodeState();
             snb.reset(root);
-            NodeState afterCopy;
+            NodeStateDiff diff;
             if (preDatesLastCompaction(after)) {
-                afterCopy = copyAfter(before, after);
+                SegmentWriter writer = after.getTracker().getWriter();
+                writer.flush();
+                diff = new CopyingCARD(builder.child(ROOT), writer);
             } else {
-                afterCopy = after;
+                diff = new ConflictAnnotatingRebaseDiff(snb);
             }
-            afterCopy.compareAgainstBaseState(
-                    before, new ConflictAnnotatingRebaseDiff(snb));
+            after.compareAgainstBaseState(before, diff);
         }
 
         return snb.getNodeState();
@@ -410,13 +411,6 @@ public class SegmentNodeStore implements NodeStore, Observable {
         return head.get().getChildNode(CHECKPOINTS);
     }
 
-    @Nonnull
-    private NodeState copyAfter(NodeState before, NodeState after) {
-        NodeBuilder builder = before.builder();
-        after.compareAgainstBaseState(before, new CopyDiff(builder, store.getTracker().getWriter().writeNode(EMPTY_NODE)));
-        return builder.getNodeState();
-    }
-
     private boolean preDatesLastCompaction(SegmentNodeState state) {
         return true; // TODO implement preDatesLast
     }
@@ -463,15 +457,16 @@ public class SegmentNodeStore implements NodeStore, Observable {
                         ROOT, hook.processCommit(before, after, info));
             } else {
                 // there were some external changes, so do the full rebase
-                ConflictAnnotatingRebaseDiff diff =
-                        new ConflictAnnotatingRebaseDiff(builder.child(ROOT));
-                NodeState afterCopy;
+                NodeStateDiff diff;
                 if (preDatesLastCompaction(after)) {
-                    afterCopy = copyAfter(before, after);
+                    SegmentWriter writer = state.getTracker().getWriter();
+                    writer.flush();
+                    diff = new CopyingCARD(builder.child(ROOT), writer);
                 } else {
-                    afterCopy = after;
+                    diff = new ConflictAnnotatingRebaseDiff(builder.child(ROOT));
                 }
-                afterCopy.compareAgainstBaseState(before, diff);
+
+                after.compareAgainstBaseState(before, diff);
                 // apply commit hooks on the rebased changes
                 builder.setChildNode(ROOT, hook.processCommit(
                         builder.getBaseState().getChildNode(ROOT),
