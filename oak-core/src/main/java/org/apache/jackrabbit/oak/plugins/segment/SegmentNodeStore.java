@@ -46,6 +46,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.apache.jackrabbit.oak.plugins.segment.memory.MemoryStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
@@ -411,8 +412,14 @@ public class SegmentNodeStore implements NodeStore, Observable {
         return head.get().getChildNode(CHECKPOINTS);
     }
 
-    private boolean preDatesLastCompaction(SegmentNodeState state) {
-        return true; // TODO implement preDatesLast
+    private static boolean preDatesLastCompaction(SegmentNodeState state) {
+        SegmentId segmentId = state.getRecordId().getSegmentId();
+        SegmentTracker tracker = segmentId.getTracker();
+        boolean b = tracker.gcGen.get() > segmentId.gcGen;
+        if (b) {
+            FileStore.log.info("{} predates compaction: {}", state,  tracker.gcGen.get() + " > " + segmentId.gcGen);
+        }
+        return b;
     }
 
     private class Commit {

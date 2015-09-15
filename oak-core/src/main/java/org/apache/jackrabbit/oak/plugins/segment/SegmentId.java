@@ -66,6 +66,8 @@ public class SegmentId implements Comparable<SegmentId> {
 
     private long creationTime;
 
+    public final long gcGen;
+
     /**
      * A reference to the segment object, if it is available in memory. It is
      * used for fast lookup. The segment tracker will set or reset this field.
@@ -82,6 +84,7 @@ public class SegmentId implements Comparable<SegmentId> {
         this.lsb = lsb;
         this.segment = segment;
         this.creationTime = creationTime;
+        this.gcGen = tracker.gcGen.get();
     }
 
     public SegmentId(SegmentTracker tracker, long msb, long lsb) {
