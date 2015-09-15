@@ -1186,6 +1186,7 @@ public class FileStore implements SegmentStore {
                 // content. TODO: There should be a cleaner way to do this. (implement GCMonitor!?)
                 tracker.getWriter().dropCache();
                 tracker.getWriter().flush();
+                tracker.gcGen.incrementAndGet();
 
                 CompactionMap cm = tracker.getCompactionMap();
                 gcMonitor.compacted(cm.getSegmentCounts(), cm.getRecordCounts(), cm.getEstimatedWeights());
