@@ -85,7 +85,7 @@ import org.slf4j.LoggerFactory;
 public class FileStore implements SegmentStore {
 
     /** Logger instance */
-    private static final Logger log = LoggerFactory.getLogger(FileStore.class);
+    public static final Logger log = LoggerFactory.getLogger(FileStore.class);
 
     private static final int MB = 1024 * 1024;
 
