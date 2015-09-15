@@ -24,6 +24,7 @@ import java.security.SecureRandom;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.CheckForNull;
@@ -105,6 +106,8 @@ public class SegmentTracker {
      * Cache of recently accessed segments
      */
     private final CacheLIRS<SegmentId, Segment> segmentCache;
+
+    public AtomicInteger gcGen = new AtomicInteger();
 
     public SegmentTracker(SegmentStore store, int cacheSizeMB,
             SegmentVersion version) {
