@@ -21,8 +21,7 @@
  * See <a href="README.md">README.md</a> for more details.
  */
 @Version("1.0.1")
-@Export(optional = "provide:=true")
-package org.apache.jackrabbit.oak.security;
+@Export(optional = "provide:=true") package org.apache.jackrabbit.oak.security;
 
-import aQute.bnd.annotation.Version;
 import aQute.bnd.annotation.Export;
+import aQute.bnd.annotation.Version;
