@@ -31,14 +31,13 @@ import java.util.Map;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.plugins.document.mongo.MongoDocumentStore;
-import org.apache.jackrabbit.oak.plugins.document.mongo.MongoMissingLastRevSeeker;
 import org.apache.jackrabbit.oak.plugins.document.util.MapFactory;
 import org.apache.jackrabbit.oak.plugins.document.util.Utils;
 import org.slf4j.Logger;
@@ -55,15 +54,14 @@ public class LastRevRecoveryAgent {
 
     private final MissingLastRevSeeker missingLastRevUtil;
 
-    public LastRevRecoveryAgent(DocumentNodeStore nodeStore) {
+    public LastRevRecoveryAgent(DocumentNodeStore nodeStore,
+                                MissingLastRevSeeker seeker) {
         this.nodeStore = nodeStore;
+        this.missingLastRevUtil = seeker;
+    }
 
-        if (nodeStore.getDocumentStore() instanceof MongoDocumentStore) {
-            this.missingLastRevUtil =
-                    new MongoMissingLastRevSeeker((MongoDocumentStore) nodeStore.getDocumentStore());
-        } else {
-            this.missingLastRevUtil = new MissingLastRevSeeker(nodeStore.getDocumentStore());
-        }
+    public LastRevRecoveryAgent(DocumentNodeStore nodeStore) {
+        this(nodeStore, new MissingLastRevSeeker(nodeStore.getDocumentStore()));
     }
 
     /**
@@ -235,7 +233,7 @@ public class LastRevRecoveryAgent {
             unsaved.persist(nodeStore, new UnsavedModifications.Snapshot() {
 
                 @Override
-                public void acquiring() {
+                public void acquiring(Revision mostRecent) {
                     if (lastRootRev == null) {
                         // this should never happen - when unsaved has no changes
                         // that is reflected in the 'map' to be empty - in that
@@ -279,7 +277,9 @@ public class LastRevRecoveryAgent {
      * @return the number of restored nodes
      */
     private int recoverCandidates(final int clusterId, final long startTime) {
-        boolean lockAcquired = missingLastRevUtil.acquireRecoveryLock(clusterId);
+
+        int myClusterId = nodeStore.getClusterId();
+        boolean lockAcquired = missingLastRevUtil.acquireRecoveryLock(clusterId, myClusterId);
 
         //TODO What if recovery is being performed for current clusterNode by some other node
         //should we halt the startup
@@ -290,7 +290,8 @@ public class LastRevRecoveryAgent {
         }
 
         Iterable<NodeDocument> suspects = missingLastRevUtil.getCandidates(startTime);
-        log.debug("Performing Last Revision recovery for cluster {}", clusterId);
+
+        log.info("Performing Last Revision Recovery for clusterNodeId {}", clusterId);
 
         try {
             return recover(suspects.iterator(), clusterId);
@@ -350,11 +351,12 @@ public class LastRevRecoveryAgent {
         return missingLastRevUtil.isRecoveryNeeded(nodeStore.getClock().getTime());
     }
 
-    public void performRecoveryIfNeeded(){
-        if(isRecoveryNeeded()){
+    public void performRecoveryIfNeeded() {
+        if (isRecoveryNeeded()) {
             List<Integer> clusterIds = getRecoveryCandidateNodes();
-            log.info("Starting last revision recovery for following clusterId {}", clusterIds);
-            for(int clusterId : clusterIds){
+            log.info("ClusterNodeId [{}] starting Last Revision Recovery for clusterNodeId(s) {}", nodeStore.getClusterId(),
+                    clusterIds);
+            for (int clusterId : clusterIds) {
                 recover(clusterId);
             }
         }
@@ -366,29 +368,34 @@ public class LastRevRecoveryAgent {
      * @return the recovery candidate nodes
      */
     public List<Integer> getRecoveryCandidateNodes() {
+
         Iterable<ClusterNodeInfoDocument> clusters = missingLastRevUtil.getAllClusters();
         List<Integer> candidateClusterNodes = Lists.newArrayList();
+        List<String> beingRecoveredRightNow = Lists.newArrayList();
 
         for (ClusterNodeInfoDocument nodeInfo : clusters) {
-            if (isRecoveryNeeded(nodeInfo)) {
-                candidateClusterNodes.add(Integer.valueOf(nodeInfo.getId()));
+            String id = nodeInfo.getId();
+            if (nodeInfo.isBeingRecovered()) {
+                Long recoveredBy = (Long) nodeInfo.get(ClusterNodeInfo.REV_RECOVERY_BY);
+                beingRecoveredRightNow.add(nodeInfo == null ? id : String.format("%s (by %d)", id, recoveredBy));
+            } else if (isRecoveryNeeded(nodeInfo)) {
+                candidateClusterNodes.add(Integer.valueOf(id));
             }
+        }
+
+        if (!beingRecoveredRightNow.isEmpty()) {
+            log.info("Active cluster nodes already in the process of being recovered: " + beingRecoveredRightNow);
         }
 
         return candidateClusterNodes;
     }
 
-    private boolean isRecoveryNeeded(ClusterNodeInfoDocument nodeInfo) {
-        if (nodeInfo != null) {
-            // Check if _lastRev recovery needed for this cluster node
-            // state is Active && currentTime past the leaseEnd time && recoveryLock not held by someone
-            if (nodeInfo.isActive()
-                    && nodeStore.getClock().getTime() > nodeInfo.getLeaseEndTime()
-                    && !nodeInfo.isBeingRecovered()) {
-                return true;
-            }
-        }
-        return false;
+    /**
+     * Check if _lastRev recovery needed for this cluster node state is Active
+     * && currentTime past the leaseEnd time && recoveryLock not held by someone
+     */
+    private boolean isRecoveryNeeded(@Nonnull ClusterNodeInfoDocument nodeInfo) {
+        return nodeInfo.isActive() && nodeStore.getClock().getTime() > nodeInfo.getLeaseEndTime() && !nodeInfo.isBeingRecovered();
     }
 
     private static class ClusterPredicate implements Predicate<Revision> {

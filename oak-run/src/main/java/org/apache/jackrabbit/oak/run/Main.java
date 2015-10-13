@@ -21,19 +21,18 @@ import static java.util.Arrays.asList;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
 import static org.apache.jackrabbit.oak.checkpoint.Checkpoints.CP;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordType.NODE;
+import static org.apache.jackrabbit.oak.plugins.segment.file.FileStore.newFileStore;
 import static org.apache.jackrabbit.oak.plugins.segment.file.tooling.ConsistencyChecker.checkConsistency;
+import static org.slf4j.LoggerFactory.getLogger;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.sql.Timestamp;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +51,8 @@ import java.util.regex.Pattern;
 
 import javax.jcr.Repository;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Maps;
@@ -65,11 +66,7 @@ import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang.time.DateUtils;
-import org.apache.jackrabbit.core.RepositoryContext;
-import org.apache.jackrabbit.core.config.RepositoryConfig;
 import org.apache.jackrabbit.oak.Oak;
 import org.apache.jackrabbit.oak.api.ContentRepository;
 import org.apache.jackrabbit.oak.benchmark.BenchmarkRunner;
@@ -88,6 +85,7 @@ import org.apache.jackrabbit.oak.plugins.backup.FileStoreBackup;
 import org.apache.jackrabbit.oak.plugins.backup.FileStoreRestore;
 import org.apache.jackrabbit.oak.plugins.document.DocumentMK;
 import org.apache.jackrabbit.oak.plugins.document.DocumentNodeStore;
+import org.apache.jackrabbit.oak.plugins.document.DocumentNodeStoreHelper;
 import org.apache.jackrabbit.oak.plugins.document.LastRevRecoveryAgent;
 import org.apache.jackrabbit.oak.plugins.document.NodeDocument;
 import org.apache.jackrabbit.oak.plugins.document.mongo.MongoDocumentStore;
@@ -103,18 +101,19 @@ import org.apache.jackrabbit.oak.plugins.segment.Segment;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.CleanupType;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
+import org.apache.jackrabbit.oak.plugins.segment.file.JournalReader;
 import org.apache.jackrabbit.oak.plugins.segment.standby.client.StandbyClient;
 import org.apache.jackrabbit.oak.plugins.segment.standby.server.StandbyServer;
+import org.apache.jackrabbit.oak.plugins.tika.TextExtractorMain;
 import org.apache.jackrabbit.oak.remote.content.ContentRemoteRepository;
 import org.apache.jackrabbit.oak.remote.http.RemoteServlet;
-import org.apache.jackrabbit.oak.plugins.tika.TextExtractorMain;
 import org.apache.jackrabbit.oak.scalability.ScalabilityRunner;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
-import org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade;
 import org.apache.jackrabbit.server.remoting.davex.JcrRemotingServlet;
 import org.apache.jackrabbit.webdav.jcr.JCRWebdavServerServlet;
 import org.apache.jackrabbit.webdav.server.AbstractWebdavServlet;
@@ -176,7 +175,7 @@ public final class Main {
                 server(URI, args);
                 break;
             case UPGRADE:
-                upgrade(args);
+                System.out.println("This command was moved to the oak-upgrade module");
                 break;
             case SCALABILITY:
                 ScalabilityRunner.main(args);
@@ -201,6 +200,9 @@ public final class Main {
                 break;
             case TIKA:
                 TextExtractorMain.main(args);
+                break;
+            case GARBAGE:
+                garbage(args);
                 break;
             case HELP:
             default:
@@ -430,6 +432,7 @@ public final class Main {
             closer.register(asCloseable(mongo));
             DocumentNodeStore store = new DocumentMK.Builder()
                     .setMongoDB(mongo.getDB())
+                    .setLeaseCheck(false)
                     .setClusterId(clusterId.value(options)).getNodeStore();
             closer.register(asCloseable(store));
             return store;
@@ -489,7 +492,7 @@ public final class Main {
                     + " bytes)");
 
             System.out.println("    -> compacting");
-            FileStore store = new FileStore(directory, 256, TAR_STORAGE_MEMORY_MAPPED);
+            FileStore store = openFileStore(directory);
             try {
                 CompactionStrategy compactionStrategy = new CompactionStrategy(
                         false, CompactionStrategy.CLONE_BINARIES_DEFAULT,
@@ -513,9 +516,28 @@ public final class Main {
             }
 
             System.out.println("    -> cleaning up");
-            store = new FileStore(directory, 256, TAR_STORAGE_MEMORY_MAPPED);
+            store = openFileStore(directory);
             try {
                 store.cleanup();
+
+                String head;
+                File journal = new File(directory, "journal.log");
+                JournalReader journalReader = new JournalReader(journal);
+                try {
+                    head = journalReader.iterator().next() + " root\n";
+                } finally {
+                    journalReader.close();
+                }
+
+                RandomAccessFile journalFile = new RandomAccessFile(journal, "rw");
+                try {
+                    System.out.println("    -> writing new " + journal.getName() + ": " + head);
+                    journalFile.setLength(0);
+                    journalFile.writeBytes(head);
+                    journalFile.getChannel().force(false);
+                } finally {
+                    journalFile.close();
+                }
             } finally {
                 store.close();
             }
@@ -529,6 +551,13 @@ public final class Main {
             System.out.println("    duration  " + watch.toString() + " ("
                     + watch.elapsed(TimeUnit.SECONDS) + "s).");
         }
+    }
+
+    private static FileStore openFileStore(File directory) throws IOException {
+        return newFileStore(directory)
+                .withCacheSize(256)
+                .withMemoryMapping(TAR_STORAGE_MEMORY_MAPPED)
+                .create();
     }
 
     private static void checkpoints(String[] args) throws IOException {
@@ -698,6 +727,25 @@ public final class Main {
         }
     }
 
+    private static void garbage(String[] args) throws IOException {
+        Closer closer = Closer.create();
+        String h = "garbage mongodb://host:port/database";
+        try {
+            NodeStore store = bootstrapNodeStore(args, closer, h);
+            if (!(store instanceof DocumentNodeStore)) {
+                System.err.println("Garbage mode only available for DocumentNodeStore");
+                System.exit(1);
+            }
+            DocumentNodeStore dns = (DocumentNodeStore) store;
+
+            DocumentNodeStoreHelper.garbageReport(dns);
+        } catch (Throwable e) {
+            throw closer.rethrow(e);
+        } finally {
+            closer.close();
+        }
+    }
+
     private static void debug(String[] args) throws IOException {
         if (args.length == 0) {
             System.err.println("usage: debug <path> [id...]");
@@ -709,7 +757,10 @@ public final class Main {
             // TODO: enable debug information for other node store implementations
             System.out.println("Debug " + args[0]);
             File file = new File(args[0]);
-            FileStore store = new FileStore(file, 256, TAR_STORAGE_MEMORY_MAPPED);
+            FileStore store = newFileStore(file)
+                .withMaxFileSize(256)
+                .withMemoryMapping(false)
+                .create();
             try {
                 if (args.length == 1) {
                     debugFileStore(store);
@@ -873,6 +924,8 @@ public final class Main {
         long dataSize = 0;
         int bulkCount = 0;
         long bulkSize = 0;
+
+        ((Logger) getLogger(SegmentTracker.class)).setLevel(Level.OFF);
         RecordUsageAnalyser analyser = new RecordUsageAnalyser();
 
         for (SegmentId id : store.getSegmentIds()) {
@@ -959,89 +1012,6 @@ public final class Main {
             }
         }
         return false;
-    }
-
-    private static void upgrade(String[] args) throws Exception {
-        OptionParser parser = new OptionParser();
-        parser.accepts("datastore", "keep data store");
-        ArgumentAcceptingOptionSpec<String> copyVersions = parser.accepts("copy-versions", "copy referenced versions. valid arguments: true|false|yyyy-mm-dd").withRequiredArg().defaultsTo("true");
-        ArgumentAcceptingOptionSpec<String> copyOrphanedVersions = parser.accepts("copy-orphaned-versions", "copy all versions. valid arguments: true|false|yyyy-mm-dd").withRequiredArg().defaultsTo("true");
-        OptionSpec<String> nonOption = parser.nonOptions();
-        OptionSet options = parser.parse(args);
-
-        List<String> argList = nonOption.values(options);
-        if (argList.size() == 2 || argList.size() == 3) {
-            File dir = new File(argList.get(0));
-            File xml = new File(dir, "repository.xml");
-            String dst = argList.get(1);
-            if (argList.size() == 3) {
-                xml = new File(dst);
-                dst = argList.get(2);
-            }
-
-            RepositoryContext source =
-                    RepositoryContext.create(RepositoryConfig.create(xml, dir));
-            try {
-                if (dst.startsWith("mongodb://")) {
-                    MongoClientURI uri = new MongoClientURI(dst);
-                    MongoClient client = new MongoClient(uri);
-                    try {
-                        DocumentNodeStore target = new DocumentMK.Builder()
-                            .setMongoDB(client.getDB(uri.getDatabase()))
-                            .getNodeStore();
-                        try {
-                            RepositoryUpgrade upgrade =
-                                    new RepositoryUpgrade(source, target);
-                            upgrade.setCopyBinariesByReference(
-                                    options.has("datastore"));
-                            setCopyVersionOptions(copyVersions.value(options), copyOrphanedVersions.value(options), upgrade);
-                            upgrade.copy(null);
-                        } finally {
-                            target.dispose();
-                        }
-                    } finally {
-                        client.close();
-                    }
-                } else {
-                    FileStore store = new FileStore(new File(dst), 256);
-                    try {
-                        NodeStore target = new SegmentNodeStore(store);
-                        RepositoryUpgrade upgrade =
-                                new RepositoryUpgrade(source, target);
-                        upgrade.setCopyBinariesByReference(
-                                options.has("datastore"));
-                        upgrade.copy(null);
-                    } finally {
-                        store.close();
-                    }
-                }
-            } finally {
-                source.getRepository().shutdown();
-            }
-        } else {
-            System.err.println("usage: upgrade <olddir> <newdir>");
-            System.exit(1);
-        }
-    }
-
-    private static void setCopyVersionOptions(String copyVersions, String copyOrphanedVersions, RepositoryUpgrade upgrade) throws ParseException {
-        upgrade.setCopyVersions(parseVersionCopyArgument(copyVersions));
-        upgrade.setCopyOrphanedVersions(parseVersionCopyArgument(copyOrphanedVersions));
-    }
-
-    static Calendar parseVersionCopyArgument(String string) throws ParseException {
-        final DateFormat df = new SimpleDateFormat("yyyy-MM-dd");
-        final Calendar calendar;
-
-        if (Boolean.parseBoolean(string)) {
-            calendar = Calendar.getInstance();
-            calendar.setTimeInMillis(0);
-        } else if (string != null && string.matches("^\\d{4}-\\d{2}-\\d{2}$")) {
-            calendar = DateUtils.toCalendar(df.parse(string));
-        } else {
-            calendar = null;
-        }
-        return calendar;
     }
 
     private static void server(String defaultUri, String[] args) throws Exception {
@@ -1233,7 +1203,8 @@ public final class Main {
         CHECKPOINTS("checkpoints"),
         RECOVERY("recovery"),
         REPAIR("repair"),
-        TIKA("tika");
+        TIKA("tika"),
+        GARBAGE("garbage");
 
         private final String name;
 

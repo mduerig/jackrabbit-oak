@@ -42,12 +42,14 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.commons.json.JsopReader;
 import org.apache.jackrabbit.oak.commons.json.JsopStream;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
+import org.apache.jackrabbit.oak.json.JsopDiff;
 import org.apache.jackrabbit.oak.plugins.blob.ReferencedBlob;
 import org.apache.jackrabbit.oak.plugins.document.DocumentNodeState.Children;
 import org.apache.jackrabbit.oak.plugins.document.memory.MemoryDocumentStore;
 import org.apache.jackrabbit.oak.plugins.document.mongo.MongoBlobReferenceIterator;
 import org.apache.jackrabbit.oak.plugins.document.mongo.MongoBlobStore;
 import org.apache.jackrabbit.oak.plugins.document.mongo.MongoDocumentStore;
+import org.apache.jackrabbit.oak.plugins.document.mongo.MongoMissingLastRevSeeker;
 import org.apache.jackrabbit.oak.plugins.document.mongo.MongoVersionGCSupport;
 import org.apache.jackrabbit.oak.plugins.document.persistentCache.CacheType;
 import org.apache.jackrabbit.oak.plugins.document.persistentCache.PersistentCache;
@@ -170,11 +172,21 @@ public class DocumentMK {
         if (path == null || path.equals("")) {
             path = "/";
         }
-        try {
-            return nodeStore.diff(fromRevisionId, toRevisionId, path);
-        } catch (DocumentStoreException e) {
-            throw new DocumentStoreException(e);
+        Revision fromRev = Revision.fromString(fromRevisionId);
+        Revision toRev = Revision.fromString(toRevisionId);
+        final DocumentNodeState before = nodeStore.getNode(path, fromRev);
+        final DocumentNodeState after = nodeStore.getNode(path, toRev);
+        if (before == null || after == null) {
+            // TODO implement correct behavior if the node doesn't/didn't exist
+            String msg = String.format("Diff is only supported if the node exists in both cases. " +
+                            "Node [%s], fromRev [%s] -> %s, toRev [%s] -> %s",
+                    path, fromRev, before != null, toRev, after != null);
+            throw new DocumentStoreException(msg);
         }
+
+        JsopDiff diff = new JsopDiff(path, depth);
+        after.compareAgainstBaseState(before, diff);
+        return diff.toString();
     }
 
     public boolean nodeExists(String path, String revisionId)
@@ -849,6 +861,15 @@ public class DocumentMK {
                     return new BlobReferenceIterator(ns);
                 }
             };
+        }
+
+        public MissingLastRevSeeker createMissingLastRevSeeker() {
+            final DocumentStore store = getDocumentStore();
+            if (store instanceof MongoDocumentStore) {
+                return new MongoMissingLastRevSeeker((MongoDocumentStore) store);
+            } else {
+                return new MissingLastRevSeeker(store);
+            }
         }
 
         /**

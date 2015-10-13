@@ -33,7 +33,6 @@ import static org.apache.jackrabbit.oak.plugins.document.UpdateOp.Operation;
 import static org.apache.jackrabbit.oak.plugins.document.util.Utils.asStringValueIterable;
 import static org.apache.jackrabbit.oak.plugins.document.util.Utils.getIdFromPath;
 import static org.apache.jackrabbit.oak.plugins.document.util.Utils.pathToId;
-import static org.apache.jackrabbit.oak.plugins.document.util.Utils.unshareString;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -41,6 +40,7 @@ import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -74,11 +74,8 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 
-import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.IOUtils;
 import org.apache.jackrabbit.oak.commons.jmx.AnnotatedStandardMBean;
-import org.apache.jackrabbit.oak.commons.json.JsopReader;
-import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.blob.MarkSweepGarbageCollector;
 import org.apache.jackrabbit.oak.plugins.blob.ReferencedBlob;
@@ -203,6 +200,7 @@ public final class DocumentNodeStore
     /**
      * The cluster instance info.
      */
+    @Nonnull
     private final ClusterNodeInfo clusterNodeInfo;
 
     /**
@@ -286,8 +284,8 @@ public final class DocumentNodeStore
 
     /**
      * Background thread performing the clusterId lease renew.
-     * Will be {@code null} if {@link #clusterNodeInfo} is {@code null}.
      */
+    @Nonnull
     private Thread leaseUpdateThread;
 
     /**
@@ -426,22 +424,18 @@ public final class DocumentNodeStore
         this.changes = Collection.JOURNAL.newDocument(s);
         this.executor = builder.getExecutor();
         this.clock = builder.getClock();
+
         int cid = builder.getClusterId();
         cid = Integer.getInteger("oak.documentMK.clusterId", cid);
-        if (cid == 0) {
-            clusterNodeInfo = ClusterNodeInfo.getInstance(s);
-            // TODO we should ensure revisions generated from now on
-            // are never "older" than revisions already in the repository for
-            // this cluster id
-            cid = clusterNodeInfo.getId();
-        } else {
-            clusterNodeInfo = null;
-        }
+        clusterNodeInfo = ClusterNodeInfo.getInstance(s, cid);
+        // TODO we should ensure revisions generated from now on
+        // are never "older" than revisions already in the repository for
+        // this cluster id
+        cid = clusterNodeInfo.getId();
+
         if (builder.getLeaseCheck()) {
             s = new LeaseCheckDocumentStoreWrapper(s, clusterNodeInfo);
-            if (clusterNodeInfo!=null) {
-                clusterNodeInfo.setLeaseFailureHandler(builder.getLeaseFailureHandler());
-            }
+            clusterNodeInfo.setLeaseFailureHandler(builder.getLeaseFailureHandler());
         }
         this.store = s;
         this.clusterId = cid;
@@ -452,7 +446,8 @@ public final class DocumentNodeStore
                 this, builder.createVersionGCSupport());
         this.journalGarbageCollector = new JournalGarbageCollector(this);
         this.referencedBlobs = builder.createReferencedBlobs(this);
-        this.lastRevRecoveryAgent = new LastRevRecoveryAgent(this);
+        this.lastRevRecoveryAgent = new LastRevRecoveryAgent(this,
+                builder.createMissingLastRevSeeker());
         this.disableBranches = builder.isDisableBranches();
         this.missing = new DocumentNodeState(this, "MISSING", new Revision(0, 0, 0)) {
             @Override
@@ -529,17 +524,14 @@ public final class DocumentNodeStore
         backgroundReadThread.start();
         backgroundUpdateThread.start();
 
-        if (clusterNodeInfo != null) {
-            leaseUpdateThread = new Thread(
-                    new BackgroundLeaseUpdate(this, isDisposed),
-                    "DocumentNodeStore lease update thread " + threadNamePostfix);
-            leaseUpdateThread.setDaemon(true);
-            // OAK-3398 : make lease updating more robust by ensuring it
-            // has higher likelihood of succeeding than other threads
-            // on a very busy machine - so as to prevent lease timeout.
-            leaseUpdateThread.setPriority(Thread.MAX_PRIORITY);
-            leaseUpdateThread.start();
-        }
+        leaseUpdateThread = new Thread(new BackgroundLeaseUpdate(this, isDisposed),
+                "DocumentNodeStore lease update thread " + threadNamePostfix);
+        leaseUpdateThread.setDaemon(true);
+        // OAK-3398 : make lease updating more robust by ensuring it
+        // has higher likelihood of succeeding than other threads
+        // on a very busy machine - so as to prevent lease timeout.
+        leaseUpdateThread.setPriority(Thread.MAX_PRIORITY);
+        leaseUpdateThread.start();
 
         this.mbean = createMBean();
         LOG.info("Initialized DocumentNodeStore with clusterNodeId: {} ({})", clusterId,
@@ -590,19 +582,15 @@ public final class DocumentNodeStore
             LOG.error("dispose: an AssertionError happened during dispose's last background ops: "+ae, ae);
         }
 
-        if (leaseUpdateThread != null) {
-            try {
-                leaseUpdateThread.join();
-            } catch (InterruptedException e) {
-                // ignore
-            }
+        try {
+            leaseUpdateThread.join();
+        } catch (InterruptedException e) {
+            // ignore
         }
 
         // now mark this cluster node as inactive by
         // disposing the clusterNodeInfo
-        if (clusterNodeInfo != null) {
-            clusterNodeInfo.dispose();
-        }
+        clusterNodeInfo.dispose();
         store.dispose();
 
         if (blobStore instanceof Closeable) {
@@ -619,7 +607,7 @@ public final class DocumentNodeStore
     }
 
     private String getClusterNodeInfoDisplayString() {
-        return clusterNodeInfo == null ? "no cluster node info" : clusterNodeInfo.toString().replaceAll("[\r\n\t]", " ").trim();
+        return clusterNodeInfo.toString().replaceAll("[\r\n\t]", " ").trim();
     }
 
     Revision setHeadRevision(@Nonnull Revision newHead) {
@@ -755,7 +743,7 @@ public final class DocumentNodeStore
         return enableConcurrentAddRemove;
     }
 
-    @CheckForNull
+    @Nonnull
     public ClusterNodeInfo getClusterInfo() {
         return clusterNodeInfo;
     }
@@ -1440,58 +1428,6 @@ public final class DocumentNodeStore
                 }), node, base, diff);
     }
 
-    String diff(@Nonnull final String fromRevisionId,
-                @Nonnull final String toRevisionId,
-                @Nonnull final String path) throws DocumentStoreException {
-        if (fromRevisionId.equals(toRevisionId)) {
-            return "";
-        }
-        Revision fromRev = Revision.fromString(fromRevisionId);
-        Revision toRev = Revision.fromString(toRevisionId);
-        final DocumentNodeState from = getNode(path, fromRev);
-        final DocumentNodeState to = getNode(path, toRev);
-        if (from == null || to == null) {
-            // TODO implement correct behavior if the node doesn't/didn't exist
-            String msg = String.format("Diff is only supported if the node exists in both cases. " +
-                    "Node [%s], fromRev [%s] -> %s, toRev [%s] -> %s",
-                    path, fromRev, from != null, toRev, to != null);
-            throw new DocumentStoreException(msg);
-        }
-        String compactDiff = diffCache.getChanges(fromRev, toRev, path,
-                new DiffCache.Loader() {
-            @Override
-            public String call() {
-                // calculate the diff
-                return diffImpl(from, to);
-            }
-        });
-        JsopWriter writer = new JsopStream();
-        diffProperties(from, to, writer);
-        JsopTokenizer t = new JsopTokenizer(compactDiff);
-        int r;
-        do {
-            r = t.read();
-            switch (r) {
-                case '+':
-                case '^': {
-                    String name = t.readString();
-                    t.read(':');
-                    t.read('{');
-                    t.read('}');
-                    writer.tag((char) r).key(concat(path, name));
-                    writer.object().endObject().newline();
-                    break;
-                }
-                case '-': {
-                    String name = t.readString();
-                    writer.tag('-').value(concat(path, name));
-                    writer.newline();
-                }
-            }
-        } while (r != JsopReader.END);
-        return writer.toString();
-    }
-
     /**
      * Creates a tracker for the given commit revision.
      *
@@ -1775,7 +1711,7 @@ public final class DocumentNodeStore
      * @return {@code true} if the lease was renewed; {@code false} otherwise.
      */
     boolean renewClusterIdLease() {
-        return clusterNodeInfo != null && clusterNodeInfo.renewLease();
+        return clusterNodeInfo.renewLease();
     }
 
     /**
@@ -1839,6 +1775,29 @@ public final class DocumentNodeStore
             return stats;
         }
         Map<Integer, Revision> lastRevMap = doc.getLastRev();
+        try {
+            long externalTime = Utils.getMaxExternalTimestamp(lastRevMap.values(), clusterId);
+            long localTime = clock.getTime();
+            if (localTime < externalTime) {
+                LOG.warn("Detected clock differences. Local time is '{}', " +
+                                "while most recent external time is '{}'. " +
+                                "Current _lastRev entries: {}",
+                        new Date(localTime), new Date(externalTime), lastRevMap.values());
+                double delay = ((double) externalTime - localTime) / 1000d;
+                String msg = String.format("Background read will be delayed by %.1f seconds. " +
+                        "Please check system time on cluster nodes.", delay);
+                LOG.warn(msg);
+                clock.waitUntil(externalTime + 1);
+            } else if (localTime == externalTime) {
+                // make sure local time is past external time
+                // but only log at debug
+                LOG.debug("Local and external time are equal. Waiting until local" +
+                        "time is more recent than external reported time.");
+                clock.waitUntil(externalTime + 1);
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Background read interrupted", e);
+        }
 
         Revision.RevisionComparator revisionComparator = getRevisionComparator();
         // the (old) head occurred first
@@ -2084,9 +2043,9 @@ public final class DocumentNodeStore
     BackgroundWriteStats backgroundWrite() {
         return unsavedLastRevisions.persist(this, new UnsavedModifications.Snapshot() {
             @Override
-            public void acquiring() {
+            public void acquiring(Revision mostRecent) {
                 if (store.create(JOURNAL,
-                        singletonList(changes.asUpdateOp(getHeadRevision())))) {
+                        singletonList(changes.asUpdateOp(mostRecent)))) {
                     changes = JOURNAL.newDocument(getDocumentStore());
                 }
             }
@@ -2138,67 +2097,45 @@ public final class DocumentNodeStore
         }
     }
 
-    private boolean dispatch(@Nonnull String jsonDiff,
-                             @Nonnull DocumentNodeState node,
-                             @Nonnull DocumentNodeState base,
-                             @Nonnull NodeStateDiff diff) {
-        if (jsonDiff.trim().isEmpty()) {
-            return true;
-        }
-        JsopTokenizer t = new JsopTokenizer(jsonDiff);
-        boolean continueComparison = true;
-        while (continueComparison) {
-            int r = t.read();
-            if (r == JsopReader.END) {
-                break;
+    private boolean dispatch(@Nonnull final String jsonDiff,
+                             @Nonnull final DocumentNodeState node,
+                             @Nonnull final DocumentNodeState base,
+                             @Nonnull final NodeStateDiff diff) {
+        return DiffCache.parseJsopDiff(jsonDiff, new DiffCache.Diff() {
+            @Override
+            public boolean childNodeAdded(String name) {
+                return diff.childNodeAdded(name,
+                        node.getChildNode(name));
             }
-            switch (r) {
-                case '+': {
-                    String name = unshareString(t.readString());
-                    t.read(':');
-                    t.read('{');
-                    while (t.read() != '}') {
-                        // skip properties
-                    }
-                    continueComparison = diff.childNodeAdded(name,
-                            node.getChildNode(name));
-                    break;
-                }
-                case '-': {
-                    String name = unshareString(t.readString());
-                    continueComparison = diff.childNodeDeleted(name,
-                            base.getChildNode(name));
-                    break;
-                }
-                case '^': {
-                    String name = unshareString(t.readString());
-                    t.read(':');
-                    t.read('{');
-                    t.read('}');
-                    NodeState baseChild = base.getChildNode(name);
-                    NodeState nodeChild = node.getChildNode(name);
-                    if (baseChild.exists()) {
-                        if (nodeChild.exists()) {
-                            continueComparison = diff.childNodeChanged(name,
-                                    baseChild, nodeChild);
-                        } else {
-                            continueComparison = diff.childNodeDeleted(name,
-                                    baseChild);
-                        }
+
+            @Override
+            public boolean childNodeChanged(String name) {
+                boolean continueComparison = true;
+                NodeState baseChild = base.getChildNode(name);
+                NodeState nodeChild = node.getChildNode(name);
+                if (baseChild.exists()) {
+                    if (nodeChild.exists()) {
+                        continueComparison = diff.childNodeChanged(name,
+                                baseChild, nodeChild);
                     } else {
-                        if (nodeChild.exists()) {
-                            continueComparison = diff.childNodeAdded(name,
-                                    nodeChild);
-                        }
+                        continueComparison = diff.childNodeDeleted(name,
+                                baseChild);
                     }
-                    break;
+                } else {
+                    if (nodeChild.exists()) {
+                        continueComparison = diff.childNodeAdded(name,
+                                nodeChild);
+                    }
                 }
-                default:
-                    throw new IllegalArgumentException("jsonDiff: illegal token '"
-                            + t.getToken() + "' at pos: " + t.getLastPos() + ' ' + jsonDiff);
+                return continueComparison;
             }
-        }
-        return continueComparison;
+
+            @Override
+            public boolean childNodeDeleted(String name) {
+                return diff.childNodeDeleted(name,
+                        base.getChildNode(name));
+            }
+        });
     }
 
     /**
@@ -2238,31 +2175,6 @@ public final class DocumentNodeStore
         }
 
         return false;
-    }
-
-    private static void diffProperties(DocumentNodeState from,
-                                       DocumentNodeState to,
-                                       JsopWriter w) {
-        for (PropertyState fromValue : from.getProperties()) {
-            String name = fromValue.getName();
-            // changed or removed properties
-            PropertyState toValue = to.getProperty(name);
-            if (!fromValue.equals(toValue)) {
-                w.tag('^').key(concat(from.getPath(), name));
-                if (toValue == null) {
-                    w.value(null);
-                } else {
-                    w.encodedValue(to.getPropertyAsString(name)).newline();
-                }
-            }
-        }
-        for (String name : to.getPropertyNames()) {
-            // added properties
-            if (!from.hasProperty(name)) {
-                w.tag('^').key(concat(from.getPath(), name))
-                        .encodedValue(to.getPropertyAsString(name)).newline();
-            }
-        }
     }
 
     private String diffImpl(DocumentNodeState from, DocumentNodeState to)
