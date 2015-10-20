@@ -36,7 +36,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.commons.io.FileUtils.deleteDirectory;
 import static org.apache.commons.lang.RandomStringUtils.randomAlphabetic;
 import static org.apache.jackrabbit.oak.plugins.segment.CompactionMap.sum;
-import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.CleanupType.CLEAN_NONE;
+import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.CleanupType.CLEAN_OLD;
 import static org.apache.jackrabbit.oak.plugins.segment.file.FileStore.newFileStore;
 import static org.junit.Assume.assumeTrue;
 import static org.slf4j.helpers.MessageFormatter.arrayFormat;
@@ -238,7 +238,7 @@ public class SegmentCompactionIT {
         SegmentNodeStoreBuilder nodeStoreBuilder = SegmentNodeStore
                 .newSegmentNodeStore(fileStore);
         nodeStoreBuilder.withCompactionStrategy(false, false,
-                CLEAN_NONE.toString(), CompactionStrategy.TIMESTAMP_DEFAULT,
+                CLEAN_OLD.toString(), CompactionStrategy.TIMESTAMP_DEFAULT,
                 CompactionStrategy.MEMORY_THRESHOLD_DEFAULT, lockWaitTime,
                 CompactionStrategy.RETRY_COUNT_DEFAULT,
                 CompactionStrategy.FORCE_AFTER_FAIL_DEFAULT,
