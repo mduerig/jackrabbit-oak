@@ -209,16 +209,16 @@ public class Explorer {
             }
         });
 
-        JMenuItem menuSCR = new JMenuItem("Segment Content Refs");
+        JMenuItem menuSCR = new JMenuItem("Segment Refs");
         menuSCR.setMnemonic(KeyEvent.VK_R);
         menuSCR.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent ev) {
                 String s = (String) JOptionPane.showInputDialog(frame,
-                        "Segment Content Ref\nUsage: <segmentId>",
-                        "Segment Content Ref", JOptionPane.PLAIN_MESSAGE);
+                        "Segment References\nUsage: <segmentId>",
+                        "Segment References", JOptionPane.PLAIN_MESSAGE);
                 if (s != null) {
-                    treePanel.printDependenciesToSegment(s);
+                    treePanel.printSegmentReferences(s);
                     return;
                 }
             }
@@ -239,6 +239,15 @@ public class Explorer {
             }
         });
 
+        JMenuItem menuPCM = new JMenuItem("Persisted Compaction Maps");
+        menuPCM.setMnemonic(KeyEvent.VK_P);
+        menuPCM.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent ev) {
+                treePanel.printPCMInfo();
+            }
+        });
+
         menuBar.add(menuReopen);
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
         menuBar.add(menuCompaction);
@@ -248,6 +257,8 @@ public class Explorer {
         menuBar.add(menuSCR);
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
         menuBar.add(menuDiff);
+        menuBar.add(new JSeparator(JSeparator.VERTICAL));
+        menuBar.add(menuPCM);
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
 
         frame.setJMenuBar(menuBar);

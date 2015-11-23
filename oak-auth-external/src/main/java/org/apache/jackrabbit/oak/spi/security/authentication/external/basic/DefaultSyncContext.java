@@ -43,6 +43,7 @@ import org.apache.jackrabbit.api.security.user.Group;
 import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.api.security.user.UserManager;
 import org.apache.jackrabbit.oak.commons.DebugTimer;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.spi.security.authentication.external.ExternalGroup;
 import org.apache.jackrabbit.oak.spi.security.authentication.external.ExternalIdentity;
 import org.apache.jackrabbit.oak.spi.security.authentication.external.ExternalIdentityException;
@@ -95,7 +96,7 @@ public class DefaultSyncContext implements SyncContext {
 
     protected final Value nowValue;
 
-    public DefaultSyncContext(DefaultSyncConfig config, ExternalIdentityProvider idp, UserManager userManager, ValueFactory valueFactory) {
+    public DefaultSyncContext(@Nonnull DefaultSyncConfig config, @Nonnull ExternalIdentityProvider idp, @Nonnull UserManager userManager, @Nonnull ValueFactory valueFactory) {
         this.config = config;
         this.idp = idp;
         this.userManager = userManager;
@@ -115,17 +116,16 @@ public class DefaultSyncContext implements SyncContext {
      */
     @CheckForNull
     public static DefaultSyncedIdentity createSyncedIdentity(@Nullable Authorizable auth) throws RepositoryException {
-        ExternalIdentityRef ref = (auth == null) ? null : getIdentityRef(auth);
-        if (ref == null) {
+        if (auth == null) {
             return null;
-        } else {
-            Value[] lmValues = auth.getProperty(REP_LAST_SYNCED);
-            long lastModified = -1;
-            if (lmValues != null && lmValues.length > 0) {
-                lastModified = lmValues[0].getLong();
-            }
-            return new DefaultSyncedIdentity(auth.getID(), ref, auth.isGroup(), lastModified);
         }
+        ExternalIdentityRef ref = getIdentityRef(auth);
+        Value[] lmValues = auth.getProperty(REP_LAST_SYNCED);
+        long lastModified = -1;
+        if (lmValues != null && lmValues.length > 0) {
+            lastModified = lmValues[0].getLong();
+        }
+        return new DefaultSyncedIdentity(auth.getID(), ref, auth.isGroup(), lastModified);
     }
 
     /**
@@ -150,28 +150,10 @@ public class DefaultSyncContext implements SyncContext {
      * Robust relative path concatenation.
      * @param paths relative paths
      * @return the concatenated path
+     * @deprecated Since Oak 1.3.10. Please use {@link PathUtils#concatRelativePaths(String...)} instead.
      */
     public static String joinPaths(String... paths) {
-        StringBuilder result = new StringBuilder();
-        for (String path: paths) {
-            if (path != null && !path.isEmpty()) {
-                int i0 = 0;
-                int i1 = path.length();
-                while (i0 < i1 && path.charAt(i0) == '/') {
-                    i0++;
-                }
-                while (i1 > i0 && path.charAt(i1-1) == '/') {
-                    i1--;
-                }
-                if (i1 > i0) {
-                    if (result.length() > 0) {
-                        result.append('/');
-                    }
-                    result.append(path.substring(i0, i1));
-                }
-            }
-        }
-        return result.length() == 0 ? null : result.toString();
+        return PathUtils.concatRelativePaths(paths);
     }
 
     /**
@@ -226,6 +208,7 @@ public class DefaultSyncContext implements SyncContext {
         return forceGroupSync;
     }
 
+    @Override
     @Nonnull
     public SyncContext setForceGroupSync(boolean forceGroupSync) {
         this.forceGroupSync = forceGroupSync;
@@ -297,7 +280,7 @@ public class DefaultSyncContext implements SyncContext {
                 return new DefaultSyncResultImpl(new DefaultSyncedIdentity(id, null, false, -1), SyncResult.Status.FOREIGN);
             }
 
-            if (auth instanceof Group) {
+            if (auth.isGroup()) {
                 Group group = (Group) auth;
                 ExternalGroup external = idp.getGroup(id);
                 timer.mark("retrieve");
@@ -358,7 +341,7 @@ public class DefaultSyncContext implements SyncContext {
      * @throws SyncException if the repository contains a colliding authorizable with the same name.
      */
     @CheckForNull
-    protected <T extends Authorizable> T getAuthorizable(@Nonnull ExternalIdentity external, Class<T> type)
+    protected <T extends Authorizable> T getAuthorizable(@Nonnull ExternalIdentity external, @Nonnull Class<T> type)
             throws RepositoryException, SyncException {
         Authorizable authorizable = userManager.getAuthorizable(external.getId());
         if (authorizable == null) {
@@ -390,7 +373,7 @@ public class DefaultSyncContext implements SyncContext {
                 externalUser.getId(),
                 null,
                 principal,
-                joinPaths(config.user().getPathPrefix(), externalUser.getIntermediatePath())
+                PathUtils.concatRelativePaths(config.user().getPathPrefix(), externalUser.getIntermediatePath())
         );
         user.setProperty(REP_EXTERNAL_ID, valueFactory.createValue(externalUser.getExternalId().getString()));
         return user;
@@ -410,7 +393,7 @@ public class DefaultSyncContext implements SyncContext {
         Group group = userManager.createGroup(
                 externalGroup.getId(),
                 principal,
-                joinPaths(config.group().getPathPrefix(), externalGroup.getIntermediatePath())
+                PathUtils.concatRelativePaths(config.group().getPathPrefix(), externalGroup.getIntermediatePath())
         );
         group.setProperty(REP_EXTERNAL_ID, valueFactory.createValue(externalGroup.getExternalId().getString()));
         return group;
@@ -470,7 +453,7 @@ public class DefaultSyncContext implements SyncContext {
      * @param depth recursion depth.
      * @throws RepositoryException
      */
-    protected void syncMembership(ExternalIdentity external, Authorizable auth, long depth)
+    protected void syncMembership(@Nonnull ExternalIdentity external, @Nonnull Authorizable auth, long depth)
             throws RepositoryException {
         if (depth <= 0) {
             return;
@@ -505,35 +488,32 @@ public class DefaultSyncContext implements SyncContext {
             // get group
             ExternalGroup extGroup;
             try {
-                extGroup = (ExternalGroup) idp.getIdentity(ref);
-            } catch (ClassCastException e) {
-                // this should really not be the case, so catching the CCE is ok here.
-                log.warn("External identity '{}' is not a group, but should be one.", ref.getString());
-                continue;
+                ExternalIdentity extId = idp.getIdentity(ref);
+                if (extId instanceof ExternalGroup) {
+                    extGroup = (ExternalGroup) extId;
+                } else {
+                    log.warn("No external group found for ref '{}'.", ref.getString());
+                    continue;
+                }
             } catch (ExternalIdentityException e) {
                 log.warn("Unable to retrieve external group '{}' from provider.", ref.getString(), e);
-                continue;
-            }
-            if (extGroup == null) {
-                log.warn("External group for ref '{}' could not be retrieved from provider.", ref);
                 continue;
             }
             log.debug("- idp returned '{}'", extGroup.getId());
 
             Group grp;
-            try {
-                grp = (Group) userManager.getAuthorizable(extGroup.getId());
-            } catch (ClassCastException e) {
-                // this should really not be the case, so catching the CCE is ok here.
+            Authorizable a = userManager.getAuthorizable(extGroup.getId());
+            if (a == null) {
+                grp = createGroup(extGroup);
+                log.debug("- created new group");
+            } else if (a.isGroup()) {
+                grp = (Group) a;
+            } else {
                 log.warn("Authorizable '{}' is not a group, but should be one.", extGroup.getId());
                 continue;
             }
             log.debug("- user manager returned '{}'", grp);
 
-            if (grp == null) {
-                grp = createGroup(extGroup);
-                log.debug("- created new group");
-            }
             syncGroup(extGroup, grp);
 
             // ensure membership
@@ -569,7 +549,7 @@ public class DefaultSyncContext implements SyncContext {
      * @param member the authorizable
      * @param groups set of groups.
      */
-    protected void applyMembership(Authorizable member, Set<String> groups) throws RepositoryException {
+    protected void applyMembership(@Nonnull Authorizable member, @Nonnull Set<String> groups) throws RepositoryException {
         for (String groupName: groups) {
             Authorizable group = userManager.getAuthorizable(groupName);
             if (group == null) {
@@ -591,7 +571,7 @@ public class DefaultSyncContext implements SyncContext {
      * @param mapping the property mapping
      * @throws RepositoryException if an error occurs
      */
-    protected void syncProperties(ExternalIdentity ext, Authorizable auth, Map<String, String> mapping)
+    protected void syncProperties(@Nonnull ExternalIdentity ext, @Nonnull Authorizable auth, @Nonnull Map<String, String> mapping)
             throws RepositoryException {
         Map<String, ?> properties = ext.getProperties();
         for (Map.Entry<String, String> entry: mapping.entrySet()) {
@@ -626,7 +606,7 @@ public class DefaultSyncContext implements SyncContext {
      * @param type debug message type
      * @return {@code true} if the authorizable needs sync
      */
-    protected boolean isExpired(Authorizable auth, long expirationTime, String type) throws RepositoryException {
+    protected boolean isExpired(@Nonnull Authorizable auth, long expirationTime, @Nonnull String type) throws RepositoryException {
         Value[] values = auth.getProperty(REP_LAST_SYNCED);
         if (values == null || values.length == 0) {
             if (log.isDebugEnabled()) {
@@ -689,7 +669,7 @@ public class DefaultSyncContext implements SyncContext {
      * @throws RepositoryException if an error occurs
      */
     @CheckForNull
-    protected Value[] createValues(Collection<?> propValues) throws RepositoryException {
+    protected Value[] createValues(@Nonnull Collection<?> propValues) throws RepositoryException {
         List<Value> values = new ArrayList<Value>();
         for (Object obj : propValues) {
             Value v = createValue(obj);

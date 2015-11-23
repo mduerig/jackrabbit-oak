@@ -50,7 +50,6 @@ public class PrefetchIterator<K> implements Iterator<K> {
      * 
      * @param it the base iterator
      * @param options the prefetch options to use
-     * @param result (optional) the result to get the size from
      */
     PrefetchIterator(Iterator<K> it, PrefetchOptions options) {
         this.it = it;
@@ -182,6 +181,18 @@ public class PrefetchIterator<K> implements Iterator<K> {
          * The result (optional) to get the size from, in case the fast size options is set.
          */
         Result fastSizeCallback;
+        
+        {
+            String s = System.getProperty("oak.queryMinPrefetch");
+            if (s != null) {
+                try {
+                    min = Integer.parseInt(s);
+                    max = Math.max(min, max);
+                } catch (Exception e) {
+                    // ignore
+                }
+            }
+        }
         
     }
 

@@ -25,6 +25,12 @@ import org.apache.jackrabbit.oak.api.jmx.QueryEngineSettingsMBean;
  */
 public class QueryEngineSettings implements QueryEngineSettingsMBean {
     
+    /**
+     * the flag used to turn on/off the optimisations on top of the {@link Query} object.
+     * {@code -Doak.query.sql2optimisation}
+     */
+    public static final String SQL2_OPTIMISATION_FLAG = "oak.query.sql2optimisation";
+    
     private static final int DEFAULT_QUERY_LIMIT_IN_MEMORY = 
             Integer.getInteger("oak.queryLimitInMemory", Integer.MAX_VALUE);
     
@@ -40,6 +46,8 @@ public class QueryEngineSettings implements QueryEngineSettingsMBean {
     
     private boolean fullTextComparisonWithoutIndex = 
             DEFAULT_FULL_TEXT_COMPARISON_WITHOUT_INDEX;
+    
+    private boolean sql2Optimisation = Boolean.parseBoolean(System.getProperty(SQL2_OPTIMISATION_FLAG, "true"));
     
     /**
      * Get the limit on how many nodes a query may read at most into memory, for
@@ -93,4 +101,7 @@ public class QueryEngineSettings implements QueryEngineSettingsMBean {
         return fullTextComparisonWithoutIndex;
     }
     
+    public boolean isSql2Optimisation() {
+        return sql2Optimisation;
+    }
 }

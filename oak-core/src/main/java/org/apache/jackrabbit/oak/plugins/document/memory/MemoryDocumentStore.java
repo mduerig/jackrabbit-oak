@@ -48,6 +48,7 @@ import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
 import org.apache.jackrabbit.oak.plugins.document.cache.CacheInvalidationStats;
 
+import static org.apache.jackrabbit.oak.plugins.document.UpdateUtils.assertUnconditional;
 import static org.apache.jackrabbit.oak.plugins.document.UpdateUtils.checkConditions;
 
 /**
@@ -213,6 +214,7 @@ public class MemoryDocumentStore implements DocumentStore {
     @CheckForNull
     @Override
     public <T extends Document> T createOrUpdate(Collection<T> collection, UpdateOp update) {
+        assertUnconditional(update);
         return internalCreateOrUpdate(collection, update, false);
     }
 
@@ -316,6 +318,7 @@ public class MemoryDocumentStore implements DocumentStore {
                 }
             }
             for (UpdateOp op : updateOps) {
+                assertUnconditional(op);
                 internalCreateOrUpdate(collection, op, false);
             }
             return true;
@@ -328,6 +331,7 @@ public class MemoryDocumentStore implements DocumentStore {
     public <T extends Document> void update(Collection<T> collection,
                                             List<String> keys,
                                             UpdateOp updateOp) {
+        assertUnconditional(updateOp);
         Lock lock = rwLock.writeLock();
         lock.lock();
         try {
@@ -350,8 +354,8 @@ public class MemoryDocumentStore implements DocumentStore {
         for (String p : nodes.keySet()) {
             buff.append("Path: ").append(p).append('\n');
             NodeDocument doc = nodes.get(p);
-            for (String prop : doc.keySet()) {
-                buff.append(prop).append('=').append(doc.get(prop)).append('\n');
+            for (Map.Entry<String, Object> entry : doc.entrySet()) {
+                buff.append(entry.getKey()).append('=').append(entry.getValue()).append('\n');
             }
             buff.append("\n");
         }
