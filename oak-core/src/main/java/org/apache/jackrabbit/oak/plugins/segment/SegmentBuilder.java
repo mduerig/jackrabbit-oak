@@ -69,8 +69,6 @@ public class SegmentBuilder {
 
     private final SegmentStore store;
 
-    private final SegmentTracker tracker;
-
     /**
      * Version of the segment storage format.
      */
@@ -80,6 +78,8 @@ public class SegmentBuilder {
      * Id of this writer.
      */
     private final String wid;
+
+    private final SegmentTracker tracker;
 
     /**
      * The segment write buffer, filled from the end to the beginning
@@ -101,15 +101,15 @@ public class SegmentBuilder {
      */
     private int position;
 
-    public SegmentBuilder(SegmentStore store, SegmentTracker tracker, SegmentVersion version, String wid) {
+    public SegmentBuilder(SegmentStore store, SegmentVersion version, String wid) {
         this.store = store;
-        this.tracker = tracker;
         this.version = version;
         this.wid = (wid == null
                 ? "w-" + identityHashCode(this)
                 : wid)
             + "." + BID.getAndIncrement();
 
+        this.tracker = store.getTracker();
         this.buffer = createNewBuffer(version);
         newSegment(wid);
     }

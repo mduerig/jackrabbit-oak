@@ -119,8 +119,6 @@ public class SegmentWriter {
 
     private final SegmentStore store;
 
-    private final SegmentTracker tracker;
-
     /**
      * Version of the segment storage format.
      */
@@ -128,25 +126,23 @@ public class SegmentWriter {
 
     private final String wid;
 
-    public SegmentWriter(SegmentStore store, SegmentTracker tracker, SegmentVersion version) {
-        this(store, tracker, version, null);
+    public SegmentWriter(SegmentStore store, SegmentVersion version) {
+        this(store, version, null);
     }
 
     /**
      * @param store     store to write to
-     * @param tracker   segment tracker for that {@code store}
      * @param version   segment version to write
      * @param wid       id of this writer
      */
-    public SegmentWriter(SegmentStore store, SegmentTracker tracker, SegmentVersion version, String wid) {
+    public SegmentWriter(SegmentStore store, SegmentVersion version, String wid) {
         this.store = store;
-        this.tracker = tracker;
         this.version = version;
         this.wid = wid;
     }
 
     SegmentTracker getTracker() {
-        return tracker;
+        return store.getTracker();
     }
 
     public void flush() {
@@ -963,7 +959,7 @@ public class SegmentWriter {
      * @return the compacted node (if it was compacted)
      */
     private SegmentNodeState uncompact(SegmentNodeState state) {
-        RecordId id = tracker.getCompactionMap().get(state.getRecordId());
+        RecordId id = store.getTracker().getCompactionMap().get(state.getRecordId());
         if (id != null) {
             return new SegmentNodeState(id);
         } else {
@@ -1019,7 +1015,7 @@ public class SegmentWriter {
         public synchronized SegmentBuilder borrowBuilder() {
             SegmentBuilder builder = builders.remove(currentThread());
             if (builder == null) {
-                builder = new SegmentBuilder(store, tracker, version, wid);
+                builder = new SegmentBuilder(store, version, wid);
             }
             borrowed.add(builder);
             return builder;
