@@ -29,6 +29,7 @@ import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.arraycopy;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newValueWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.SEGMENT_REFERENCE_LIMIT;
@@ -41,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.ByteValueWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -132,7 +132,7 @@ public class SegmentBuilder {
                 ",\"t\":" + currentTimeMillis() + "}";
 
         byte[] data = metaInfo.getBytes(UTF_8);
-        new ByteValueWriter(data.length, data).write(this);
+        newValueWriter(data.length, data).write(this);
     }
 
     static byte[] createNewBuffer(SegmentVersion v) {

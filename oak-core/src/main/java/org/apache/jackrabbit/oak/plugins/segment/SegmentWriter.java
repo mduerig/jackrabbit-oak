@@ -42,6 +42,15 @@ import static org.apache.jackrabbit.oak.api.Type.NAME;
 import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.plugins.segment.MapRecord.BUCKETS_PER_LEVEL;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newBlobIdWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newBlockWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newListBucketWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newListWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newMapBranchWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newMapLeafWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newNodeStateWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newTemplateWriter;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newValueWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.align;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.readString;
@@ -63,18 +72,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.BlockWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.ByteValueWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.LargeBlobIdWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.ListBucketWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.ListWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.MapBranchWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.MapLeafWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.NodeStateWriter;
 import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.RecordWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.SingleValueWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.SmallBlobIdWriter;
-import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.TemplateWriter;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -166,14 +164,14 @@ public class SegmentWriter {
         if (base != null && changes.size() == 1) {
             Map.Entry<String, RecordId> change =
                 changes.entrySet().iterator().next();
-            final RecordId value = change.getValue();
+            RecordId value = change.getValue();
             if (value != null) {
-                final MapEntry entry = base.getEntry(change.getKey());
+                MapEntry entry = base.getEntry(change.getKey());
                 if (entry != null) {
                     if (value.equals(entry.getValue())) {
                         return base;
                     } else {
-                        return writeRecord(new MapBranchWriter(-1, entry.getHash(),
+                        return writeRecord(newMapBranchWriter(-1, entry.getHash(),
                                 asList(entry.getKey(), value, base.getRecordId())));
                     }
                 }
@@ -202,18 +200,18 @@ public class SegmentWriter {
         return writeMapBucket(base, entries, 0);
     }
 
-    private MapRecord writeMapLeaf(final int level, Collection<MapEntry> entries) {
+    private MapRecord writeMapLeaf(int level, Collection<MapEntry> entries) {
         checkNotNull(entries);
-        final int size = entries.size();
+        int size = entries.size();
         checkElementIndex(size, MapRecord.MAX_SIZE);
         checkPositionIndex(level, MapRecord.MAX_NUMBER_OF_LEVELS);
         checkArgument(size != 0 || level == MapRecord.MAX_NUMBER_OF_LEVELS);
-        return writeRecord(new MapLeafWriter(level, entries));
+        return writeRecord(newMapLeafWriter(level, entries));
     }
 
-    private MapRecord writeMapBranch(final int level, final int size, MapRecord[] buckets) {
+    private MapRecord writeMapBranch(int level, int size, MapRecord[] buckets) {
         int bitmap = 0;
-        final List<RecordId> bucketIds = newArrayListWithCapacity(buckets.length);
+        List<RecordId> bucketIds = newArrayListWithCapacity(buckets.length);
         for (int i = 0; i < buckets.length; i++) {
             if (buckets[i] != null) {
                 bitmap |= 1L << i;
@@ -221,7 +219,7 @@ public class SegmentWriter {
             }
         }
         int levelIn = (level << MapRecord.SIZE_BITS) | size;
-        return writeRecord(new MapBranchWriter(levelIn, bitmap, bucketIds));
+        return writeRecord(newMapBranchWriter(levelIn, bitmap, bucketIds));
     }
 
     private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level) {
@@ -230,7 +228,7 @@ public class SegmentWriter {
             if (base != null) {
                 return base;
             } else if (level == 0) {
-                return writeRecord(new MapLeafWriter());
+                return writeRecord(newMapLeafWriter());
             } else {
                 return null;
             }
@@ -333,9 +331,9 @@ public class SegmentWriter {
         return thisLevel.iterator().next();
     }
 
-    private RecordId writeListBucket(final List<RecordId> bucket) {
+    private RecordId writeListBucket(List<RecordId> bucket) {
         checkArgument(bucket.size() > 1);
-        return writeRecord(new ListBucketWriter(bucket));
+        return writeRecord(newListBucketWriter(bucket));
     }
 
     private static List<List<MapEntry>> splitToBuckets(Collection<MapEntry> entries, int level) {
@@ -357,14 +355,14 @@ public class SegmentWriter {
         return buckets;
     }
 
-    private RecordId writeValueRecord(final long length, final RecordId blocks) {
+    private RecordId writeValueRecord(long length, RecordId blocks) {
         long len = (length - Segment.MEDIUM_LIMIT) | (0x3L << 62);
-        return writeRecord(new SingleValueWriter(blocks, len));
+        return writeRecord(newValueWriter(blocks, len));
     }
 
-    private RecordId writeValueRecord(final int length, final byte[] data) {
+    private RecordId writeValueRecord(int length, byte[] data) {
         checkArgument(length < Segment.MEDIUM_LIMIT);
-        return writeRecord(new ByteValueWriter(length, data));
+        return writeRecord(newValueWriter(length, data));
     }
 
     /**
@@ -443,35 +441,10 @@ public class SegmentWriter {
     private RecordId writeBlobId(String blobId) {
         byte[] data = blobId.getBytes(UTF_8);
         if (data.length < Segment.BLOB_ID_SMALL_LIMIT) {
-            return writeSmallBlobId(data);
+            return writeRecord(newBlobIdWriter(data));
         } else {
-            return writeLargeBlobId(blobId);
+            return writeRecord(newBlobIdWriter(writeString(blobId)));
         }
-    }
-
-    /**
-     * Write a large blob ID. A blob ID is considered large if the length of its
-     * binary representation is equal to or greater than {@code
-     * Segment.BLOB_ID_SMALL_LIMIT}.
-     *
-     * @param blobId Blob ID.
-     * @return A record ID pointing to the written blob ID.
-     */
-    private RecordId writeLargeBlobId(String blobId) {
-        return writeRecord(new LargeBlobIdWriter(writeString(blobId)));
-    }
-
-    /**
-     * Write a small blob ID. A blob ID is considered small if the length of its
-     * binary representation is less than {@code Segment.BLOB_ID_SMALL_LIMIT}.
-     *
-     * @param blobId Blob ID.
-     * @return A record ID pointing to the written blob ID.
-     */
-    private RecordId writeSmallBlobId(final byte[] blobId) {
-        final int length = blobId.length;
-        checkArgument(length < Segment.BLOB_ID_SMALL_LIMIT);
-        return writeRecord(new SmallBlobIdWriter(blobId));
     }
 
     /**
@@ -482,10 +455,10 @@ public class SegmentWriter {
      * @param length number of bytes to write
      * @return block record identifier
      */
-    RecordId writeBlock(final byte[] bytes, final int offset, final int length) {
+    RecordId writeBlock(byte[] bytes, int offset, int length) {
         checkNotNull(bytes);
         checkPositionIndexes(offset, offset + length, bytes.length);
-        return writeRecord(new BlockWriter(bytes, offset, length));
+        return writeRecord(newBlockWriter(bytes, offset, length));
     }
 
     SegmentBlob writeExternalBlob(String blobId) {
@@ -565,7 +538,7 @@ public class SegmentWriter {
 
     private RecordId writeProperty(PropertyState state, Map<String, RecordId> previousValues) {
         Type<?> type = state.getType();
-        final int count = state.count();
+        int count = state.count();
 
         List<RecordId> valueIds = newArrayList();
         for (int i = 0; i < count; i++) {
@@ -590,9 +563,9 @@ public class SegmentWriter {
         if (!type.isArray()) {
             return valueIds.iterator().next();
         } else if (count == 0) {
-            return writeRecord(new ListWriter());
+            return writeRecord(newListWriter());
         } else {
-            return writeRecord(new ListWriter(count, writeList(valueIds)));
+            return writeRecord(newListWriter(count, writeList(valueIds)));
         }
     }
 
@@ -667,7 +640,7 @@ public class SegmentWriter {
         checkState(propertyNames.length < (1 << 18));
         head |= propertyNames.length;
 
-        RecordId tid = writeRecord(new TemplateWriter(ids, propertyNames,
+        RecordId tid = writeRecord(newTemplateWriter(ids, propertyNames,
                 propertyTypes, head, primaryId, mixinIds, childNameId,
                 propNamesId, version));
         records.put(template, tid);
@@ -707,7 +680,7 @@ public class SegmentWriter {
             templateId = writeTemplate(template);
         }
 
-        final List<RecordId> ids = newArrayList();
+        List<RecordId> ids = newArrayList();
         ids.add(templateId);
 
         String childName = template.getChildName();
@@ -787,7 +760,7 @@ public class SegmentWriter {
                 ids.addAll(pIds);
             }
         }
-        return writeRecord(new NodeStateWriter(ids));
+        return writeRecord(newNodeStateWriter(ids));
     }
 
     /**
