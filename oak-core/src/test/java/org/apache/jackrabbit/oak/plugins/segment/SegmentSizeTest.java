@@ -35,6 +35,8 @@ import com.google.common.collect.ImmutableList;
 /**
  * Test case for ensuring that segment size remains within bounds.
  */
+// FIXME Some of these fail sporadically as the segment meta info makes the segment sizes somewhat unpredictable
+// getSize() should best subtract the size of the meta data
 public class SegmentSizeTest {
 
     @Test
