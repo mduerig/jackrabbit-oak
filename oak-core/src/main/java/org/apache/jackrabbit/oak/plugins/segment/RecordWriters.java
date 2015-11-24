@@ -79,8 +79,12 @@ public final class RecordWriters {
         return new MapLeafWriter();
     }
 
-    public static RecordWriter<MapRecord> newMapBranchWriter(int level, int bitmap, List<RecordId> ids) {
-        return new MapBranchWriter(level, bitmap, ids);
+    public static RecordWriter<MapRecord> newMapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
+        return new MapBranchWriter(level, entryCount, bitmap, ids);
+    }
+
+    public static RecordWriter<MapRecord> newMapBranchWriter(int bitmap, List<RecordId> ids) {
+        return new MapBranchWriter(bitmap, ids);
     }
 
     public static RecordWriter<RecordId> newListWriter(int count, RecordId lid) {
@@ -197,21 +201,34 @@ public final class RecordWriters {
      */
     private static class MapBranchWriter extends RecordWriter<MapRecord> {
         private final int level;
+        private final int entryCount;
         private final int bitmap;
 
-        private MapBranchWriter(int level, int bitmap, List<RecordId> ids) {
+        /*
+         * Write a regular map branch
+         */
+        private MapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
             super(BRANCH, 8, ids);
             this.level = level;
+            this.entryCount = entryCount;
             this.bitmap = bitmap;
         }
 
+        /*
+         * Write a diff map
+         */
+        private MapBranchWriter(int bitmap, List<RecordId> ids) {
+            // level = 0 and and entryCount = -1 -> this is a map diff
+            this(0, -1, bitmap, ids);
+        }
+
         @Override
-        protected MapRecord writeRecordContent(RecordId id,
-                SegmentBuilder builder) {
-            builder.writeInt(level);
+        protected MapRecord writeRecordContent(RecordId id, SegmentBuilder builder) {
+            // -1 to encode a map diff (if level == 0 and entryCount == -1)
+            builder.writeInt((level << SIZE_BITS) | entryCount);
             builder.writeInt(bitmap);
-            for (RecordId buckedId : ids) {
-                builder.writeRecordId(buckedId);
+            for (RecordId mapId : ids) {
+                builder.writeRecordId(mapId);
             }
             return new MapRecord(id);
         }

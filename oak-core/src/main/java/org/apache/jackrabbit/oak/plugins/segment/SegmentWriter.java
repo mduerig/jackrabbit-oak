@@ -171,7 +171,7 @@ public class SegmentWriter {
                     if (value.equals(entry.getValue())) {
                         return base;
                     } else {
-                        return writeRecord(newMapBranchWriter(-1, entry.getHash(),
+                        return writeRecord(newMapBranchWriter(entry.getHash(),
                                 asList(entry.getKey(), value, base.getRecordId())));
                     }
                 }
@@ -218,8 +218,7 @@ public class SegmentWriter {
                 bucketIds.add(buckets[i].getRecordId());
             }
         }
-        int levelIn = (level << MapRecord.SIZE_BITS) | size;
-        return writeRecord(newMapBranchWriter(levelIn, bitmap, bucketIds));
+        return writeRecord(newMapBranchWriter(level, size, bitmap, bucketIds));
     }
 
     private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level) {
