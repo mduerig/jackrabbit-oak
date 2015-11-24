@@ -53,6 +53,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -1000,12 +1001,18 @@ public class SegmentWriter {
         private final Set<SegmentBuilder> borrowed = newHashSet();
         private final Map<Thread, SegmentBuilder> builders = newHashMap();
 
-        public synchronized void flush() {
-            for (SegmentBuilder builder : builders.values()) {
+        public void flush() {
+            ArrayList<SegmentBuilder> toFlush = Lists.newArrayList();
+            synchronized (this) {
+                toFlush.addAll(builders.values());
+                builders.clear();
+                borrowed.clear();
+            }
+            // Call flush from outside a synchronized context to avoid
+            // deadlocks of that method calling SegmentStore.writeSegment
+            for (SegmentBuilder builder : toFlush) {
                 builder.flush();
             }
-            builders.clear();
-            borrowed.clear();
         }
 
         public synchronized SegmentBuilder borrowBuilder() {
@@ -1020,6 +1027,9 @@ public class SegmentWriter {
         public synchronized void returnBuilder(SegmentBuilder builder) {
             if (borrowed.remove(builder)) {
                 builders.put(currentThread(), builder);
+            } else {
+                // Delayed flush this builder as it was borrowed while flush() was called.
+                builder.flush();
             }
         }
     }
