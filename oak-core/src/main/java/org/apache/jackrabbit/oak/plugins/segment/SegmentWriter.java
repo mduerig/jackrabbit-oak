@@ -965,13 +965,13 @@ public class SegmentWriter {
     }
 
     private RecordId writeRecord(RecordWriter recordWriter) {
-        SegmentBuilder builder = segmentBuilderPool.borrowBuilder();
+        SegmentBuilder builder = segmentBuilderPool.borrowBuilder(currentThread());
         try {
             RecordId id = builder.prepare(recordWriter.type, recordWriter.size, recordWriter.ids);
             recordWriter.write(id, builder);
             return id;
         } finally {
-            segmentBuilderPool.returnBuilder(builder);
+            segmentBuilderPool.returnBuilder(currentThread(), builder);
         }
     }
 
@@ -999,7 +999,7 @@ public class SegmentWriter {
 
     private class SegmentBuilderPool {
         private final Set<SegmentBuilder> borrowed = newHashSet();
-        private final Map<Thread, SegmentBuilder> builders = newHashMap();
+        private final Map<Object, SegmentBuilder> builders = newHashMap();
 
         public void flush() {
             ArrayList<SegmentBuilder> toFlush = Lists.newArrayList();
@@ -1015,8 +1015,8 @@ public class SegmentWriter {
             }
         }
 
-        public synchronized SegmentBuilder borrowBuilder() {
-            SegmentBuilder builder = builders.remove(currentThread());
+        public synchronized SegmentBuilder borrowBuilder(Object key) {
+            SegmentBuilder builder = builders.remove(key);
             if (builder == null) {
                 builder = new SegmentBuilder(store, version, wid);
             }
@@ -1024,9 +1024,9 @@ public class SegmentWriter {
             return builder;
         }
 
-        public synchronized void returnBuilder(SegmentBuilder builder) {
+        public synchronized void returnBuilder(Object key, SegmentBuilder builder) {
             if (borrowed.remove(builder)) {
-                builders.put(currentThread(), builder);
+                builders.put(key, builder);
             } else {
                 // Delayed flush this builder as it was borrowed while flush() was called.
                 builder.flush();
