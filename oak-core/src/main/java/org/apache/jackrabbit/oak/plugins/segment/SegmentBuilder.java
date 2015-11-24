@@ -111,7 +111,7 @@ public class SegmentBuilder {
 
         this.tracker = store.getTracker();
         this.buffer = createNewBuffer(version);
-        newSegment(wid);
+        newSegment(this.wid);
     }
 
     /**
