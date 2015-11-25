@@ -1024,12 +1024,19 @@ public class SegmentWriter {
             return builder;
         }
 
-        public synchronized void returnBuilder(Object key, SegmentBuilder builder) {
-            if (borrowed.remove(builder)) {
-                builders.put(key, builder);
-            } else {
+        public void returnBuilder(Object key, SegmentBuilder builder) {
+            if (!tryReturn(key, builder)) {
                 // Delayed flush this builder as it was borrowed while flush() was called.
                 builder.flush();
+            }
+        }
+
+        private synchronized boolean tryReturn(Object key, SegmentBuilder builder) {
+            if (borrowed.remove(builder)) {
+                builders.put(key, builder);
+                return true;
+            } else {
+                return false;
             }
         }
     }
