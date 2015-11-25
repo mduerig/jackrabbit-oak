@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Charsets;
 import org.slf4j.Logger;
@@ -53,8 +52,6 @@ import org.slf4j.LoggerFactory;
  */
 public class SegmentBuilder {
     private static final Logger LOG = LoggerFactory.getLogger(SegmentBuilder.class);
-
-    private static final AtomicLong BID = new AtomicLong();
 
     /**
      * The set of root records (i.e. ones not referenced by other records)
@@ -106,8 +103,7 @@ public class SegmentBuilder {
         this.version = version;
         this.wid = (wid == null
                 ? "w-" + identityHashCode(this)
-                : wid)
-            + "." + BID.getAndIncrement();
+                : wid);
 
         this.tracker = store.getTracker();
         this.buffer = createNewBuffer(version);

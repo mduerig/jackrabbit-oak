@@ -1018,7 +1018,7 @@ public class SegmentWriter {
         public synchronized SegmentBuilder borrowBuilder(Object key) {
             SegmentBuilder builder = builders.remove(key);
             if (builder == null) {
-                builder = new SegmentBuilder(store, version, wid);
+                builder = new SegmentBuilder(store, version, wid + "." + (key.hashCode() & 0xffff));
             }
             borrowed.add(builder);
             return builder;
