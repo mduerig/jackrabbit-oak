@@ -22,23 +22,20 @@ import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE
 import java.util.Calendar;
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableList;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.plugins.segment.memory.MemoryStore;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.util.ISO8601;
-import org.junit.Ignore;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
 
 /**
  * Test case for ensuring that segment size remains within bounds.
  */
 public class SegmentSizeTest {
 
-    @Ignore("OAK-3681")
     @Test
     public void testNodeSize() {
         NodeBuilder builder = EMPTY_NODE.builder();
@@ -116,7 +113,6 @@ public class SegmentSizeTest {
                 id2.getOffset() - id3.getOffset());
     }
 
-    @Ignore("OAK-3681")
     @Test
     public void testAccessControlNodes() {
         NodeBuilder builder = EMPTY_NODE.builder();
