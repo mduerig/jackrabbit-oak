@@ -31,7 +31,7 @@ import static com.google.common.collect.Lists.partition;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.io.ByteStreams.read;
-import static com.google.common.io.Closeables.close;
+import static com.google.common.io.Closeables.closeQuietly;
 import static java.lang.String.valueOf;
 import static java.lang.Thread.currentThread;
 import static java.util.Arrays.asList;
@@ -406,7 +406,7 @@ public class SegmentWriter {
         return writeValueRecord(data.length, writeList(blockIds));
     }
 
-    public SegmentBlob writeBlob(Blob blob) throws IOException {
+    public SegmentBlob writeBlob(Blob blob) {
         if (blob instanceof SegmentBlob
             && store.containsSegment(((SegmentBlob) blob).getRecordId().getSegmentId())) {
             return (SegmentBlob) blob;
@@ -473,58 +473,58 @@ public class SegmentWriter {
      *
      * @param stream stream to be written
      * @return value record identifier
-     * @throws IOException if the stream could not be read
      */
-    public SegmentBlob writeStream(InputStream stream) throws IOException {
-        boolean threw = true;
+    public SegmentBlob writeStream(InputStream stream) {
         try {
             RecordId id = SegmentStream.getRecordIdIfAvailable(stream, store);
             if (id == null) {
                 id = internalWriteStream(stream);
             }
-            threw = false;
             return new SegmentBlob(id);
         } finally {
-            close(stream, threw);
+            closeQuietly(stream);
         }
     }
 
-    private RecordId internalWriteStream(InputStream stream)
-            throws IOException {
-        BlobStore blobStore = store.getBlobStore();
-        byte[] data = new byte[MAX_SEGMENT_SIZE];
-        int n = read(stream, data, 0, data.length);
+    private RecordId internalWriteStream(InputStream stream) {
+        try {
+            BlobStore blobStore = store.getBlobStore();
+            byte[] data = new byte[MAX_SEGMENT_SIZE];
+            int n = read(stream, data, 0, data.length);
 
-        // Special case for short binaries (up to about 16kB):
-        // store them directly as small- or medium-sized value records
-        if (n < Segment.MEDIUM_LIMIT) {
-            return writeValueRecord(n, data);
-        } else if (blobStore != null) {
-            String blobId = blobStore.writeBlob(new SequenceInputStream(
+            // Special case for short binaries (up to about 16kB):
+            // store them directly as small- or medium-sized value records
+            if (n < Segment.MEDIUM_LIMIT) {
+                return writeValueRecord(n, data);
+            } else if (blobStore != null) {
+                String blobId = blobStore.writeBlob(new SequenceInputStream(
                     new ByteArrayInputStream(data, 0, n), stream));
-            return writeBlobId(blobId);
-        }
-
-        long length = n;
-        List<RecordId> blockIds =
-                newArrayListWithExpectedSize(2 * n / BLOCK_SIZE);
-
-        // Write the data to bulk segments and collect the list of block ids
-        while (n != 0) {
-            SegmentId bulkId = store.getTracker().newBulkSegmentId();
-            int len = align(n, 1 << Segment.RECORD_ALIGN_BITS);
-            LOG.debug("Writing bulk segment {} ({} bytes)", bulkId, n);
-            store.writeSegment(bulkId, data, 0, len);
-
-            for (int i = 0; i < n; i += BLOCK_SIZE) {
-                blockIds.add(new RecordId(bulkId, data.length - len + i));
+                return writeBlobId(blobId);
             }
 
-            n = read(stream, data, 0, data.length);
-            length += n;
-        }
+            long length = n;
+            List<RecordId> blockIds =
+                newArrayListWithExpectedSize(2 * n / BLOCK_SIZE);
 
-        return writeValueRecord(length, writeList(blockIds));
+            // Write the data to bulk segments and collect the list of block ids
+            while (n != 0) {
+                SegmentId bulkId = store.getTracker().newBulkSegmentId();
+                int len = align(n, 1 << Segment.RECORD_ALIGN_BITS);
+                LOG.debug("Writing bulk segment {} ({} bytes)", bulkId, n);
+                store.writeSegment(bulkId, data, 0, len);
+
+                for (int i = 0; i < n; i += BLOCK_SIZE) {
+                    blockIds.add(new RecordId(bulkId, data.length - len + i));
+                }
+
+                n = read(stream, data, 0, data.length);
+                length += n;
+            }
+
+            return writeValueRecord(length, writeList(blockIds));
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public RecordId writeProperty(PropertyState state) {
@@ -539,13 +539,8 @@ public class SegmentWriter {
         List<RecordId> valueIds = newArrayList();
         for (int i = 0; i < count; i++) {
             if (type.tag() == PropertyType.BINARY) {
-                try {
-                    SegmentBlob blob =
-                            writeBlob(state.getValue(BINARY, i));
-                    valueIds.add(blob.getRecordId());
-                } catch (IOException e) {
-                    throw new IllegalStateException("Unexpected IOException", e);
-                }
+                SegmentBlob blob = writeBlob(state.getValue(BINARY, i));
+                valueIds.add(blob.getRecordId());
             } else {
                 String value = state.getValue(STRING, i);
                 RecordId valueId = previousValues.get(value);

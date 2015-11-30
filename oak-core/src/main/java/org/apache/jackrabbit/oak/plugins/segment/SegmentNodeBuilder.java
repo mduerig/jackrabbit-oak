@@ -16,7 +16,6 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import java.io.IOException;
 import java.io.InputStream;
 
 import javax.annotation.Nonnull;
@@ -118,7 +117,7 @@ public class SegmentNodeBuilder extends MemoryNodeBuilder {
     }
 
     @Override
-    public Blob createBlob(InputStream stream) throws IOException {
+    public Blob createBlob(InputStream stream) {
         SegmentNodeState sns = getNodeState();
         return sns.getTracker().getWriter().writeStream(stream);
     }

@@ -24,7 +24,6 @@ import static org.apache.jackrabbit.oak.plugins.segment.Segment.SMALL_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentWriter.BLOCK_SIZE;
 
 import java.io.BufferedInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
 
@@ -166,7 +165,7 @@ public class SegmentBlob extends Record implements Blob {
         }
     }
 
-    public SegmentBlob clone(SegmentWriter writer, boolean cloneLargeBinaries) throws IOException {
+    public SegmentBlob clone(SegmentWriter writer, boolean cloneLargeBinaries) {
         Segment segment = getSegment();
         int offset = getOffset();
         byte head = segment.readByte(offset);

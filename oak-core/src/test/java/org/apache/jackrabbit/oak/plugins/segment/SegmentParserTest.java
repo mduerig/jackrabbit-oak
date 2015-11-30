@@ -42,7 +42,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -345,7 +344,7 @@ public class SegmentParserTest {
     }
 
     @Test
-    public void smallBlob() throws IOException {
+    public void smallBlob() {
         SegmentBlob blob = writer.writeBlob(createRandomBlob(4));
         ValueInfo valueInfo = new TestParser("smallBlob") {
             @Override
@@ -361,7 +360,7 @@ public class SegmentParserTest {
     }
 
     @Test
-    public void mediumBlob() throws IOException {
+    public void mediumBlob() {
         SegmentBlob blob = writer.writeBlob(createRandomBlob(SMALL_LIMIT));
         ValueInfo valueInfo = new TestParser("mediumBlob") {
             @Override
@@ -377,7 +376,7 @@ public class SegmentParserTest {
     }
 
     @Test
-    public void longBlob() throws IOException {
+    public void longBlob() {
         SegmentBlob blob = writer.writeBlob(createRandomBlob(MEDIUM_LIMIT));
         ValueInfo valueInfo = new TestParser("longBlob") {
             @Override

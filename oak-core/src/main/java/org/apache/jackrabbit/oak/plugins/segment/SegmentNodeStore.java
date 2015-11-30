@@ -29,7 +29,6 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.plugins.segment.Record.fastEquals;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
@@ -270,7 +269,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
     }
 
     @Override
-    public Blob createBlob(InputStream stream) throws IOException {
+    public Blob createBlob(InputStream stream) {
         return store.getTracker().getWriter().writeStream(stream);
     }
 
