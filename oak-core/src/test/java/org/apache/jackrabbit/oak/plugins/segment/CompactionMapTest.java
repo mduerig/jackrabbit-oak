@@ -120,7 +120,7 @@ public class CompactionMapTest {
         this.compactionMap = CompactionMap.EMPTY.cons(compactionMap3).cons(compactionMap2).cons(compactionMap1);
     }
 
-    private static void putAll(PartialCompactionMap map1, Map<RecordId, RecordId> recordIdRecordIdMap) {
+    private static void putAll(PartialCompactionMap map1, Map<RecordId, RecordId> recordIdRecordIdMap) throws IOException {
         for (Entry<RecordId, RecordId> tuple : recordIdRecordIdMap.entrySet()) {
             map1.put(tuple.getKey(), tuple.getValue());
         }
@@ -143,7 +143,7 @@ public class CompactionMapTest {
     }
 
     @Test
-    public void removeSome() {
+    public void removeSome() throws IOException {
         Set<UUID> removedUUIDs = newHashSet();
         for (int k = 0; k < 1 + rnd.nextInt(referenceMap.size()); k++) {
             RecordId key = get(referenceMap.keySet(), rnd.nextInt(referenceMap.size()));
@@ -171,7 +171,7 @@ public class CompactionMapTest {
     }
 
     @Test
-    public void removeGeneration() {
+    public void removeGeneration() throws IOException {
         compactionMap1.compress();
         compactionMap2.compress();
         compactionMap3.compress();
@@ -212,7 +212,7 @@ public class CompactionMapTest {
      * See OAK-3511
      */
     @Test
-    public void removeRecentKey() {
+    public void removeRecentKey() throws IOException {
         compactionMap1.compress();
 
         // Find a key not present in the compaction map

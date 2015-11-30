@@ -139,7 +139,7 @@ public class SegmentWriter {
         this.wid = wid;
     }
 
-    public void flush() {
+    public void flush() throws IOException {
         segmentBufferWriterPool.flush();
     }
 
@@ -147,7 +147,7 @@ public class SegmentWriter {
         records.clear();
     }
 
-    MapRecord writeMap(MapRecord base, Map<String, RecordId> changes) {
+    MapRecord writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
         if (base != null && base.isDiff()) {
             Segment segment = base.getSegment();
             RecordId key = segment.readRecordId(base.getOffset(8));
@@ -197,7 +197,7 @@ public class SegmentWriter {
         return writeMapBucket(base, entries, 0);
     }
 
-    private MapRecord writeMapLeaf(int level, Collection<MapEntry> entries) {
+    private MapRecord writeMapLeaf(int level, Collection<MapEntry> entries) throws IOException {
         checkNotNull(entries);
         int size = entries.size();
         checkElementIndex(size, MapRecord.MAX_SIZE);
@@ -206,7 +206,7 @@ public class SegmentWriter {
         return writeRecord(newMapLeafWriter(level, entries));
     }
 
-    private MapRecord writeMapBranch(int level, int size, MapRecord[] buckets) {
+    private MapRecord writeMapBranch(int level, int size, MapRecord[] buckets) throws IOException {
         int bitmap = 0;
         List<RecordId> bucketIds = newArrayListWithCapacity(buckets.length);
         for (int i = 0; i < buckets.length; i++) {
@@ -218,7 +218,7 @@ public class SegmentWriter {
         return writeRecord(newMapBranchWriter(level, size, bitmap, bucketIds));
     }
 
-    private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level) {
+    private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level) throws IOException {
         // when no changed entries, return the base map (if any) as-is
         if (entries == null || entries.isEmpty()) {
             if (base != null) {
@@ -308,7 +308,7 @@ public class SegmentWriter {
      * @param list list of record identifiers
      * @return list record identifier
      */
-    public RecordId writeList(List<RecordId> list) {
+    public RecordId writeList(List<RecordId> list) throws IOException {
         checkNotNull(list);
         checkArgument(!list.isEmpty());
         List<RecordId> thisLevel = list;
@@ -327,7 +327,7 @@ public class SegmentWriter {
         return thisLevel.iterator().next();
     }
 
-    private RecordId writeListBucket(List<RecordId> bucket) {
+    private RecordId writeListBucket(List<RecordId> bucket) throws IOException {
         checkArgument(bucket.size() > 1);
         return writeRecord(newListBucketWriter(bucket));
     }
@@ -351,12 +351,12 @@ public class SegmentWriter {
         return buckets;
     }
 
-    private RecordId writeValueRecord(long length, RecordId blocks) {
+    private RecordId writeValueRecord(long length, RecordId blocks) throws IOException {
         long len = (length - Segment.MEDIUM_LIMIT) | (0x3L << 62);
         return writeRecord(newValueWriter(blocks, len));
     }
 
-    private RecordId writeValueRecord(int length, byte[] data) {
+    private RecordId writeValueRecord(int length, byte[] data) throws IOException {
         checkArgument(length < Segment.MEDIUM_LIMIT);
         return writeRecord(newValueWriter(length, data));
     }
@@ -367,7 +367,7 @@ public class SegmentWriter {
      * @param string string to be written
      * @return value record identifier
      */
-    public RecordId writeString(String string) {
+    public RecordId writeString(String string) throws IOException {
         RecordId id = records.get(string);
         if (id != null) {
             return id; // shortcut if the same string was recently stored
@@ -434,7 +434,7 @@ public class SegmentWriter {
      * @return Record ID pointing to the written blob ID.
      * @see Segment#BLOB_ID_SMALL_LIMIT
      */
-    private RecordId writeBlobId(String blobId) {
+    private RecordId writeBlobId(String blobId) throws IOException {
         byte[] data = blobId.getBytes(UTF_8);
         if (data.length < Segment.BLOB_ID_SMALL_LIMIT) {
             return writeRecord(newBlobIdWriter(data));
@@ -451,18 +451,18 @@ public class SegmentWriter {
      * @param length number of bytes to write
      * @return block record identifier
      */
-    RecordId writeBlock(byte[] bytes, int offset, int length) {
+    RecordId writeBlock(byte[] bytes, int offset, int length) throws IOException {
         checkNotNull(bytes);
         checkPositionIndexes(offset, offset + length, bytes.length);
         return writeRecord(newBlockWriter(bytes, offset, length));
     }
 
-    SegmentBlob writeExternalBlob(String blobId) {
+    SegmentBlob writeExternalBlob(String blobId) throws IOException {
         RecordId id = writeBlobId(blobId);
         return new SegmentBlob(id);
     }
 
-    SegmentBlob writeLargeBlob(long length, List<RecordId> list) {
+    SegmentBlob writeLargeBlob(long length, List<RecordId> list) throws IOException {
         RecordId id = writeValueRecord(length, writeList(list));
         return new SegmentBlob(id);
     }
@@ -527,12 +527,12 @@ public class SegmentWriter {
         return writeValueRecord(length, writeList(blockIds));
     }
 
-    public RecordId writeProperty(PropertyState state) {
+    public RecordId writeProperty(PropertyState state) throws IOException {
         Map<String, RecordId> previousValues = emptyMap();
         return writeProperty(state, previousValues);
     }
 
-    private RecordId writeProperty(PropertyState state, Map<String, RecordId> previousValues) {
+    private RecordId writeProperty(PropertyState state, Map<String, RecordId> previousValues) throws IOException {
         Type<?> type = state.getType();
         int count = state.count();
 
@@ -565,7 +565,7 @@ public class SegmentWriter {
         }
     }
 
-    public RecordId writeTemplate(Template template) {
+    public RecordId writeTemplate(Template template) throws IOException {
         checkNotNull(template);
 
         RecordId id = records.get(template);
@@ -643,7 +643,7 @@ public class SegmentWriter {
         return tid;
     }
 
-    public SegmentNodeState writeNode(NodeState state) {
+    public SegmentNodeState writeNode(NodeState state) throws IOException {
         if (state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
             if (sns != state || store.containsSegment(
@@ -687,24 +687,7 @@ public class SegmentWriter {
                 && before.getChildNodeCount(2) > 1
                 && after.getChildNodeCount(2) > 1) {
                 base = before.getChildNodeMap();
-                after.compareAgainstBaseState(before, new DefaultNodeStateDiff() {
-                    @Override
-                    public boolean childNodeAdded(String name, NodeState after) {
-                        childNodes.put(name, writeNode(after).getRecordId());
-                        return true;
-                    }
-                    @Override
-                    public boolean childNodeChanged(
-                        String name, NodeState before, NodeState after) {
-                        childNodes.put(name, writeNode(after).getRecordId());
-                        return true;
-                    }
-                    @Override
-                    public boolean childNodeDeleted(String name, NodeState before) {
-                        childNodes.put(name, null);
-                        return true;
-                    }
-                });
+                new ChildNodeCollectorDiff(childNodes).diff(before, after);
             } else {
                 base = null;
                 for (ChildNodeEntry entry : state.getChildNodeEntries()) {
@@ -776,7 +759,7 @@ public class SegmentWriter {
         }
     }
 
-    private <T> T writeRecord(RecordWriter<T> recordWriter) {
+    private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
         SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
         try {
             return recordWriter.write(writer);
@@ -791,7 +774,7 @@ public class SegmentWriter {
 
         private short writerId = -1;
 
-        public void flush() {
+        public void flush() throws IOException {
             List<SegmentBufferWriter> toFlush = newArrayList();
             synchronized (this) {
                 toFlush.addAll(writers.values());
@@ -805,7 +788,7 @@ public class SegmentWriter {
             }
         }
 
-        public synchronized SegmentBufferWriter borrowWriter(Object key) {
+        public synchronized SegmentBufferWriter borrowWriter(Object key) throws IOException {
             SegmentBufferWriter writer = writers.remove(key);
             if (writer == null) {
                 writer = new SegmentBufferWriter(store, version, wid + "." + getWriterId());
@@ -814,7 +797,7 @@ public class SegmentWriter {
             return writer;
         }
 
-        public void returnWriter(Object key, SegmentBufferWriter writer) {
+        public void returnWriter(Object key, SegmentBufferWriter writer) throws IOException {
             if (!tryReturn(key, writer)) {
                 // Delayed flush this writer as it was borrowed while flush() was called.
                 writer.flush();
@@ -847,4 +830,48 @@ public class SegmentWriter {
         }
     }
 
+    private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
+        private final Map<String, RecordId> childNodes;
+        private IOException exception;
+
+        public ChildNodeCollectorDiff(Map<String, RecordId> childNodes) {
+            this.childNodes = childNodes;
+        }
+
+        @Override
+        public boolean childNodeAdded(String name, NodeState after) {
+            try {
+                childNodes.put(name, writeNode(after).getRecordId());
+            } catch (IOException e) {
+                exception = e;
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean childNodeChanged(
+            String name, NodeState before, NodeState after) {
+            try {
+                childNodes.put(name, writeNode(after).getRecordId());
+            } catch (IOException e) {
+                exception = e;
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean childNodeDeleted(String name, NodeState before) {
+            childNodes.put(name, null);
+            return true;
+        }
+
+        public void diff(SegmentNodeState before, ModifiedNodeState after) throws IOException {
+            after.compareAgainstBaseState(before, this);
+            if (exception != null) {
+                throw new IOException(exception);
+            }
+        }
+    }
 }

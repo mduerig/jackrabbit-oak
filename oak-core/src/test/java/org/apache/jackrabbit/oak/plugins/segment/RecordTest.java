@@ -51,18 +51,23 @@ import org.junit.Test;
 
 public class RecordTest {
 
-    private String hello = "Hello, World!";
+    private final String hello = "Hello, World!";
 
-    private byte[] bytes = hello.getBytes(Charsets.UTF_8);
+    private final byte[] bytes = hello.getBytes(Charsets.UTF_8);
 
-    private SegmentStore store = new MemoryStore();
+    private final SegmentStore store;
 
-    private SegmentWriter writer = store.getTracker().getWriter();
+    private final SegmentWriter writer;
 
     private final Random random = new Random(0xcafefaceL);
 
+    public RecordTest() throws IOException {
+        store = new MemoryStore();
+        writer = store.getTracker().getWriter();
+    }
+
     @Test
-    public void testBlockRecord() {
+    public void testBlockRecord() throws IOException {
         RecordId blockId = writer.writeBlock(bytes, 0, bytes.length);
         BlockRecord block = new BlockRecord(blockId, bytes.length);
 
@@ -82,7 +87,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testListRecord() {
+    public void testListRecord() throws IOException {
         RecordId blockId = writer.writeBlock(bytes, 0, bytes.length);
 
         ListRecord one = writeList(1, blockId);
@@ -115,13 +120,13 @@ public class RecordTest {
         assertEquals(LEVEL_SIZE * LEVEL_SIZE + 1, count);
     }
 
-    private ListRecord writeList(int size, RecordId id) {
+    private ListRecord writeList(int size, RecordId id) throws IOException {
         List<RecordId> list = Collections.nCopies(size, id);
         return new ListRecord(writer.writeList(list), size);
     }
 
     @Test
-    public void testListWithLotsOfReferences() { // OAK-1184
+    public void testListWithLotsOfReferences() throws IOException { // OAK-1184
         SegmentTracker factory = store.getTracker();
         List<RecordId> list = newArrayList();
         for (int i = 0; i < 1000; i++) {
@@ -169,7 +174,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testStringRecord() {
+    public void testStringRecord() throws IOException {
         RecordId empty = writer.writeString("");
         RecordId space = writer.writeString(" ");
         RecordId hello = writer.writeString("Hello, World!");
@@ -189,7 +194,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testMapRecord() {
+    public void testMapRecord() throws IOException {
         RecordId blockId = writer.writeBlock(bytes, 0, bytes.length);
 
         MapRecord zero = writer.writeMap(
@@ -256,7 +261,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testMapRemoveNonExisting() {
+    public void testMapRemoveNonExisting() throws IOException {
         RecordId blockId = writer.writeBlock(bytes, 0, bytes.length);
 
         Map<String, RecordId> changes = newHashMap();
@@ -266,7 +271,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testWorstCaseMap() {
+    public void testWorstCaseMap() throws IOException {
         RecordId blockId = writer.writeBlock(bytes, 0, bytes.length);
         Map<String, RecordId> map = newHashMap();
         char[] key = new char[2];
@@ -288,14 +293,14 @@ public class RecordTest {
     }
 
     @Test
-    public void testEmptyNode() {
+    public void testEmptyNode() throws IOException {
         NodeState before = EMPTY_NODE;
         NodeState after = writer.writeNode(before);
         assertEquals(before, after);
     }
 
     @Test
-    public void testSimpleNode() {
+    public void testSimpleNode() throws IOException {
         NodeState before = EMPTY_NODE.builder()
                 .setProperty("foo", "abc")
                 .setProperty("bar", 123)
@@ -306,7 +311,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testDeepNode() {
+    public void testDeepNode() throws IOException {
         NodeBuilder root = EMPTY_NODE.builder();
         NodeBuilder builder = root;
         for (int i = 0; i < 1000; i++) {
@@ -318,7 +323,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testManyMapDeletes() {
+    public void testManyMapDeletes() throws IOException {
         NodeBuilder builder = EMPTY_NODE.builder();
         for (int i = 0; i < 1000; i++) {
             builder.child("test" + i);
@@ -364,7 +369,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testStringPrimaryType() {
+    public void testStringPrimaryType() throws IOException {
         NodeBuilder builder = EMPTY_NODE.builder();
         builder.setProperty("jcr:primaryType", "foo", STRING);
         NodeState state = writer.writeNode(builder.getNodeState());
@@ -372,7 +377,7 @@ public class RecordTest {
     }
 
     @Test
-    public void testStringMixinTypes() {
+    public void testStringMixinTypes() throws IOException {
         NodeBuilder builder = EMPTY_NODE.builder();
         builder.setProperty("jcr:mixinTypes", singletonList("foo"), STRINGS);
         NodeState state = writer.writeNode(builder.getNodeState());

@@ -495,7 +495,11 @@ public class FileStore implements SegmentStore {
                     new Runnable() {
                         @Override
                         public void run() {
-                            maybeCompact(true);
+                            try {
+                                maybeCompact(true);
+                            } catch (IOException e) {
+                                log.error("Error running compaction", e);
+                            }
                         }
                     });
 
@@ -527,7 +531,7 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    public boolean maybeCompact(boolean cleanup) {
+    public boolean maybeCompact(boolean cleanup) throws IOException {
         gcMonitor.info("TarMK GC #{}: started", gcCount.incrementAndGet());
 
         Runtime runtime = Runtime.getRuntime();
@@ -959,7 +963,7 @@ public class FileStore implements SegmentStore {
      * are fully kept (they are only removed in cleanup, if there is no
      * reference to them).
      */
-    public void compact() {
+    public void compact() throws IOException {
         checkArgument(!compactionStrategy.equals(NO_COMPACTION),
                 "You must set a compactionStrategy before calling compact");
         gcMonitor.info("TarMK GC #{}: compaction started, strategy={}", gcCount, compactionStrategy);
@@ -1217,7 +1221,7 @@ public class FileStore implements SegmentStore {
     }
 
     @Override
-    public void writeSegment(SegmentId id, byte[] data, int offset, int length) {
+    public void writeSegment(SegmentId id, byte[] data, int offset, int length) throws IOException {
         fileStoreLock.writeLock().lock();
         try {
             long size = writer.writeEntry(
@@ -1228,8 +1232,6 @@ public class FileStore implements SegmentStore {
                 newWriter();
             }
             approximateSize.addAndGet(TarWriter.BLOCK_SIZE + length + TarWriter.getPaddingSize(length));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         } finally {
             fileStoreLock.writeLock().unlock();
         }

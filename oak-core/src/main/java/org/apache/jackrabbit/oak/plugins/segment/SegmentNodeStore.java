@@ -132,7 +132,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
         this.changeDispatcher = new ChangeDispatcher(getRoot());
     }
 
-    public SegmentNodeStore() {
+    public SegmentNodeStore() throws IOException {
         this(new MemoryStore());
     }
 

@@ -128,7 +128,7 @@ public class PartialCompactionMapTest {
         }
     }
 
-    private void addAll(Map<RecordId, RecordId> toAdd) {
+    private void addAll(Map<RecordId, RecordId> toAdd) throws IOException {
         assert map != null;
         for (Entry<RecordId, RecordId> tuple : toAdd.entrySet()) {
             if (reference != null) {
@@ -138,7 +138,7 @@ public class PartialCompactionMapTest {
         }
     }
 
-    private void addRandomEntries(int segmentCount, int entriesPerSegment) {
+    private void addRandomEntries(int segmentCount, int entriesPerSegment) throws IOException {
         assert map != null;
         for (int k = 0; k < segmentCount / 1000; k++) {
             addAll(randomRecordIdMap(rnd, getTracker(), 1000, entriesPerSegment));
@@ -146,7 +146,7 @@ public class PartialCompactionMapTest {
         addAll(randomRecordIdMap(rnd, getTracker(), segmentCount % 1000, entriesPerSegment));
     }
 
-    private void removeRandomEntries(int count) {
+    private void removeRandomEntries(int count) throws IOException {
         assert reference != null;
         assert map != null;
         Set<SegmentId> remove = newHashSet();
@@ -181,7 +181,7 @@ public class PartialCompactionMapTest {
     }
 
     @Test
-    public void single() {
+    public void single() throws IOException {
         map = createCompactionMap();
         RecordId before = RecordId.fromString(getTracker(), "00000000-0000-0000-0000-000000000000.0000");
         RecordId after = RecordId.fromString(getTracker(),  "11111111-1111-1111-1111-111111111111.1111");
@@ -195,7 +195,7 @@ public class PartialCompactionMapTest {
     }
 
     @Test
-    public void remove() {
+    public void remove() throws IOException {
         map = createCompactionMap();
         RecordId before1 = RecordId.fromString(getTracker(), "00000000-0000-0000-0000-000000000000.0000");
         RecordId before2 = RecordId.fromString(getTracker(), "00000000-0000-0000-0000-000000000000.1111");
@@ -224,7 +224,7 @@ public class PartialCompactionMapTest {
     }
 
     @Test
-    public void random() {
+    public void random() throws IOException {
         int maxSegments = 1000;
         int entriesPerSegment = 10;
         reference = newHashMap();
@@ -250,7 +250,7 @@ public class PartialCompactionMapTest {
     }
 
     @Test
-    public void benchLargeMap() {
+    public void benchLargeMap() throws IOException {
         assumeTrue(Boolean.getBoolean("benchmark.benchLargeMap"));
         assertHeapSize(4000000000L);
 
@@ -349,7 +349,7 @@ public class PartialCompactionMapTest {
         }
 
         @Override
-        public void run() {
+        public void run() throws IOException {
             for (Entry<RecordId, RecordId> tuple : putIds.entrySet()) {
                 map.put(tuple.getKey(), tuple.getValue());
             }
