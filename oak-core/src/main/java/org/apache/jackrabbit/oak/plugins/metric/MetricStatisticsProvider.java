@@ -58,9 +58,11 @@ public class MetricStatisticsProvider implements StatisticsProvider, Closeable {
     private static final String JMX_TYPE_METRICS = "Metrics";
 
     /**
-     * Types for which Noop Variant has to be used
+     * Types for which Metrics based stats would not be collected
+     * and only default stats would be collected
      */
-    private static final Set<String> NOOPS_TYPES = ImmutableSet.of(
+    private static final Set<String> NOOP_METRIC_TYPES = ImmutableSet.of(
+            Type.SESSION_READ_COUNTER.name(),
             Type.SESSION_READ_DURATION.name(),
             Type.SESSION_WRITE_DURATION.name(),
             Type.QUERY_COUNT.name()
@@ -141,7 +143,7 @@ public class MetricStatisticsProvider implements StatisticsProvider, Closeable {
                 delegate = new SimpleStats(repoStats.getCounter(type, resetValueEachSecond));
             }
 
-            if (NOOPS_TYPES.contains(name)) {
+            if (NOOP_METRIC_TYPES.contains(name)) {
                 stats = delegate;
             } else {
                 stats = builder.newComposite(delegate, this, name);
@@ -237,7 +239,7 @@ public class MetricStatisticsProvider implements StatisticsProvider, Closeable {
         public ObjectName createName(String type, String domain, String name) {
             Hashtable<String, String> table = new Hashtable<String, String>();
             table.put("type", JMX_TYPE_METRICS);
-            table.put("name", name);
+            table.put("name", quoteIfRequired(name));
             try {
                 return new ObjectName(domain, table);
             } catch (MalformedObjectNameException e) {
@@ -258,6 +260,14 @@ public class MetricStatisticsProvider implements StatisticsProvider, Closeable {
         public long getTick() {
             return TimeUnit.NANOSECONDS.convert(clock.getTime(), TimeUnit.MILLISECONDS);
         }
+    }
+
+    static String quoteIfRequired(String text) {
+        String quoted = ObjectName.quote(text);
+        if (quoted.substring(1, quoted.length() - 1).equals(text)) {
+            return text;
+        }
+        return quoted;
     }
 
 }

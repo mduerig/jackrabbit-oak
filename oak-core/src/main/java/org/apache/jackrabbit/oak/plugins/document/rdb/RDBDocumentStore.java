@@ -96,10 +96,12 @@ import com.google.common.util.concurrent.Striped;
  * simplify testing, and <em>that</em> code specifically supports these
  * databases:
  * <ul>
- * <li>h2</li>
+ * <li>H2DB</li>
+ * <li>Apache Derby</li>
  * <li>IBM DB2</li>
- * <li>Postgres</li>
+ * <li>PostgreSQL</li>
  * <li>MariaDB (MySQL) (experimental)</li>
+ * <li>Microsoft SQL Server (experimental)</li>
  * <li>Oracle (experimental)</li>
  * </ul>
  * 
@@ -124,8 +126,7 @@ import com.google.common.util.concurrent.Striped;
  * <th>ID</th>
  * <td>varchar(512) not null primary key</td>
  * <td>the document's key (for databases that can not handle 512 character
- * primary keys, such as MySQL, varbinary is possible as well; note that this
- * currently needs to be hardcoded)</td>
+ * primary keys, such as MySQL, varbinary is possible as wells)</td>
  * </tr>
  * <tr>
  * <th>MODIFIED</th>
@@ -172,19 +173,18 @@ import com.google.common.util.concurrent.Striped;
  * The names of database tables can be prefixed; the purpose is mainly for
  * testing, as tables can also be dropped automatically when the store is
  * disposed (this only happens for those tables that have been created on
- * demand)
+ * demand).
  * <p>
  * <em>Note that the database needs to be created/configured to support all Unicode
  * characters in text fields, and to collate by Unicode code point (in DB2: "collate using identity",
  * in Postgres: "C").
  * THIS IS NOT THE DEFAULT!</em>
  * <p>
- * <em>For MySQL, the database parameter "max_allowed_packet" needs to be increased to support ~16 blobs.</em>
+ * <em>For MySQL, the database parameter "max_allowed_packet" needs to be increased to support ~16M blobs.</em>
  * 
  * <h3>Caching</h3>
  * <p>
- * The cache borrows heavily from the {@link MongoDocumentStore} implementation;
- * however it does not support the off-heap mechanism yet.
+ * The cache borrows heavily from the {@link MongoDocumentStore} implementation.
  * 
  * <h3>Queries</h3>
  * <p>
@@ -721,7 +721,8 @@ public class RDBDocumentStore implements DocumentStore {
             return sb.toString();
         } catch (SQLException ex) {
             // well it was best-effort
-            return "";
+            return String.format("/* exception while retrieving index information: %s, code %d, state %s */",
+                    ex.getMessage(), ex.getErrorCode(), ex.getSQLState());
         } finally {
             closeResultSet(rs);
         }
@@ -806,10 +807,11 @@ public class RDBDocumentStore implements DocumentStore {
     }
 
     @Override
-    protected void finalize() {
+    protected void finalize() throws Throwable {
         if (!this.ch.isClosed() && this.callStack != null) {
             LOG.debug("finalizing RDBDocumentStore that was not disposed", this.callStack);
         }
+        super.finalize();
     }
 
     private <T extends Document> T readDocumentCached(final Collection<T> collection, final String id, int maxCacheAge) {
@@ -885,10 +887,7 @@ public class RDBDocumentStore implements DocumentStore {
                 for (UpdateOp update : chunks) {
                     UpdateUtils.assertUnconditional(update);
                     T doc = collection.newDocument(this);
-                    update.increment(MODCOUNT, 1);
-                    if (hasChangesToCollisions(update)) {
-                        update.increment(COLLISIONSMODCOUNT, 1);
-                    }
+                    addUpdateCounters(update);
                     UpdateUtils.applyChanges(doc, update);
                     if (!update.getId().equals(doc.getId())) {
                         throw new DocumentStoreException("ID mismatch - UpdateOp: " + update.getId() + ", ID property: "
@@ -927,10 +926,7 @@ public class RDBDocumentStore implements DocumentStore {
             if (checkConditions && !checkConditions(doc, update.getConditions())) {
                 return null;
             }
-            update.increment(MODCOUNT, 1);
-            if (hasChangesToCollisions(update)) {
-                update.increment(COLLISIONSMODCOUNT, 1);
-            }
+            addUpdateCounters(update);
             UpdateUtils.applyChanges(doc, update);
             try {
                 insertDocuments(collection, Collections.singletonList(doc));
@@ -966,11 +962,11 @@ public class RDBDocumentStore implements DocumentStore {
     @CheckForNull
     private <T extends Document> T internalUpdate(Collection<T> collection, UpdateOp update, T oldDoc, boolean checkConditions,
             int maxRetries) {
-        T doc = applyChanges(collection, oldDoc, update, checkConditions);
-        if (doc == null) {
-            // conditions not met
+        if (checkConditions && !UpdateUtils.checkConditions(oldDoc, update.getConditions())) {
             return null;
         } else {
+            addUpdateCounters(update);
+            T doc = createNewDocument(collection, oldDoc, update);
             Lock l = getAndLock(update.getId());
             try {
                 boolean success = false;
@@ -997,9 +993,12 @@ public class RDBDocumentStore implements DocumentStore {
                             return null;
                         }
 
-                        doc = applyChanges(collection, oldDoc, update, checkConditions);
-                        if (doc == null) {
+                        if (checkConditions && !UpdateUtils.checkConditions(oldDoc, update.getConditions())) {
                             return null;
+                        }
+                        else {
+                            addUpdateCounters(update);
+                            doc = createNewDocument(collection, oldDoc, update);
                         }
                     } else {
                         updateCache(collection, oldDoc, doc);
@@ -1018,20 +1017,20 @@ public class RDBDocumentStore implements DocumentStore {
         }
     }
 
-    @CheckForNull
-    private <T extends Document> T applyChanges(Collection<T> collection, T oldDoc, UpdateOp update, boolean checkConditions) {
+    @Nonnull
+    private <T extends Document> T createNewDocument(Collection<T> collection, T oldDoc, UpdateOp update) {
         T doc = collection.newDocument(this);
         oldDoc.deepCopy(doc);
-        if (checkConditions && !checkConditions(doc, update.getConditions())) {
-            return null;
-        }
+        UpdateUtils.applyChanges(doc, update);
+        doc.seal();
+        return doc;
+    }
+
+    private static void addUpdateCounters(UpdateOp update) {
         if (hasChangesToCollisions(update)) {
             update.increment(COLLISIONSMODCOUNT, 1);
         }
         update.increment(MODCOUNT, 1);
-        UpdateUtils.applyChanges(doc, update);
-        doc.seal();
-        return doc;
     }
 
     @CheckForNull
@@ -1097,10 +1096,9 @@ public class RDBDocumentStore implements DocumentStore {
                                 // invalidated
                                 nodesCache.invalidate(new StringValue(id));
                             } else {
-                                T newDoc = applyChanges(collection, oldDoc, update, true);
-                                if (newDoc != null) {
-                                    updateCache(collection, oldDoc, newDoc);
-                                }
+                                addUpdateCounters(update);
+                                T newDoc = createNewDocument(collection, oldDoc, update);
+                                updateCache(collection, oldDoc, newDoc);
                             }
                         } finally {
                             lock.unlock();
@@ -1727,19 +1725,21 @@ public class RDBDocumentStore implements DocumentStore {
         return castAsT(fresh);
     }
 
-    private boolean hasChangesToCollisions(UpdateOp update) {
-        if (! USECMODCOUNT) return false;
-
-        for (Entry<Key, Operation> e : checkNotNull(update).getChanges().entrySet()) {
-            Key k = e.getKey();
-            Operation op = e.getValue();
-            if (op.type == Operation.Type.SET_MAP_ENTRY) {
-                if (NodeDocument.COLLISIONS.equals(k.getName())) {
-                    return true;
+    private static boolean hasChangesToCollisions(UpdateOp update) {
+        if (!USECMODCOUNT) {
+            return false;
+        } else {
+            for (Entry<Key, Operation> e : checkNotNull(update).getChanges().entrySet()) {
+                Key k = e.getKey();
+                Operation op = e.getValue();
+                if (op.type == Operation.Type.SET_MAP_ENTRY) {
+                    if (NodeDocument.COLLISIONS.equals(k.getName())) {
+                        return true;
+                    }
                 }
             }
+            return false;
         }
-        return false;
     }
 
     protected Cache<CacheValue, NodeDocument> getNodeDocumentCache() {
