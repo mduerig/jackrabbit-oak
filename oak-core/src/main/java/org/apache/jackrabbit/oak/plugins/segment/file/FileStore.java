@@ -1340,6 +1340,12 @@ public class FileStore implements SegmentStore {
         }
     }
 
+    // michid move
+    public interface SegmentGraphVisitor {
+        void accept(TarReader reader);
+        void accept(UUID from, UUID to);
+    }
+
     /**
      * A read only {@link FileStore} implementation that supports
      * going back to old revisions.
@@ -1381,6 +1387,13 @@ public class FileStore implements SegmentStore {
             return graph;
         }
 
+        public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
+            for (TarReader reader : super.readers) {
+                visitor.accept(reader);
+                reader.traverseSegmentGraph(referencedIds, visitor);
+            }
+        }
+
         @Override
         public boolean setHead(SegmentNodeState base, SegmentNodeState head) {
             throw new UnsupportedOperationException("Read Only Store");
@@ -1417,7 +1430,6 @@ public class FileStore implements SegmentStore {
         public boolean maybeCompact(boolean cleanup) {
             throw new UnsupportedOperationException("Read Only Store");
         }
-
     }
 
     private class SetHead implements Callable<Boolean> {

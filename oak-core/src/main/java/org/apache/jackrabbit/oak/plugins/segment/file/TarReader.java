@@ -52,6 +52,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.plugins.segment.CompactionMap;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -696,6 +697,31 @@ class TarReader implements Closeable {
             }
         }
         return refGraph;
+    }
+
+    public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
+        Map<UUID, List<UUID>> graph = getGraph();
+
+        TarEntry[] entries = getEntries();
+        for (int i = entries.length - 1; i >= 0; i--) {
+            TarEntry entry = entries[i];
+            UUID id = new UUID(entry.msb(), entry.lsb());
+            if (referencedIds.remove(id)) {
+                if (isDataSegmentId(entry.lsb())) {
+                    // this is a referenced data segment, so follow the graph
+                    List<UUID> refIds = getReferences(entry, id, graph);
+                    if (refIds != null) {
+                        for (UUID refId : refIds) {
+                            visitor.accept(id, refId);
+                            refIds.add(refId);
+                        }
+                    }
+                }
+            } else {
+                // this segment is not referenced anywhere
+                visitor.accept(id, null);
+            }
+        }
     }
 
     /**

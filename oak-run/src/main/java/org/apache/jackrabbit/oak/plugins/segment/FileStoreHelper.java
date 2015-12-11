@@ -47,6 +47,7 @@ import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.ReadOnlyStore;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisitor;
 import org.apache.jackrabbit.oak.plugins.segment.file.JournalReader;
 
 public final class FileStoreHelper {
@@ -105,6 +106,10 @@ public final class FileStoreHelper {
             sb.append(newline);
             printGcRoots(sb, links, r.getKey(), space + inc, inc);
         }
+    }
+
+    public static void traverseSegmentGraph(ReadOnlyStore fileStore, Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
+        fileStore.traverseSegmentGraph(referencedIds, visitor);
     }
 
     /**
