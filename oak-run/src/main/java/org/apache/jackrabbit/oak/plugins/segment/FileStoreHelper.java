@@ -42,6 +42,9 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
+import com.google.common.base.Function;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
@@ -127,15 +130,24 @@ public final class FileStoreHelper {
         try {
             SegmentNodeState root = fileStore.getHead();
 
-            // Segment graph starting from the segment containing root
-            Map<UUID, Set<UUID>> segmentGraph = fileStore.getSegmentGraph(new HashSet<UUID>(singleton(root.getRecordId().asUUID())));
-
             // All segment in the segment graph
-            Set<UUID> segments = newHashSet();
-            segments.addAll(segmentGraph.keySet());
-            for (Set<UUID> tos : segmentGraph.values()) {
-                segments.addAll(tos);
-            }
+            final Map<UUID, UUID> segments = newHashMap();
+
+            // Segment graph starting from the segment containing root
+            Function<UUID, UUID> uuidFactory = new Function<UUID, UUID>() {
+                @Nullable
+                @Override
+                public UUID apply(UUID uuid) {
+                    UUID result = segments.get(uuid);
+                    if (result != null) {
+                        return result;
+                    } else {
+                        segments.put(uuid, uuid);
+                        return uuid;
+                    }
+                }
+            };
+            Map<UUID, Set<UUID>> segmentGraph = fileStore.getSegmentGraph(new HashSet<UUID>(singleton(root.getRecordId().asUUID())), uuidFactory);
 
             // Graph of segments containing the head state
             final Map<UUID, Set<UUID>> headGraph = newHashMap();
@@ -218,7 +230,7 @@ public final class FileStoreHelper {
             }.parseNode(root.getRecordId());
 
             writer.write("nodedef>name VARCHAR, label VARCHAR, type VARCHAR, wid VARCHAR, gc INT, t INT, head BOOLEAN\n");
-            for (UUID segment : segments) {
+            for (UUID segment : segments.keySet()) {
                 writeNode(segment, writer, headSegments.contains(segment), epoch, fileStore.getTracker());
             }
 

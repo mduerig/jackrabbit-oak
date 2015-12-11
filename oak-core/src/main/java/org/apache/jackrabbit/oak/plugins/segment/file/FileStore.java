@@ -60,6 +60,7 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Function;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.api.Blob;
@@ -1371,12 +1372,13 @@ public class FileStore implements SegmentStore {
         /**
          * Build the graph of segments reachable from an initial set of segments
          * @param referencedIds  the initial set of segments
+         * @param uuidFactory
          * @throws IOException
          */
-        public Map<UUID, Set<UUID>> getSegmentGraph(Set<UUID> referencedIds) throws IOException {
+        public Map<UUID, Set<UUID>> getSegmentGraph(Set<UUID> referencedIds, Function<UUID, UUID> uuidFactory) throws IOException {
             Map<UUID, Set<UUID>> graph = newHashMap();
             for (TarReader reader : super.readers) {
-                graph.putAll(reader.getReferenceGraph(referencedIds));
+                graph.putAll(reader.getReferenceGraph(referencedIds, uuidFactory));
             }
             return graph;
         }
