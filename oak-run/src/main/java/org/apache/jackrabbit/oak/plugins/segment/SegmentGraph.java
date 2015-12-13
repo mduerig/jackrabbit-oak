@@ -46,6 +46,7 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisi
 
 /**
  * michid document
+ * michid @Nullable
  */
 public final class SegmentGraph {
     private SegmentGraph() { }
@@ -198,6 +199,8 @@ public final class SegmentGraph {
         }.parseNode(root);
         return new Graph(vertices, edges);
     }
+
+    // michid implement parseGCGraph
 
     private static void writeNode(UUID node, PrintWriter writer, boolean inHead, Date epoch, SegmentTracker tracker) {
         Map<String, String> sInfo = getSegmentInfo(node, tracker);

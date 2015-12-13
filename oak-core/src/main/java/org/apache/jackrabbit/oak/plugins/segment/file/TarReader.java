@@ -675,25 +675,25 @@ class TarReader implements Closeable {
 
     /**
      * Build the graph of segments reachable from an initial set of segments
-     * @param referencedIds  the initial set of segments
+     * @param roots  the initial set of segments
      * @throws IOException
      * michid doc
      */
-    public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
+    public void traverseSegmentGraph(Set<UUID> roots, SegmentGraphVisitor visitor) throws IOException {
         Map<UUID, List<UUID>> graph = getGraph();
 
         TarEntry[] entries = getEntries();
         for (int i = entries.length - 1; i >= 0; i--) {
             TarEntry entry = entries[i];
             UUID id = new UUID(entry.msb(), entry.lsb());
-            if (referencedIds.remove(id)) {
+            if (roots.remove(id)) {
                 if (isDataSegmentId(entry.lsb())) {
                     // this is a referenced data segment, so follow the graph
                     List<UUID> refIds = getReferences(entry, id, graph);
                     if (refIds != null) {
                         for (UUID refId : refIds) {
                             visitor.accept(id, refId);
-                            referencedIds.add(refId);
+                            roots.add(refId);
                         }
                     }
                 }

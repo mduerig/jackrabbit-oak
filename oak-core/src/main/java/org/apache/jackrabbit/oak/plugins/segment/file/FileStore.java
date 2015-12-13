@@ -1376,13 +1376,13 @@ public class FileStore implements SegmentStore {
 
         /**
          * Build the graph of segments reachable from an initial set of segments
-         * @param referencedIds  the initial set of segments
+         * @param roots  the initial set of segments
          * @throws IOException
          * michid doc
          */
-        public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
+        public void traverseSegmentGraph(Set<UUID> roots, SegmentGraphVisitor visitor) throws IOException {
             for (TarReader reader : super.readers) {
-                reader.traverseSegmentGraph(referencedIds, visitor);
+                reader.traverseSegmentGraph(roots, visitor);
             }
         }
 
