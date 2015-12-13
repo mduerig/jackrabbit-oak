@@ -99,11 +99,11 @@ import org.apache.jackrabbit.oak.plugins.document.util.MapDBMapFactory;
 import org.apache.jackrabbit.oak.plugins.document.util.MapFactory;
 import org.apache.jackrabbit.oak.plugins.document.util.MongoConnection;
 import org.apache.jackrabbit.oak.plugins.segment.FileStoreDiff;
-import org.apache.jackrabbit.oak.plugins.segment.FileStoreHelper;
 import org.apache.jackrabbit.oak.plugins.segment.PCMAnalyser;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.RecordUsageAnalyser;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentGraph;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
@@ -847,7 +847,7 @@ public final class Main {
 
         System.out.println("Setting epoch to " + epoch);
         System.out.println("Writing graph to " + outFile);
-        FileStoreHelper.writeSegmentGraph(fileStore, new FileOutputStream(outFile), epoch);
+        SegmentGraph.writeSegmentGraph(fileStore, new FileOutputStream(outFile), epoch);
     }
 
     private static void check(String[] args) throws IOException {

@@ -27,7 +27,7 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.apache.commons.io.IOUtils.copy;
-import static org.apache.jackrabbit.oak.plugins.segment.FileStoreHelper.writeSegmentGraph;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.writeSegmentGraph;
 import static org.junit.Assert.assertEquals;
 
 import java.io.BufferedReader;
