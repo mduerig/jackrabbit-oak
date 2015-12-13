@@ -699,6 +699,7 @@ class TarReader implements Closeable {
         return refGraph;
     }
 
+    // michid unify with getSegmentGraph
     public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
         Map<UUID, List<UUID>> graph = getGraph();
 

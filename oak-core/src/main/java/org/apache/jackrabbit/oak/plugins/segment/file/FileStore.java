@@ -1340,7 +1340,7 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    // michid move
+    // michid move, or make Function (i.e. Homomorphism)
     public interface SegmentGraphVisitor {
         void accept(TarReader reader);
         void accept(UUID from, UUID to);
@@ -1387,6 +1387,7 @@ public class FileStore implements SegmentStore {
             return graph;
         }
 
+        // michid unfiy with getSegmentGraph
         public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
             for (TarReader reader : super.readers) {
                 visitor.accept(reader);

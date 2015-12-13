@@ -108,10 +108,13 @@ public final class FileStoreHelper {
         }
     }
 
+    // michid use from writeSegmentGraph
     public static void traverseSegmentGraph(ReadOnlyStore fileStore, Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
         fileStore.traverseSegmentGraph(referencedIds, visitor);
     }
 
+    // michid split in graph calculation and graph writing (GDF writer + tests), move to separate class
+    // michid clean up test resources when done
     /**
      * Write the segment graph of a file store to a stream.
      * <p>
