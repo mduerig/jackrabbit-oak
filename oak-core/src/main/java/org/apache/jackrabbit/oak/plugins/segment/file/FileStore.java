@@ -58,6 +58,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
@@ -1340,10 +1341,9 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    // michid move, or make Function (i.e. Homomorphism)
+    // michid move
     public interface SegmentGraphVisitor {
-        void accept(TarReader reader);
-        void accept(UUID from, UUID to);
+        void accept(@Nonnull UUID from, @CheckForNull UUID to);
     }
 
     /**
@@ -1378,19 +1378,10 @@ public class FileStore implements SegmentStore {
          * Build the graph of segments reachable from an initial set of segments
          * @param referencedIds  the initial set of segments
          * @throws IOException
+         * michid doc
          */
-        public Map<UUID, Set<UUID>> getSegmentGraph(Set<UUID> referencedIds) throws IOException {
-            Map<UUID, Set<UUID>> graph = newHashMap();
-            for (TarReader reader : super.readers) {
-                graph.putAll(reader.getReferenceGraph(referencedIds));
-            }
-            return graph;
-        }
-
-        // michid unfiy with getSegmentGraph
         public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
             for (TarReader reader : super.readers) {
-                visitor.accept(reader);
                 reader.traverseSegmentGraph(referencedIds, visitor);
             }
         }

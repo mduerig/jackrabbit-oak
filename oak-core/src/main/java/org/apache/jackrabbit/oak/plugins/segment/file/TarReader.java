@@ -36,7 +36,6 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -678,28 +677,8 @@ class TarReader implements Closeable {
      * Build the graph of segments reachable from an initial set of segments
      * @param referencedIds  the initial set of segments
      * @throws IOException
+     * michid doc
      */
-    Map<UUID, Set<UUID>> getReferenceGraph(Set<UUID> referencedIds) throws IOException {
-        Map<UUID, List<UUID>> graph = getGraph();
-        Map<UUID, Set<UUID>> refGraph = newHashMap();
-
-        TarEntry[] entries = getEntries();
-        for (int i = entries.length - 1; i >= 0; i--) {
-            TarEntry entry = entries[i];
-            UUID id = new UUID(entry.msb(), entry.lsb());
-            if (referencedIds.remove(id) && isDataSegmentId(entry.lsb())) {
-                // this is a referenced data segment, so follow the graph
-                List<UUID> refIds = getReferences(entry, id, graph);
-                if (refIds != null) {
-                    refGraph.put(id, new HashSet<UUID>(refIds));
-                    referencedIds.addAll(refIds);
-                }
-            }
-        }
-        return refGraph;
-    }
-
-    // michid unify with getSegmentGraph
     public void traverseSegmentGraph(Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
         Map<UUID, List<UUID>> graph = getGraph();
 
@@ -714,7 +693,7 @@ class TarReader implements Closeable {
                     if (refIds != null) {
                         for (UUID refId : refIds) {
                             visitor.accept(id, refId);
-                            refIds.add(refId);
+                            referencedIds.add(refId);
                         }
                     }
                 }

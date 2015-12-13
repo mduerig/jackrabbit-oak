@@ -35,6 +35,9 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
 
+import javax.annotation.CheckForNull;
+import javax.annotation.Nonnull;
+
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
@@ -44,11 +47,9 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisi
 /**
  * michid document
  */
-public class SegmentGraph {
-    // michid use from writeSegmentGraph
-    public static void traverseSegmentGraph(ReadOnlyStore fileStore, Set<UUID> referencedIds, SegmentGraphVisitor visitor) throws IOException {
-        fileStore.traverseSegmentGraph(referencedIds, visitor);
-    }
+public final class SegmentGraph {
+    private SegmentGraph() { }
+    // michid clean up test resources when done
 
     /**
      * Write the segment graph of a file store to a stream.
@@ -66,112 +67,23 @@ public class SegmentGraph {
      * @throws Exception
      */
     public static void writeSegmentGraph(ReadOnlyStore fileStore, OutputStream out, Date epoch) throws Exception {
-        // michid split in graph calculation and graph writing (GDF writer + tests), move to separate class
-        // michid clean up test resources when done
         PrintWriter writer = new PrintWriter(out);
         try {
             SegmentNodeState root = fileStore.getHead();
 
-            // Segment graph starting from the segment containing root
-            Map<UUID, Set<UUID>> segmentGraph = fileStore.getSegmentGraph(new HashSet<UUID>(singleton(root.getRecordId().asUUID())));
-
-            // All segment in the segment graph
-            Set<UUID> segments = newHashSet();
-            segments.addAll(segmentGraph.keySet());
-            for (Set<UUID> tos : segmentGraph.values()) {
-                segments.addAll(tos);
-            }
-
-            // Graph of segments containing the head state
-            final Map<UUID, Set<UUID>> headGraph = newHashMap();
-            final Set<UUID> headSegments = newHashSet();
-            new SegmentParser() {
-                private void addEdge(RecordId from, RecordId to) {
-                    UUID fromUUID = from.asUUID();
-                    UUID toUUID = to.asUUID();
-                    if (!fromUUID.equals(toUUID)) {
-                        Set<UUID> tos = headGraph.get(fromUUID);
-                        if (tos == null) {
-                            tos = newHashSet();
-                            headGraph.put(fromUUID, tos);
-                        }
-                        tos.add(toUUID);
-                        headSegments.add(fromUUID);
-                        headSegments.add(toUUID);
-                    }
-                }
-                @Override
-                protected void onNode(RecordId parentId, RecordId nodeId) {
-                    super.onNode(parentId, nodeId);
-                    addEdge(parentId, nodeId);
-                }
-                @Override
-                protected void onTemplate(RecordId parentId, RecordId templateId) {
-                    super.onTemplate(parentId, templateId);
-                    addEdge(parentId, templateId);
-                }
-                @Override
-                protected void onMap(RecordId parentId, RecordId mapId, MapRecord map) {
-                    super.onMap(parentId, mapId, map);
-                    addEdge(parentId, mapId);
-                }
-                @Override
-                protected void onMapDiff(RecordId parentId, RecordId mapId, MapRecord map) {
-                    super.onMapDiff(parentId, mapId, map);
-                    addEdge(parentId, mapId);
-                }
-                @Override
-                protected void onMapLeaf(RecordId parentId, RecordId mapId, MapRecord map) {
-                    super.onMapLeaf(parentId, mapId, map);
-                    addEdge(parentId, mapId);
-                }
-                @Override
-                protected void onMapBranch(RecordId parentId, RecordId mapId, MapRecord map) {
-                    super.onMapBranch(parentId, mapId, map);
-                    addEdge(parentId, mapId);
-                }
-                @Override
-                protected void onProperty(RecordId parentId, RecordId propertyId, PropertyTemplate template) {
-                    super.onProperty(parentId, propertyId, template);
-                    addEdge(parentId, propertyId);
-                }
-                @Override
-                protected void onValue(RecordId parentId, RecordId valueId, Type<?> type) {
-                    super.onValue(parentId, valueId, type);
-                    addEdge(parentId, valueId);
-                }
-                @Override
-                protected void onBlob(RecordId parentId, RecordId blobId) {
-                    super.onBlob(parentId, blobId);
-                    addEdge(parentId, blobId);
-                }
-                @Override
-                protected void onString(RecordId parentId, RecordId stringId) {
-                    super.onString(parentId, stringId);
-                    addEdge(parentId, stringId);
-                }
-                @Override
-                protected void onList(RecordId parentId, RecordId listId, int count) {
-                    super.onList(parentId, listId, count);
-                    addEdge(parentId, listId);
-                }
-                @Override
-                protected void onListBucket(RecordId parentId, RecordId listId, int index, int count, int capacity) {
-                    super.onListBucket(parentId, listId, index, count, capacity);
-                    addEdge(parentId, listId);
-                }
-            }.parseNode(root.getRecordId());
+            Graph segmentGraph = parseSegmentGraph(fileStore, root);
+            Graph headGraph = parseHeadGraph(root.getRecordId());
 
             writer.write("nodedef>name VARCHAR, label VARCHAR, type VARCHAR, wid VARCHAR, gc INT, t INT, head BOOLEAN\n");
-            for (UUID segment : segments) {
-                writeNode(segment, writer, headSegments.contains(segment), epoch, fileStore.getTracker());
+            for (UUID segment : segmentGraph.vertices) {
+                writeNode(segment, writer, headGraph.vertices.contains(segment), epoch, fileStore.getTracker());
             }
 
             writer.write("edgedef>node1 VARCHAR, node2 VARCHAR, head BOOLEAN\n");
-            for (Entry<UUID, Set<UUID>> edge : segmentGraph.entrySet()) {
+            for (Entry<UUID, Set<UUID>> edge : segmentGraph.edges.entrySet()) {
                 UUID from = edge.getKey();
                 for (UUID to : edge.getValue()) {
-                    Set<UUID> he = headGraph.get(from);
+                    Set<UUID> he = headGraph.edges.get(from);
                     boolean inHead = he != null && he.contains(to);
                     writer.write(from + "," + to + "," + inHead + "\n");
                 }
@@ -179,6 +91,112 @@ public class SegmentGraph {
         } finally {
             writer.close();
         }
+    }
+
+    public static Graph parseSegmentGraph(ReadOnlyStore fileStore, SegmentNodeState root) throws IOException {
+        final Set<UUID> vertices = newHashSet();
+        final Map<UUID, Set<UUID>> edges = newHashMap();
+
+        fileStore.traverseSegmentGraph(new HashSet<UUID>(singleton(root.getRecordId().asUUID())),
+            new SegmentGraphVisitor() {
+                @Override
+                public void accept(@Nonnull UUID from, @CheckForNull UUID to) {
+                    if (to != null) {
+                        vertices.add(from);
+                        vertices.add(to);
+                        Set<UUID> tos = edges.get(from);
+                        if (tos == null) {
+                            tos = newHashSet();
+                            edges.put(from, tos);
+                        }
+                        tos.add(to);
+                    }
+                }
+            });
+        return new Graph(vertices, edges);
+    }
+
+    public static Graph parseHeadGraph(RecordId root) {
+        final Set<UUID> vertices = newHashSet();
+        final Map<UUID, Set<UUID>> edges = newHashMap();
+
+        new SegmentParser() {
+            private void addEdge(RecordId from, RecordId to) {
+                UUID fromUUID = from.asUUID();
+                UUID toUUID = to.asUUID();
+                if (!fromUUID.equals(toUUID)) {
+                    Set<UUID> tos = edges.get(fromUUID);
+                    if (tos == null) {
+                        tos = newHashSet();
+                        edges.put(fromUUID, tos);
+                    }
+                    tos.add(toUUID);
+                    vertices.add(fromUUID);
+                    vertices.add(toUUID);
+                }
+            }
+            @Override
+            protected void onNode(RecordId parentId, RecordId nodeId) {
+                super.onNode(parentId, nodeId);
+                addEdge(parentId, nodeId);
+            }
+            @Override
+            protected void onTemplate(RecordId parentId, RecordId templateId) {
+                super.onTemplate(parentId, templateId);
+                addEdge(parentId, templateId);
+            }
+            @Override
+            protected void onMap(RecordId parentId, RecordId mapId, MapRecord map) {
+                super.onMap(parentId, mapId, map);
+                addEdge(parentId, mapId);
+            }
+            @Override
+            protected void onMapDiff(RecordId parentId, RecordId mapId, MapRecord map) {
+                super.onMapDiff(parentId, mapId, map);
+                addEdge(parentId, mapId);
+            }
+            @Override
+            protected void onMapLeaf(RecordId parentId, RecordId mapId, MapRecord map) {
+                super.onMapLeaf(parentId, mapId, map);
+                addEdge(parentId, mapId);
+            }
+            @Override
+            protected void onMapBranch(RecordId parentId, RecordId mapId, MapRecord map) {
+                super.onMapBranch(parentId, mapId, map);
+                addEdge(parentId, mapId);
+            }
+            @Override
+            protected void onProperty(RecordId parentId, RecordId propertyId, PropertyTemplate template) {
+                super.onProperty(parentId, propertyId, template);
+                addEdge(parentId, propertyId);
+            }
+            @Override
+            protected void onValue(RecordId parentId, RecordId valueId, Type<?> type) {
+                super.onValue(parentId, valueId, type);
+                addEdge(parentId, valueId);
+            }
+            @Override
+            protected void onBlob(RecordId parentId, RecordId blobId) {
+                super.onBlob(parentId, blobId);
+                addEdge(parentId, blobId);
+            }
+            @Override
+            protected void onString(RecordId parentId, RecordId stringId) {
+                super.onString(parentId, stringId);
+                addEdge(parentId, stringId);
+            }
+            @Override
+            protected void onList(RecordId parentId, RecordId listId, int count) {
+                super.onList(parentId, listId, count);
+                addEdge(parentId, listId);
+            }
+            @Override
+            protected void onListBucket(RecordId parentId, RecordId listId, int index, int count, int capacity) {
+                super.onListBucket(parentId, listId, index, count, capacity);
+                addEdge(parentId, listId);
+            }
+        }.parseNode(root);
+        return new Graph(vertices, edges);
     }
 
     private static void writeNode(UUID node, PrintWriter writer, boolean inHead, Date epoch, SegmentTracker tracker) {
@@ -219,6 +237,16 @@ public class SegmentGraph {
             }
         } else {
             return null;
+        }
+    }
+
+    public static class Graph {
+        public final Set<UUID> vertices;
+        public final Map<UUID, Set<UUID>> edges;
+
+        private Graph(Set<UUID> vertices, Map<UUID, Set<UUID>> edges) {
+            this.vertices = vertices;
+            this.edges = edges;
         }
     }
 }
