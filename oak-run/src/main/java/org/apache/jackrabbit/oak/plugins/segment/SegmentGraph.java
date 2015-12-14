@@ -22,6 +22,7 @@ package org.apache.jackrabbit.oak.plugins.segment;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static org.apache.commons.lang.math.NumberUtils.toInt;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.util.UUID;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
@@ -101,6 +103,48 @@ public final class SegmentGraph {
         SegmentNodeState root = fileStore.getHead();
         HashSet<UUID> roots = newHashSet(root.getRecordId().asUUID());
         return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
+    }
+
+    public static void writeGCGraph(ReadOnlyStore fileStore, OutputStream out, Date epoch) throws Exception {
+        PrintWriter writer = new PrintWriter(out);
+        try {
+            SegmentNodeState root = fileStore.getHead();
+
+            Graph<Integer> gcGraph = parseGCGraph(fileStore);
+
+            writer.write("nodedef>name VARCHAR\n");
+            for (Integer gen : gcGraph.vertices) {
+                writer.write(gen + "\n");
+            }
+
+            writer.write("edgedef>node1 VARCHAR, node2 VARCHAR, head BOOLEAN\n");
+            for (Entry<Integer, Set<Integer>> edge : gcGraph.edges.entrySet()) {
+                Integer from = edge.getKey();
+                for (Integer to : edge.getValue()) {
+                    if (!from.equals(to)) {
+                        writer.write(from + "," + to + "\n");
+                    }
+                }
+            }
+        } finally {
+            writer.close();
+        }
+    }
+
+    public static Graph<Integer> parseGCGraph(final ReadOnlyStore fileStore) throws IOException {
+        SegmentNodeState root = fileStore.getHead();
+        HashSet<UUID> roots = newHashSet(root.getRecordId().asUUID());
+        return parseSegmentGraph(fileStore, roots, new Function<UUID, Integer>() {
+            @Override @Nullable
+            public Integer apply(UUID segmentId) {
+                Map<String, String> info = getSegmentInfo(segmentId, fileStore.getTracker());
+                if (info != null) {
+                    return toInt(info.get("gc"), -1);
+                } else {
+                    return -1;
+                }
+            }
+        });
     }
 
     public static <T> Graph<T> parseSegmentGraph(ReadOnlyStore fileStore, Set<UUID> roots,
