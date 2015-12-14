@@ -52,7 +52,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.plugins.segment.CompactionMap;
-import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisitor;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.SegmentGraphVisitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

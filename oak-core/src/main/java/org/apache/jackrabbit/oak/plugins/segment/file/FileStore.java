@@ -58,7 +58,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
@@ -70,6 +69,7 @@ import org.apache.jackrabbit.oak.plugins.segment.Compactor;
 import org.apache.jackrabbit.oak.plugins.segment.PersistedCompactionMap;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.SegmentGraphVisitor;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
@@ -1339,11 +1339,6 @@ public class FileStore implements SegmentStore {
                     humanReadableByteCount(availableDiskSpace),
                     humanReadableByteCount(repositoryDiskSpace));
         }
-    }
-
-    // michid move
-    public interface SegmentGraphVisitor {
-        void accept(@Nonnull UUID from, @CheckForNull UUID to);
     }
 
     /**

@@ -45,13 +45,16 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.ReadOnlyStore;
-import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisitor;
 
 /**
  * michid document
  */
 public final class SegmentGraph {
     private SegmentGraph() { }
+
+    public interface SegmentGraphVisitor {
+        void accept(@Nonnull UUID from, @CheckForNull UUID to);
+    }
 
     /**
      * Write the segment graph of a file store to a stream.
