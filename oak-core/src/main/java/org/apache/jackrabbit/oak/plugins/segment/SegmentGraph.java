@@ -23,7 +23,6 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
-import static org.apache.commons.lang.math.NumberUtils.toInt;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 
 import java.io.IOException;
@@ -50,7 +49,6 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisi
 
 /**
  * michid document
- * michid move to oak-core so we can use it from tests
  */
 public final class SegmentGraph {
     private SegmentGraph() { }
@@ -154,6 +152,18 @@ public final class SegmentGraph {
                 }
             }
         });
+    }
+
+    public static int toInt(String number, int defaultValue) {
+        if (number == null) {
+            return defaultValue;
+        } else {
+            try {
+                return Integer.parseInt(number);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
     }
 
     @Nonnull
