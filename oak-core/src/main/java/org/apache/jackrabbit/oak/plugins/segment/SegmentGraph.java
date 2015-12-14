@@ -112,7 +112,6 @@ public final class SegmentGraph {
         return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
     }
 
-    // michid connect to oak-run
     public static void writeGCGraph(@Nonnull ReadOnlyStore fileStore, @Nonnull OutputStream out)
             throws Exception {
         PrintWriter writer = new PrintWriter(checkNotNull(out));
