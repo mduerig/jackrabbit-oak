@@ -54,7 +54,6 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisi
  */
 public final class SegmentGraph {
     private SegmentGraph() { }
-    // michid clean up test resources when done
 
     /**
      * Write the segment graph of a file store to a stream.
@@ -106,11 +105,11 @@ public final class SegmentGraph {
         return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
     }
 
+    // michid connect to oak-run
     public static void writeGCGraph(ReadOnlyStore fileStore, OutputStream out) throws Exception {
         PrintWriter writer = new PrintWriter(out);
         try {
             SegmentNodeState root = fileStore.getHead();
-
             Graph<Integer> gcGraph = parseGCGraph(fileStore);
 
             writer.write("nodedef>name VARCHAR\n");

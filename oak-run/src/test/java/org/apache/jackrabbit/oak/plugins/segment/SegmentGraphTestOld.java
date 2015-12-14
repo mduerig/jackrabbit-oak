@@ -49,9 +49,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 /**
- * michid document
+ * michid clean up test resources when done and move to "manual test"
  */
-public class SegmentGraphTest {
+public class SegmentGraphTestOld {
     private final File targetDir = new File("target/segment-graph-test");
     private final File storeDir = new File(targetDir, "FileStore");
     private final File expectedGraph = new File(targetDir, "expected-graph.gdf");;
@@ -60,9 +60,9 @@ public class SegmentGraphTest {
 
     @Before
     public void setup() throws IOException {
-        unzip(SegmentGraphTest.class.getResourceAsStream("file-store.zip"), targetDir);
+        unzip(SegmentGraphTestOld.class.getResourceAsStream("file-store.zip"), targetDir);
         fileStore = new ReadOnlyStore(storeDir);
-        copyToFile(SegmentGraphTest.class.getResourceAsStream(expectedGraph.getName()), expectedGraph);
+        copyToFile(SegmentGraphTestOld.class.getResourceAsStream(expectedGraph.getName()), expectedGraph);
     }
 
     @After
