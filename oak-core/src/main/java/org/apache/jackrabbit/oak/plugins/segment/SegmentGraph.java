@@ -175,9 +175,9 @@ public final class SegmentGraph {
             SegmentNodeState root = checkNotNull(fileStore).getHead();
             Graph<Integer> gcGraph = parseGCGraph(fileStore);
 
-            writer.write("nodedef>name VARCHAR\n");
+            writer.write("nodedef>name VARCHAR, out-degree INT\n");
             for (Integer gen : gcGraph.vertices) {
-                writer.write(gen + "\n");
+                writer.write(gen + "," + getOutDegree(gcGraph, gen) + "\n");
             }
 
             writer.write("edgedef>node1 VARCHAR, node2 VARCHAR\n");
@@ -191,6 +191,22 @@ public final class SegmentGraph {
             }
         } finally {
             writer.close();
+        }
+    }
+
+    private static int getOutDegree(Graph<Integer> gcGraph, Integer gen) {
+        Set<Integer> tos = gcGraph.edges.get(gen);
+        if (tos == null) {
+            return 0;
+        } else {
+            int degree = tos.size();
+            if (tos.contains(-1)) {  // don't count edges to bulk segments
+                degree--;
+            }
+            if (tos.contains(gen)) { // don't call edges to self
+                degree--;
+            }
+            return degree;
         }
     }
 
