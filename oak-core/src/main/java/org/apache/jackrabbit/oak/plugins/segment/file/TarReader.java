@@ -691,16 +691,16 @@ class TarReader implements Closeable {
         for (int i = entries.length - 1; i >= 0; i--) {
             TarEntry entry = entries[i];
             UUID id = new UUID(entry.msb(), entry.lsb());
-            if (roots.remove(id)) {
-                if (isDataSegmentId(entry.lsb())) {
-                    // this is a referenced data segment, so follow the graph
-                    List<UUID> refIds = getReferences(entry, id, graph);
-                    if (refIds != null) {
-                        for (UUID refId : refIds) {
-                            visitor.accept(id, refId);
-                            roots.add(refId);
-                        }
+            if (roots.remove(id) && isDataSegmentId(entry.lsb())) {
+                // this is a referenced data segment, so follow the graph
+                List<UUID> refIds = getReferences(entry, id, graph);
+                if (refIds != null) {
+                    for (UUID refId : refIds) {
+                        visitor.accept(id, refId);
+                        roots.add(refId);
                     }
+                } else {
+                    visitor.accept(id, null);
                 }
             } else {
                 // this segment is not referenced anywhere
