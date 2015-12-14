@@ -47,13 +47,50 @@ import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.ReadOnlyStore;
 
 /**
- * michid document
+ * Utility graph for parsing a segment graph.
  */
 public final class SegmentGraph {
     private SegmentGraph() { }
 
+    /**
+     * Visitor for receiving call backs while traversing the
+     * segment graph.
+     */
     public interface SegmentGraphVisitor {
+
+        /**
+         * A call to this method indicates that the {@code from} segment
+         * references the {@code to} segment. Or if {@code to} is {@code null}
+         * that the {@code from} has no references.
+         *
+         * @param from
+         * @param to
+         */
         void accept(@Nonnull UUID from, @CheckForNull UUID to);
+    }
+
+    /**
+     * A simple graph representation for a graph with node of type {@code T}.
+     */
+    public static class Graph<T> {
+        /** The vertices of this graph */
+        public final Set<T> vertices = newHashSet();
+
+        /** The edges of this graph */
+        public final Map<T, Set<T>> edges = newHashMap();
+
+        private void addVertex(T vertex) {
+            vertices.add(vertex);
+        }
+
+        private void addEdge(T from, T to) {
+            Set<T> tos = edges.get(from);
+            if (tos == null) {
+                tos = newHashSet();
+                edges.put(from, tos);
+            }
+            tos.add(to);
+        }
     }
 
     /**
@@ -105,6 +142,14 @@ public final class SegmentGraph {
         }
     }
 
+    /**
+     * Parse the segment graph of a file store.
+     *
+     * @param fileStore     file store to parse
+     * @return the segment graph rooted as the segment containing the head node
+     *         state of {@code fileStore}.
+     * @throws IOException
+     */
     @Nonnull
     public static Graph<UUID> parseSegmentGraph(@Nonnull ReadOnlyStore fileStore) throws IOException {
         SegmentNodeState root = checkNotNull(fileStore).getHead();
@@ -112,6 +157,17 @@ public final class SegmentGraph {
         return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
     }
 
+    /**
+     * Write the gc generation graph of a file store to a stream.
+     * <p>
+     * The graph is written in
+     * <a href="https://gephi.github.io/users/supported-graph-formats/gdf-format/">the Guess GDF format</a>,
+     * which is easily imported into <a href="https://gephi.github.io/">Gephi</a>.
+     *
+     * @param fileStore     file store to graph
+     * @param out           stream to write the graph to
+     * @throws Exception
+     */
     public static void writeGCGraph(@Nonnull ReadOnlyStore fileStore, @Nonnull OutputStream out)
             throws Exception {
         PrintWriter writer = new PrintWriter(checkNotNull(out));
@@ -138,6 +194,14 @@ public final class SegmentGraph {
         }
     }
 
+    /**
+     * Parse the gc generation graph of a file store.
+     *
+     * @param fileStore     file store to parse
+     * @return the gc generation graph rooted ad the segment containing the head node
+     *         state of {@code fileStore}.
+     * @throws IOException
+     */
     @Nonnull
     public static Graph<Integer> parseGCGraph(@Nonnull final ReadOnlyStore fileStore)
             throws IOException {
@@ -156,7 +220,7 @@ public final class SegmentGraph {
         });
     }
 
-    public static int toInt(String number, int defaultValue) {
+    private static int toInt(String number, int defaultValue) {
         if (number == null) {
             return defaultValue;
         } else {
@@ -168,6 +232,18 @@ public final class SegmentGraph {
         }
     }
 
+    /**
+     * Parse the segment graph of a file store starting with a given set of root segments.
+     * The full segment graph is mapped through the passed {@code homomorphism} to the
+     * graph returned by this function.
+     *
+     * @param fileStore     file store to parse
+     * @param roots         the initial set of segments
+     * @param homomorphism  map from the segment graph into the returned graph
+     * @return   the segment graph of {@code fileStore} rooted at {@code roots} and mapped
+     *           by {@code homomorphism}
+     * @throws IOException
+     */
     @Nonnull
     public static <T> Graph<T> parseSegmentGraph(
             @Nonnull ReadOnlyStore fileStore,
@@ -190,6 +266,12 @@ public final class SegmentGraph {
         return graph;
     }
 
+    /**
+     * Parser the head graph. The head graph is the sub graph of the segment
+     * graph containing the {@code root}.
+     * @param root
+     * @return  the head graph of {@code root}.
+     */
     @Nonnull
     public static Graph<UUID> parseHeadGraph(@Nonnull RecordId root) {
         final Graph<UUID> graph = new Graph<UUID>();
@@ -305,21 +387,4 @@ public final class SegmentGraph {
         }
     }
 
-    public static class Graph<T> {
-        public final Set<T> vertices = newHashSet();
-        public final Map<T, Set<T>> edges = newHashMap();
-
-        private void addVertex(T vertex) {
-            vertices.add(vertex);
-        }
-
-        private void addEdge(T from, T to) {
-            Set<T> tos = edges.get(from);
-            if (tos == null) {
-                tos = newHashSet();
-                edges.put(from, tos);
-            }
-            tos.add(to);
-        }
-    }
 }

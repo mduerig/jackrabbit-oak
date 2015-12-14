@@ -1371,9 +1371,9 @@ public class FileStore implements SegmentStore {
 
         /**
          * Build the graph of segments reachable from an initial set of segments
-         * @param roots  the initial set of segments
+         * @param roots     the initial set of segments
+         * @param visitor   visitor receiving call back while following the segment graph
          * @throws IOException
-         * michid doc
          */
         public void traverseSegmentGraph(
             @Nonnull Set<UUID> roots,
