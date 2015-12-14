@@ -27,6 +27,7 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.apache.commons.io.IOUtils.copy;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.writeGCGraph;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.writeSegmentGraph;
 import static org.junit.Assert.assertEquals;
 
@@ -71,8 +72,8 @@ public class SegmentGraphTest {
     }
 
     @Test
-    public void compareGraphs() throws Exception {
-        File actualGraph = new File(targetDir, "actual.gdf");
+    public void compareSegmentGraphs() throws Exception {
+        File actualGraph = new File(targetDir, "actual.gdf");  // michid rename. also rename expected
         Calendar epoch = Calendar.getInstance();
         epoch.set(YEAR, 2015);
         epoch.set(MONTH, 11);
@@ -83,6 +84,12 @@ public class SegmentGraphTest {
         epoch.set(MILLISECOND, 0);
         writeSegmentGraph(fileStore, new FileOutputStream(actualGraph), epoch.getTime());
         assertEqualContent(expectedGraph, actualGraph);
+    }
+
+    @Test
+    public void compareGCGraphs() throws Exception {
+        File actualGraph = new File(targetDir, "gc-actual.gdf");
+        writeGCGraph(fileStore, new FileOutputStream(actualGraph));
     }
 
     private static void assertEqualContent(File expectedGraph, File actualGraph) throws IOException {

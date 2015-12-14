@@ -50,6 +50,7 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisi
 /**
  * michid document
  * michid @Nullable
+ * michid move to oak-core so we can use it from tests
  */
 public final class SegmentGraph {
     private SegmentGraph() { }
@@ -105,7 +106,7 @@ public final class SegmentGraph {
         return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
     }
 
-    public static void writeGCGraph(ReadOnlyStore fileStore, OutputStream out, Date epoch) throws Exception {
+    public static void writeGCGraph(ReadOnlyStore fileStore, OutputStream out) throws Exception {
         PrintWriter writer = new PrintWriter(out);
         try {
             SegmentNodeState root = fileStore.getHead();
