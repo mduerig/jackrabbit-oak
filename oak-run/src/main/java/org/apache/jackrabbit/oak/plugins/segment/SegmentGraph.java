@@ -22,7 +22,6 @@ package org.apache.jackrabbit.oak.plugins.segment;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
-import static java.util.Collections.singleton;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 
 import java.io.IOException;
@@ -38,6 +37,8 @@ import java.util.UUID;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Function;
+import com.google.common.base.Functions;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
@@ -72,8 +73,8 @@ public final class SegmentGraph {
         try {
             SegmentNodeState root = fileStore.getHead();
 
-            Graph segmentGraph = parseSegmentGraph(fileStore, root);
-            Graph headGraph = parseHeadGraph(root.getRecordId());
+            Graph<UUID> segmentGraph = parseSegmentGraph(fileStore);
+            Graph<UUID> headGraph = parseHeadGraph(root.getRecordId());
 
             writer.write("nodedef>name VARCHAR, label VARCHAR, type VARCHAR, wid VARCHAR, gc INT, t INT, head BOOLEAN\n");
             for (UUID segment : segmentGraph.vertices) {
@@ -84,9 +85,11 @@ public final class SegmentGraph {
             for (Entry<UUID, Set<UUID>> edge : segmentGraph.edges.entrySet()) {
                 UUID from = edge.getKey();
                 for (UUID to : edge.getValue()) {
-                    Set<UUID> he = headGraph.edges.get(from);
-                    boolean inHead = he != null && he.contains(to);
-                    writer.write(from + "," + to + "," + inHead + "\n");
+                    if (!from.equals(to)) {
+                        Set<UUID> he = headGraph.edges.get(from);
+                        boolean inHead = he != null && he.contains(to);
+                        writer.write(from + "," + to + "," + inHead + "\n");
+                    }
                 }
             }
         } finally {
@@ -94,47 +97,38 @@ public final class SegmentGraph {
         }
     }
 
-    public static Graph parseSegmentGraph(ReadOnlyStore fileStore, SegmentNodeState root) throws IOException {
-        final Set<UUID> vertices = newHashSet();
-        final Map<UUID, Set<UUID>> edges = newHashMap();
+    public static Graph<UUID> parseSegmentGraph(ReadOnlyStore fileStore) throws IOException {
+        SegmentNodeState root = fileStore.getHead();
+        HashSet<UUID> roots = newHashSet(root.getRecordId().asUUID());
+        return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
+    }
 
-        fileStore.traverseSegmentGraph(new HashSet<UUID>(singleton(root.getRecordId().asUUID())),
+    public static <T> Graph<T> parseSegmentGraph(ReadOnlyStore fileStore, Set<UUID> roots,
+            final Function<UUID, T> homomorphism) throws IOException {
+        final Graph<T> graph = new Graph<T>();
+
+        fileStore.traverseSegmentGraph(roots,
             new SegmentGraphVisitor() {
                 @Override
                 public void accept(@Nonnull UUID from, @CheckForNull UUID to) {
+                    graph.addVertex(homomorphism.apply(from));
                     if (to != null) {
-                        vertices.add(from);
-                        vertices.add(to);
-                        Set<UUID> tos = edges.get(from);
-                        if (tos == null) {
-                            tos = newHashSet();
-                            edges.put(from, tos);
-                        }
-                        tos.add(to);
+                        graph.addVertex((homomorphism.apply(to)));
+                        graph.addEdge(homomorphism.apply(from), homomorphism.apply(to));
                     }
                 }
             });
-        return new Graph(vertices, edges);
+        return graph;
     }
 
-    public static Graph parseHeadGraph(RecordId root) {
-        final Set<UUID> vertices = newHashSet();
-        final Map<UUID, Set<UUID>> edges = newHashMap();
+    public static Graph<UUID> parseHeadGraph(RecordId root) {
+        final Graph<UUID> graph = new Graph<UUID>();
 
         new SegmentParser() {
             private void addEdge(RecordId from, RecordId to) {
-                UUID fromUUID = from.asUUID();
-                UUID toUUID = to.asUUID();
-                if (!fromUUID.equals(toUUID)) {
-                    Set<UUID> tos = edges.get(fromUUID);
-                    if (tos == null) {
-                        tos = newHashSet();
-                        edges.put(fromUUID, tos);
-                    }
-                    tos.add(toUUID);
-                    vertices.add(fromUUID);
-                    vertices.add(toUUID);
-                }
+                graph.addVertex(from.asUUID());
+                graph.addVertex(to.asUUID());
+                graph.addEdge(from.asUUID(), to.asUUID());
             }
             @Override
             protected void onNode(RecordId parentId, RecordId nodeId) {
@@ -197,10 +191,8 @@ public final class SegmentGraph {
                 addEdge(parentId, listId);
             }
         }.parseNode(root);
-        return new Graph(vertices, edges);
+        return graph;
     }
-
-    // michid implement parseGCGraph
 
     private static void writeNode(UUID node, PrintWriter writer, boolean inHead, Date epoch, SegmentTracker tracker) {
         Map<String, String> sInfo = getSegmentInfo(node, tracker);
@@ -243,13 +235,21 @@ public final class SegmentGraph {
         }
     }
 
-    public static class Graph {
-        public final Set<UUID> vertices;
-        public final Map<UUID, Set<UUID>> edges;
+    public static class Graph<T> {
+        public final Set<T> vertices = newHashSet();
+        public final Map<T, Set<T>> edges = newHashMap();
 
-        private Graph(Set<UUID> vertices, Map<UUID, Set<UUID>> edges) {
-            this.vertices = vertices;
-            this.edges = edges;
+        public void addVertex(T vertex) {
+            vertices.add(vertex);
+        }
+
+        public void addEdge(T from, T to) {
+            Set<T> tos = edges.get(from);
+            if (tos == null) {
+                tos = newHashSet();
+                edges.put(from, tos);
+            }
+            tos.add(to);
         }
     }
 }
