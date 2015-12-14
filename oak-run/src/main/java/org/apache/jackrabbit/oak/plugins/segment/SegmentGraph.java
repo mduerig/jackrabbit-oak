@@ -20,6 +20,7 @@
 package org.apache.jackrabbit.oak.plugins.segment;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.apache.commons.lang.math.NumberUtils.toInt;
@@ -49,7 +50,6 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.SegmentGraphVisi
 
 /**
  * michid document
- * michid @Nullable
  * michid move to oak-core so we can use it from tests
  */
 public final class SegmentGraph {
@@ -70,10 +70,15 @@ public final class SegmentGraph {
      * @param epoch         epoch (in milliseconds)
      * @throws Exception
      */
-    public static void writeSegmentGraph(ReadOnlyStore fileStore, OutputStream out, Date epoch) throws Exception {
-        PrintWriter writer = new PrintWriter(out);
+    public static void writeSegmentGraph(
+            @Nonnull ReadOnlyStore fileStore,
+            @Nonnull OutputStream out,
+            @Nonnull Date epoch) throws Exception {
+
+        checkNotNull(epoch);
+        PrintWriter writer = new PrintWriter(checkNotNull(out));
         try {
-            SegmentNodeState root = fileStore.getHead();
+            SegmentNodeState root = checkNotNull(fileStore).getHead();
 
             Graph<UUID> segmentGraph = parseSegmentGraph(fileStore);
             Graph<UUID> headGraph = parseHeadGraph(root.getRecordId());
@@ -99,17 +104,19 @@ public final class SegmentGraph {
         }
     }
 
-    public static Graph<UUID> parseSegmentGraph(ReadOnlyStore fileStore) throws IOException {
-        SegmentNodeState root = fileStore.getHead();
+    @Nonnull
+    public static Graph<UUID> parseSegmentGraph(@Nonnull ReadOnlyStore fileStore) throws IOException {
+        SegmentNodeState root = checkNotNull(fileStore).getHead();
         HashSet<UUID> roots = newHashSet(root.getRecordId().asUUID());
         return parseSegmentGraph(fileStore, roots, Functions.<UUID>identity());
     }
 
     // michid connect to oak-run
-    public static void writeGCGraph(ReadOnlyStore fileStore, OutputStream out) throws Exception {
-        PrintWriter writer = new PrintWriter(out);
+    public static void writeGCGraph(@Nonnull ReadOnlyStore fileStore, @Nonnull OutputStream out)
+            throws Exception {
+        PrintWriter writer = new PrintWriter(checkNotNull(out));
         try {
-            SegmentNodeState root = fileStore.getHead();
+            SegmentNodeState root = checkNotNull(fileStore).getHead();
             Graph<Integer> gcGraph = parseGCGraph(fileStore);
 
             writer.write("nodedef>name VARCHAR\n");
@@ -131,8 +138,10 @@ public final class SegmentGraph {
         }
     }
 
-    public static Graph<Integer> parseGCGraph(final ReadOnlyStore fileStore) throws IOException {
-        SegmentNodeState root = fileStore.getHead();
+    @Nonnull
+    public static Graph<Integer> parseGCGraph(@Nonnull final ReadOnlyStore fileStore)
+            throws IOException {
+        SegmentNodeState root = checkNotNull(fileStore).getHead();
         HashSet<UUID> roots = newHashSet(root.getRecordId().asUUID());
         return parseSegmentGraph(fileStore, roots, new Function<UUID, Integer>() {
             @Override @Nullable
@@ -147,11 +156,15 @@ public final class SegmentGraph {
         });
     }
 
-    public static <T> Graph<T> parseSegmentGraph(ReadOnlyStore fileStore, Set<UUID> roots,
-            final Function<UUID, T> homomorphism) throws IOException {
+    @Nonnull
+    public static <T> Graph<T> parseSegmentGraph(
+            @Nonnull ReadOnlyStore fileStore,
+            @Nonnull Set<UUID> roots,
+            @Nonnull final Function<UUID, T> homomorphism) throws IOException {
         final Graph<T> graph = new Graph<T>();
 
-        fileStore.traverseSegmentGraph(roots,
+        checkNotNull(homomorphism);
+        checkNotNull(fileStore).traverseSegmentGraph(checkNotNull(roots),
             new SegmentGraphVisitor() {
                 @Override
                 public void accept(@Nonnull UUID from, @CheckForNull UUID to) {
@@ -165,7 +178,8 @@ public final class SegmentGraph {
         return graph;
     }
 
-    public static Graph<UUID> parseHeadGraph(RecordId root) {
+    @Nonnull
+    public static Graph<UUID> parseHeadGraph(@Nonnull RecordId root) {
         final Graph<UUID> graph = new Graph<UUID>();
 
         new SegmentParser() {
@@ -234,7 +248,7 @@ public final class SegmentGraph {
                 super.onListBucket(parentId, listId, index, count, capacity);
                 addEdge(parentId, listId);
             }
-        }.parseNode(root);
+        }.parseNode(checkNotNull(root));
         return graph;
     }
 
@@ -283,11 +297,11 @@ public final class SegmentGraph {
         public final Set<T> vertices = newHashSet();
         public final Map<T, Set<T>> edges = newHashMap();
 
-        public void addVertex(T vertex) {
+        private void addVertex(T vertex) {
             vertices.add(vertex);
         }
 
-        public void addEdge(T from, T to) {
+        private void addEdge(T from, T to) {
             Set<T> tos = edges.get(from);
             if (tos == null) {
                 tos = newHashSet();

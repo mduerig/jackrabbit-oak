@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.plugins.segment.file;
 
 import static com.google.common.base.Charsets.UTF_8;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Maps.newHashMap;
@@ -679,7 +680,11 @@ class TarReader implements Closeable {
      * @throws IOException
      * michid doc
      */
-    public void traverseSegmentGraph(Set<UUID> roots, SegmentGraphVisitor visitor) throws IOException {
+    public void traverseSegmentGraph(
+        @Nonnull Set<UUID> roots,
+        @Nonnull SegmentGraphVisitor visitor) throws IOException {
+        checkNotNull(roots);
+        checkNotNull(visitor);
         Map<UUID, List<UUID>> graph = getGraph();
 
         TarEntry[] entries = getEntries();

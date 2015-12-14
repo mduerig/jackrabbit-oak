@@ -1380,9 +1380,11 @@ public class FileStore implements SegmentStore {
          * @throws IOException
          * michid doc
          */
-        public void traverseSegmentGraph(Set<UUID> roots, SegmentGraphVisitor visitor) throws IOException {
+        public void traverseSegmentGraph(
+            @Nonnull Set<UUID> roots,
+            @Nonnull SegmentGraphVisitor visitor) throws IOException {
             for (TarReader reader : super.readers) {
-                reader.traverseSegmentGraph(roots, visitor);
+                reader.traverseSegmentGraph(checkNotNull(roots), checkNotNull(visitor));
             }
         }
 
