@@ -242,9 +242,14 @@ public final class SegmentGraph {
         return parseSegmentGraph(fileStore, roots, new Function<UUID, String>() {
             @Override @Nullable
             public String apply(UUID segmentId) {
-                Map<String, String> info = getSegmentInfo(segmentId, fileStore.getTracker());
+                String info = getSegmentInfo2(segmentId, fileStore.getTracker());
                 if (info != null) {
-                    return info.get("gc");
+                    int i = info.indexOf("gc=");
+                    if (i == -1) {
+                        return "";
+                    }
+                    int j = info.indexOf(',', i);
+                    return info.substring(i + 3, j);
                 } else {
                     return "";
                 }
@@ -402,6 +407,16 @@ public final class SegmentGraph {
             } else {
                 return null;
             }
+        } else {
+            return null;
+        }
+    }
+
+    private static String getSegmentInfo2(UUID node, SegmentTracker tracker) {
+        if (isDataSegmentId(node.getLeastSignificantBits())) {
+            SegmentId id = tracker.getSegmentId(node.getMostSignificantBits(), node.getLeastSignificantBits());
+            String info = id.getSegment().getSegmentInfo();
+            return info;
         } else {
             return null;
         }
