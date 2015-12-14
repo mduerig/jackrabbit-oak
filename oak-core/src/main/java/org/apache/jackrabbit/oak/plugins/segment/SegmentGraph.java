@@ -180,11 +180,11 @@ public final class SegmentGraph {
                 writer.write(gen + "\n");
             }
 
-            writer.write("edgedef>node1 VARCHAR, node2 VARCHAR, head BOOLEAN\n");
+            writer.write("edgedef>node1 VARCHAR, node2 VARCHAR\n");
             for (Entry<Integer, Set<Integer>> edge : gcGraph.edges.entrySet()) {
                 Integer from = edge.getKey();
                 for (Integer to : edge.getValue()) {
-                    if (!from.equals(to)) {
+                    if (!from.equals(to) && to != -1) {
                         writer.write(from + "," + to + "\n");
                     }
                 }
