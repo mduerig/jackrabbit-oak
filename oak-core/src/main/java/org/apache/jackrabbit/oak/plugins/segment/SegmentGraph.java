@@ -172,40 +172,24 @@ public final class SegmentGraph {
             throws Exception {
         PrintWriter writer = new PrintWriter(checkNotNull(out));
         try {
-            Graph<Integer> gcGraph = parseGCGraph(checkNotNull(fileStore));
+            Graph<String> gcGraph = parseGCGraph(checkNotNull(fileStore));
 
-            writer.write("nodedef>name VARCHAR, out-degree INT\n");
-            for (Integer gen : gcGraph.vertices) {
-                writer.write(gen + "," + getOutDegree(gcGraph, gen) + "\n");
+            writer.write("nodedef>name VARCHAR\n");
+            for (String gen : gcGraph.vertices) {
+                writer.write(gen + "\n");
             }
 
             writer.write("edgedef>node1 VARCHAR, node2 VARCHAR\n");
-            for (Entry<Integer, Set<Integer>> edge : gcGraph.edges.entrySet()) {
-                Integer from = edge.getKey();
-                for (Integer to : edge.getValue()) {
-                    if (!from.equals(to) && to != -1) {
+            for (Entry<String, Set<String>> edge : gcGraph.edges.entrySet()) {
+                String from = edge.getKey();
+                for (String to : edge.getValue()) {
+                    if (!from.equals(to) && !to.isEmpty()) {
                         writer.write(from + "," + to + "\n");
                     }
                 }
             }
         } finally {
             writer.close();
-        }
-    }
-
-    private static int getOutDegree(Graph<Integer> gcGraph, Integer gen) {
-        Set<Integer> tos = gcGraph.edges.get(gen);
-        if (tos == null) {
-            return 0;
-        } else {
-            int degree = tos.size();
-            if (tos.contains(-1)) {  // don't count edges to bulk segments
-                degree--;
-            }
-            if (tos.contains(gen)) { // don't call edges to self
-                degree--;
-            }
-            return degree;
         }
     }
 
@@ -218,33 +202,21 @@ public final class SegmentGraph {
      * @throws IOException
      */
     @Nonnull
-    public static Graph<Integer> parseGCGraph(@Nonnull final ReadOnlyStore fileStore)
+    public static Graph<String> parseGCGraph(@Nonnull final ReadOnlyStore fileStore)
             throws IOException {
         SegmentNodeState root = checkNotNull(fileStore).getHead();
         HashSet<UUID> roots = newHashSet(root.getRecordId().asUUID());
-        return parseSegmentGraph(fileStore, roots, new Function<UUID, Integer>() {
+        return parseSegmentGraph(fileStore, roots, new Function<UUID, String>() {
             @Override @Nullable
-            public Integer apply(UUID segmentId) {
+            public String apply(UUID segmentId) {
                 Map<String, String> info = getSegmentInfo(segmentId, fileStore.getTracker());
                 if (info != null) {
-                    return toInt(info.get("gc"), -1);
+                    return info.get("gc");
                 } else {
-                    return -1;
+                    return "";
                 }
             }
         });
-    }
-
-    private static int toInt(String number, int defaultValue) {
-        if (number == null) {
-            return defaultValue;
-        } else {
-            try {
-                return Integer.parseInt(number);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
     }
 
     /**
