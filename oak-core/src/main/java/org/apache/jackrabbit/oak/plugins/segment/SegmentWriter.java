@@ -165,7 +165,7 @@ public class SegmentWriter {
                     if (value.equals(entry.getValue())) {
                         return base;
                     } else {
-                        return writeRecord(newMapBranchWriter(entry.getHash(),
+                        return writeMapRecord(newMapBranchWriter(entry.getHash(),
                                 asList(entry.getKey(), value, base.getRecordId())));
                     }
                 }
@@ -200,7 +200,7 @@ public class SegmentWriter {
         checkElementIndex(size, MapRecord.MAX_SIZE);
         checkPositionIndex(level, MapRecord.MAX_NUMBER_OF_LEVELS);
         checkArgument(size != 0 || level == MapRecord.MAX_NUMBER_OF_LEVELS);
-        return writeRecord(newMapLeafWriter(level, entries));
+        return writeMapRecord(newMapLeafWriter(level, entries));
     }
 
     private MapRecord writeMapBranch(int level, int size, MapRecord[] buckets) throws IOException {
@@ -212,7 +212,7 @@ public class SegmentWriter {
                 bucketIds.add(buckets[i].getRecordId());
             }
         }
-        return writeRecord(newMapBranchWriter(level, size, bitmap, bucketIds));
+        return writeMapRecord(newMapBranchWriter(level, size, bitmap, bucketIds));
     }
 
     private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level) throws IOException {
@@ -221,7 +221,7 @@ public class SegmentWriter {
             if (base != null) {
                 return base;
             } else if (level == 0) {
-                return writeRecord(newMapLeafWriter());
+                return writeMapRecord(newMapLeafWriter());
             } else {
                 return null;
             }
@@ -739,7 +739,7 @@ public class SegmentWriter {
                 ids.addAll(pIds);
             }
         }
-        return writeRecord(newNodeStateWriter(ids));
+        return writeNodeState(newNodeStateWriter(ids));
     }
 
     /**
@@ -759,7 +759,15 @@ public class SegmentWriter {
         }
     }
 
-    private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
+    private SegmentNodeState writeNodeState(RecordWriter recordWriter) throws IOException {
+        return new SegmentNodeState(writeRecord(recordWriter));
+    }
+
+    private MapRecord writeMapRecord(RecordWriter recordWriter) throws IOException {
+        return new MapRecord(writeRecord(recordWriter));
+    }
+
+    private RecordId writeRecord(RecordWriter recordWriter) throws IOException {
         SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
         try {
             return recordWriter.write(writer);
