@@ -38,22 +38,33 @@ import javax.jcr.query.RowIterator;
  */
 public class FacetTest extends AbstractQueryTest {
 
+    public static final String FACET_CONFING_PROP_PATH = "/oak:index/luceneGlobal/indexRules/nt:base/properties/allProps/facets";
+
     @Before
     protected void setUp() throws Exception {
         super.setUp();
-        Node node = superuser.getNode("/oak:index/luceneGlobal/indexRules/nt:base/properties/allProps");
-        node.setProperty(LuceneIndexConstants.PROP_FACET, true);
+        if (!superuser.itemExists(FACET_CONFING_PROP_PATH)) {
+            Node node = superuser.getNode("/oak:index/luceneGlobal/indexRules/nt:base/properties/allProps");
+            node.setProperty(LuceneIndexConstants.PROP_FACETS, true);
+            superuser.save();
+            superuser.refresh(true);
+        }
     }
 
     @After
     protected void tearDown() throws Exception {
-        superuser.getNode("/oak:index/luceneGlobal/indexRules/nt:base/properties/allProps").getProperty(LuceneIndexConstants.PROP_FACET).remove();
+        if (superuser.nodeExists(FACET_CONFING_PROP_PATH)) {
+            superuser.getProperty(LuceneIndexConstants.PROP_FACETS).remove();
+            superuser.save();
+            superuser.refresh(true);
+        }
         super.tearDown();
     }
 
     public void testFacetsNA() throws Exception {
-        Node node = superuser.getNode("/oak:index/luceneGlobal/indexRules/nt:base/properties/allProps");
-        node.setProperty(LuceneIndexConstants.PROP_FACET, false);
+        if (superuser.itemExists(FACET_CONFING_PROP_PATH)) {
+            superuser.getItem(FACET_CONFING_PROP_PATH).remove();
+        }
         Session session = superuser;
         QueryManager qm = session.getWorkspace().getQueryManager();
         Node n1 = testRootNode.addNode("node1");

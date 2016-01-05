@@ -130,7 +130,7 @@ class PropertyDefinition {
         this.notNullCheckEnabled = getOptionalValueIfIndexed(defn, LuceneIndexConstants.PROP_NOT_NULL_CHECK_ENABLED, false);
         this.nonRelativeName = determineNonRelativeName();
         this.ancestors = computeAncestors(name);
-        this.facet = getOptionalValue(defn, LuceneIndexConstants.PROP_FACET, false);
+        this.facet = getOptionalValueIfIndexed(defn, LuceneIndexConstants.PROP_FACETS, false);
         validate();
     }
 

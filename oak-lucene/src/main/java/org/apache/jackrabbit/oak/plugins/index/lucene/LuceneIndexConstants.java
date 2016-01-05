@@ -287,10 +287,9 @@ public interface LuceneIndexConstants {
     String INDEX_PATH = "indexPath";
 
     /**
-     * Optional (property definition) property indicating facet can be retrieved together with plain queries.
-     * Default is false
+     * Optional subnode holding configuration for facets.
      */
-    String PROP_FACET = "facets";
+    String FACETS = "facets";
 
     /**
      * Optional property to set the suggest field to be analyzed and therefore allow more fine
@@ -302,5 +301,11 @@ public interface LuceneIndexConstants {
      * Optional (index definition) property indicating whether facets should be ACL checked.
      * Default is true
      */
-    String PROP_SECURE_FACETS = "secureFacets";
+    String PROP_SECURE_FACETS = "secure";
+
+    /**
+     * Optional (property definition) property indicating whether facets should be created
+     * for this property
+     */
+    String PROP_FACETS = "facets";
 }
