@@ -692,9 +692,14 @@ public class RDBDocumentStore implements DocumentStore {
     private static final Set<String> INDEXEDPROPERTIES = new HashSet<String>(Arrays.asList(new String[] { MODIFIED,
             NodeDocument.HAS_BINARY_FLAG, NodeDocument.DELETED_ONCE }));
 
+    // set of required table columns
+    private static final Set<String> REQUIREDCOLUMNS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+            new String[] { "id", "dsize", "deletedonce", "bdata", "data", "cmodcount", "modcount", "hasbinary", "modified" })));
+
     // set of properties not serialized to JSON
-    private static final Set<String> COLUMNPROPERTIES = new HashSet<String>(Arrays.asList(new String[] { ID,
-            NodeDocument.HAS_BINARY_FLAG, NodeDocument.DELETED_ONCE, COLLISIONSMODCOUNT, MODIFIED, MODCOUNT }));
+    // when adding new columns also update UNHANDLEDPROPS!
+    private static final Set<String> COLUMNPROPERTIES = new HashSet<String>(Arrays.asList(
+            new String[] { ID, NodeDocument.HAS_BINARY_FLAG, NodeDocument.DELETED_ONCE, COLLISIONSMODCOUNT, MODIFIED, MODCOUNT }));
 
     private final RDBDocumentSerializer ser = new RDBDocumentSerializer(this, COLUMNPROPERTIES);
 
@@ -943,6 +948,29 @@ public class RDBDocumentStore implements DocumentStore {
             // try to discover size of DATA column and binary-ness of ID
             ResultSetMetaData met = checkResultSet.getMetaData();
             obtainFlagsFromResultSetMeta(met, tmd);
+
+            // check that all required columns are present
+            Set<String> requiredColumns = new HashSet<String>(REQUIREDCOLUMNS);
+            Set<String> unknownColumns = new HashSet<String>();
+            for (int i = 1; i <= met.getColumnCount(); i++) {
+                String cname = met.getColumnName(i).toLowerCase(Locale.ENGLISH);
+                if (!requiredColumns.remove(cname)) {
+                    unknownColumns.add(cname);
+                }
+            }
+
+            if (!requiredColumns.isEmpty()) {
+                String message = String.format("Table %s: the following required columns are missing: %s", tableName,
+                        requiredColumns.toString());
+                LOG.error(message);
+                throw new DocumentStoreException(message);
+            }
+
+            if (!unknownColumns.isEmpty()) {
+                String message = String.format("Table %s: the following columns are unknown and will not be maintained: %s",
+                        tableName, unknownColumns.toString());
+                LOG.info(message);
+            }
 
             if (col == Collection.NODES) {
                 String tableInfo = RDBJDBCTools.dumpResultSetMeta(met);
@@ -1261,6 +1289,9 @@ public class RDBDocumentStore implements DocumentStore {
                         qc.addKeys(chunkedIds);
                         seenQueryContext.add(qc);
                     }
+                    for (String id : chunkedIds) {
+                        nodesCache.invalidate(id);
+                    }
                 }
 
                 Connection connection = null;
@@ -1285,23 +1316,8 @@ public class RDBDocumentStore implements DocumentStore {
                                 qc.addKeys(chunkedIds);
                             }
                         }
-                    }
-                    for (Entry<String, NodeDocument> entry : cachedDocs.entrySet()) {
-                        T oldDoc = castAsT(entry.getValue());
-                        String id = entry.getKey();
-                        Lock lock = locks.acquire(id);
-                        try {
-                            if (oldDoc == null) {
-                                // make sure concurrently loaded document is
-                                // invalidated
-                                nodesCache.invalidate(id);
-                            } else {
-                                addUpdateCounters(update);
-                                T newDoc = createNewDocument(collection, oldDoc, update);
-                                nodesCache.replaceCachedDocument((NodeDocument) oldDoc, (NodeDocument) newDoc);
-                            }
-                        } finally {
-                            lock.unlock();
+                        for (String id : chunkedIds) {
+                            nodesCache.invalidate(id);
                         }
                     }
                 } else {
@@ -1601,11 +1617,19 @@ public class RDBDocumentStore implements DocumentStore {
         }
     }
 
+    // set of properties not serialized and not handled specifically by update code
+    private static final Set<Key> UNHANDLEDPROPS = new HashSet<Key>(
+            Arrays.asList(new Key[] { new Key(NodeDocument.HAS_BINARY_FLAG, null), new Key(NodeDocument.DELETED_ONCE, null) }));
+
     /*
-     * currently we use append for all updates, but this might change in the
-     * future
+     * Detect update operations that contains changes to column properties not handled by the current appending code.
      */
     private static boolean isAppendableUpdate(UpdateOp update) {
+        for (Key key : update.getChanges().keySet()) {
+            if (UNHANDLEDPROPS.contains(key)) {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -1759,8 +1783,8 @@ public class RDBDocumentStore implements DocumentStore {
     }
 
     private static long modcountOf(@Nonnull Document doc) {
-        Number n = doc.getModCount();
-        return n != null ? n.longValue() : -1;
+        Long n = doc.getModCount();
+        return n != null ? n : -1;
     }
 
     @Nonnull
@@ -1778,17 +1802,17 @@ public class RDBDocumentStore implements DocumentStore {
 
         String id = row.getId();
         NodeDocument inCache = nodesCache.getIfPresent(id);
-        Number modCount = row.getModcount();
+        Long modCount = row.getModcount();
 
         // do not overwrite document in cache if the
         // existing one in the cache is newer
         if (inCache != null && inCache != NodeDocument.NULL) {
             // check mod count
-            Number cachedModCount = inCache.getModCount();
+            Long cachedModCount = inCache.getModCount();
             if (cachedModCount == null) {
                 throw new IllegalStateException("Missing " + Document.MOD_COUNT);
             }
-            if (modCount.longValue() <= cachedModCount.longValue()) {
+            if (modCount <= cachedModCount) {
                 // we can use the cached document
                 inCache.markUpToDate(now);
                 return castAsT(inCache);
