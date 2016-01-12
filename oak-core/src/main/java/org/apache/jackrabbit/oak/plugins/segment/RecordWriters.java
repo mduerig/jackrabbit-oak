@@ -43,7 +43,7 @@ final class RecordWriters {
     /**
      * Base class for all record writers
      */
-    public abstract static class RecordWriter {
+    public abstract static class RecordWriter<T> {
         private final RecordType type;
         protected final int size;
         protected final Collection<RecordId> ids;
@@ -72,43 +72,43 @@ final class RecordWriters {
                 SegmentBufferWriter writer);
     }
 
-    public static RecordWriter newMapLeafWriter(int level, Collection<MapEntry> entries) {
+    public static RecordWriter<MapRecord> newMapLeafWriter(int level, Collection<MapEntry> entries) {
         return new MapLeafWriter(level, entries);
     }
 
-    public static RecordWriter newMapLeafWriter() {
+    public static RecordWriter<MapRecord> newMapLeafWriter() {
         return new MapLeafWriter();
     }
 
-    public static RecordWriter newMapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
+    public static RecordWriter<MapRecord> newMapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
         return new MapBranchWriter(level, entryCount, bitmap, ids);
     }
 
-    public static RecordWriter newMapBranchWriter(int bitmap, List<RecordId> ids) {
+    public static RecordWriter<MapRecord> newMapBranchWriter(int bitmap, List<RecordId> ids) {
         return new MapBranchWriter(bitmap, ids);
     }
 
-    public static RecordWriter newListWriter(int count, RecordId lid) {
+    public static RecordWriter<ListRecord> newListWriter(int count, RecordId lid) {
         return new ListWriter(count, lid);
     }
 
-    public static RecordWriter newListWriter() {
+    public static RecordWriter<ListRecord> newListWriter() {
         return new ListWriter();
     }
 
-    public static RecordWriter newListBucketWriter(List<RecordId> ids) {
+    public static RecordWriter<ListRecord> newListBucketWriter(List<RecordId> ids) {
         return new ListBucketWriter(ids);
     }
 
-    public static RecordWriter newBlockWriter(byte[] bytes, int offset, int length) {
+    public static RecordWriter<Record> newBlockWriter(byte[] bytes, int offset, int length) {
         return new BlockWriter(bytes, offset, length);
     }
 
-    public static RecordWriter newValueWriter(RecordId rid, long len) {
+    public static RecordWriter<Record> newValueWriter(RecordId rid, long len) {
         return new SingleValueWriter(rid, len);
     }
 
-    public static RecordWriter newValueWriter(int length, byte[] data) {
+    public static RecordWriter<Record> newValueWriter(int length, byte[] data) {
         return new ArrayValueWriter(length, data);
     }
 
@@ -117,7 +117,7 @@ final class RecordWriters {
      * binary representation is equal to or greater than {@code
      * Segment.BLOB_ID_SMALL_LIMIT}.
      */
-    public static RecordWriter newBlobIdWriter(RecordId rid) {
+    public static RecordWriter<SegmentBlob> newBlobIdWriter(RecordId rid) {
         return new LargeBlobIdWriter(rid);
     }
 
@@ -125,11 +125,11 @@ final class RecordWriters {
      * Write a small blob ID. A blob ID is considered small if the length of its
      * binary representation is less than {@code Segment.BLOB_ID_SMALL_LIMIT}.
      */
-    public static RecordWriter newBlobIdWriter(byte[] blobId) {
+    public static RecordWriter<SegmentBlob> newBlobIdWriter(byte[] blobId) {
         return new SmallBlobIdWriter(blobId);
     }
 
-    public static RecordWriter newTemplateWriter(Collection<RecordId> ids,
+    public static RecordWriter<Template> newTemplateWriter(Collection<RecordId> ids,
             RecordId[] propertyNames, byte[] propertyTypes, int head, RecordId primaryId,
             List<RecordId> mixinIds, RecordId childNameId, RecordId propNamesId,
             SegmentVersion version) {
@@ -137,7 +137,7 @@ final class RecordWriters {
             childNameId, propNamesId, version);
     }
 
-    public static RecordWriter newNodeStateWriter(List<RecordId> ids) {
+    public static RecordWriter<SegmentNodeState> newNodeStateWriter(List<RecordId> ids) {
         return new NodeStateWriter(ids);
     }
 
@@ -145,7 +145,7 @@ final class RecordWriters {
      * Map Leaf record writer.
      * @see RecordType#LEAF
      */
-    private static class MapLeafWriter extends RecordWriter {
+    private static class MapLeafWriter extends RecordWriter<MapRecord> {
         private final int level;
         private final Collection<MapEntry> entries;
 
@@ -200,7 +200,7 @@ final class RecordWriters {
      * Map Branch record writer.
      * @see RecordType#BRANCH
      */
-    private static class MapBranchWriter extends RecordWriter {
+    private static class MapBranchWriter extends RecordWriter<MapRecord> {
         private final int level;
         private final int entryCount;
         private final int bitmap;
@@ -239,7 +239,7 @@ final class RecordWriters {
      * List record writer.
      * @see RecordType#LIST
      */
-    private static class ListWriter extends RecordWriter  {
+    private static class ListWriter extends RecordWriter<ListRecord>  {
         private final int count;
         private final RecordId lid;
 
@@ -271,7 +271,7 @@ final class RecordWriters {
      *
      * @see RecordType#BUCKET
      */
-    private static class ListBucketWriter extends RecordWriter {
+    private static class ListBucketWriter extends RecordWriter<ListRecord> {
 
         private ListBucketWriter(List<RecordId> ids) {
             super(BUCKET, 0, ids);
@@ -292,7 +292,7 @@ final class RecordWriters {
      * @see SegmentWriter#writeBlock
      * @see RecordType#BLOCK
      */
-    private static class BlockWriter extends RecordWriter {
+    private static class BlockWriter extends RecordWriter<Record> {
         private final byte[] bytes;
         private final int offset;
 
@@ -315,7 +315,7 @@ final class RecordWriters {
      * @see SegmentWriter#writeValueRecord
      * @see RecordType#VALUE
      */
-    private static class SingleValueWriter extends RecordWriter {
+    private static class SingleValueWriter extends RecordWriter<Record> {
         private final RecordId rid;
         private final long len;
 
@@ -342,7 +342,7 @@ final class RecordWriters {
      * @see Segment#MEDIUM_LIMIT
      * @see RecordType#VALUE
      */
-    private static class ArrayValueWriter extends RecordWriter {
+    private static class ArrayValueWriter extends RecordWriter<Record> {
         private final int length;
         private final byte[] data;
 
@@ -384,7 +384,7 @@ final class RecordWriters {
      * @see Segment#BLOB_ID_SMALL_LIMIT
      * @see RecordType#VALUE
      */
-    private static class LargeBlobIdWriter extends RecordWriter {
+    private static class LargeBlobIdWriter extends RecordWriter<SegmentBlob> {
         private final RecordId stringRecord;
 
         private LargeBlobIdWriter(RecordId stringRecord) {
@@ -412,7 +412,7 @@ final class RecordWriters {
      * @see Segment#BLOB_ID_SMALL_LIMIT
      * @see RecordType#VALUE
      */
-    private static class SmallBlobIdWriter extends RecordWriter {
+    private static class SmallBlobIdWriter extends RecordWriter<SegmentBlob> {
         private final byte[] blobId;
 
         private SmallBlobIdWriter(byte[] blobId) {
@@ -436,7 +436,7 @@ final class RecordWriters {
      * Template record writer.
      * @see RecordType#TEMPLATE
      */
-    private static class TemplateWriter extends RecordWriter {
+    private static class TemplateWriter extends RecordWriter<Template> {
         private final RecordId[] propertyNames;
         private final byte[] propertyTypes;
         private final int head;
@@ -495,7 +495,7 @@ final class RecordWriters {
      * Node State record writer.
      * @see RecordType#NODE
      */
-    private static class NodeStateWriter extends RecordWriter {
+    private static class NodeStateWriter extends RecordWriter<SegmentNodeState> {
         private NodeStateWriter(List<RecordId> ids) {
             super(NODE, 0, ids);
         }

@@ -759,15 +759,15 @@ public class SegmentWriter {
         }
     }
 
-    private SegmentNodeState writeNodeState(RecordWriter recordWriter) throws IOException {
+    private SegmentNodeState writeNodeState(RecordWriter<SegmentNodeState> recordWriter) throws IOException {
         return new SegmentNodeState(writeRecord(recordWriter));
     }
 
-    private MapRecord writeMapRecord(RecordWriter recordWriter) throws IOException {
+    private MapRecord writeMapRecord(RecordWriter<MapRecord> recordWriter) throws IOException {
         return new MapRecord(writeRecord(recordWriter));
     }
 
-    private RecordId writeRecord(RecordWriter recordWriter) throws IOException {
+    private RecordId writeRecord(RecordWriter<?> recordWriter) throws IOException {
         SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
         try {
             return recordWriter.write(writer);
