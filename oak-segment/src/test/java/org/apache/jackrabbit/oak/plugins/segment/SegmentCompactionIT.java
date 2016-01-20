@@ -35,7 +35,7 @@ import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.commons.io.FileUtils.deleteDirectory;
 import static org.apache.commons.lang.RandomStringUtils.randomAlphabetic;
-import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.CleanupType.CLEAN_OLD;
+import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.CleanupType.CLEAN_NONE;
 import static org.apache.jackrabbit.oak.plugins.segment.file.FileStore.newFileStore;
 import static org.junit.Assume.assumeTrue;
 import static org.slf4j.helpers.MessageFormatter.arrayFormat;
@@ -147,8 +147,8 @@ public class SegmentCompactionIT {
     private volatile int maxWriters = 10;
     private volatile long maxStoreSize = 200000000000L;
     private volatile int maxBlobSize = 1000000;
-    private volatile int maxStringSize = 10000;
-    private volatile int maxReferences = 10;
+    private volatile int maxStringSize = 100;
+    private volatile int maxReferences = 0;
     private volatile int maxWriteOps = 10000;
     private volatile int maxNodeCount = 1000;
     private volatile int maxPropertyCount = 1000;
@@ -156,8 +156,8 @@ public class SegmentCompactionIT {
     private volatile int propertyRemoveRatio = 10;
     private volatile int nodeAddRatio = 40;
     private volatile int addStringRatio = 20;
-    private volatile int addBinaryRatio = 20;
-    private volatile int compactionInterval = 1;
+    private volatile int addBinaryRatio = 0;
+    private volatile int compactionInterval = 60;
     private volatile boolean stopping;
     private volatile Reference rootReference;
     private volatile long fileStoreSize;
@@ -237,11 +237,11 @@ public class SegmentCompactionIT {
         SegmentNodeStoreBuilder nodeStoreBuilder = SegmentNodeStore
                 .newSegmentNodeStore(fileStore);
         nodeStoreBuilder.withCompactionStrategy(false, false,
-                CLEAN_OLD.toString(), CompactionStrategy.TIMESTAMP_DEFAULT,
+                CLEAN_NONE.toString(), CompactionStrategy.TIMESTAMP_DEFAULT,
                 CompactionStrategy.MEMORY_THRESHOLD_DEFAULT, lockWaitTime,
                 CompactionStrategy.RETRY_COUNT_DEFAULT,
-                CompactionStrategy.FORCE_AFTER_FAIL_DEFAULT,
-                CompactionStrategy.GAIN_THRESHOLD_DEFAULT);
+                true,
+                (byte) 0);
         nodeStore = nodeStoreBuilder.create();
 
         compactionStrategy = nodeStoreBuilder
