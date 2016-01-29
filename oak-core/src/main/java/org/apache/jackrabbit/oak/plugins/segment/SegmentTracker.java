@@ -26,6 +26,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.CheckForNull;
@@ -78,7 +79,21 @@ public class SegmentTracker {
 
     private final SegmentStore store;
 
+    // michid remove
+    class MergeStats {
+        AtomicLong nodeCopyCount = new AtomicLong();
+        AtomicLong propertyCopyCount = new AtomicLong();
+
+        @Override
+        public String toString() {
+            return "nodeCopyCount = " + nodeCopyCount +
+                ", propertyCopyCount = " + propertyCopyCount;
+        }
+    }
+    public final MergeStats mergeStats = new MergeStats();
+
     private final SegmentWriter writer;
+    private final SegmentWriter mergeWriter;
 
     /**
      * Serialized map that contains the link between old record
@@ -126,7 +141,8 @@ public class SegmentTracker {
         this.store = store;
         this.compactionMap = new AtomicReference<CompactionMap>(
                 CompactionMap.EMPTY);
-        this.writer = createSegmentWriter("sys");
+        this.writer = new SegmentWriter(store, version, "sys");
+        this.mergeWriter = new SegmentWriter(store, version, "merge");
         StringCache c;
         if (DISABLE_STRING_CACHE) {
             c = null;
@@ -184,8 +200,14 @@ public class SegmentTracker {
             : stringCache.getStats();
     }
 
+    // michid review usages (dropCache!)
     public SegmentWriter getWriter() {
         return writer;
+    }
+
+    // michid review usages (dropCache!)
+    public SegmentWriter getMergeWriter() {
+        return mergeWriter;
     }
 
     public SegmentStore getStore() {
@@ -286,7 +308,8 @@ public class SegmentTracker {
         try {
             Set<SegmentId> processed = newHashSet();
             Queue<SegmentId> queue = newArrayDeque(getReferencedSegmentIds());
-            writer.flush(); // force the current segment to have root record info
+            writer.flush();  // force the current segment to have root record info
+            mergeWriter.flush();
             while (!queue.isEmpty()) {
                 SegmentId id = queue.remove();
                 if (id.isDataSegmentId() && processed.add(id)) {

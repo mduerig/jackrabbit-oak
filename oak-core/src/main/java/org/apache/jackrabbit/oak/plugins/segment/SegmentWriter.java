@@ -668,12 +668,8 @@ public class SegmentWriter {
         }
 
         Template template = new Template(state);
-        RecordId templateId;
-        if (before != null && template.equals(beforeTemplate)) {
-            templateId = before.getTemplateId();
-        } else {
-            templateId = writeTemplate(template);
-        }
+        // michid check impact of previous de-duplication
+        RecordId templateId = writeTemplate(template);
 
         List<RecordId> ids = newArrayList();
         ids.add(templateId);

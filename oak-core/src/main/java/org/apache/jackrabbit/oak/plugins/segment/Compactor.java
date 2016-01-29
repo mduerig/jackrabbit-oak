@@ -102,7 +102,7 @@ public class Compactor {
     }
 
     public Compactor(SegmentTracker tracker, Supplier<Boolean> cancel) {
-        this.writer = tracker.getWriter();
+        this.writer = tracker.getMergeWriter();
         this.map = new InMemoryCompactionMap(tracker);
         this.cloneBinaries = false;
         this.cancel = cancel;

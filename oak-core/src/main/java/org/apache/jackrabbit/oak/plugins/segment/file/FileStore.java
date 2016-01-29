@@ -497,7 +497,7 @@ public class FileStore implements SegmentStore {
         } else {
             NodeBuilder builder = EMPTY_NODE.builder();
             builder.setChildNode("root", initial);
-            head = new AtomicReference<RecordId>(tracker.getWriter().writeNode(
+            head = new AtomicReference<RecordId>(tracker.getMergeWriter().writeNode(
                     builder.getNodeState()).getRecordId());
             persistedHead = new AtomicReference<RecordId>(null);
         }
@@ -509,6 +509,7 @@ public class FileStore implements SegmentStore {
                         @Override
                         public void run() {
                             try {
+                                log.info("TarMK merge stats: {}", tracker.mergeStats);
                                 flush();
                             } catch (IOException e) {
                                 log.warn("Failed to flush the TarMK at" +
@@ -792,6 +793,7 @@ public class FileStore implements SegmentStore {
                 // needs to happen outside the synchronization block below to
                 // avoid a deadlock with another thread flushing the writer
                 tracker.getWriter().flush();
+                tracker.getMergeWriter().flush();
 
                 // needs to happen outside the synchronization block below to
                 // prevent the flush from stopping concurrent reads and writes
@@ -1149,6 +1151,7 @@ public class FileStore implements SegmentStore {
         try {
             flush();
             tracker.getWriter().dropCache();
+            tracker.getMergeWriter().dropCache();
             fileStoreLock.writeLock().lock();
             try {
                 closeAndLogOnFail(writer);
@@ -1501,6 +1504,8 @@ public class FileStore implements SegmentStore {
                 // content. TODO: There should be a cleaner way to do this. (implement GCMonitor!?)
                 tracker.getWriter().dropCache();
                 tracker.getWriter().flush();
+                tracker.getMergeWriter().dropCache();
+                tracker.getMergeWriter().flush();
 
                 CompactionMap cm = tracker.getCompactionMap();
                 gcMonitor.compacted(cm.getSegmentCounts(), cm.getRecordCounts(), cm.getEstimatedWeights());

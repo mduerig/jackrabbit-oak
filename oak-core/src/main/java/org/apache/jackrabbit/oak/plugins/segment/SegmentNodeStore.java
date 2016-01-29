@@ -231,11 +231,11 @@ public class SegmentNodeStore implements NodeStore, Observable {
             }
         } catch (InterruptedException e) {
             currentThread().interrupt();
-            throw new CommitFailedException(
-                    "Segment", 2, "Merge interrupted", e);
+            throw new CommitFailedException("Segment", 2, "Merge interrupted", e);
         } catch (SegmentOverflowException e) {
-            throw new CommitFailedException(
-                    "Segment", 3, "Merge failed", e);
+            throw new CommitFailedException("Segment", 3, "Merge failed", e);
+        } catch (IOException e) {
+            throw new CommitFailedException("Segment", 3, "Merge failed", e);
         }
     }
 
@@ -469,28 +469,33 @@ public class SegmentNodeStore implements NodeStore, Observable {
             }
         }
 
-        private SegmentNodeBuilder prepare(SegmentNodeState state) throws CommitFailedException {
+        private SegmentNodeBuilder prepare(SegmentNodeState state) throws CommitFailedException, IOException {
             SegmentNodeBuilder builder = state.builder();
             if (fastEquals(before, state.getChildNode(ROOT))) {
                 // use a shortcut when there are no external changes
                 builder.setChildNode(
-                        ROOT, hook.processCommit(before, after, info));
+                    ROOT, hook.processCommit(before, after, info));
             } else {
                 // there were some external changes, so do the full rebase
                 ConflictAnnotatingRebaseDiff diff =
-                        new ConflictAnnotatingRebaseDiff(builder.child(ROOT));
+                    new ConflictAnnotatingRebaseDiff(builder.child(ROOT));
                 after.compareAgainstBaseState(before, diff);
                 // apply commit hooks on the rebased changes
                 builder.setChildNode(ROOT, hook.processCommit(
-                        builder.getBaseState().getChildNode(ROOT),
-                        builder.getNodeState().getChildNode(ROOT),
-                        info));
+                    builder.getBaseState().getChildNode(ROOT),
+                    builder.getNodeState().getChildNode(ROOT),
+                    info));
             }
-            return builder;
+
+            SegmentTracker tracker = state.getTracker();
+            SegmentWriter mergeWriter = tracker.getMergeWriter();
+            SegmentNodeBuilder mergeBuilder = new SegmentNodeBuilder(state, mergeWriter);
+            builder.getNodeState().compareAgainstBaseState(state, new MergeDiff(mergeBuilder, mergeWriter, tracker.mergeStats));
+
+            return mergeBuilder;
         }
 
-        private long optimisticMerge()
-                throws CommitFailedException, InterruptedException {
+        private long optimisticMerge() throws CommitFailedException, InterruptedException, IOException {
             long timeout = 1;
 
             // use exponential backoff in case of concurrent commits
@@ -523,8 +528,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
             return MILLISECONDS.convert(timeout, NANOSECONDS);
         }
 
-        private void pessimisticMerge(long timeout)
-                throws CommitFailedException, InterruptedException {
+        private void pessimisticMerge(long timeout) throws CommitFailedException, InterruptedException, IOException {
             while (true) {
                 long now = currentTimeMillis();
                 SegmentNodeState state = head.get();
@@ -556,8 +560,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
         }
 
         @Nonnull
-        NodeState execute()
-                throws CommitFailedException, InterruptedException {
+        NodeState execute() throws CommitFailedException, InterruptedException, IOException {
             // only do the merge if there are some changes to commit
             if (!fastEquals(before, after)) {
                 long timeout = optimisticMerge();
