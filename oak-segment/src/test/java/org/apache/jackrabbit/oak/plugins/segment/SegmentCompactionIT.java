@@ -237,7 +237,7 @@ public class SegmentCompactionIT {
                 .create();
         SegmentNodeStoreBuilder nodeStoreBuilder = SegmentNodeStore
                 .newSegmentNodeStore(fileStore);
-        nodeStoreBuilder.withCompactionStrategy(false, false,
+        nodeStoreBuilder.withCompactionStrategy(true, false,
                 CLEAN_NONE.toString(), CompactionStrategy.TIMESTAMP_DEFAULT,
                 CompactionStrategy.MEMORY_THRESHOLD_DEFAULT, lockWaitTime,
                 CompactionStrategy.RETRY_COUNT_DEFAULT,
