@@ -197,7 +197,7 @@ public class PersistedCompactionMap implements PartialCompactionMap {
                 base = baseEntry == null ? null : new MapRecord(baseEntry.getValue());
 
                 if (writer == null) {
-                    writer = tracker.createSegmentWriter(createWid());
+                    writer = tracker.createSegmentWriter(createWid(), false);
                 }
 
                 Map<String, RecordId> offsetMap = newHashMap();
@@ -222,7 +222,7 @@ public class PersistedCompactionMap implements PartialCompactionMap {
 
             if (!segmentIdMap.isEmpty()) {
                 if (writer == null) {
-                    writer = tracker.createSegmentWriter(createWid());
+                    writer = tracker.createSegmentWriter(createWid(), false);
                 }
 
                 RecordId previousBaseId = entries == null ? null : entries.getRecordId();

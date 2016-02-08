@@ -120,7 +120,7 @@ public class Compactor {
 
     public Compactor(SegmentTracker tracker, Supplier<Boolean> cancel) {
         this.tracker = tracker;
-        this.writer = tracker.getWriter();
+        this.writer = tracker.createSegmentWriter("c", false);
         this.map = new InMemoryCompactionMap(tracker);
         this.cloneBinaries = false;
         this.cancel = cancel;
@@ -133,7 +133,7 @@ public class Compactor {
     public Compactor(SegmentTracker tracker, CompactionStrategy compactionStrategy, Supplier<Boolean> cancel) {
         this.tracker = tracker;
         String wid = "c-" + (tracker.getCompactionMap().getGeneration() + 1);
-        this.writer = tracker.createSegmentWriter(wid);
+        this.writer = tracker.createSegmentWriter(wid, false);
         if (compactionStrategy.getPersistCompactionMap()) {
             this.map = new PersistedCompactionMap(tracker);
         } else {

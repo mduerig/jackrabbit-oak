@@ -120,7 +120,7 @@ public class PartialCompactionMapTest {
     }
 
     private PartialCompactionMap createCompactionMap() {
-        SegmentWriter writer = new SegmentWriter(segmentStore, V_11, "");
+        SegmentWriter writer = new SegmentWriter(segmentStore, V_11, "", false);
         if (usePersistedMap) {
             return new PersistedCompactionMap(segmentStore.getTracker());
         } else {

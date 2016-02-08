@@ -149,15 +149,18 @@ public class SegmentWriter {
 
     private final String wid;
 
+    private final boolean eagerFlush;
+
     /**
      * @param store     store to write to
      * @param version   segment version to write
      * @param wid       id of this writer
      */
-    public SegmentWriter(SegmentStore store, SegmentVersion version, String wid) {
+    public SegmentWriter(SegmentStore store, SegmentVersion version, String wid, boolean eagerFlush) {
         this.store = store;
         this.version = version;
         this.wid = wid;
+        this.eagerFlush = eagerFlush;
     }
 
     public void flush() throws IOException {
@@ -785,7 +788,7 @@ public class SegmentWriter {
     }
 
     private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
-        SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
+        SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread(), eagerFlush);
         try {
             return recordWriter.write(writer);
         } finally {
@@ -813,10 +816,12 @@ public class SegmentWriter {
             }
         }
 
-        public synchronized SegmentBufferWriter borrowWriter(Object key) throws IOException {
+        public synchronized SegmentBufferWriter borrowWriter(Object key, boolean eagerFlush) throws IOException {
             SegmentBufferWriter writer = writers.remove(key);
             if (writer == null) {
                 writer = new SegmentBufferWriter(store, version, wid + "." + getWriterId());
+            } else if (eagerFlush) {
+                writer.flush();
             }
             borrowed.add(writer);
             return writer;

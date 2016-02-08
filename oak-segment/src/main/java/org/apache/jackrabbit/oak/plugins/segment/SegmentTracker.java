@@ -128,7 +128,7 @@ public class SegmentTracker {
         this.store = store;
         this.compactionMap = new AtomicReference<CompactionMap>(
                 CompactionMap.EMPTY);
-        this.writer = createSegmentWriter("sys");
+        this.writer = createSegmentWriter("sys", true);
         StringCache c;
         if (DISABLE_STRING_CACHE) {
             c = null;
@@ -171,8 +171,8 @@ public class SegmentTracker {
     /**
      * @return  a new {@link SegmentWriter} instance for writing to this store.
      */
-    public final SegmentWriter createSegmentWriter(String wid) {
-        return new SegmentWriter(store, segmentVersion, wid);
+    public final SegmentWriter createSegmentWriter(String wid, boolean eagerFlush) {
+        return new SegmentWriter(store, segmentVersion, wid, eagerFlush);
     }
 
     @Nonnull
