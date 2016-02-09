@@ -322,6 +322,8 @@ public class Segment {
                 << RECORD_ALIGN_BITS;
     }
 
+    volatile String info;
+
     /**
      * Returns the segment meta data of this segment or {@code null} if none is present.
      * <p>
@@ -339,11 +341,10 @@ public class Segment {
      */
     @CheckForNull
     public String getSegmentInfo() {
-        if (getRootCount() == 0) {
-            return null;
-        } else {
-            return readString(getRootOffset(0));
+        if (info == null && getRefCount() != 0) {
+            info = readString(getRootOffset(0));
         }
+        return info;
     }
 
     SegmentId getRefId(int index) {

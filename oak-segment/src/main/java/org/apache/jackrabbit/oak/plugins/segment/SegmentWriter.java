@@ -32,6 +32,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.io.ByteStreams.read;
 import static com.google.common.io.Closeables.close;
+import static java.lang.Integer.parseInt;
 import static java.lang.String.valueOf;
 import static java.lang.Thread.currentThread;
 import static java.util.Arrays.asList;
@@ -55,6 +56,7 @@ import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newValueWr
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.align;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.readString;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
 
 import java.io.ByteArrayInputStream;
@@ -73,6 +75,8 @@ import javax.jcr.PropertyType;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.commons.json.JsonObject;
+import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.RecordWriter;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -112,7 +116,7 @@ public class SegmentWriter {
     final Map<Template, RecordId> templateCache = newItemsCache(TPL_RECORDS_CACHE_SIZE);
 
     private static final <T> Map<T, RecordId> newItemsCache(final int size) {
-        final boolean disabled = size <= 0;
+        final boolean disabled = true;
         final int safeSize = size <= 0 ? 0 : (int) (size * 1.2);
         return new LinkedHashMap<T, RecordId>(safeSize, 0.9f, true) {
             @Override
@@ -575,6 +579,8 @@ public class SegmentWriter {
                 RecordId valueId = previousValues.get(value);
                 if (valueId == null) {
                     valueId = writeString(value);
+                } else if (isOldGen(valueId)) {
+                    valueId = writeString(value);
                 }
                 valueIds.add(valueId);
             }
@@ -672,7 +678,9 @@ public class SegmentWriter {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
             if (sns != state || store.containsSegment(
                 sns.getRecordId().getSegmentId())) {
-                return sns;
+                if (!isOldGen(sns.getRecordId())) {
+                    return sns;
+                }
             }
         }
 
@@ -686,8 +694,10 @@ public class SegmentWriter {
                 SegmentNodeState sns = uncompact((SegmentNodeState) base);
                 if (sns != base || store.containsSegment(
                     sns.getRecordId().getSegmentId())) {
-                    before = sns;
-                    beforeTemplate = before.getTemplate();
+                    if (!isOldGen(sns.getRecordId())) {
+                        before = sns;
+                        beforeTemplate = before.getTemplate();
+                    }
                 }
             }
         }
@@ -696,6 +706,9 @@ public class SegmentWriter {
         RecordId templateId;
         if (before != null && template.equals(beforeTemplate)) {
             templateId = before.getTemplateId();
+            if (isOldGen(templateId)) {
+                templateId = writeTemplate(template);
+            }
         } else {
             templateId = writeTemplate(template);
         }
@@ -733,7 +746,12 @@ public class SegmentWriter {
 
             if (property instanceof SegmentPropertyState
                 && store.containsSegment(((SegmentPropertyState) property).getRecordId().getSegmentId())) {
-                pIds.add(((SegmentPropertyState) property).getRecordId());
+                RecordId pid = ((SegmentPropertyState) property).getRecordId();
+                if (isOldGen(pid)) {
+                    pIds.add(writeProperty(property));
+                } else {
+                    pIds.add(pid);
+                }
             } else if (before == null
                 || !store.containsSegment(before.getRecordId().getSegmentId())) {
                 pIds.add(writeProperty(property));
@@ -746,7 +764,12 @@ public class SegmentWriter {
                     SegmentPropertyState bp = beforeTemplate.getProperty(
                         before.getRecordId(), bt.getIndex());
                     if (property.equals(bp)) {
-                        pIds.add(bp.getRecordId()); // no changes
+                        RecordId pid = bp.getRecordId();
+                        if (isOldGen(pid)) {
+                            pIds.add(writeProperty(bp));
+                        } else {
+                            pIds.add(pid); // no changes
+                        }
                     } else if (bp.isArray() && bp.getType() != BINARIES) {
                         // reuse entries from the previous list
                         pIds.add(writeProperty(property, bp.getValueRecords()));
@@ -897,4 +920,25 @@ public class SegmentWriter {
             }
         }
     }
+
+    private boolean isOldGen(RecordId recordId) {
+        return isOldGen(recordId.getSegmentId());
+    }
+
+    private boolean isOldGen(SegmentId id) {
+        if (isDataSegmentId(id.getLeastSignificantBits())) {
+            String info = id.getSegment().getSegmentInfo();
+            if (info != null) {
+                JsopTokenizer tokenizer = new JsopTokenizer(info);
+                tokenizer.read('{');
+                Map<String, String> properties = JsonObject.create(tokenizer).getProperties();
+                int gen = parseInt(properties.get("gc"));
+                if (gen < store.getTracker().getCompactionMap().getGeneration()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 }

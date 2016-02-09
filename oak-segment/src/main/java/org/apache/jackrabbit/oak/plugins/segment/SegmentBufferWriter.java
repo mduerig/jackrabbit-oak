@@ -26,6 +26,7 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static java.lang.Integer.parseInt;
 import static java.lang.System.arraycopy;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
@@ -43,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.jackrabbit.oak.commons.json.JsonObject;
+import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -108,6 +111,7 @@ class SegmentBufferWriter {
      * is written, but shifted downwards by the prepare methods.
      */
     private int position;
+    private int generation;
 
     public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) throws IOException {
         this.store = store;
@@ -138,11 +142,13 @@ class SegmentBufferWriter {
      */
     private void newSegment(String wid) throws IOException {
         this.segment = new Segment(tracker, buffer);
+        generation = tracker.getCompactionMap().getGeneration();
         String metaInfo = "{\"wid\":\"" + wid + '"' +
                 ",\"sno\":" + tracker.getNextSegmentNo() +
-                ",\"gc\":" + tracker.getCompactionMap().getGeneration() +
+                ",\"gc\":" + generation +
                 ",\"t\":" + currentTimeMillis() + "}";
 
+        this.segment.info = metaInfo;
         byte[] data = metaInfo.getBytes(UTF_8);
         newValueWriter(data.length, data).write(this);
     }
@@ -198,7 +204,24 @@ class SegmentBufferWriter {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
+    private void checkGCGen(SegmentId id) {
+        if (SegmentId.isDataSegmentId(id.getLeastSignificantBits())) {
+            String info = id.getSegment().getSegmentInfo();
+            if (info != null) {
+                JsopTokenizer tokenizer = new JsopTokenizer(info);
+                tokenizer.read('{');
+                Map<String, String> properties = JsonObject.create(tokenizer).getProperties();
+                int gen = parseInt(properties.get("gc"));
+                if (gen < generation) {
+                    LOG.warn("checkGen detected backref from {} to {}. {}", this.segment.getSegmentId(), id);
+                }
+            }
+        }
+    }
+
     private int getSegmentRef(SegmentId segmentId) {
+        checkGCGen(segmentId);
+
         int refCount = segment.getRefCount();
         if (refCount > SEGMENT_REFERENCE_LIMIT) {
             throw new SegmentOverflowException(
