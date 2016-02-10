@@ -35,6 +35,7 @@ import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.SEGMENT_REFERENCE_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.align;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -205,18 +206,30 @@ class SegmentBufferWriter {
     }
 
     private void checkGCGen(SegmentId id) {
-        if (SegmentId.isDataSegmentId(id.getLeastSignificantBits())) {
+        if (isDataSegmentId(id.getLeastSignificantBits())) {
             String info = id.getSegment().getSegmentInfo();
             if (info != null) {
                 JsopTokenizer tokenizer = new JsopTokenizer(info);
                 tokenizer.read('{');
                 Map<String, String> properties = JsonObject.create(tokenizer).getProperties();
                 int gen = parseInt(properties.get("gc"));
+                if (properties.get("wid").contains("c-")) {
+                    gen++;
+                }
                 if (gen < generation) {
-                    LOG.warn("checkGen detected backref from {} to {}. {}", this.segment.getSegmentId(), id);
+                    LOG.warn("checkGen detected backref from {} to {}. {}",
+                        info(this.segment), info(id.getSegment()));
                 }
             }
         }
+    }
+
+    private static String info(Segment segment) {
+        String info = segment.getSegmentId().toString();
+        if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
+            info += (" " + segment.getSegmentInfo());
+        }
+        return info;
     }
 
     private int getSegmentRef(SegmentId segmentId) {
