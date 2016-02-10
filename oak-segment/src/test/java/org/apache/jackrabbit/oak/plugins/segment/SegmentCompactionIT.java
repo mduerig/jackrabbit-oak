@@ -143,7 +143,7 @@ public class SegmentCompactionIT {
 
     private volatile ListenableFuture<?> compactor = immediateCancelledFuture();
     private volatile ReadWriteLock compactionLock = null;
-    private volatile int lockWaitTime = 60;
+    private volatile int lockWaitTime = 600;
     private volatile int maxReaders = 10;
     private volatile int maxWriters = 10;
     private volatile long maxStoreSize = 200000000000L;
