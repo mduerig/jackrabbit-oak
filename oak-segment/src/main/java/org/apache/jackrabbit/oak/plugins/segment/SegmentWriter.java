@@ -933,7 +933,11 @@ public class SegmentWriter {
                 tokenizer.read('{');
                 Map<String, String> properties = JsonObject.create(tokenizer).getProperties();
                 int gen = parseInt(properties.get("gc"));
-                if (gen < store.getTracker().getCompactionMap().getGeneration()) {
+                if (properties.get("wid").contains("c-")) {
+                    gen++;
+                }
+                int thisGen = store.getTracker().getCompactionMap().getGeneration();
+                if (gen < thisGen) {
                     return true;
                 }
             }
