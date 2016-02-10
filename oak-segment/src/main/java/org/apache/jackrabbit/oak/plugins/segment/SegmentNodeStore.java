@@ -104,8 +104,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
     /**
      * Flag controlling the commit lock fairness
      */
-    private final boolean commitFairLock = Boolean
-            .getBoolean("oak.segmentNodeStore.commitFairLock");
+    private final boolean commitFairLock = true;
 
     @Nonnull
     public static SegmentNodeStoreBuilder newSegmentNodeStore(
