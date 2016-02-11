@@ -468,7 +468,7 @@ public class CompactionAndCleanupIT {
                 // This will cause changes to be pre-written to segments
                 preGCBuilder = nodeStore.getRoot().builder();
                 preGCBuilder.setChildNode("test").setChildNode("a").setChildNode("b").setProperty("foo", "bar");
-                for (int k = 0; k < getInteger("update.limit", 10000); k += 2) {
+                for (int k = 0; k < getInteger("update.limit", 10000); k += 2) {  // michid replace with preGCBuilder.getNodeState()!?
                     preGCBuilder.setChildNode("dummy").remove();
                 }
 

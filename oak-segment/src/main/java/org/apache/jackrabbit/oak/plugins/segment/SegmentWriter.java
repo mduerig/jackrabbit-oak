@@ -673,6 +673,7 @@ public class SegmentWriter {
         return tid;
     }
 
+    // michid put items defer-compacted into compaction map
     public SegmentNodeState writeNode(NodeState state) throws IOException {
         if (state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
