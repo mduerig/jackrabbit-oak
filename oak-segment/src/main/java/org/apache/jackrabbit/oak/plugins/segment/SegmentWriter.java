@@ -79,6 +79,7 @@ import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.RecordWriter;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -809,11 +810,13 @@ public class SegmentWriter {
     }
 
     private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
-        SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
+        int generation = ((FileStore)store).targetGen;
+        String key = currentThread().toString() + "-" + generation;
+        SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(key);
         try {
             return recordWriter.write(writer);
         } finally {
-            segmentBufferWriterPool.returnWriter(currentThread(), writer);
+            segmentBufferWriterPool.returnWriter(key, writer);
         }
     }
 
@@ -926,9 +929,9 @@ public class SegmentWriter {
         return isOldGen(recordId.getSegmentId());
     }
 
-    private boolean isOldGen(SegmentId id) {
-        if (isDataSegmentId(id.getLeastSignificantBits())) {
-            String info = id.getSegment().getSegmentInfo();
+    public static int getGcGen(Segment segment) {
+        if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
+            String info = segment.getSegmentInfo();
             if (info != null) {
                 JsopTokenizer tokenizer = new JsopTokenizer(info);
                 tokenizer.read('{');
@@ -937,13 +940,16 @@ public class SegmentWriter {
                 if (properties.get("wid").contains("c-")) {
                     gen++;
                 }
-                int thisGen = store.getTracker().getCompactionMap().getGeneration();
-                if (gen < thisGen) {
-                    return true;
-                }
+                return gen;
             }
         }
-        return false;
+        return Integer.MAX_VALUE;
+    }
+
+    private boolean isOldGen(SegmentId id) {
+        int gen = getGcGen(id.getSegment());
+        int targetGen = ((FileStore) store).targetGen;
+        return gen < targetGen;
     }
 
 }

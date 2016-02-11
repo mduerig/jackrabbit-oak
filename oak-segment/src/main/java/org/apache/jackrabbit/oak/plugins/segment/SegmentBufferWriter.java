@@ -47,6 +47,7 @@ import java.util.Set;
 
 import org.apache.jackrabbit.oak.commons.json.JsonObject;
 import org.apache.jackrabbit.oak.commons.json.JsopTokenizer;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -143,7 +144,7 @@ class SegmentBufferWriter {
      */
     private void newSegment(String wid) throws IOException {
         this.segment = new Segment(tracker, buffer);
-        generation = tracker.getCompactionMap().getGeneration();
+        generation = ((FileStore)store).targetGen;
         String metaInfo = "{\"wid\":\"" + wid + '"' +
                 ",\"sno\":" + tracker.getNextSegmentNo() +
                 ",\"gc\":" + generation +

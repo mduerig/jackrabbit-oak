@@ -488,6 +488,10 @@ public class CompactionAndCleanupIT {
                     builder.setChildNode("n");
                     nodeStore.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                     nodeStore.merge(preGCBuilder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
+                } else {
+                    NodeBuilder b = nodeStore.getRoot().builder();
+                    b.setProperty("foo", "bar");
+                    nodeStore.merge(b, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                 }
             } finally {
                 fileStore.close();

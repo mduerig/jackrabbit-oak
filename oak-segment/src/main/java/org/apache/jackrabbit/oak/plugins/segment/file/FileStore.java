@@ -71,11 +71,11 @@ import org.apache.jackrabbit.oak.plugins.segment.Segment;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.SegmentGraphVisitor;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentStore;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentVersion;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
@@ -121,6 +121,7 @@ public class FileStore implements SegmentStore {
     private final int maxFileSize;
 
     private final boolean memoryMapping;
+    public volatile int targetGen;
 
     private volatile List<TarReader> readers;
 
@@ -511,6 +512,8 @@ public class FileStore implements SegmentStore {
                     builder.getNodeState()).getRecordId());
             persistedHead = new AtomicReference<RecordId>(null);
         }
+
+        targetGen = SegmentWriter.getGcGen(head.get().getSegment());
 
         if (!readonly) {
             flushThread = BackgroundThread.run(
@@ -1030,71 +1033,7 @@ public class FileStore implements SegmentStore {
      * reference to them).
      */
     public void compact() throws IOException {
-        checkState(!compactionStrategy.equals(NO_COMPACTION),
-                "You must set a compactionStrategy before calling compact");
-        gcMonitor.info("TarMK GC #{}: compaction started, strategy={}", gcCount, compactionStrategy);
-        Stopwatch watch = Stopwatch.createStarted();
-        Supplier<Boolean> compactionCanceled = newCancelCompactionCondition();
-        Compactor compactor = new Compactor(tracker, compactionStrategy, compactionCanceled);
-        SegmentNodeState before = getHead();
-        long existing = before.getChildNode(SegmentNodeStore.CHECKPOINTS)
-                .getChildNodeCount(Long.MAX_VALUE);
-        if (existing > 1) {
-            gcMonitor.warn(
-                    "TarMK GC #{}: compaction found {} checkpoints, you might need to run checkpoint cleanup",
-                    gcCount, existing);
-        }
-
-        SegmentNodeState after = compactor.compact(EMPTY_NODE, before, EMPTY_NODE);
-        gcMonitor.info("TarMK GC #{}: compacted {} to {}",
-            gcCount, before.getRecordId(), after.getRecordId());
-
-        if (compactionCanceled.get()) {
-            gcMonitor.warn("TarMK GC #{}: compaction canceled: {}", gcCount, compactionCanceled);
-            return;
-        }
-
-        Callable<Boolean> setHead = new SetHead(before, after, compactor);
-        try {
-            int cycles = 0;
-            boolean success = false;
-            while(cycles++ < compactionStrategy.getRetryCount()
-                    && !(success = compactionStrategy.compacted(setHead))) {
-                // Some other concurrent changes have been made.
-                // Rebase (and compact) those changes on top of the
-                // compacted state before retrying to set the head.
-                gcMonitor.info("TarMK GC #{}: compaction detected concurrent commits while compacting. " +
-                        "Compacting these commits. Cycle {}", gcCount, cycles);
-                SegmentNodeState head = getHead();
-                after = compactor.compact(before, head, after);
-                gcMonitor.info("TarMK GC #{}: compacted {} against {} to {}",
-                    gcCount, head.getRecordId(), before.getRecordId(), after.getRecordId());
-
-                if (compactionCanceled.get()) {
-                    gcMonitor.warn("TarMK GC #{}: compaction canceled: {}", gcCount, compactionCanceled);
-                    return;
-                }
-
-                before = head;
-                setHead = new SetHead(head, after, compactor);
-            }
-            if (!success) {
-                gcMonitor.info("TarMK GC #{}: compaction gave up compacting concurrent commits after {} cycles.",
-                        gcCount, cycles - 1);
-                if (compactionStrategy.getForceAfterFail()) {
-                    gcMonitor.info("TarMK GC #{}: compaction force compacting remaining commits", gcCount);
-                    if (!forceCompact(before, after, compactor)) {
-                        gcMonitor.warn("TarMK GC #{}: compaction failed to force compact remaining commits. " +
-                                "Most likely compaction didn't get exclusive access to the store.", gcCount);
-                    }
-                }
-            }
-
-            gcMonitor.info("TarMK GC #{}: compaction completed in {} ({} ms), after {} cycles",
-                    gcCount, watch, watch.elapsed(MILLISECONDS), cycles - 1);
-        } catch (Exception e) {
-            gcMonitor.error("TarMK GC #" + gcCount + ": compaction encountered an error", e);
-        }
+        targetGen += 1;
     }
 
     private boolean forceCompact(final NodeState before, final SegmentNodeState onto, final Compactor compactor) throws Exception {
