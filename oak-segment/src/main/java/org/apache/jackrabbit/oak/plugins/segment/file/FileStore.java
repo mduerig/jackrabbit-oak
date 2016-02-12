@@ -933,7 +933,11 @@ public class FileStore implements SegmentStore {
         }
 
         CompactionMap cm = tracker.getCompactionMap();
-        cm.remove(cleanedIds);
+        // michid don't clean the compaction map as this breaks transitive uncompaction in SegmentWriter.writeNode.
+        // This causes SNFE for the uncompacted node: let a -> b and b -> c and a referenced, b unreferenced.
+        // Now let b be reclaimed by gc. A subsequent writeNode with a as base state will uncompact a to b
+        // (instead of c), which has been gc-ed already.
+        // cm.remove(cleanedIds);
         long finalSize = size();
         approximateSize.set(finalSize);
         stats.reclaimed(initialSize - finalSize);
