@@ -33,6 +33,7 @@ import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.SEGMENT_REFERENCE_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.align;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -139,12 +140,12 @@ class SegmentBufferWriter {
      * The segment meta data is guaranteed to be the first string record in a segment.
      */
     private void newSegment() {
-        this.segment = new Segment(tracker, buffer);
         String metaInfo = "{\"wid\":\"" + wid + '"' +
                 ",\"sno\":" + tracker.getNextSegmentNo() +
                 ",\"gc\":" + generation +
                 ",\"t\":" + currentTimeMillis() + "}";
         try {
+            this.segment = new Segment(tracker, buffer, metaInfo);
             byte[] data = metaInfo.getBytes(UTF_8);
             newValueWriter(data.length, data).write(this);
         } catch (IOException e) {
@@ -203,7 +204,30 @@ class SegmentBufferWriter {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
+    private void checkGCGen(SegmentId id) {
+        int gen = id.getSegment().getGcGen();
+        if (gen < generation && !isCompactionMap(id)) {
+            LOG.warn("checkGen detected backref from {}",
+                info(this.segment) + " to " + info(id.getSegment()), new Exception());
+        }
+    }
+
+    private static boolean isCompactionMap(SegmentId id) {
+        String info = id.getSegment().getSegmentInfo();
+        return info != null && info.contains("cm-");
+    }
+
+    private static String info(Segment segment) {
+        String info = segment.getSegmentId().toString();
+        if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
+            info += (" " + segment.getSegmentInfo());
+        }
+        return info;
+    }
+
     private int getSegmentRef(SegmentId segmentId) {
+        checkGCGen(segmentId);
+
         int refCount = segment.getRefCount();
         if (refCount > SEGMENT_REFERENCE_LIMIT) {
             throw new SegmentOverflowException(
