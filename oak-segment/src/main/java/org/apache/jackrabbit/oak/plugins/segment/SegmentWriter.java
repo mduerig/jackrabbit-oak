@@ -535,10 +535,17 @@ public class SegmentWriter {
             return writeValueRecord(data.length, writeList(blockIds));
         }
 
+        private boolean hasSegment(Blob blob) {
+            return (blob instanceof SegmentBlob)
+                    && store.containsSegment(((Record) blob).getRecordId().getSegmentId());
+        }
+
         private SegmentBlob writeBlob(Blob blob) throws IOException {
-            if (blob instanceof SegmentBlob
-                    && store.containsSegment(((Record) blob).getRecordId().getSegmentId())) {
-                return (SegmentBlob) blob;
+            if (hasSegment(blob)) {
+                SegmentBlob segmentBlob = (SegmentBlob) blob;
+                if (!isOldGen(segmentBlob.getRecordId())) {
+                    return segmentBlob;
+                }
             }
 
             String reference = blob.getReference();
@@ -592,7 +599,7 @@ public class SegmentWriter {
             boolean threw = true;
             try {
                 RecordId id = SegmentStream.getRecordIdIfAvailable(stream, store);
-                if (id == null) {
+                if (id == null || isOldGen(id)) {
                     id = internalWriteStream(stream);
                 }
                 threw = false;
