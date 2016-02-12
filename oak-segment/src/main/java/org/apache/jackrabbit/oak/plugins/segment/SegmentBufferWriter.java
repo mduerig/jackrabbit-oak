@@ -34,6 +34,7 @@ import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.SEGMENT_REFERENCE_LIMIT;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.align;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -89,6 +90,8 @@ class SegmentBufferWriter {
 
     private final SegmentTracker tracker;
 
+    private final int generation;
+
     /**
      * The segment write buffer, filled from the end to the beginning
      * (see OAK-629).
@@ -117,8 +120,13 @@ class SegmentBufferWriter {
                 : wid);
 
         this.tracker = store.getTracker();
+        this.generation = tracker.getCompactionMap().getGeneration();
         this.buffer = createNewBuffer(version);
         newSegment(this.wid);
+    }
+
+    int getGeneration() {
+        return generation;
     }
 
     /**
@@ -137,12 +145,11 @@ class SegmentBufferWriter {
      * @param wid  the writer id
      */
     private void newSegment(String wid) throws IOException {
-        this.segment = new Segment(tracker, buffer);
         String metaInfo = "{\"wid\":\"" + wid + '"' +
                 ",\"sno\":" + tracker.getNextSegmentNo() +
-                ",\"gc\":" + tracker.getCompactionMap().getGeneration() +
+                ",\"gc\":" + generation +
                 ",\"t\":" + currentTimeMillis() + "}";
-
+        this.segment = new Segment(tracker, buffer, metaInfo);
         byte[] data = metaInfo.getBytes(UTF_8);
         newValueWriter(data.length, data).write(this);
     }
@@ -198,7 +205,31 @@ class SegmentBufferWriter {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
+    // michid improve gen handling
+    private void checkGCGen(SegmentId id) {
+        int gen = id.getSegment().getGcGen();
+        if (gen < generation && !isCompactionMap(id)) {
+            LOG.warn("checkGen detected backref from {}",
+                info(this.segment) + " to " + info(id.getSegment()), new Exception());
+        }
+    }
+
+    private static boolean isCompactionMap(SegmentId id) {
+        String info = id.getSegment().getSegmentInfo();
+        return info != null && info.contains("cm-");
+    }
+
+    private static String info(Segment segment) {
+        String info = segment.getSegmentId().toString();
+        if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
+            info += (" " + segment.getSegmentInfo());
+        }
+        return info;
+    }
+
     private int getSegmentRef(SegmentId segmentId) {
+        checkGCGen(segmentId);
+
         int refCount = segment.getRefCount();
         if (refCount > SEGMENT_REFERENCE_LIMIT) {
             throw new SegmentOverflowException(

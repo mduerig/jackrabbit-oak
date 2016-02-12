@@ -765,7 +765,9 @@ public class SegmentWriter {
             if (state instanceof SegmentNodeState) {
                 SegmentNodeState sns = uncompact((SegmentNodeState) state);
                 if (sns != state || hasSegment(sns)) {
-                    return sns;
+                    if (!isOldGen(sns.getRecordId())) {
+                        return sns;
+                    }
                 }
             }
 
@@ -778,8 +780,10 @@ public class SegmentWriter {
                 if (base instanceof SegmentNodeState) {
                     SegmentNodeState sns = uncompact((SegmentNodeState) base);
                     if (sns != base || hasSegment(sns)) {
-                        before = sns;
-                        beforeTemplate = before.getTemplate();
+                        if (!isOldGen(sns.getRecordId())) {
+                            before = sns;
+                            beforeTemplate = before.getTemplate();
+                        }
                     }
                 }
             }
@@ -824,7 +828,12 @@ public class SegmentWriter {
                 PropertyState property = state.getProperty(name);
 
                 if (hasSegment(property)) {
-                    pIds.add(((Record) property).getRecordId());
+                    RecordId pid = ((Record) property).getRecordId();
+                    if (isOldGen(pid)) {
+                        pIds.add(writeProperty(property));
+                    } else {
+                        pIds.add(pid);
+                    }
                 } else if (before == null || !hasSegment(before)) {
                     pIds.add(writeProperty(property));
                 } else {
@@ -881,6 +890,12 @@ public class SegmentWriter {
             } else {
                 return state;
             }
+        }
+
+        private boolean isOldGen(RecordId id) {
+            int thatGen = id.getSegment().getGcGen();
+            int thisGen = writer.getGeneration();
+            return thatGen < thisGen;
         }
 
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
