@@ -189,17 +189,17 @@ class SegmentBufferWriter {
      * Write a record id, and marks the record id as referenced (removes it from
      * the unreferenced set).
      *
-     * @param listId the record id
+     * @param id the record id
      */
-    public void writeRecordId(RecordId listId) {
-        checkNotNull(listId);
-        roots.remove(listId);
+    public void writeRecordId(RecordId id) {
+        checkNotNull(id);
+        roots.remove(id);
 
-        int offset = listId.getOffset();
+        int offset = id.getOffset();
         checkState(0 <= offset && offset < MAX_SEGMENT_SIZE);
         checkState(offset == align(offset, 1 << Segment.RECORD_ALIGN_BITS));
 
-        buffer[position++] = (byte) getSegmentRef(listId.getSegmentId());
+        buffer[position++] = (byte) getSegmentRef(id.getSegmentId());
         buffer[position++] = (byte) (offset >> (8 + Segment.RECORD_ALIGN_BITS));
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
