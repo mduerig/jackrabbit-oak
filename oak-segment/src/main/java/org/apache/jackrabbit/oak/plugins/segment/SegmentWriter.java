@@ -891,11 +891,22 @@ public class SegmentWriter {
          * @return the compacted node (if it was compacted)
          */
         private SegmentNodeState uncompact(SegmentNodeState state) {
-            RecordId id = store.getTracker().getCompactionMap().get(state.getRecordId());
-            if (id != null) {
-                return new SegmentNodeState(id);
-            } else {
+            CompactionMap compactionMap = store.getTracker().getCompactionMap();
+            RecordId initialId = state.getRecordId();
+
+            RecordId uncompacted = initialId;
+            for (RecordId id = uncompacted; id != null; id = compactionMap.get(id)) {
+                uncompacted = id;
+            }
+
+            if (uncompacted == initialId) {
                 return state;
+            } else if (!store.containsSegment(uncompacted.getSegmentId())) {
+                // michid this really seems to be caused by yet another issue in the compaction map. But the cm has to go anyway, so working around it for now...
+                LOG.error("uncompacted SegmentNotFound {}", uncompacted);
+                return state;
+            } else {
+                return new SegmentNodeState(uncompacted);
             }
         }
 
