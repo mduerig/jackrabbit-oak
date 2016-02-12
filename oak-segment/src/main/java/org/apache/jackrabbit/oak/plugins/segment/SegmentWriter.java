@@ -112,7 +112,7 @@ public class SegmentWriter {
     final Map<Template, RecordId> templateCache = newItemsCache(TPL_RECORDS_CACHE_SIZE);
 
     private static final <T> Map<T, RecordId> newItemsCache(final int size) {
-        final boolean disabled = size <= 0;
+        final boolean disabled = true;  // michid re-enable caches but make generation part of cache key to avoid backrefs
         final int safeSize = size <= 0 ? 0 : (int) (size * 1.2);
         return new LinkedHashMap<T, RecordId>(safeSize, 0.9f, true) {
             @Override
@@ -575,6 +575,8 @@ public class SegmentWriter {
                 RecordId valueId = previousValues.get(value);
                 if (valueId == null) {
                     valueId = writeString(value);
+                } else if (isOldGen(valueId)) {
+                    valueId = writeString(value);
                 }
                 valueIds.add(valueId);
             }
@@ -667,12 +669,16 @@ public class SegmentWriter {
         return tid;
     }
 
+    // michid defer compacted items are not in the compaction map -> performance regression
+    //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
     public SegmentNodeState writeNode(NodeState state) throws IOException {
         if (state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
             if (sns != state || store.containsSegment(
                 sns.getRecordId().getSegmentId())) {
-                return sns;
+                if (!isOldGen(sns.getRecordId())) {
+                    return sns;
+                }
             }
         }
 
@@ -686,8 +692,10 @@ public class SegmentWriter {
                 SegmentNodeState sns = uncompact((SegmentNodeState) base);
                 if (sns != base || store.containsSegment(
                     sns.getRecordId().getSegmentId())) {
-                    before = sns;
-                    beforeTemplate = before.getTemplate();
+                    if (!isOldGen(sns.getRecordId())) {
+                        before = sns;
+                        beforeTemplate = before.getTemplate();
+                    }
                 }
             }
         }
@@ -696,6 +704,9 @@ public class SegmentWriter {
         RecordId templateId;
         if (before != null && template.equals(beforeTemplate)) {
             templateId = before.getTemplateId();
+            if (isOldGen(templateId)) {
+                templateId = writeTemplate(template);
+            }
         } else {
             templateId = writeTemplate(template);
         }
@@ -733,7 +744,12 @@ public class SegmentWriter {
 
             if (property instanceof SegmentPropertyState
                 && store.containsSegment(((SegmentPropertyState) property).getRecordId().getSegmentId())) {
-                pIds.add(((SegmentPropertyState) property).getRecordId());
+                RecordId pid = ((SegmentPropertyState) property).getRecordId();
+                if (isOldGen(pid)) {
+                    pIds.add(writeProperty(property));
+                } else {
+                    pIds.add(pid);
+                }
             } else if (before == null
                 || !store.containsSegment(before.getRecordId().getSegmentId())) {
                 pIds.add(writeProperty(property));
@@ -746,7 +762,12 @@ public class SegmentWriter {
                     SegmentPropertyState bp = beforeTemplate.getProperty(
                         before.getRecordId(), bt.getIndex());
                     if (property.equals(bp)) {
-                        pIds.add(bp.getRecordId()); // no changes
+                        RecordId pid = bp.getRecordId();
+                        if (isOldGen(pid)) {
+                            pIds.add(writeProperty(bp));
+                        } else {
+                            pIds.add(pid); // no changes
+                        }
                     } else if (bp.isArray() && bp.getType() != BINARIES) {
                         // reuse entries from the previous list
                         pIds.add(writeProperty(property, bp.getValueRecords()));
@@ -897,4 +918,11 @@ public class SegmentWriter {
             }
         }
     }
+
+    private boolean isOldGen(RecordId id) {
+        int thatGen = id.getSegment().getGcGen();
+        int thisGen = store.getTracker().getCompactionMap().getGeneration();
+        return thatGen < thisGen;
+    }
+
 }
