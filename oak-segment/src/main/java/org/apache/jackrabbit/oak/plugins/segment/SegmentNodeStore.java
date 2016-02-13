@@ -37,7 +37,6 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -86,11 +85,11 @@ public class SegmentNodeStore implements NodeStore, Observable {
     private final AtomicReference<SegmentNodeState> head;
 
     /**
-     * Semaphore that controls access to the {@link #head} variable.
+     * Lock that controls access to the {@link #head} variable.
      * Only a single local commit is allowed at a time. When such
      * a commit is in progress, no external updates will be seen.
      */
-    private final Semaphore commitSemaphore;
+    private final ExpeditableLock commitLock;
 
     private long maximumBackoff = MILLISECONDS.convert(10, SECONDS);
 
@@ -126,7 +125,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
         if (commitFairLock) {
             log.info("initializing SegmentNodeStore with the commitFairLock option enabled.");
         }
-        this.commitSemaphore = new Semaphore(1, commitFairLock);
+        this.commitLock = new ExpeditableLock(commitFairLock);
         this.store = store;
         this.head = new AtomicReference<SegmentNodeState>(store.getHead());
         this.changeDispatcher = new ChangeDispatcher(getRoot());
@@ -148,11 +147,11 @@ public class SegmentNodeStore implements NodeStore, Observable {
      * @throws Exception
      */
     boolean locked(Callable<Boolean> c) throws Exception {
-        if (commitSemaphore.tryAcquire()) {
+        if (commitLock.tryLock(false)) {
             try {
                 return c.call();
             } finally {
-                commitSemaphore.release();
+                commitLock.unlock();
             }
         }
         return false;
@@ -167,15 +166,15 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
-    boolean locked(Callable<Boolean> c, long timeout, TimeUnit unit) throws Exception {
-        if (commitSemaphore.tryAcquire(timeout, unit)) {
+    boolean locked(boolean expedite, Callable<Boolean> c, long timeout, TimeUnit unit) throws Exception {
+        if (commitLock.tryLock(expedite, timeout, unit)) {
             try {
                 return c.call();
             } finally {
                 // Explicitly give up reference to the previous root state
                 // otherwise they would block cleanup. See OAK-3347
                 refreshHead();
-                commitSemaphore.release();
+                commitLock.unlock();
             }
         }
         return false;
@@ -183,7 +182,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
     /**
      * Refreshes the head state. Should only be called while holding a
-     * permit from the {@link #commitSemaphore}.
+     * permit from the {@link #commitLock}.
      */
     private void refreshHead() {
         SegmentNodeState state = store.getHead();
@@ -200,11 +199,11 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
     @Override @Nonnull
     public NodeState getRoot() {
-        if (commitSemaphore.tryAcquire()) {
+        if (commitLock.tryLock(false)) {
             try {
                 refreshHead();
             } finally {
-                commitSemaphore.release();
+                commitLock.unlock();
             }
         }
         return head.get().getChildNode(ROOT);
@@ -212,11 +211,11 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
     @Nonnull
     public NodeState getSuperRoot() {
-        if (commitSemaphore.tryAcquire()) {
+        if (commitLock.tryLock(false)) {
             try {
                 refreshHead();
             } finally {
-                commitSemaphore.release();
+                commitLock.unlock();
             }
         }
         return head.get();
@@ -232,14 +231,14 @@ public class SegmentNodeStore implements NodeStore, Observable {
         checkNotNull(commitHook);
 
         try {
-            commitSemaphore.acquire();
+            commitLock.lock(false);
             try {
                 Commit commit = new Commit(snb, commitHook, info);
                 NodeState merged = commit.execute();
                 snb.reset(merged);
                 return merged;
             } finally {
-                commitSemaphore.release();
+                commitLock.unlock();
             }
         } catch (InterruptedException e) {
             currentThread().interrupt();
@@ -312,7 +311,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
         String name = UUID.randomUUID().toString();
         try {
             CPCreator cpc = new CPCreator(name, lifetime, properties);
-            if (locked(cpc, checkpointsLockWaitTime, TimeUnit.SECONDS)) {
+            if (locked(false, cpc, checkpointsLockWaitTime, TimeUnit.SECONDS)) {
                 return name;
             }
             log.warn("Failed to create checkpoint {} in {} seconds.", name,
@@ -418,7 +417,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
         // try 5 times
         for (int i = 0; i < 5; i++) {
-            if (commitSemaphore.tryAcquire()) {
+            if (commitLock.tryLock(false)) {
                 try {
                     refreshHead();
 
@@ -436,7 +435,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
                         }
                     }
                 } finally {
-                    commitSemaphore.release();
+                    commitLock.unlock();
                 }
             }
         }

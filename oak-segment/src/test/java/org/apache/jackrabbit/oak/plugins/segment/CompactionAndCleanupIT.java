@@ -320,7 +320,7 @@ public class CompactionAndCleanupIT {
         CompactionStrategy strategy = new CompactionStrategy(true, false, CLEAN_NONE, 0, (byte) 5) {
             @Override
             public boolean compacted(Callable<Boolean> setHead) throws Exception {
-                compactionSuccess.set(nodeStore.locked(setHead, 1, MINUTES));
+                compactionSuccess.set(nodeStore.locked(false, setHead, 1, MINUTES));
                 return compactionSuccess.get();
             }
         };
