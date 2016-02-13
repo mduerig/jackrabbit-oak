@@ -202,10 +202,15 @@ class SegmentBufferWriter {
 
     private void checkGCGen(SegmentId id) {
         int gen = id.getSegment().getGcGen();
-        if (gen < generation) {
-            LOG.warn("checkGen detected backref from {} to {}. {}",
-                info(this.segment), info(id.getSegment()));
+        if (gen < generation && !isCompactionMap(id)) {
+            LOG.warn("checkGen detected backref from {}",
+                info(this.segment) + " to " + info(id.getSegment()), new Exception());
         }
+    }
+
+    private static boolean isCompactionMap(SegmentId id) {
+        String info = id.getSegment().getSegmentInfo();
+        return info != null && info.contains("cm-");
     }
 
     private static String info(Segment segment) {
