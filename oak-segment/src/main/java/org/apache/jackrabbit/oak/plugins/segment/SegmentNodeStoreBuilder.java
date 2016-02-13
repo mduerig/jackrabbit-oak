@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.plugins.segment;
 
 import static com.google.common.base.Preconditions.checkState;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.GAIN_THRESHOLD_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.NO_COMPACTION;
@@ -25,10 +26,14 @@ import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Stopwatch;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.CleanupType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SegmentNodeStoreBuilder {
+    private static final Logger LOG = LoggerFactory.getLogger(SegmentNodeStoreBuilder.class);
 
     private final SegmentStore store;
 
@@ -99,11 +104,21 @@ public class SegmentNodeStoreBuilder {
                     memoryThreshold) {
 
                 @Override
-                public boolean compacted(Callable<Boolean> setHead)
+                public boolean compacted(final Callable<Boolean> setHead)
                         throws Exception {
                     // Need to guard against concurrent commits to avoid
                     // mixed segments. See OAK-2192.
-                    return segmentStore.locked(setHead, lockWaitTime, SECONDS);
+                    // TODO replace with more sophisticated lock monitoring
+                    final Stopwatch w = Stopwatch.createUnstarted();
+                    Callable<Boolean> c = new Callable<Boolean>() {
+                        @Override
+                        public Boolean call() throws Exception {
+                            LOG.info("Waited {} microseconds for compaction lock", w.elapsed(MICROSECONDS));
+                            return setHead.call();
+                        }
+                    };
+                    w.start();
+                    return segmentStore.locked(true, c, lockWaitTime, SECONDS);
                 }
             };
             compactionStrategy.setRetryCount(retryCount);
