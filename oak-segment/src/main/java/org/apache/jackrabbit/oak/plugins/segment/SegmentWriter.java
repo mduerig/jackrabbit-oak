@@ -669,13 +669,22 @@ public class SegmentWriter {
         return tid;
     }
 
+    private boolean hasSegment(NodeState node) {
+        return (node instanceof SegmentNodeState)
+            && store.containsSegment(((SegmentNodeState) node).getRecordId().getSegmentId());
+    }
+
+    private boolean hasSegment(PropertyState property) {
+        return (property instanceof SegmentPropertyState)
+            && store.containsSegment(((SegmentPropertyState) property).getRecordId().getSegmentId());
+    }
+
     // michid defer compacted items are not in the compaction map -> performance regression
     //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
     public SegmentNodeState writeNode(NodeState state) throws IOException {
         if (state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
-            if (sns != state || store.containsSegment(
-                sns.getRecordId().getSegmentId())) {
+            if (sns != state || hasSegment(sns)) {
                 if (!isOldGen(sns.getRecordId())) {
                     return sns;
                 }
@@ -690,8 +699,7 @@ public class SegmentWriter {
             NodeState base = after.getBaseState();
             if (base instanceof SegmentNodeState) {
                 SegmentNodeState sns = uncompact((SegmentNodeState) base);
-                if (sns != base || store.containsSegment(
-                    sns.getRecordId().getSegmentId())) {
+                if (sns != base || hasSegment(sns)) {
                     if (!isOldGen(sns.getRecordId())) {
                         before = sns;
                         beforeTemplate = before.getTemplate();
@@ -702,7 +710,7 @@ public class SegmentWriter {
 
         Template template = new Template(state);
         RecordId templateId;
-        if (before != null && template.equals(beforeTemplate)) {
+        if (template.equals(beforeTemplate)) {
             templateId = before.getTemplateId();
             if (isOldGen(templateId)) {
                 templateId = writeTemplate(template);
@@ -742,16 +750,14 @@ public class SegmentWriter {
             String name = pt.getName();
             PropertyState property = state.getProperty(name);
 
-            if (property instanceof SegmentPropertyState
-                && store.containsSegment(((SegmentPropertyState) property).getRecordId().getSegmentId())) {
+            if (hasSegment(property)) {
                 RecordId pid = ((SegmentPropertyState) property).getRecordId();
                 if (isOldGen(pid)) {
                     pIds.add(writeProperty(property));
                 } else {
                     pIds.add(pid);
                 }
-            } else if (before == null
-                || !store.containsSegment(before.getRecordId().getSegmentId())) {
+            } else if (before == null || !hasSegment(before)) {
                 pIds.add(writeProperty(property));
             } else {
                 // reuse previously stored property, if possible
@@ -759,8 +765,7 @@ public class SegmentWriter {
                 if (bt == null) {
                     pIds.add(writeProperty(property)); // new property
                 } else {
-                    SegmentPropertyState bp = beforeTemplate.getProperty(
-                        before.getRecordId(), bt.getIndex());
+                    SegmentPropertyState bp = beforeTemplate.getProperty(before.getRecordId(), bt.getIndex());
                     if (property.equals(bp)) {
                         RecordId pid = bp.getRecordId();
                         if (isOldGen(pid)) {
