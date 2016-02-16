@@ -69,6 +69,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.jcr.PropertyType;
 
@@ -810,7 +811,7 @@ public class SegmentWriter {
     }
 
     private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
-        int generation = ((FileStore)store).targetGen;
+        int generation = lowestGenOf(recordWriter.ids);
         String key = currentThread().toString() + "-" + generation;
         SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(key);
         try {
@@ -818,6 +819,17 @@ public class SegmentWriter {
         } finally {
             segmentBufferWriterPool.returnWriter(key, writer);
         }
+    }
+
+    private int lowestGenOf(Collection<RecordId> ids) {
+        int gen = ((FileStore)store).targetGen;
+        for (RecordId id : ids) {
+            int idGen = getGcGen(id.getSegment());
+            if (idGen < gen) {
+                gen = idGen;
+            }
+        }
+        return gen;
     }
 
     private class SegmentBufferWriterPool {
@@ -925,10 +937,6 @@ public class SegmentWriter {
         }
     }
 
-    private boolean isOldGen(RecordId recordId) {
-        return isOldGen(recordId.getSegmentId());
-    }
-
     public static int getGcGen(Segment segment) {
         if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
             String info = segment.getSegmentInfo();
@@ -946,10 +954,25 @@ public class SegmentWriter {
         return Integer.MAX_VALUE;
     }
 
-    private boolean isOldGen(SegmentId id) {
+    private boolean isOldGen(RecordId id) {
         int gen = getGcGen(id.getSegment());
         int targetGen = ((FileStore) store).targetGen;
-        return gen < targetGen;
+
+        if (gen < targetGen) {
+            AtomicInteger permits = ((FileStore) store).compactPermits;
+            for (;;) {
+                int c = permits.get();
+                if (c > 0) {
+                    if (permits.compareAndSet(c, c - 1)) {
+                        return true;
+                    }
+                }  else {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
     }
 
 }

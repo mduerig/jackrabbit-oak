@@ -39,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.CheckForNull;
@@ -47,6 +48,7 @@ import javax.annotation.Nonnull;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
 import org.apache.jackrabbit.oak.plugins.segment.memory.MemoryStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.commit.ChangeDispatcher;
@@ -461,6 +463,9 @@ public class SegmentNodeStore implements NodeStore, Observable {
         Commit(@Nonnull SegmentNodeBuilder builder,
                 @Nonnull CommitHook hook, @Nonnull CommitInfo info) {
             checkNotNull(builder);
+            AtomicInteger permits = ((FileStore) store).compactPermits;
+            permits.addAndGet(Math.max(0, ((FileStore) store).maxPermits - permits.get()));
+
             this.before = builder.getBaseState();
             this.after = builder.getNodeState();
 

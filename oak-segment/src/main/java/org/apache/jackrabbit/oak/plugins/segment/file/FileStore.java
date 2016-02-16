@@ -50,6 +50,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -122,6 +123,10 @@ public class FileStore implements SegmentStore {
 
     private final boolean memoryMapping;
     public volatile int targetGen;
+    public volatile int actualGen;
+    public final AtomicInteger compactPermits = new AtomicInteger();
+    public volatile int maxPermits = 10000;
+    private int commitCount = 0;
 
     private volatile List<TarReader> readers;
 
@@ -1082,8 +1087,19 @@ public class FileStore implements SegmentStore {
     @Override
     public boolean setHead(SegmentNodeState base, SegmentNodeState head) {
         RecordId id = this.head.get();
-        return id.equals(base.getRecordId())
-                && this.head.compareAndSet(id, head.getRecordId());
+        boolean result = id.equals(base.getRecordId())
+            && this.head.compareAndSet(id, head.getRecordId());
+
+        if (result && actualGen != targetGen) {
+            actualGen = SegmentWriter.getGcGen(head.getRecordId().getSegment());
+            commitCount++;
+            if (targetGen == actualGen) {
+                log.info("TarMK compaction reached target gen {} after {} commits", targetGen, commitCount);
+                commitCount = 0;
+            }
+        }
+
+        return result;
     }
 
     @Override

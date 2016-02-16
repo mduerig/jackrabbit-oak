@@ -30,6 +30,13 @@ public interface SegmentCompactionMBean {
      */
     void stop();
 
+    void compact();
+
+    void cleanup();
+
+    int getMaxGCPermits();
+    void setMaxGCPermits(int permits);
+
     /**
      * Set the core pool size of the scheduler used to execute concurrent
      * operations.

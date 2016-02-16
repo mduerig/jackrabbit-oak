@@ -158,7 +158,7 @@ public class SegmentCompactionIT {
     private volatile int nodeAddRatio = 40;
     private volatile int addStringRatio = 20;
     private volatile int addBinaryRatio = 0;
-    private volatile int compactionInterval = 1;
+    private volatile int compactionInterval = 1000;
     private volatile boolean stopping;
     private volatile Reference rootReference;
     private volatile long fileStoreSize;
@@ -166,6 +166,22 @@ public class SegmentCompactionIT {
     public synchronized void stop() {
         stopping = true;
         notifyAll();
+    }
+
+    public void compact() {
+        try {
+            fileStore.compact();
+        } catch (IOException e) {
+            e.printStackTrace();  // michid implement catch e
+        }
+    }
+
+    public void cleanup() {
+        try {
+            fileStore.cleanup();
+        } catch (IOException e) {
+            e.printStackTrace();  // michid implement catch e
+        }
     }
 
     public void addReaders(int count) {
@@ -309,7 +325,7 @@ public class SegmentCompactionIT {
             public void run() {
                 fileStoreSize = fileStore.size();
             }
-        }, 1, 1, MINUTES);
+        }, 10, 10, SECONDS);
     }
 
     private synchronized void scheduleCompactor() {
@@ -764,8 +780,28 @@ public class SegmentCompactionIT {
         }
 
         @Override
+        public void compact() {
+            SegmentCompactionIT.this.compact();
+        }
+
+        @Override
+        public void cleanup() {
+            SegmentCompactionIT.this.cleanup();
+        }
+
+        @Override
         public void setCorePoolSize(int corePoolSize) {
             executor.setCorePoolSize(corePoolSize);
+        }
+
+        @Override
+        public int getMaxGCPermits() {
+            return SegmentCompactionIT.this.fileStore.maxPermits;
+        }
+
+        @Override
+        public void setMaxGCPermits(int permits) {
+            SegmentCompactionIT.this.fileStore.maxPermits = permits;
         }
 
         @Override

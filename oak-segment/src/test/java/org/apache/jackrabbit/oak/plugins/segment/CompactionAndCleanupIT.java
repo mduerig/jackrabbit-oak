@@ -488,11 +488,16 @@ public class CompactionAndCleanupIT {
                     builder.setChildNode("n");
                     nodeStore.merge(builder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                     nodeStore.merge(preGCBuilder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
-                } else {
+                }
+
+                int k = 0;
+                while (SegmentWriter.getGcGen(fileStore.getHead().getSegment()) < fileStore.targetGen) {
                     NodeBuilder b = nodeStore.getRoot().builder();
-                    b.setProperty("foo", "bar");
+                    b.setProperty("foo", k++);
                     nodeStore.merge(b, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                 }
+                System.out.println(ref + " " + k);
+
             } finally {
                 fileStore.close();
             }
