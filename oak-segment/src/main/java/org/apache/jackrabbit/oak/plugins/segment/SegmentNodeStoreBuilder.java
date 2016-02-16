@@ -118,7 +118,7 @@ public class SegmentNodeStoreBuilder {
                         }
                     };
                     w.start();
-                    return segmentStore.locked(true, c, lockWaitTime, SECONDS);
+                    return segmentStore.locked(c, lockWaitTime, SECONDS);
                 }
             };
             compactionStrategy.setRetryCount(retryCount);
