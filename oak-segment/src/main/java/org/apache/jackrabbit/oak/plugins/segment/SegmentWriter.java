@@ -575,8 +575,6 @@ public class SegmentWriter {
                 RecordId valueId = previousValues.get(value);
                 if (valueId == null) {
                     valueId = writeString(value);
-                } else if (isOldGen(valueId)) {
-                    valueId = writeString(value);
                 }
                 valueIds.add(valueId);
             }
@@ -712,9 +710,6 @@ public class SegmentWriter {
         RecordId templateId;
         if (template.equals(beforeTemplate)) {
             templateId = before.getTemplateId();
-            if (isOldGen(templateId)) {
-                templateId = writeTemplate(template);
-            }
         } else {
             templateId = writeTemplate(template);
         }
@@ -767,12 +762,7 @@ public class SegmentWriter {
                 } else {
                     SegmentPropertyState bp = beforeTemplate.getProperty(before.getRecordId(), bt.getIndex());
                     if (property.equals(bp)) {
-                        RecordId pid = bp.getRecordId();
-                        if (isOldGen(pid)) {
-                            pIds.add(writeProperty(bp));
-                        } else {
-                            pIds.add(pid); // no changes
-                        }
+                        pIds.add(bp.getRecordId()); // no changes
                     } else if (bp.isArray() && bp.getType() != BINARIES) {
                         // reuse entries from the previous list
                         pIds.add(writeProperty(property, bp.getValueRecords()));
