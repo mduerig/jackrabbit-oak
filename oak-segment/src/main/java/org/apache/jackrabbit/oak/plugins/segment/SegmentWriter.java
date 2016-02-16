@@ -677,6 +677,13 @@ public class SegmentWriter {
             && store.containsSegment(((SegmentPropertyState) property).getRecordId().getSegmentId());
     }
 
+    private void add(List<RecordId> ids, RecordId id) {
+        ids.add(id);
+        if (isOldGen(id)) {
+            LOG.warn("backref in writeNode to {}", id, new Exception("backref"));
+        }
+    }
+
     // michid defer compacted items are not in the compaction map -> performance regression
     //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
     public SegmentNodeState writeNode(NodeState state) throws IOException {
@@ -715,7 +722,7 @@ public class SegmentWriter {
         }
 
         List<RecordId> ids = newArrayList();
-        ids.add(templateId);
+        add(ids, templateId);
 
         String childName = template.getChildName();
         if (childName == Template.MANY_CHILD_NODES) {
@@ -735,9 +742,9 @@ public class SegmentWriter {
                         writeNode(entry.getNodeState()).getRecordId());
                 }
             }
-            ids.add(writeMap(base, childNodes).getRecordId());
+            add(ids, writeMap(base, childNodes).getRecordId());
         } else if (childName != Template.ZERO_CHILD_NODES) {
-            ids.add(writeNode(state.getChildNode(template.getChildName())).getRecordId());
+            add(ids, writeNode(state.getChildNode(template.getChildName())).getRecordId());
         }
 
         List<RecordId> pIds = newArrayList();
@@ -748,26 +755,26 @@ public class SegmentWriter {
             if (hasSegment(property)) {
                 RecordId pid = ((SegmentPropertyState) property).getRecordId();
                 if (isOldGen(pid)) {
-                    pIds.add(writeProperty(property));
+                    add(pIds, writeProperty(property));
                 } else {
-                    pIds.add(pid);
+                    add(pIds, pid);
                 }
             } else if (before == null || !hasSegment(before)) {
-                pIds.add(writeProperty(property));
+                add(pIds, writeProperty(property));
             } else {
                 // reuse previously stored property, if possible
                 PropertyTemplate bt = beforeTemplate.getPropertyTemplate(name);
                 if (bt == null) {
-                    pIds.add(writeProperty(property)); // new property
+                    add(pIds, writeProperty(property)); // new property
                 } else {
                     SegmentPropertyState bp = beforeTemplate.getProperty(before.getRecordId(), bt.getIndex());
                     if (property.equals(bp)) {
-                        pIds.add(bp.getRecordId()); // no changes
+                        add(pIds, bp.getRecordId()); // no changes
                     } else if (bp.isArray() && bp.getType() != BINARIES) {
                         // reuse entries from the previous list
-                        pIds.add(writeProperty(property, bp.getValueRecords()));
+                        add(pIds, writeProperty(property, bp.getValueRecords()));
                     } else {
-                        pIds.add(writeProperty(property));
+                        add(pIds, writeProperty(property));
                     }
                 }
             }
