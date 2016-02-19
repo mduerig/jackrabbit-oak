@@ -110,6 +110,7 @@ class SegmentBufferWriter {
      */
     private int position;
     private int generation;
+    private OnBackRef onBackRef;
 
     public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) throws IOException {
         this.store = store;
@@ -200,23 +201,42 @@ class SegmentBufferWriter {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
+    public interface OnBackRef {
+        void backRef(SegmentId from, SegmentId to);
+    }
+
     private void checkGCGen(SegmentId id) {
         int gen = id.getSegment().getGcGen();
         if (gen < generation && !isCompactionMap(id)) {
-            LOG.warn("checkGen detected backref from {}",
-                info(this.segment) + " to " + info(id.getSegment()), new Exception());
+            if (onBackRef != null) {
+                onBackRef.backRef(this.segment.getSegmentId(), id);
+            }
         }
     }
+
+    private static class LogOnBackRef implements OnBackRef {
+        @Override
+        public void backRef(SegmentId from, SegmentId to) {
+            logBackRef(LOG, from, to);
+        }
+    }
+
+    public static void logBackRef(Logger logger, SegmentId from, SegmentId to) {
+        logger.warn("checkGen detected backref from {}",
+            info(from) + " to " + info(to), new Exception());
+    }
+
+    public static final OnBackRef LOG_ON_BACK_REF = new LogOnBackRef();
 
     private static boolean isCompactionMap(SegmentId id) {
         String info = id.getSegment().getSegmentInfo();
         return info != null && info.contains("cm-");
     }
 
-    private static String info(Segment segment) {
-        String info = segment.getSegmentId().toString();
-        if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
-            info += (" " + segment.getSegmentInfo());
+    private static String info(SegmentId id) {
+        String info = id.toString();
+        if (isDataSegmentId(id.getLeastSignificantBits())) {
+            info += (" " + id.getSegment().getSegmentInfo());
         }
         return info;
     }
@@ -418,4 +438,7 @@ class SegmentBufferWriter {
         return id;
     }
 
+    public void setOnBackRef(OnBackRef onBackRef) {
+        this.onBackRef = onBackRef;
+    }
 }

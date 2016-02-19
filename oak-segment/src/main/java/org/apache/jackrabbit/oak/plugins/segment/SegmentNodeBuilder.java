@@ -23,6 +23,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeBuilder;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentBufferWriter.OnBackRef;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -103,17 +104,37 @@ public class SegmentNodeBuilder extends MemoryNodeBuilder {
 
     //-------------------------------------------------------< NodeBuilder >--
 
+    private static class RetryOnBackRef implements OnBackRef {
+        static class BackRefException extends RuntimeException{}
+        static final BackRefException BACK_REF_EXCEPTION = new BackRefException();
+        @Override
+        public void backRef(SegmentId from, SegmentId to) {
+            SegmentBufferWriter.logBackRef(LOG, from, to);
+            throw BACK_REF_EXCEPTION;
+        }
+    }
+
+    private static OnBackRef RETRY_ON_BACKREF = new RetryOnBackRef();
+
     @Nonnull
     @Override
     public SegmentNodeState getNodeState() {
         try {
             NodeState state = super.getNodeState();
-            SegmentNodeState sstate = writer.writeNode(state);
-            if (state != sstate) {
-                set(sstate);
-                updateCount = 0;
+            int count = 0;
+            for (;;) {
+                try {
+                    // michid this assumes we are the only one calling writeNode from outside the commit lock
+                    SegmentNodeState sstate = writer.writeNode(state, RETRY_ON_BACKREF);
+                    if (state != sstate) {
+                        set(sstate);
+                        updateCount = 0;
+                    }
+                    return sstate;
+                } catch (RetryOnBackRef.BackRefException bre) {
+                    LOG.warn("ackref retry {}", ++count);
+                }
             }
-            return sstate;
         } catch (IOException e) {
             LOG.error("Error flushing changes", e);
             throw new IllegalStateException("Unexpected IOException", e);

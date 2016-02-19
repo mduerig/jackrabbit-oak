@@ -75,6 +75,7 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.RecordWriters.RecordWriter;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentBufferWriter.OnBackRef;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -687,6 +688,10 @@ public class SegmentWriter {
     // michid defer compacted items are not in the compaction map -> performance regression
     //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
     public SegmentNodeState writeNode(NodeState state) throws IOException {
+        return writeNode(state, SegmentBufferWriter.LOG_ON_BACK_REF);
+    }
+
+    public SegmentNodeState writeNode(NodeState state, OnBackRef onBackRef) throws IOException {
         if (state instanceof SegmentNodeState) {
             SegmentNodeState sns = uncompact((SegmentNodeState) state);
             if (sns != state || hasSegment(sns)) {
@@ -732,19 +737,19 @@ public class SegmentWriter {
                 && before.getChildNodeCount(2) > 1
                 && after.getChildNodeCount(2) > 1) {
                 base = before.getChildNodeMap();
-                childNodes = new ChildNodeCollectorDiff().diff(before, after);
+                childNodes = new ChildNodeCollectorDiff(onBackRef).diff(before, after);
             } else {
                 base = null;
                 childNodes = newHashMap();
                 for (ChildNodeEntry entry : state.getChildNodeEntries()) {
                     childNodes.put(
                         entry.getName(),
-                        writeNode(entry.getNodeState()).getRecordId());
+                        writeNode(entry.getNodeState(), onBackRef).getRecordId());
                 }
             }
             add(ids, writeMap(base, childNodes).getRecordId());
         } else if (childName != Template.ZERO_CHILD_NODES) {
-            add(ids, writeNode(state.getChildNode(template.getChildName())).getRecordId());
+            add(ids, writeNode(state.getChildNode(template.getChildName()), onBackRef).getRecordId());
         }
 
         List<RecordId> pIds = newArrayList();
@@ -787,7 +792,7 @@ public class SegmentWriter {
                 ids.addAll(pIds);
             }
         }
-        return writeRecord(newNodeStateWriter(ids));
+        return writeRecord(newNodeStateWriter(ids), onBackRef);
     }
 
     /**
@@ -808,8 +813,13 @@ public class SegmentWriter {
     }
 
     private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
+        return writeRecord(recordWriter, SegmentBufferWriter.LOG_ON_BACK_REF);
+    }
+
+    private <T> T writeRecord(RecordWriter<T> recordWriter, OnBackRef onBackRef) throws IOException {
         SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
         try {
+            writer.setOnBackRef(onBackRef);
             return recordWriter.write(writer);
         } finally {
             segmentBufferWriterPool.returnWriter(currentThread(), writer);
@@ -880,12 +890,17 @@ public class SegmentWriter {
 
     private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
         private final Map<String, RecordId> childNodes = newHashMap();
+        private final OnBackRef onBackRef;
         private IOException exception;
+
+        public ChildNodeCollectorDiff(OnBackRef onBackRef) {
+            this.onBackRef = onBackRef;
+        }
 
         @Override
         public boolean childNodeAdded(String name, NodeState after) {
             try {
-                childNodes.put(name, writeNode(after).getRecordId());
+                childNodes.put(name, writeNode(after, onBackRef).getRecordId());
             } catch (IOException e) {
                 exception = e;
                 return false;
@@ -897,7 +912,7 @@ public class SegmentWriter {
         public boolean childNodeChanged(
             String name, NodeState before, NodeState after) {
             try {
-                childNodes.put(name, writeNode(after).getRecordId());
+                childNodes.put(name, writeNode(after, onBackRef).getRecordId());
             } catch (IOException e) {
                 exception = e;
                 return false;
