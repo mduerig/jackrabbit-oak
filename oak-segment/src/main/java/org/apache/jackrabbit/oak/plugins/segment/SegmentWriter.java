@@ -29,10 +29,8 @@ import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Lists.newArrayListWithExpectedSize;
 import static com.google.common.collect.Lists.partition;
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.io.ByteStreams.read;
 import static com.google.common.io.Closeables.close;
-import static java.lang.String.valueOf;
 import static java.lang.Thread.currentThread;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -66,7 +64,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.jcr.PropertyType;
 
@@ -191,7 +188,7 @@ public class SegmentWriter {
                     if (value.equals(entry.getValue())) {
                         return base;
                     } else {
-                        return writeRecord(newMapBranchWriter(entry.getHash(),
+                        return writeMapRecord(newMapBranchWriter(entry.getHash(),
                                 asList(entry.getKey(), value, base.getRecordId())));
                     }
                 }
@@ -226,7 +223,7 @@ public class SegmentWriter {
         checkElementIndex(size, MapRecord.MAX_SIZE);
         checkPositionIndex(level, MapRecord.MAX_NUMBER_OF_LEVELS);
         checkArgument(size != 0 || level == MapRecord.MAX_NUMBER_OF_LEVELS);
-        return writeRecord(newMapLeafWriter(level, entries));
+        return writeMapRecord(newMapLeafWriter(level, entries));
     }
 
     private MapRecord writeMapBranch(int level, int size, MapRecord[] buckets) throws IOException {
@@ -238,7 +235,7 @@ public class SegmentWriter {
                 bucketIds.add(buckets[i].getRecordId());
             }
         }
-        return writeRecord(newMapBranchWriter(level, size, bitmap, bucketIds));
+        return writeMapRecord(newMapBranchWriter(level, size, bitmap, bucketIds));
     }
 
     private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level) throws IOException {
@@ -247,7 +244,7 @@ public class SegmentWriter {
             if (base != null) {
                 return base;
             } else if (level == 0) {
-                return writeRecord(newMapLeafWriter());
+                return writeMapRecord(newMapLeafWriter());
             } else {
                 return null;
             }
@@ -765,7 +762,7 @@ public class SegmentWriter {
                 ids.addAll(pIds);
             }
         }
-        return writeRecord(newNodeStateWriter(ids));
+        return writeNodeState(newNodeStateWriter(ids));
     }
 
     /**
@@ -785,83 +782,20 @@ public class SegmentWriter {
         }
     }
 
-    private <T> T writeRecord(RecordWriter<T> recordWriter) throws IOException {
+    private SegmentNodeState writeNodeState(RecordWriter recordWriter) throws IOException {
+        return new SegmentNodeState(writeRecord(recordWriter));
+    }
+
+    private MapRecord writeMapRecord(RecordWriter recordWriter) throws IOException {
+        return new MapRecord(writeRecord(recordWriter));
+    }
+
+    private RecordId writeRecord(RecordWriter recordWriter) throws IOException {
         SegmentBufferWriter writer = segmentBufferWriterPool.borrowWriter(currentThread());
         try {
             return recordWriter.write(writer);
         } finally {
             segmentBufferWriterPool.returnWriter(currentThread(), writer);
-        }
-    }
-
-    private static class SegmentBufferWriterPool {
-        private final Set<SegmentBufferWriter> borrowed = newHashSet();
-        private final Map<Object, SegmentBufferWriter> writers = newHashMap();
-        private final SegmentStore store;
-        private final SegmentVersion version;
-        private final String wid;
-
-        private short writerId = -1;
-
-        public SegmentBufferWriterPool(SegmentStore store, SegmentVersion version, String wid) {
-            this.store = store;
-            this.version = version;
-            this.wid = wid;
-        }
-
-        public void flush() throws IOException {
-            List<SegmentBufferWriter> toFlush = newArrayList();
-            synchronized (this) {
-                toFlush.addAll(writers.values());
-                writers.clear();
-                borrowed.clear();
-            }
-            // Call flush from outside a synchronized context to avoid
-            // deadlocks of that method calling SegmentStore.writeSegment
-            for (SegmentBufferWriter writer : toFlush) {
-                writer.flush();
-            }
-        }
-
-        public synchronized SegmentBufferWriter borrowWriter(Object key) {
-            SegmentBufferWriter writer = writers.remove(key);
-            if (writer == null) {
-                writer = new SegmentBufferWriter(store, version, wid + "." + getWriterId());
-            }
-            borrowed.add(writer);
-            return writer;
-        }
-
-        public void returnWriter(Object key, SegmentBufferWriter writer) throws IOException {
-            if (!tryReturn(key, writer)) {
-                // Delayed flush this writer as it was borrowed while flush() was called.
-                writer.flush();
-            }
-        }
-
-        private synchronized boolean tryReturn(Object key, SegmentBufferWriter writer) {
-            if (borrowed.remove(writer)) {
-                writers.put(key, writer);
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        private synchronized String getWriterId() {
-            if (++writerId > 9999) {
-                writerId = 0;
-            }
-            // Manually padding seems to be fastest here
-            if (writerId < 10) {
-                return "000" + writerId;
-            } else if (writerId < 100) {
-                return "00" + writerId;
-            } else if (writerId < 1000) {
-                return "0" + writerId;
-            } else {
-                return valueOf(writerId);
-            }
         }
     }
 
