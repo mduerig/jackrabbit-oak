@@ -29,10 +29,8 @@ import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Lists.newArrayListWithExpectedSize;
 import static com.google.common.collect.Lists.partition;
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.io.ByteStreams.read;
 import static com.google.common.io.Closeables.close;
-import static java.lang.String.valueOf;
 import static java.lang.Thread.currentThread;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -66,7 +64,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javax.jcr.PropertyType;
 
@@ -90,7 +87,7 @@ public class SegmentWriter {
 
     static final int BLOCK_SIZE = 1 << 12; // 4kB
 
-    private final SegmentBufferWriterPool segmentBufferWriterPool = new SegmentBufferWriterPool();
+    private final SegmentBufferWriterPool segmentBufferWriterPool;
 
     private static final int STRING_RECORDS_CACHE_SIZE = Integer.getInteger(
             "oak.segment.writer.stringsCacheSize", 15000);
@@ -158,6 +155,7 @@ public class SegmentWriter {
         this.store = store;
         this.version = version;
         this.wid = wid;
+        this.segmentBufferWriterPool = new SegmentBufferWriterPool(store, version, wid);
     }
 
     public void flush() throws IOException {
@@ -790,68 +788,6 @@ public class SegmentWriter {
             return recordWriter.write(writer);
         } finally {
             segmentBufferWriterPool.returnWriter(currentThread(), writer);
-        }
-    }
-
-    private class SegmentBufferWriterPool {
-        private final Set<SegmentBufferWriter> borrowed = newHashSet();
-        private final Map<Object, SegmentBufferWriter> writers = newHashMap();
-
-        private short writerId = -1;
-
-        public void flush() throws IOException {
-            List<SegmentBufferWriter> toFlush = newArrayList();
-            synchronized (this) {
-                toFlush.addAll(writers.values());
-                writers.clear();
-                borrowed.clear();
-            }
-            // Call flush from outside a synchronized context to avoid
-            // deadlocks of that method calling SegmentStore.writeSegment
-            for (SegmentBufferWriter writer : toFlush) {
-                writer.flush();
-            }
-        }
-
-        public synchronized SegmentBufferWriter borrowWriter(Object key) throws IOException {
-            SegmentBufferWriter writer = writers.remove(key);
-            if (writer == null) {
-                writer = new SegmentBufferWriter(store, version, wid + "." + getWriterId());
-            }
-            borrowed.add(writer);
-            return writer;
-        }
-
-        public void returnWriter(Object key, SegmentBufferWriter writer) throws IOException {
-            if (!tryReturn(key, writer)) {
-                // Delayed flush this writer as it was borrowed while flush() was called.
-                writer.flush();
-            }
-        }
-
-        private synchronized boolean tryReturn(Object key, SegmentBufferWriter writer) {
-            if (borrowed.remove(writer)) {
-                writers.put(key, writer);
-                return true;
-            } else {
-                return false;
-            }
-        }
-
-        private synchronized String getWriterId() {
-            if (++writerId > 9999) {
-                writerId = 0;
-            }
-            // Manually padding seems to be fastest here
-            if (writerId < 10) {
-                return "000" + writerId;
-            } else if (writerId < 100) {
-                return "00" + writerId;
-            } else if (writerId < 1000) {
-                return "0" + writerId;
-            } else {
-                return valueOf(writerId);
-            }
         }
     }
 
