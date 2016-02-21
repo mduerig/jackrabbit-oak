@@ -90,7 +90,7 @@ public class SegmentWriter {
 
     static final int BLOCK_SIZE = 1 << 12; // 4kB
 
-    private final SegmentBufferWriterPool segmentBufferWriterPool = new SegmentBufferWriterPool();
+    private final SegmentBufferWriterPool segmentBufferWriterPool;
 
     private static final int STRING_RECORDS_CACHE_SIZE = Integer.getInteger(
             "oak.segment.writer.stringsCacheSize", 15000);
@@ -158,6 +158,7 @@ public class SegmentWriter {
         this.store = store;
         this.version = version;
         this.wid = wid;
+        this.segmentBufferWriterPool = new SegmentBufferWriterPool(store, version, wid);
     }
 
     public void flush() throws IOException {
@@ -793,11 +794,20 @@ public class SegmentWriter {
         }
     }
 
-    private class SegmentBufferWriterPool {
+    private static class SegmentBufferWriterPool {
         private final Set<SegmentBufferWriter> borrowed = newHashSet();
         private final Map<Object, SegmentBufferWriter> writers = newHashMap();
+        private final SegmentStore store;
+        private final SegmentVersion version;
+        private final String wid;
 
         private short writerId = -1;
+
+        public SegmentBufferWriterPool(SegmentStore store, SegmentVersion version, String wid) {
+            this.store = store;
+            this.version = version;
+            this.wid = wid;
+        }
 
         public void flush() throws IOException {
             List<SegmentBufferWriter> toFlush = newArrayList();
