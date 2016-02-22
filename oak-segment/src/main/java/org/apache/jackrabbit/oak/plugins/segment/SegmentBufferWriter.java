@@ -28,7 +28,6 @@ import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.arraycopy;
 import static java.lang.System.currentTimeMillis;
-import static java.lang.System.identityHashCode;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newValueWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.RECORD_ID_BYTES;
@@ -89,6 +88,8 @@ class SegmentBufferWriter {
 
     private final SegmentTracker tracker;
 
+    private final int generation;
+
     /**
      * The segment write buffer, filled from the end to the beginning
      * (see OAK-629).
@@ -112,13 +113,15 @@ class SegmentBufferWriter {
     public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) {
         this.store = store;
         this.version = version;
-        this.wid = (wid == null
-                ? "w-" + identityHashCode(this)
-                : wid);
-
+        this.wid = wid;
         this.tracker = store.getTracker();
+        this.generation = tracker.getCompactionMap().getGeneration();
         this.buffer = createNewBuffer(version);
-        newSegment(this.wid);
+        newSegment();
+    }
+
+    int getGeneration() {
+        return generation;
     }
 
     /**
@@ -134,13 +137,12 @@ class SegmentBufferWriter {
      * <li>{@code T} is a time stamp according to {@link System#currentTimeMillis()}.</li>
      * </ul>
      * The segment meta data is guaranteed to be the first string record in a segment.
-     * @param wid  the writer id
      */
-    private void newSegment(String wid) {
+    private void newSegment() {
         this.segment = new Segment(tracker, buffer);
         String metaInfo = "{\"wid\":\"" + wid + '"' +
                 ",\"sno\":" + tracker.getNextSegmentNo() +
-                ",\"gc\":" + tracker.getCompactionMap().getGeneration() +
+                ",\"gc\":" + generation +
                 ",\"t\":" + currentTimeMillis() + "}";
         try {
             byte[] data = metaInfo.getBytes(UTF_8);
@@ -307,7 +309,7 @@ class SegmentBufferWriter {
             blobrefs.clear();
             length = 0;
             position = buffer.length;
-            newSegment(wid);
+            newSegment();
         }
     }
 

@@ -22,7 +22,6 @@ package org.apache.jackrabbit.oak.plugins.segment;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
-import static java.lang.String.valueOf;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,9 +31,10 @@ import java.util.Set;
 /**
  * michid document
  */
-class SegmentBufferWriterPool {
-    private final Set<SegmentBufferWriter> borrowed = newHashSet();
+class SegmentBufferWriterPool {  // michid make inner of SegmentTracker?
     private final Map<Object, SegmentBufferWriter> writers = newHashMap();
+    private final Set<SegmentBufferWriter> borrowed = newHashSet();
+    private final Set<SegmentBufferWriter> disposed = newHashSet();
     private final SegmentStore store;
     private final SegmentVersion version;
     private final String wid;
@@ -51,7 +51,9 @@ class SegmentBufferWriterPool {
         List<SegmentBufferWriter> toFlush = newArrayList();
         synchronized (this) {
             toFlush.addAll(writers.values());
+            toFlush.addAll(disposed);
             writers.clear();
+            disposed.clear();
             borrowed.clear();
         }
         // Call flush from outside a synchronized context to avoid
@@ -64,41 +66,37 @@ class SegmentBufferWriterPool {
     public synchronized SegmentBufferWriter borrowWriter(Object key) {
         SegmentBufferWriter writer = writers.remove(key);
         if (writer == null) {
-            writer = new SegmentBufferWriter(store, version, wid + "." + getWriterId());
+            writer = new SegmentBufferWriter(store, version, getWriterId(wid));
+        } else if (writer.getGeneration() != store.getTracker().getCompactionMap().getGeneration()) {  // michid improve gen tracking
+            disposed.add(writer);
+            writer = new SegmentBufferWriter(store, version, getWriterId(wid));
         }
         borrowed.add(writer);
         return writer;
     }
 
-    public void returnWriter(Object key, SegmentBufferWriter writer) throws IOException {
-        if (!tryReturn(key, writer)) {
-            // Delayed flush this writer as it was borrowed while flush() was called.
-            writer.flush();
-        }
-    }
-
-    private synchronized boolean tryReturn(Object key, SegmentBufferWriter writer) {
+    public synchronized void returnWriter(Object key, SegmentBufferWriter writer) throws IOException {
         if (borrowed.remove(writer)) {
             writers.put(key, writer);
-            return true;
         } else {
-            return false;
+            // Defer flush this writer as it was borrowed while flush() was called.
+            disposed.add(writer);
         }
     }
 
-    private synchronized String getWriterId() {
+    private synchronized String getWriterId(String wid) {
         if (++writerId > 9999) {
             writerId = 0;
         }
-        // Manually padding seems to be fastest here
+        // Manual padding seems to be fastest here  michid no need to be fast anymore. use format
         if (writerId < 10) {
-            return "000" + writerId;
+            return wid + "000" + writerId;
         } else if (writerId < 100) {
-            return "00" + writerId;
+            return wid + "00" + writerId;
         } else if (writerId < 1000) {
-            return "0" + writerId;
+            return wid + "0" + writerId;
         } else {
-            return valueOf(writerId);
+            return wid + writerId;
         }
     }
 }
