@@ -130,7 +130,7 @@ public class SegmentTracker {
         this.store = store;
         this.compactionMap = new AtomicReference<CompactionMap>(
                 CompactionMap.EMPTY);
-        this.writer = createSegmentWriter("sys");
+        this.writer = new SegmentWriter(store, segmentVersion, "sys");
         StringCache c;
         if (DISABLE_STRING_CACHE) {
             c = null;
@@ -170,11 +170,8 @@ public class SegmentTracker {
         return segmentCounter.incrementAndGet();
     }
 
-    /**
-     * @return  a new {@link SegmentWriter} instance for writing to this store.
-     */
-    public final SegmentWriter createSegmentWriter(String wid) {
-        return new SegmentWriter(store, segmentVersion, wid);
+    SegmentVersion getSegmentVersion() {
+        return segmentVersion;
     }
 
     @Nonnull

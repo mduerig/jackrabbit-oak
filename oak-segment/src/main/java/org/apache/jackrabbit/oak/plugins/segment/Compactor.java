@@ -128,14 +128,14 @@ public class Compactor {
     }
 
     public Compactor(SegmentStore store, Supplier<Boolean> cancel) {
-        this(store, createWriter(store.getTracker()),
+        this(store, createWriter(store),
             new InMemoryCompactionMap(store.getTracker()), false, cancel);
     }
 
     public Compactor(SegmentStore store, CompactionStrategy compactionStrategy, Supplier<Boolean> cancel) {
         this(
             store,
-            createWriter(store.getTracker()),
+            createWriter(store),
             compactionStrategy.getPersistCompactionMap()
                 ? new PersistedCompactionMap(store.getTracker())
                 : new InMemoryCompactionMap(store.getTracker()),
@@ -147,8 +147,10 @@ public class Compactor {
         }
     }
 
-    private static SegmentWriter createWriter(SegmentTracker tracker) {
-        return tracker.createSegmentWriter("c-" + (tracker.getCompactionMap().getGeneration() + 1));
+    private static SegmentWriter createWriter(SegmentStore store) {
+        SegmentTracker tracker = store.getTracker();
+        return new SegmentWriter(store,  tracker.getSegmentVersion(),
+            "c-" + (tracker.getCompactionMap().getGeneration() + 1));
     }
 
     protected SegmentNodeBuilder process(NodeState before, NodeState after, NodeState onto) throws IOException {

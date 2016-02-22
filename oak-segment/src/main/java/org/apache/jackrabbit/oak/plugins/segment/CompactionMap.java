@@ -157,7 +157,7 @@ public class CompactionMap {
         return maps.size();
     }
 
-    public int getGeneration() {
+    public int getGeneration() {  // michid improve gen handling
         return generation;
     }
 
