@@ -55,7 +55,7 @@ public class FileStoreRestore {
         FileStore store = newFileStore(destination).create();
         SegmentNodeState current = store.getHead();
         try {
-            Compactor compactor = new Compactor(store.getTracker());
+            Compactor compactor = new Compactor(store);
             compactor.setDeepCheckLargeBinaries(true);
             SegmentNodeState after = compactor.compact(current,
                     restore.getHead(), current);

@@ -64,7 +64,7 @@ public class Compactor {
                 r.getSegmentId().getLeastSignificantBits(), r.getOffset() };
     }
 
-    private final SegmentTracker tracker;
+    private final SegmentStore store;
 
     private final SegmentWriter writer;
 
@@ -114,36 +114,41 @@ public class Compactor {
      */
     private final Supplier<Boolean> cancel;
 
-    public Compactor(SegmentTracker tracker) {
-        this(tracker, Suppliers.ofInstance(false));
-    }
-
-    public Compactor(SegmentTracker tracker, Supplier<Boolean> cancel) {
-        this.tracker = tracker;
-        this.writer = tracker.getWriter();
-        this.map = new InMemoryCompactionMap(tracker);
-        this.cloneBinaries = false;
+    private Compactor(SegmentStore store, SegmentWriter writer, PartialCompactionMap map,
+            boolean cloneBinaries, Supplier<Boolean> cancel) {
+        this.store = store;
+        this.writer = writer;
+        this.map = map;
+        this.cloneBinaries = cloneBinaries;
         this.cancel = cancel;
     }
 
-    public Compactor(SegmentTracker tracker, CompactionStrategy compactionStrategy) {
-        this(tracker, compactionStrategy, Suppliers.ofInstance(false));
+    public Compactor(SegmentStore store) {
+        this(store, Suppliers.ofInstance(false));
     }
 
-    public Compactor(SegmentTracker tracker, CompactionStrategy compactionStrategy, Supplier<Boolean> cancel) {
-        this.tracker = tracker;
-        String wid = "c-" + (tracker.getCompactionMap().getGeneration() + 1);
-        this.writer = tracker.createSegmentWriter(wid);
-        if (compactionStrategy.getPersistCompactionMap()) {
-            this.map = new PersistedCompactionMap(tracker);
-        } else {
-            this.map = new InMemoryCompactionMap(tracker);
-        }
-        this.cloneBinaries = compactionStrategy.cloneBinaries();
+    public Compactor(SegmentStore store, Supplier<Boolean> cancel) {
+        this(store, createWriter(store.getTracker()),
+            new InMemoryCompactionMap(store.getTracker()), false, cancel);
+    }
+
+    public Compactor(SegmentStore store, CompactionStrategy compactionStrategy, Supplier<Boolean> cancel) {
+        this(
+            store,
+            createWriter(store.getTracker()),
+            compactionStrategy.getPersistCompactionMap()
+                ? new PersistedCompactionMap(store.getTracker())
+                : new InMemoryCompactionMap(store.getTracker()),
+            compactionStrategy.cloneBinaries(),
+            cancel);
+
         if (compactionStrategy.isOfflineCompaction()) {
             includeInMap = new OfflineCompactionPredicate();
         }
-        this.cancel = cancel;
+    }
+
+    private static SegmentWriter createWriter(SegmentTracker tracker) {
+        return tracker.createSegmentWriter("c-" + (tracker.getCompactionMap().getGeneration() + 1));
     }
 
     protected SegmentNodeBuilder process(NodeState before, NodeState after, NodeState onto) throws IOException {
@@ -359,11 +364,11 @@ public class Compactor {
                 boolean clone = cloneBinaries;
                 if (deepCheckLargeBinaries) {
                     clone = clone
-                            || !tracker.getStore().containsSegment(
+                            || !store.containsSegment(
                                     id.getSegmentId());
                     if (!clone) {
                         for (SegmentId bid : SegmentBlob.getBulkSegmentIds(sb)) {
-                            if (!tracker.getStore().containsSegment(bid)) {
+                            if (!store.containsSegment(bid)) {
                                 clone = true;
                                 break;
                             }
