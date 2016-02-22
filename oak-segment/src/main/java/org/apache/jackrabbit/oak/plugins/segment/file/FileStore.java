@@ -805,7 +805,7 @@ public class FileStore implements SegmentStore {
             if (cleanup || !after.equals(before)) {
                 // needs to happen outside the synchronization block below to
                 // avoid a deadlock with another thread flushing the writer
-                tracker.getWriter().flush();
+                tracker.flushWriter();
 
                 // needs to happen outside the synchronization block below to
                 // prevent the flush from stopping concurrent reads and writes
@@ -1162,7 +1162,7 @@ public class FileStore implements SegmentStore {
         closeAndLogOnFail(diskSpaceThread);
         try {
             flush();
-            tracker.getWriter().dropCache();
+            tracker.dropCache();
             fileStoreLock.writeLock().lock();
             try {
                 closeAndLogOnFail(writer);
@@ -1525,8 +1525,8 @@ public class FileStore implements SegmentStore {
                 // Drop the SegmentWriter caches and flush any existing state
                 // in an attempt to prevent new references to old pre-compacted
                 // content. TODO: There should be a cleaner way to do this. (implement GCMonitor!?)
-                tracker.getWriter().dropCache();
-                tracker.getWriter().flush();
+                tracker.dropCache();
+                tracker.flushWriter();
 
                 CompactionMap cm = tracker.getCompactionMap();
                 gcMonitor.compacted(cm.getSegmentCounts(), cm.getRecordCounts(), cm.getEstimatedWeights());

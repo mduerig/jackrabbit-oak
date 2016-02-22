@@ -190,6 +190,14 @@ public class SegmentTracker {
         return writer;
     }
 
+    public void dropCache() {
+        writer.dropCache();
+    }
+
+    public void flushWriter() throws IOException {
+        writer.flush();
+    }
+
     public SegmentStore getStore() {
         return store;
     }

@@ -245,7 +245,7 @@ public class StandbyStore implements SegmentStore {
     public void cleanup() {
         if (delegate instanceof FileStore) {
             try {
-                delegate.getTracker().getWriter().dropCache();
+                delegate.getTracker().dropCache();
                 ((FileStore) delegate).flush(true);
             } catch (IOException e) {
                 log.error("Error running cleanup", e);
