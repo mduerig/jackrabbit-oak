@@ -144,8 +144,6 @@ public class SegmentWriter {
      */
     private final SegmentVersion version;
 
-    private final String wid;
-
     /**
      * @param store     store to write to
      * @param version   segment version to write
@@ -154,7 +152,6 @@ public class SegmentWriter {
     public SegmentWriter(SegmentStore store, SegmentVersion version, String wid) {
         this.store = store;
         this.version = version;
-        this.wid = wid;
         this.segmentBufferWriterPool = new SegmentBufferWriterPool(store, version, wid);
     }
 
