@@ -109,7 +109,7 @@ class SegmentBufferWriter {
      */
     private int position;
 
-    public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) throws IOException {
+    public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) {
         this.store = store;
         this.version = version;
         this.wid = (wid == null
@@ -136,15 +136,18 @@ class SegmentBufferWriter {
      * The segment meta data is guaranteed to be the first string record in a segment.
      * @param wid  the writer id
      */
-    private void newSegment(String wid) throws IOException {
+    private void newSegment(String wid) {
         this.segment = new Segment(tracker, buffer);
         String metaInfo = "{\"wid\":\"" + wid + '"' +
                 ",\"sno\":" + tracker.getNextSegmentNo() +
                 ",\"gc\":" + tracker.getCompactionMap().getGeneration() +
                 ",\"t\":" + currentTimeMillis() + "}";
-
-        byte[] data = metaInfo.getBytes(UTF_8);
-        newValueWriter(data.length, data).write(this);
+        try {
+            byte[] data = metaInfo.getBytes(UTF_8);
+            newValueWriter(data.length, data).write(this);
+        } catch (IOException e) {
+            LOG.error("Unable to write meta info to segment {} {}", segment.getSegmentId(), metaInfo);
+        }
     }
 
     static byte[] createNewBuffer(SegmentVersion v) {

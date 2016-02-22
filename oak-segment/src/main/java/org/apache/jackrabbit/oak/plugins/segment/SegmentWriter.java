@@ -813,7 +813,7 @@ public class SegmentWriter {
             }
         }
 
-        public synchronized SegmentBufferWriter borrowWriter(Object key) throws IOException {
+        public synchronized SegmentBufferWriter borrowWriter(Object key) {
             SegmentBufferWriter writer = writers.remove(key);
             if (writer == null) {
                 writer = new SegmentBufferWriter(store, version, wid + "." + getWriterId());
