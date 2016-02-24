@@ -212,15 +212,6 @@ public class Explorer {
             }
         });
 
-        JMenuItem menuPCM = new JMenuItem("Persisted Compaction Maps");
-        menuPCM.setMnemonic(KeyEvent.VK_P);
-        menuPCM.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent ev) {
-                treePanel.printPCMInfo();
-            }
-        });
-
         menuBar.add(menuReopen);
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
         menuBar.add(menuCompaction);
@@ -231,7 +222,6 @@ public class Explorer {
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
         menuBar.add(menuDiff);
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
-        menuBar.add(menuPCM);
         menuBar.add(new JSeparator(JSeparator.VERTICAL));
 
         frame.setJMenuBar(menuBar);

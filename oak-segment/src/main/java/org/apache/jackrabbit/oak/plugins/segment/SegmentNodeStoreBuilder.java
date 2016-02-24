@@ -43,7 +43,6 @@ public class SegmentNodeStoreBuilder {
     private int lockWaitTime;
     private int retryCount;
     private boolean forceAfterFail;
-    private boolean persistCompactionMap;
     private byte gainThreshold;
     private CompactionStrategy compactionStrategy;
 
@@ -59,16 +58,16 @@ public class SegmentNodeStoreBuilder {
     public SegmentNodeStoreBuilder withCompactionStrategy(
             boolean pauseCompaction, boolean cloneBinaries, String cleanup,
             long cleanupTs, byte memoryThreshold, final int lockWaitTime,
-            int retryCount, boolean forceAfterFail, boolean persistCompactionMap) {
+            int retryCount, boolean forceAfterFail) {
         return withCompactionStrategy(pauseCompaction, cloneBinaries, cleanup,
                 cleanupTs, memoryThreshold, lockWaitTime, retryCount,
-                forceAfterFail, persistCompactionMap, GAIN_THRESHOLD_DEFAULT);
+                forceAfterFail, GAIN_THRESHOLD_DEFAULT);
     }
 
     public SegmentNodeStoreBuilder withCompactionStrategy(
             boolean pauseCompaction, boolean cloneBinaries, String cleanup,
             long cleanupTs, byte memoryThreshold, final int lockWaitTime,
-            int retryCount, boolean forceAfterFail, boolean persistCompactionMap, byte gainThreshold) {
+            int retryCount, boolean forceAfterFail, byte gainThreshold) {
         this.hasCompactionStrategy = true;
         this.pauseCompaction = pauseCompaction;
         this.cloneBinaries = cloneBinaries;
@@ -78,7 +77,6 @@ public class SegmentNodeStoreBuilder {
         this.lockWaitTime = lockWaitTime;
         this.retryCount = retryCount;
         this.forceAfterFail = forceAfterFail;
-        this.persistCompactionMap = persistCompactionMap;
         this.gainThreshold = gainThreshold;
         return this;
     }
@@ -108,7 +106,6 @@ public class SegmentNodeStoreBuilder {
             };
             compactionStrategy.setRetryCount(retryCount);
             compactionStrategy.setForceAfterFail(forceAfterFail);
-            compactionStrategy.setPersistCompactionMap(persistCompactionMap);
             compactionStrategy.setGainThreshold(gainThreshold);
         } else {
             compactionStrategy = NO_COMPACTION;
