@@ -744,8 +744,8 @@ public class SegmentWriter {
         //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
         private RecordId writeNode(NodeState state) throws IOException {
             if (state instanceof SegmentNodeState) {
-                SegmentNodeState sns = uncompact((SegmentNodeState) state);
-                if (sns != state || hasSegment(sns)) {
+                SegmentNodeState sns = ((SegmentNodeState) state);
+                if (hasSegment(sns)) {
                     if (!isOldGen(sns.getRecordId())) {
                         return sns.getRecordId();
                     }
@@ -759,8 +759,8 @@ public class SegmentWriter {
                 after = (ModifiedNodeState) state;
                 NodeState base = after.getBaseState();
                 if (base instanceof SegmentNodeState) {
-                    SegmentNodeState sns = uncompact((SegmentNodeState) base);
-                    if (sns != base || hasSegment(sns)) {
+                    SegmentNodeState sns = ((SegmentNodeState) base);
+                    if (hasSegment(sns)) {
                         if (!isOldGen(sns.getRecordId())) {
                             before = sns;
                             beforeTemplate = before.getTemplate();
@@ -854,34 +854,6 @@ public class SegmentWriter {
         private boolean hasSegment(PropertyState property) {
             return (property instanceof SegmentPropertyState)
                 && (((Record) property).getRecordId().getSegmentId().isSegmentPresent());
-        }
-
-        /**
-         * If the given node was compacted, return the compacted node, otherwise
-         * return the passed node. This is to avoid pointing to old nodes, if they
-         * have been compacted.
-         *
-         * @param state the node
-         * @return the compacted node (if it was compacted)
-         */
-        private SegmentNodeState uncompact(SegmentNodeState state) {
-            CompactionMap compactionMap = store.getTracker().getCompactionMap();
-            RecordId initialId = state.getRecordId();
-
-            RecordId uncompacted = initialId;
-            for (RecordId id = uncompacted; id != null; id = compactionMap.get(id)) {
-                uncompacted = id;
-            }
-
-            if (uncompacted == initialId) {
-                return state;
-            } else if (!(uncompacted.getSegmentId().isSegmentPresent())) {
-                // michid this really seems to be caused by yet another issue in the compaction map. But the cm has to go anyway, so working around it for now...
-                LOG.error("uncompacted SegmentNotFound {}", uncompacted);
-                return state;
-            } else {
-                return new SegmentNodeState(uncompacted);
-            }
         }
 
         private boolean isOldGen(RecordId id) {

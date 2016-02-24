@@ -44,7 +44,6 @@ import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.commons.json.JsopBuilder;
 import org.apache.jackrabbit.oak.explorer.NodeStoreTree;
 import org.apache.jackrabbit.oak.json.JsopDiff;
-import org.apache.jackrabbit.oak.plugins.segment.PCMAnalyser;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.RecordUsageAnalyser;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
@@ -115,7 +114,6 @@ class DebugCommand implements Command {
                 byteCountToDisplaySize(dataSize), dataCount);
         System.out.format("%s in %6d bulk segments%n",
                 byteCountToDisplaySize(bulkSize), bulkCount);
-        System.out.format("%n%s", new PCMAnalyser(store).toString());
     }
 
     private static void analyseSegment(Segment segment, RecordUsageAnalyser analyser) {
