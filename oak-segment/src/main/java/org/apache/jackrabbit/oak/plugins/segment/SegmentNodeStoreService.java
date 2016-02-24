@@ -29,7 +29,6 @@ import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStr
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.GAIN_THRESHOLD_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.MEMORY_THRESHOLD_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.PAUSE_DEFAULT;
-import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.PERSIST_COMPACTION_MAP_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.RETRY_COUNT_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.TIMESTAMP_DEFAULT;
 import static org.apache.jackrabbit.oak.spi.whiteboard.WhiteboardUtils.registerMBean;
@@ -221,14 +220,6 @@ public class SegmentNodeStoreService extends ProxyNodeStore
     public static final String COMPACTION_LOCK_WAIT_TIME = "compaction.lockWaitTime";
 
     @Property(
-            boolValue = PERSIST_COMPACTION_MAP_DEFAULT,
-            label = "Persist Compaction Map",
-            description = "When enabled the compaction map would be persisted instead of being " +
-                    "held in memory"
-    )
-    public static final String PERSIST_COMPACTION_MAP = "persistCompactionMap";
-
-    @Property(
             boolValue = false,
             label = "Standby Mode",
             description = "Flag indicating that this component will not register as a NodeStore but just as a NodeStoreProvider"
@@ -366,8 +357,6 @@ public class SegmentNodeStoreService extends ProxyNodeStore
                 FORCE_AFTER_FAIL_DEFAULT);
         final int lockWaitTime = toInteger(property(COMPACTION_LOCK_WAIT_TIME),
                 COMPACTION_LOCK_WAIT_TIME_DEFAULT);
-        boolean persistCompactionMap = toBoolean(property(PERSIST_COMPACTION_MAP),
-                PERSIST_COMPACTION_MAP_DEFAULT);
         String cleanup = property(COMPACTION_CLEANUP);
         if (cleanup == null) {
             cleanup = CLEANUP_DEFAULT.toString();
@@ -406,7 +395,7 @@ public class SegmentNodeStoreService extends ProxyNodeStore
                 .newSegmentNodeStore(store);
         nodeStoreBuilder.withCompactionStrategy(pauseCompaction, cloneBinaries,
                 cleanup, cleanupTs, memoryThreshold, lockWaitTime, retryCount,
-                forceCommit, persistCompactionMap, gainThreshold);
+                forceCommit, gainThreshold);
         delegate = nodeStoreBuilder.create();
 
         CompactionStrategy compactionStrategy = nodeStoreBuilder
