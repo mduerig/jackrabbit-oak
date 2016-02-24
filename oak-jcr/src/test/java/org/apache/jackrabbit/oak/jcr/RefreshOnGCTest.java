@@ -25,7 +25,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
@@ -37,38 +36,23 @@ import javax.jcr.RepositoryException;
 import javax.jcr.Session;
 import javax.jcr.SimpleCredentials;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.jackrabbit.api.JackrabbitRepository;
 import org.apache.jackrabbit.oak.Oak;
-import org.apache.jackrabbit.oak.spi.gc.GCMonitorTracker;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
+import org.apache.jackrabbit.oak.spi.gc.GCMonitorTracker;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.spi.whiteboard.DefaultWhiteboard;
 import org.apache.jackrabbit.oak.spi.whiteboard.Whiteboard;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
 
-@RunWith(Parameterized.class)
 public class RefreshOnGCTest {
-    private final boolean usePersistedMap;
-
     private FileStore fileStore;
     private Repository repository;
     private GCMonitorTracker gcMonitor;
-
-    @Parameterized.Parameters
-    public static List<Boolean[]> fixtures() {
-        return ImmutableList.of(new Boolean[] {true}, new Boolean[] {false});
-    }
-
-    public RefreshOnGCTest(boolean usePersistedMap) {
-        this.usePersistedMap = usePersistedMap;
-    }
 
     @Before
     public void setup() throws IOException {
@@ -87,7 +71,6 @@ public class RefreshOnGCTest {
                 return true;
             }
         };
-        strategy.setPersistCompactionMap(usePersistedMap);
         fileStore = FileStore.builder(directory)
                 .withGCMonitor(gcMonitor)
                 .build()

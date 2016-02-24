@@ -56,7 +56,6 @@ class CompactCommand implements Command {
         FileStore store = openFileStore(path, options.has(forceFlag));
         File directory = new File(path);
         try {
-            boolean persistCM = Boolean.getBoolean("tar.PersistCompactionMap");
             System.out.println("Compacting " + directory);
             System.out.println("    before " + Arrays.toString(directory.list()));
             long sizeBefore = FileUtils.sizeOfDirectory(directory);
@@ -79,8 +78,6 @@ class CompactCommand implements Command {
                     return setHead.call();
                 }
             };
-            compactionStrategy.setOfflineCompaction(true);
-            compactionStrategy.setPersistCompactionMap(persistCM);
             store.setCompactionStrategy(compactionStrategy);
             store.compact();
         } finally {

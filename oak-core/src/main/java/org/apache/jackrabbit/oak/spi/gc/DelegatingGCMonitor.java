@@ -80,9 +80,9 @@ public class DelegatingGCMonitor implements GCMonitor {
     }
 
     @Override
-    public void compacted(long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
+    public void compacted() {
         for (GCMonitor gcMonitor : gcMonitors) {
-            gcMonitor.compacted(segmentCounts, recordCounts, compactionMapWeights);
+            gcMonitor.compacted();
         }
     }
 
