@@ -1193,10 +1193,6 @@ public class FileStore implements SegmentStore {
 
     @Override
     public boolean containsSegment(SegmentId id) {
-        if (id.getTracker() == tracker) {
-            return true;
-        }
-
         long msb = id.getMostSignificantBits();
         long lsb = id.getLeastSignificantBits();
         return containsSegment(msb, lsb);
