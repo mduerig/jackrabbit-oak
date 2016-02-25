@@ -1166,7 +1166,7 @@ public class FileStore implements SegmentStore {
         closeAndLogOnFail(diskSpaceThread);
         try {
             flush();
-            tracker.getWriter().dropCache();
+            // michid replace with some sort of close call tracker.getWriter().dropCache();
             fileStoreLock.writeLock().lock();
             try {
                 closeAndLogOnFail(writer);
