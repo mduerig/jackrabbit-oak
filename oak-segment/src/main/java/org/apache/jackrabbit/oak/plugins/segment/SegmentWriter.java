@@ -66,6 +66,7 @@ import java.util.Map;
 
 import javax.jcr.PropertyType;
 
+import com.google.common.base.Objects;
 import com.google.common.io.Closeables;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -88,9 +89,7 @@ public class SegmentWriter {
     static final int BLOCK_SIZE = 1 << 12; // 4kB
 
     private static final int STRING_RECORDS_CACHE_SIZE = Integer.getInteger(
-// michid re-enable caches but make generation part of cache key to avoid backrefs
-//          "oak.segment.writer.stringsCacheSize", 15000);
-            "oak.segment.writer.stringsCacheSize", 0);
+            "oak.segment.writer.stringsCacheSize", 15000);
 
     /**
      * Cache of recently stored string records, used to avoid storing duplicates
@@ -101,9 +100,7 @@ public class SegmentWriter {
         STRING_RECORDS_CACHE_SIZE, STRING_RECORDS_CACHE_SIZE <= 0);
 
     private static final int TPL_RECORDS_CACHE_SIZE = Integer.getInteger(
-// michid re-enable caches but make generation part of cache key to avoid backrefs
-//          "oak.segment.writer.templatesCacheSize", 3000);
-            "oak.segment.writer.templatesCacheSize", 0);
+            "oak.segment.writer.templatesCacheSize", 3000);
 
     /**
      * Cache of recently stored template records, used to avoid storing
@@ -135,12 +132,6 @@ public class SegmentWriter {
 
     public void flush() throws IOException {
         segmentBufferWriterPool.flush();
-    }
-
-    // michid this is a hack and probably prone to races: replace with making the tacker allocate a new writer
-    public void dropCache() {
-        stringCache.clear();
-        templateCache.clear();
     }
 
     MapRecord writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
@@ -475,7 +466,7 @@ public class SegmentWriter {
          * @return value record identifier
          */
         private RecordId writeString(String string) throws IOException {
-            RecordId id = stringCache.get(string);
+            RecordId id = stringCache.get(key(string));
             if (id != null) {
                 return id; // shortcut if the same string was recently stored
             }
@@ -485,7 +476,7 @@ public class SegmentWriter {
             if (data.length < Segment.MEDIUM_LIMIT) {
                 // only cache short strings to avoid excessive memory use
                 id = writeValueRecord(data.length, data);
-                stringCache.put(string, id);
+                stringCache.put(key(string), id);
                 return id;
             }
 
@@ -669,7 +660,7 @@ public class SegmentWriter {
         private RecordId writeTemplate(Template template) throws IOException {
             checkNotNull(template);
 
-            RecordId id = templateCache.get(template);
+            RecordId id = templateCache.get(key(template));
             if (id != null) {
                 return id; // shortcut if the same template was recently stored
             }
@@ -740,7 +731,7 @@ public class SegmentWriter {
             RecordId tid = newTemplateWriter(ids, propertyNames,
                 propertyTypes, head, primaryId, mixinIds, childNameId,
                 propNamesId, version).write(writer);
-            templateCache.put(template, tid);
+            templateCache.put(key(template), tid);
             return tid;
         }
 
@@ -894,6 +885,10 @@ public class SegmentWriter {
             return thatGen < thisGen;
         }
 
+        private <T> Key<T> key(T t) {
+            return new Key<T>(t, writer.getGeneration());
+        }
+
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
             private final Map<String, RecordId> childNodes = newHashMap();
             private IOException exception;
@@ -936,7 +931,34 @@ public class SegmentWriter {
                 return true;
             }
         }
+    }
 
+    private static final class Key<T> {
+        private final T t;
+        private final int generation;
+
+        private Key(T t, int generation) {
+            this.t = t;
+            this.generation = generation;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            Key<?> that = (Key<?>) other;
+            return generation == that.generation && t.equals(that.t);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(t, generation);
+        }
     }
 
 }

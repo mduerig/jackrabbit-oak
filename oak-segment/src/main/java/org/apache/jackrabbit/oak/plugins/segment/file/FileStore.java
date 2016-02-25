@@ -1525,7 +1525,6 @@ public class FileStore implements SegmentStore {
                 // Drop the SegmentWriter caches and flush any existing state
                 // in an attempt to prevent new references to old pre-compacted
                 // content. TODO: There should be a cleaner way to do this. (implement GCMonitor!?)
-                tracker.getWriter().dropCache();
                 tracker.getWriter().flush();
 
                 CompactionMap cm = tracker.getCompactionMap();
