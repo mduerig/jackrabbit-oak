@@ -40,6 +40,7 @@ import static org.apache.jackrabbit.oak.api.Type.NAME;
 import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.plugins.segment.MapRecord.BUCKETS_PER_LEVEL;
+import static org.apache.jackrabbit.oak.plugins.segment.RecordCache.newRecordCache;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newBlobIdWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newBlockWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newListBucketWriter;
@@ -60,7 +61,6 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -88,23 +88,30 @@ public class SegmentWriter {
     static final int BLOCK_SIZE = 1 << 12; // 4kB
 
     private static final int STRING_RECORDS_CACHE_SIZE = Integer.getInteger(
-            "oak.segment.writer.stringsCacheSize", 15000);
+// michid re-enable caches but make generation part of cache key to avoid backrefs
+//          "oak.segment.writer.stringsCacheSize", 15000);
+            "oak.segment.writer.stringsCacheSize", 0);
 
     /**
      * Cache of recently stored string records, used to avoid storing duplicates
      * of frequently occurring data.
      */
-    private final Map<String, RecordId> stringCache = newItemsCache(
-            STRING_RECORDS_CACHE_SIZE);
+    private final RecordCache<Object> stringCache = newRecordCache(
+        STRING_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (STRING_RECORDS_CACHE_SIZE * 1.2),
+        STRING_RECORDS_CACHE_SIZE, STRING_RECORDS_CACHE_SIZE <= 0);
 
     private static final int TPL_RECORDS_CACHE_SIZE = Integer.getInteger(
-            "oak.segment.writer.templatesCacheSize", 3000);
+// michid re-enable caches but make generation part of cache key to avoid backrefs
+//          "oak.segment.writer.templatesCacheSize", 3000);
+            "oak.segment.writer.templatesCacheSize", 0);
 
     /**
      * Cache of recently stored template records, used to avoid storing
      * duplicates of frequently occurring data.
      */
-    private final Map<Template, RecordId> templateCache = newItemsCache(TPL_RECORDS_CACHE_SIZE);
+    private final RecordCache<Object> templateCache = newRecordCache(
+        TPL_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (TPL_RECORDS_CACHE_SIZE * 1.2),
+        TPL_RECORDS_CACHE_SIZE, TPL_RECORDS_CACHE_SIZE <= 0);
 
     private final SegmentStore store;
 
@@ -114,35 +121,6 @@ public class SegmentWriter {
     private final SegmentVersion version;
 
     private final SegmentBufferWriterPool segmentBufferWriterPool;
-
-    private static final <T> Map<T, RecordId> newItemsCache(final int size) {
-        final boolean disabled = true;  // michid re-enable caches but make generation part of cache key to avoid backrefs
-        final int safeSize = size <= 0 ? 0 : (int) (size * 1.2);
-        return new LinkedHashMap<T, RecordId>(safeSize, 0.9f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<T, RecordId> e) {
-                return size() > size;
-            }
-            @Override
-            public synchronized RecordId get(Object key) {
-                if (disabled) {
-                    return null;
-                }
-                return super.get(key);
-            }
-            @Override
-            public synchronized RecordId put(T key, RecordId value) {
-                if (disabled) {
-                    return null;
-                }
-                return super.put(key, value);
-            }
-            @Override
-            public synchronized void clear() {
-                super.clear();
-            }
-        };
-    }
 
     /**
      * @param store     store to write to
