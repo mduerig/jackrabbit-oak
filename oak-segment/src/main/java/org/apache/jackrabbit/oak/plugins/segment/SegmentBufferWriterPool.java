@@ -63,7 +63,7 @@ class SegmentBufferWriterPool {
         }
     }
 
-    synchronized SegmentBufferWriter borrowWriter(Object key) throws IOException {
+    synchronized SegmentBufferWriter borrowWriter(Object key) {
         SegmentBufferWriter writer = writers.remove(key);
         if (writer == null) {
             writer = new SegmentBufferWriter(store, version, getWriterId(wid));
@@ -75,7 +75,7 @@ class SegmentBufferWriterPool {
         return writer;
     }
 
-    synchronized void returnWriter(Object key, SegmentBufferWriter writer) throws IOException {
+    synchronized void returnWriter(Object key, SegmentBufferWriter writer) {
         if (borrowed.remove(writer)) {
             writers.put(key, writer);
         } else {

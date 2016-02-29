@@ -236,11 +236,11 @@ public class SegmentWriter {
         private final SegmentBufferWriter writer;
         private final int key = currentThread().hashCode();
 
-        private Writer() throws IOException {
+        private Writer() {
             writer = segmentBufferWriterPool.borrowWriter(key);
         }
 
-        private void close() throws IOException {
+        private void close() {
             // Not implementing Closeable because we are not idempotent
             segmentBufferWriterPool.returnWriter(key, writer);
         }
