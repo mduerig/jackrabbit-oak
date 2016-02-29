@@ -160,7 +160,8 @@ public class SegmentParserTest {
         directory.mkdir();
 
         store = FileStore.newFileStore(directory).create();
-        writer = new SegmentWriter(store, segmentVersion, "");
+        writer = new SegmentWriter(store, segmentVersion,
+            new SegmentBufferWriter(store, segmentVersion, ""));
     }
 
     @After

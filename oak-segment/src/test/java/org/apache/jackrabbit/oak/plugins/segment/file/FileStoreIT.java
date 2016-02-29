@@ -18,14 +18,13 @@ package org.apache.jackrabbit.oak.plugins.segment.file;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newTreeSet;
+import static org.apache.commons.io.FileUtils.deleteDirectory;
+import static org.apache.jackrabbit.oak.commons.FixturesHelper.Fixture.SEGMENT_MK;
+import static org.apache.jackrabbit.oak.commons.FixturesHelper.getFixtures;
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.apache.commons.io.FileUtils.deleteDirectory;
-import static org.apache.jackrabbit.oak.commons.FixturesHelper.getFixtures;
-import static org.apache.jackrabbit.oak.commons.FixturesHelper.Fixture.SEGMENT_MK;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
-import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
 import static org.junit.Assume.assumeTrue;
 
 import java.io.ByteArrayInputStream;
@@ -39,12 +38,12 @@ import java.util.Map;
 import java.util.Random;
 
 import com.google.common.base.Strings;
-
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.segment.Compactor;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentBlob;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentBufferWriter;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentWriter;
@@ -162,7 +161,8 @@ public class FileStoreIT {
         store = new FileStore(directory, 1, false);
         head = store.getHead();
         assertTrue(store.size() > largeBinarySize);
-        writer = new SegmentWriter(store, V_11, "");
+        writer = new SegmentWriter(store, store.getTracker().getSegmentVersion(),
+            new SegmentBufferWriter(store, store.getTracker().getSegmentVersion(), ""));
         compactor = new Compactor(store.getTracker());
         compacted = compactor.compact(EMPTY_NODE, head, EMPTY_NODE);
         builder = head.builder();

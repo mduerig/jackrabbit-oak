@@ -29,7 +29,6 @@ import static org.apache.commons.io.FileUtils.deleteDirectory;
 import static org.apache.jackrabbit.oak.commons.IOUtils.humanReadableByteCount;
 import static org.apache.jackrabbit.oak.commons.benchmark.MicroBenchmark.run;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE;
-import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
 import static org.apache.jackrabbit.oak.plugins.segment.TestUtils.newValidOffset;
 import static org.apache.jackrabbit.oak.plugins.segment.TestUtils.randomRecordIdMap;
 import static org.apache.jackrabbit.oak.plugins.segment.file.FileStore.newFileStore;
@@ -50,7 +49,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableList;
-
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.jackrabbit.oak.commons.benchmark.MicroBenchmark.Benchmark;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
@@ -120,7 +118,6 @@ public class PartialCompactionMapTest {
     }
 
     private PartialCompactionMap createCompactionMap() {
-        SegmentWriter writer = new SegmentWriter(segmentStore, V_11, "");
         if (usePersistedMap) {
             return new PersistedCompactionMap(segmentStore.getTracker());
         } else {

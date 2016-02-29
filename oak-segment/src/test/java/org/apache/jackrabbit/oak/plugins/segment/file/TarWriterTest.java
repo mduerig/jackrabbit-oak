@@ -24,7 +24,6 @@ import static com.google.common.collect.Sets.newHashSet;
 import static java.io.File.createTempFile;
 import static java.nio.ByteBuffer.allocate;
 import static java.util.Collections.singleton;
-import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -38,6 +37,7 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableList;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentBufferWriter;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentStore;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentWriter;
@@ -162,7 +162,8 @@ public class TarWriterTest {
                     segments.put(id, buffer);
                 }
             };
-            writer = new SegmentWriter(store, V_11, "");
+            writer = new SegmentWriter(store, store.getTracker().getSegmentVersion(),
+                new SegmentBufferWriter(store, store.getTracker().getSegmentVersion(), ""));
         }
 
         public class Node {
