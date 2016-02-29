@@ -481,6 +481,7 @@ public class FileStore implements SegmentStore {
         } else {
             NodeBuilder nodeBuilder = EMPTY_NODE.builder();
             nodeBuilder.setChildNode("root", builder.root);
+            // michid improve the setup as this is passing along no fully initialised instances
             head = new AtomicReference<RecordId>(tracker.getWriter().writeNode(
                     nodeBuilder.getNodeState()).getRecordId());
             persistedHead = new AtomicReference<RecordId>(null);
@@ -537,6 +538,18 @@ public class FileStore implements SegmentStore {
             log.info("TarMK opened: {} (mmap={})", directory, memoryMapping);
         }
         log.debug("TarMK readers {}", this.readers);
+    }
+
+    // michid improve this initialisation mess
+    public int getGcGen() {
+        if (head == null) {
+            return 0;  // not fully initialised
+        }
+        RecordId headId = head.get();
+        if (headId == null) {
+            return 0;  // not fully initialised
+        }
+        return headId.getSegment().getGcGen();
     }
 
     public boolean maybeCompact(boolean cleanup) throws IOException {

@@ -159,8 +159,9 @@ public class SegmentParserTest {
         directory.delete();
         directory.mkdir();
 
-        store = FileStore.newFileStore(directory).create();
-        writer = new SegmentWriter(store, segmentVersion, "");
+        store = FileStore.builder(directory).build();
+        writer = new SegmentWriter(store, segmentVersion,
+            new SegmentBufferWriter(store, segmentVersion, ""));
     }
 
     @After
