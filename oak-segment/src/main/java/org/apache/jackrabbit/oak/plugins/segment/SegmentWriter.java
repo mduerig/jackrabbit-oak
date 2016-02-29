@@ -137,7 +137,7 @@ public class SegmentWriter {
     MapRecord writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
         Writer writer = new Writer();
         try {
-            return writer.writeMap(base, changes);
+            return new MapRecord(writer.writeMap(base, changes));
         } finally {
             writer.close();
         }
@@ -164,7 +164,7 @@ public class SegmentWriter {
     SegmentBlob writeBlob(Blob blob) throws IOException {
         Writer writer = new Writer();
         try {
-            return writer.writeBlob(blob);
+            return new SegmentBlob(writer.writeBlob(blob));
         } finally {
             writer.close();
         }
@@ -190,7 +190,7 @@ public class SegmentWriter {
     SegmentBlob writeExternalBlob(String blobId) throws IOException {
         Writer writer = new Writer();
         try {
-            return writer.writeExternalBlob(blobId);
+            return new SegmentBlob(writer.writeExternalBlob(blobId));
         } finally {
             writer.close();
         }
@@ -199,7 +199,7 @@ public class SegmentWriter {
     SegmentBlob writeLargeBlob(long length, List<RecordId> list) throws IOException {
         Writer writer = new Writer();
         try {
-            return writer.writeLargeBlob(length, list);
+            return new SegmentBlob(writer.writeLargeBlob(length, list));
         } finally {
             writer.close();
         }
@@ -216,7 +216,7 @@ public class SegmentWriter {
     public SegmentBlob writeStream(InputStream stream) throws IOException {
         Writer writer = new Writer();
         try {
-            return writer.writeStream(stream);
+            return new SegmentBlob(writer.writeStream(stream));
         } finally {
             writer.close();
         }
@@ -225,7 +225,7 @@ public class SegmentWriter {
     public SegmentNodeState writeNode(NodeState state) throws IOException {
         Writer writer = new Writer();
         try {
-            return writer.writeNode(state);
+            return new SegmentNodeState(writer.writeNode(state));
         } finally {
             writer.close();
         }
@@ -245,7 +245,7 @@ public class SegmentWriter {
             segmentBufferWriterPool.returnWriter(key, writer);
         }
 
-        private MapRecord writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
+        private RecordId writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
             if (base != null && base.isDiff()) {
                 Segment segment = base.getSegment();
                 RecordId key = segment.readRecordId(base.getOffset(8));
@@ -264,7 +264,7 @@ public class SegmentWriter {
                     MapEntry entry = base.getEntry(change.getKey());
                     if (entry != null) {
                         if (value.equals(entry.getValue())) {
-                            return base;
+                            return base.getRecordId();
                         } else {
                             return newMapBranchWriter(entry.getHash(), asList(entry.getKey(),
                                 value, base.getRecordId())).write(writer);
@@ -295,7 +295,7 @@ public class SegmentWriter {
             return writeMapBucket(base, entries, 0);
         }
 
-        private MapRecord writeMapLeaf(int level, Collection<MapEntry> entries) throws IOException {
+        private RecordId writeMapLeaf(int level, Collection<MapEntry> entries) throws IOException {
             checkNotNull(entries);
             int size = entries.size();
             checkElementIndex(size, MapRecord.MAX_SIZE);
@@ -304,7 +304,7 @@ public class SegmentWriter {
             return newMapLeafWriter(level, entries).write(writer);
         }
 
-        private MapRecord writeMapBranch(int level, int size, MapRecord... buckets) throws IOException {
+        private RecordId writeMapBranch(int level, int size, MapRecord... buckets) throws IOException {
             int bitmap = 0;
             List<RecordId> bucketIds = newArrayListWithCapacity(buckets.length);
             for (int i = 0; i < buckets.length; i++) {
@@ -316,12 +316,12 @@ public class SegmentWriter {
             return newMapBranchWriter(level, size, bitmap, bucketIds).write(writer);
         }
 
-        private MapRecord writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level)
+        private RecordId writeMapBucket(MapRecord base, Collection<MapEntry> entries, int level)
                 throws IOException {
             // when no changed entries, return the base map (if any) as-is
             if (entries == null || entries.isEmpty()) {
                 if (base != null) {
-                    return base;
+                    return base.getRecordId();
                 } else if (level == 0) {
                     return newMapLeafWriter().write(writer);
                 } else {
@@ -341,7 +341,7 @@ public class SegmentWriter {
                 MapRecord[] buckets = new MapRecord[BUCKETS_PER_LEVEL];
                 List<List<MapEntry>> changes = splitToBuckets(entries, level);
                 for (int i = 0; i < BUCKETS_PER_LEVEL; i++) {
-                    buckets[i] = writeMapBucket(null, changes.get(i), level + 1);
+                    buckets[i] = mapRecordOrNull(writeMapBucket(null, changes.get(i), level + 1));
                 }
 
                 // combine the buckets into one big map
@@ -370,7 +370,7 @@ public class SegmentWriter {
             MapRecord[] buckets = base.getBuckets();
             List<List<MapEntry>> changes = splitToBuckets(entries, level);
             for (int i = 0; i < BUCKETS_PER_LEVEL; i++) {
-                buckets[i] = writeMapBucket(buckets[i], changes.get(i), level + 1);
+                buckets[i] = mapRecordOrNull(writeMapBucket(buckets[i], changes.get(i), level + 1));
                 if (buckets[i] != null) {
                     newSize += buckets[i].size();
                     newCount++;
@@ -384,7 +384,7 @@ public class SegmentWriter {
                 // up to one bucket contains entries, so return that as the new map
                 for (MapRecord bucket : buckets) {
                     if (bucket != null) {
-                        return bucket;
+                        return bucket.getRecordId();
                     }
                 }
                 // no buckets remaining, return empty map
@@ -399,6 +399,10 @@ public class SegmentWriter {
                 }
                 return writeMapLeaf(level, list);
             }
+        }
+
+        private MapRecord mapRecordOrNull(RecordId id) {
+            return id == null ? null : new MapRecord(id);
         }
 
         /**
@@ -509,11 +513,11 @@ public class SegmentWriter {
                     && (((Record) blob).getRecordId().getSegmentId().isSegmentPresent());
         }
 
-        private SegmentBlob writeBlob(Blob blob) throws IOException {
+        private RecordId writeBlob(Blob blob) throws IOException {
             if (hasSegment(blob)) {
                 SegmentBlob segmentBlob = (SegmentBlob) blob;
                 if (!isOldGen(segmentBlob.getRecordId())) {
-                    return segmentBlob;
+                    return segmentBlob.getRecordId();
                 }
             }
 
@@ -521,8 +525,7 @@ public class SegmentWriter {
             if (reference != null && store.getBlobStore() != null) {
                 String blobId = store.getBlobStore().getBlobId(reference);
                 if (blobId != null) {
-                    RecordId id = writeBlobId(blobId);
-                    return new SegmentBlob(id);
+                    return writeBlobId(blobId);
                 } else {
                     LOG.debug("No blob found for reference {}, inlining...", reference);
                 }
@@ -554,17 +557,15 @@ public class SegmentWriter {
             return newBlockWriter(bytes, offset, length).write(writer);
         }
 
-        private SegmentBlob writeExternalBlob(String blobId) throws IOException {
-            RecordId id = writeBlobId(blobId);
-            return new SegmentBlob(id);
+        private RecordId writeExternalBlob(String blobId) throws IOException {
+            return writeBlobId(blobId);
         }
 
-        private SegmentBlob writeLargeBlob(long length, List<RecordId> list) throws IOException {
-            RecordId id = writeValueRecord(length, writeList(list));
-            return new SegmentBlob(id);
+        private RecordId writeLargeBlob(long length, List<RecordId> list) throws IOException {
+            return writeValueRecord(length, writeList(list));
         }
 
-        private SegmentBlob writeStream(InputStream stream) throws IOException {
+        private RecordId writeStream(InputStream stream) throws IOException {
             boolean threw = true;
             try {
                 RecordId id = SegmentStream.getRecordIdIfAvailable(stream, store);
@@ -572,7 +573,7 @@ public class SegmentWriter {
                     id = internalWriteStream(stream);
                 }
                 threw = false;
-                return new SegmentBlob(id);
+                return id;
             } finally {
                 Closeables.close(stream, threw);
             }
@@ -632,9 +633,7 @@ public class SegmentWriter {
             for (int i = 0; i < count; i++) {
                 if (type.tag() == PropertyType.BINARY) {
                     try {
-                        SegmentBlob blob =
-                            writeBlob(state.getValue(BINARY, i));
-                        valueIds.add(blob.getRecordId());
+                        valueIds.add(writeBlob(state.getValue(BINARY, i)));
                     } catch (IOException e) {
                         throw new IllegalStateException("Unexpected IOException", e);
                     }
@@ -737,12 +736,12 @@ public class SegmentWriter {
 
         // michid defer compacted items are not in the compaction map -> performance regression
         //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
-        private SegmentNodeState writeNode(NodeState state) throws IOException {
+        private RecordId writeNode(NodeState state) throws IOException {
             if (state instanceof SegmentNodeState) {
                 SegmentNodeState sns = uncompact((SegmentNodeState) state);
                 if (sns != state || hasSegment(sns)) {
                     if (!isOldGen(sns.getRecordId())) {
-                        return sns;
+                        return sns.getRecordId();
                     }
                 }
             }
@@ -790,12 +789,12 @@ public class SegmentWriter {
                     for (ChildNodeEntry entry : state.getChildNodeEntries()) {
                         childNodes.put(
                             entry.getName(),
-                            writeNode(entry.getNodeState()).getRecordId());
+                            writeNode(entry.getNodeState()));
                     }
                 }
-                ids.add(writeMap(base, childNodes).getRecordId());
+                ids.add(writeMap(base, childNodes));
             } else if (childName != Template.ZERO_CHILD_NODES) {
-                ids.add(writeNode(state.getChildNode(template.getChildName())).getRecordId());
+                ids.add(writeNode(state.getChildNode(template.getChildName())));
             }
 
             List<RecordId> pIds = newArrayList();
@@ -905,7 +904,7 @@ public class SegmentWriter {
             @Override
             public boolean childNodeAdded(String name, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after).getRecordId());
+                    childNodes.put(name, writeNode(after));
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -917,7 +916,7 @@ public class SegmentWriter {
             public boolean childNodeChanged(
                 String name, NodeState before, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after).getRecordId());
+                    childNodes.put(name, writeNode(after));
                 } catch (IOException e) {
                     exception = e;
                     return false;
