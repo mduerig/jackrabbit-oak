@@ -506,7 +506,7 @@ public class SegmentWriter {
 
         private boolean hasSegment(Blob blob) {
             return (blob instanceof SegmentBlob)
-                    && store.containsSegment(((Record) blob).getRecordId().getSegmentId());
+                    && (((Record) blob).getRecordId().getSegmentId().isSegmentPresent());
         }
 
         private SegmentBlob writeBlob(Blob blob) throws IOException {
@@ -843,12 +843,12 @@ public class SegmentWriter {
 
         private boolean hasSegment(NodeState node) {
             return (node instanceof SegmentNodeState)
-                && store.containsSegment(((Record) node).getRecordId().getSegmentId());
+                && (((Record) node).getRecordId().getSegmentId().isSegmentPresent());
         }
 
         private boolean hasSegment(PropertyState property) {
             return (property instanceof SegmentPropertyState)
-                && store.containsSegment(((Record) property).getRecordId().getSegmentId());
+                && (((Record) property).getRecordId().getSegmentId().isSegmentPresent());
         }
 
         /**
@@ -870,7 +870,7 @@ public class SegmentWriter {
 
             if (uncompacted == initialId) {
                 return state;
-            } else if (!store.containsSegment(uncompacted.getSegmentId())) {
+            } else if (!(uncompacted.getSegmentId().isSegmentPresent())) {
                 // michid this really seems to be caused by yet another issue in the compaction map. But the cm has to go anyway, so working around it for now...
                 LOG.error("uncompacted SegmentNotFound {}", uncompacted);
                 return state;

@@ -88,6 +88,11 @@ public class SegmentId implements Comparable<SegmentId> {
         this(tracker, msb, lsb, null, System.currentTimeMillis());
     }
 
+    // michid find a cleaner solution?
+    boolean isSegmentPresent() {
+        return segment != null || tracker.getStore().containsSegment(this);
+    }
+
     /**
      * Checks whether this is a data segment identifier.
      *
