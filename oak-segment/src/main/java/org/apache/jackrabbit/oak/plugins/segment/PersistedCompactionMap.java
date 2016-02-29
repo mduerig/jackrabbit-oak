@@ -247,9 +247,8 @@ public class PersistedCompactionMap implements PartialCompactionMap {
 
     @Nonnull
     private SegmentWriter createSegmentWriter() {
-        String wid = "cm-" + (tracker.getCompactionMap().getGeneration() + 1);
         return new SegmentWriter(tracker.getStore(), tracker.getSegmentVersion(),
-            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), wid));
+            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "cm"));
     }
 
     /**

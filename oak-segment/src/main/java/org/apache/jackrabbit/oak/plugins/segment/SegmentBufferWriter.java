@@ -112,7 +112,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      */
     private int position;
 
-    public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) {
+    public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid, int generation) {
         this.store = store;
         this.version = version;
         this.wid = (wid == null
@@ -120,9 +120,13 @@ public class SegmentBufferWriter implements WriteOperationHandler {
                 : wid);
 
         this.tracker = store.getTracker();
-        this.generation = tracker.getCompactionMap().getGeneration();
+        this.generation = generation;
         this.buffer = createNewBuffer(version);
         newSegment(this.wid);
+    }
+
+    public SegmentBufferWriter(SegmentStore store, SegmentVersion version, String wid) {
+        this(store, version, wid, store.getTracker().getGcGen());
     }
 
     @Override
@@ -225,7 +229,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private static boolean isCompactionMap(SegmentId id) {
         String info = id.getSegment().getSegmentInfo();
-        return info != null && info.contains("cm-");
+        return info != null && info.contains("cm");
     }
 
     private static String info(Segment segment) {

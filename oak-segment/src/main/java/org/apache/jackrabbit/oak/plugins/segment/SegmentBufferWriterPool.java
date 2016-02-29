@@ -79,7 +79,7 @@ class SegmentBufferWriterPool implements WriteOperationHandler {
         SegmentBufferWriter writer = writers.remove(key);
         if (writer == null) {
             writer = new SegmentBufferWriter(store, version, getWriterId(wid));
-        } else if (writer.getGeneration() != store.getTracker().getCompactionMap().getGeneration()) {  // michid improve gen tracking
+        } else if (writer.getGeneration() != store.getTracker().getGcGen()) {
             disposed.add(writer);
             writer = new SegmentBufferWriter(store, version, getWriterId(wid));
         }

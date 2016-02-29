@@ -149,9 +149,8 @@ public class Compactor {
 
     @Nonnull
     private static SegmentWriter createSegmentWriter(SegmentTracker tracker) {
-        String wid = "c-" + (tracker.getCompactionMap().getGeneration() + 1);
         return new SegmentWriter(tracker.getStore(), tracker.getSegmentVersion(),
-            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), wid));
+            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "c", tracker.getGcGen() + 1));
     }
 
     protected SegmentNodeBuilder process(NodeState before, NodeState after, NodeState onto) throws IOException {
