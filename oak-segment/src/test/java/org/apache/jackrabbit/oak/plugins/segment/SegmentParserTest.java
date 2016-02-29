@@ -156,7 +156,8 @@ public class SegmentParserTest {
         store = mock(SegmentStore.class, withSettings().stubOnly());
         SegmentTracker tracker = new SegmentTracker(store);
         when(store.getTracker()).thenReturn(tracker);
-        writer = new SegmentWriter(store, segmentVersion, "");
+        writer = new SegmentWriter(store, segmentVersion,
+            new SegmentBufferWriter(store, segmentVersion, ""));
     }
 
     @Test

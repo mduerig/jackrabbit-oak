@@ -62,7 +62,7 @@ import org.slf4j.LoggerFactory;
  * The behaviour of this class is undefined should the pre-allocated buffer be
  * overrun be calling any of the write methods.
  */
-class SegmentBufferWriter {
+public class SegmentBufferWriter implements WriteOperationHandler {
     private static final Logger LOG = LoggerFactory.getLogger(SegmentBufferWriter.class);
 
     /**
@@ -123,6 +123,11 @@ class SegmentBufferWriter {
         this.generation = tracker.getCompactionMap().getGeneration();
         this.buffer = createNewBuffer(version);
         newSegment(this.wid);
+    }
+
+    @Override
+    public RecordId execute(WriteOperation writeOperation) throws IOException {
+        return writeOperation.execute(this);
     }
 
     int getGeneration() {
@@ -266,6 +271,7 @@ class SegmentBufferWriter {
      * store. This is done automatically (called from prepare) when there is not
      * enough space for a record. It can also be called explicitly.
      */
+    @Override
     public void flush() throws IOException {
         if (length > 0) {
             int refcount = segment.getRefCount();
