@@ -26,6 +26,7 @@ import java.util.Map;
  * michid document
  */
 abstract class RecordCache<T> {
+    // michid this caches retain in mem refs to old gens. assess impact and mitigate/fix
     private static final RecordCache<?> DISABLED_CACHE = new RecordCache<Object>() {
         @Override
         RecordId get(Object key) {
