@@ -26,7 +26,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.api.Type.LONG;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
-import static org.apache.jackrabbit.oak.plugins.segment.Record.fastEquals;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -261,7 +260,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
         NodeState root = getRoot();
         NodeState before = snb.getBaseState();
-        if (!fastEquals(before, root)) {
+        if (!SegmentNodeState.fastEquals(before, root)) {
             SegmentNodeState after = snb.getNodeState();
             snb.reset(root);
             after.compareAgainstBaseState(
@@ -485,7 +484,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
         private SegmentNodeBuilder prepare(SegmentNodeState state) throws CommitFailedException {
             SegmentNodeBuilder builder = state.builder();
-            if (fastEquals(before, state.getChildNode(ROOT))) {
+            if (SegmentNodeState.fastEquals(before, state.getChildNode(ROOT))) {
                 // use a shortcut when there are no external changes
                 builder.setChildNode(
                         ROOT, hook.processCommit(before, after, info));
@@ -573,7 +572,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
         NodeState execute()
                 throws CommitFailedException, InterruptedException {
             // only do the merge if there are some changes to commit
-            if (!fastEquals(before, after)) {
+            if (!SegmentNodeState.fastEquals(before, after)) {
                 long timeout = optimisticMerge();
                 if (timeout >= 0) {
                     pessimisticMerge(timeout);
