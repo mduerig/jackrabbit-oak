@@ -42,6 +42,8 @@ public enum SegmentVersion {
 
     V_11((byte) 11);
 
+    // michid upgrade to version 12
+
     /**
      * Latest segment version
      */
