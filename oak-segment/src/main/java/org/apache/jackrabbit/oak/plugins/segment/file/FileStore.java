@@ -47,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1056,12 +1055,11 @@ public class FileStore implements SegmentStore {
             return;
         }
 
-        Callable<Boolean> setHead = new SetHead(before, after, compactor);
         try {
             int cycles = 0;
             boolean success = false;
             while(cycles++ < compactionStrategy.getRetryCount()
-                    && !(success = compactionStrategy.compacted(setHead))) {
+                    && !(success = setHead(before, after))) {
                 // Some other concurrent changes have been made.
                 // Rebase (and compact) those changes on top of the
                 // compacted state before retrying to set the head.
@@ -1071,16 +1069,17 @@ public class FileStore implements SegmentStore {
                 after = compactor.compact(before, head, after);
                 gcMonitor.info("TarMK GC #{}: compacted {} against {} to {}",
                     gcCount, head.getRecordId(), before.getRecordId(), after.getRecordId());
+                before = head;
 
                 if (compactionCanceled.get()) {
                     gcMonitor.warn("TarMK GC #{}: compaction canceled: {}", gcCount, compactionCanceled);
                     return;
                 }
-
-                before = head;
-                setHead = new SetHead(head, after, compactor);
             }
-            if (!success) {
+            if (success) {
+                tracker.clearSegmentIdTables(compactionStrategy);
+                gcMonitor.compacted();
+            } else {
                 gcMonitor.info("TarMK GC #{}: compaction gave up compacting concurrent commits after {} cycles.",
                         gcCount, cycles - 1);
                 if (compactionStrategy.getForceAfterFail()) {
@@ -1099,13 +1098,11 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    private boolean forceCompact(final NodeState before, final SegmentNodeState onto, final Compactor compactor) throws Exception {
-        return compactionStrategy.compacted(new Callable<Boolean>() {
-            @Override
-            public Boolean call() throws Exception {
-                return new SetHead(getHead(), compactor.compact(before, getHead(), onto), compactor).call();
-            }
-        });
+    // michid aqcuire exclusive lock
+    private boolean forceCompact(NodeState before, SegmentNodeState onto, Compactor compactor)
+            throws Exception {
+        SegmentNodeState head = getHead();
+        return setHead(head, compactor.compact(before, head, onto));
     }
 
     public Iterable<SegmentId> getSegmentIds() {
@@ -1495,33 +1492,6 @@ public class FileStore implements SegmentStore {
         @Override
         public boolean maybeCompact(boolean cleanup) {
             throw new UnsupportedOperationException("Read Only Store");
-        }
-    }
-
-    // michid get rid of this
-    private class SetHead implements Callable<Boolean> {
-        private final SegmentNodeState before;
-        private final SegmentNodeState after;
-        private final Compactor compactor;
-
-        public SetHead(SegmentNodeState before, SegmentNodeState after, Compactor compactor) {
-            this.before = before;
-            this.after = after;
-            this.compactor = compactor;
-        }
-
-        @Override
-        public Boolean call() throws Exception {
-            // When used in conjunction with the SegmentNodeStore, this method
-            // needs to be called inside the commitSemaphore as doing otherwise
-            // might result in mixed segments. See OAK-2192.
-            if (setHead(before, after)) {
-                tracker.clearSegmentIdTables(compactionStrategy);
-                gcMonitor.compacted();
-                return true;
-            } else {
-                return false;
-            }
         }
     }
 
