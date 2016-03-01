@@ -261,7 +261,7 @@ public class SegmentTracker {
         return compactionMap.get();
     }
 
-    // michid improve getGcGen
+    // michid improve retrieving current gc gen (aka initialisation mess)
     int getGcGen() {
         if (store instanceof FileStore) {
             return ((FileStore) store).getGcGen();
