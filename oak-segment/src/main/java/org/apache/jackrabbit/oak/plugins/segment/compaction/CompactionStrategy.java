@@ -115,6 +115,8 @@ public class CompactionStrategy {
 
     private boolean forceAfterFail = FORCE_AFTER_FAIL_DEFAULT;
 
+    private int lockWaitTime = 60;  // seconds michid don't hc
+
     private long compactionStart = currentTimeMillis();
 
     /**
@@ -228,6 +230,14 @@ public class CompactionStrategy {
      */
     public void setForceAfterFail(boolean forceAfterFail) {
         this.forceAfterFail = forceAfterFail;
+    }
+
+    public void setLockWaitTime(int lockWaitTime) {
+        this.lockWaitTime = lockWaitTime;
+    }
+
+    public int getLockWaitTime() {
+        return lockWaitTime;
     }
 
     /**

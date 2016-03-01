@@ -94,6 +94,7 @@ public class SegmentNodeStoreBuilder {
                 CleanupType.valueOf(cleanup), cleanupTs, memoryThreshold);
             compactionStrategy.setRetryCount(retryCount);
             compactionStrategy.setForceAfterFail(forceAfterFail);
+            compactionStrategy.setLockWaitTime(lockWaitTime);
             compactionStrategy.setGainThreshold(gainThreshold);
         } else {
             compactionStrategy = NO_COMPACTION;
