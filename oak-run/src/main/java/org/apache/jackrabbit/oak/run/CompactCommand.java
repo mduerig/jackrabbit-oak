@@ -22,7 +22,6 @@ import static org.apache.jackrabbit.oak.plugins.segment.FileStoreHelper.openFile
 import java.io.File;
 import java.io.RandomAccessFile;
 import java.util.Arrays;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
@@ -68,16 +67,7 @@ class CompactCommand implements Command {
             CompactionStrategy compactionStrategy = new CompactionStrategy(
                     false, CompactionStrategy.CLONE_BINARIES_DEFAULT,
                     CompactionStrategy.CleanupType.CLEAN_ALL, 0,
-                    CompactionStrategy.MEMORY_THRESHOLD_DEFAULT) {
-                @Override
-                public boolean compacted(Callable<Boolean> setHead)
-                        throws Exception {
-                    // oak-run is doing compaction single-threaded
-                    // hence no guarding needed - go straight ahead
-                    // and call setHead
-                    return setHead.call();
-                }
-            };
+                    CompactionStrategy.MEMORY_THRESHOLD_DEFAULT);
             store.setCompactionStrategy(compactionStrategy);
             store.compact();
         } finally {

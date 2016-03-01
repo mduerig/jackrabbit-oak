@@ -30,7 +30,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 
-import javax.annotation.Nonnull;
 import javax.jcr.Node;
 import javax.jcr.Repository;
 import javax.jcr.RepositoryException;
@@ -65,13 +64,7 @@ public class RefreshOnGCTest {
         gcMonitor = new GCMonitorTracker();
         gcMonitor.start(whiteboard);
         CompactionStrategy strategy = new CompactionStrategy(
-                false, false, CLEAN_NONE, 0, CompactionStrategy.MEMORY_THRESHOLD_DEFAULT) {
-            @Override
-            public boolean compacted(@Nonnull Callable<Boolean> setHead) throws Exception {
-                setHead.call();
-                return true;
-            }
-        };
+                false, false, CLEAN_NONE, 0, CompactionStrategy.MEMORY_THRESHOLD_DEFAULT);
         fileStore = newFileStore(directory)
                 .withGCMonitor(gcMonitor)
                 .create()

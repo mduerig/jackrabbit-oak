@@ -30,10 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -79,12 +76,7 @@ public class HeavyWriteIT {
         final FileStore store = new FileStore(directory, 128, false);
         final SegmentNodeStore nodeStore = new SegmentNodeStore(store);
         CompactionStrategy custom = new CompactionStrategy(false, false,
-                CLEAN_OLD, 30000, (byte) 0) {
-            @Override
-            public boolean compacted(@Nonnull Callable<Boolean> setHead) throws Exception {
-                return nodeStore.locked(setHead);
-            }
-        };
+                CLEAN_OLD, 30000, (byte) 0);
         store.setCompactionStrategy(custom);
 
         int writes = 100;
