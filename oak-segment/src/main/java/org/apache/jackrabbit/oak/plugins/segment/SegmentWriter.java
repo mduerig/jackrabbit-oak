@@ -110,6 +110,8 @@ public class SegmentWriter {
         TPL_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (TPL_RECORDS_CACHE_SIZE * 1.2),
         TPL_RECORDS_CACHE_SIZE, TPL_RECORDS_CACHE_SIZE <= 0);
 
+    // michid add node cache (for compaction)
+
     private final SegmentStore store;
 
     /**
