@@ -1103,7 +1103,6 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    // michid aqcuire exclusive lock
     private boolean forceCompact(NodeState before, SegmentNodeState onto, Compactor compactor)
             throws InterruptedException, IOException {
         if (rwLock.writeLock().tryLock(compactionStrategy.getLockWaitTime(), TimeUnit.SECONDS)) {
