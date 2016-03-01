@@ -837,6 +837,7 @@ public class SegmentWriter {
                     }
                 }
             }
+            // michid add hidden id property if there isn't any already
 
             if (!pIds.isEmpty()) {
                 if (version.onOrAfter(V_11)) {

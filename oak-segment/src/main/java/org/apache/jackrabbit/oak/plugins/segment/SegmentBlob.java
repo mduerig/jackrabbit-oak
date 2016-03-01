@@ -206,9 +206,11 @@ public class SegmentBlob extends Record implements Blob {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this || fastEquals(this, object)) {
+        if (object == this || Record.fastEqualsBO(this, object)) {
             return true;
         }
+        // michid if both are large SegmentBlobs and list of ids match then equals
+        // michid same approach could be used to compare long strings of string properties
         return object instanceof Blob
                 && AbstractBlob.equal(this, (Blob) object);
     }
