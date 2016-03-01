@@ -28,7 +28,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.api.Type.LONG;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.plugins.segment.Record.fastEquals;
-import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.GAIN_THRESHOLD_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.NO_COMPACTION;
 
 import java.io.Closeable;
@@ -100,7 +99,6 @@ public class SegmentNodeStore implements NodeStore, Observable {
                 final int lockWaitTime,
                 int retryCount,
                 boolean forceAfterFail,
-                boolean persistCompactionMap,
                 byte gainThreshold) {
 
             compactionStrategy = new CompactionStrategy(
@@ -108,20 +106,11 @@ public class SegmentNodeStore implements NodeStore, Observable {
                     cloneBinaries,
                     CompactionStrategy.CleanupType.valueOf(cleanup),
                     cleanupTs,
-                    memoryThreshold) {
-
-                @Override
-                public boolean compacted(Callable<Boolean> setHead) throws Exception {
-                    // Need to guard against concurrent commits to avoid
-                    // mixed segments. See OAK-2192.
-                    return segmentNodeStore.locked(setHead, lockWaitTime, SECONDS);
-                }
-
-            };
+                    memoryThreshold);
 
             compactionStrategy.setRetryCount(retryCount);
             compactionStrategy.setForceAfterFail(forceAfterFail);
-            compactionStrategy.setPersistCompactionMap(persistCompactionMap);
+            compactionStrategy.setLockWaitTime(lockWaitTime);
             compactionStrategy.setGainThreshold(gainThreshold);
 
             return this;
@@ -205,6 +194,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
+    // michid remove and use FileStore exclusive locking mechanism instead
     boolean locked(Callable<Boolean> c) throws Exception {
         if (commitSemaphore.tryAcquire()) {
             try {
@@ -225,6 +215,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
+    // michid remove and use FileStore exclusive locking mechanism instead
     boolean locked(Callable<Boolean> c, long timeout, TimeUnit unit) throws Exception {
         if (commitSemaphore.tryAcquire(timeout, unit)) {
             try {
