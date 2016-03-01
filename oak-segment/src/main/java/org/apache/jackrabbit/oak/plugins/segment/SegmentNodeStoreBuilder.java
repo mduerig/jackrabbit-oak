@@ -17,11 +17,8 @@
 package org.apache.jackrabbit.oak.plugins.segment;
 
 import static com.google.common.base.Preconditions.checkState;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.GAIN_THRESHOLD_DEFAULT;
 import static org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy.NO_COMPACTION;
-
-import java.util.concurrent.Callable;
 
 import javax.annotation.Nonnull;
 
@@ -81,6 +78,7 @@ public class SegmentNodeStoreBuilder {
         return this;
     }
 
+    // michid remove
     public CompactionStrategy getCompactionStrategy() {
         checkState(isCreated);
         return compactionStrategy;
@@ -92,20 +90,11 @@ public class SegmentNodeStoreBuilder {
         isCreated = true;
         final SegmentNodeStore segmentStore = new SegmentNodeStore(store, true);
         if (hasCompactionStrategy) {
-            compactionStrategy = new CompactionStrategy(pauseCompaction,
-                    cloneBinaries, CleanupType.valueOf(cleanup), cleanupTs,
-                    memoryThreshold) {
-
-                @Override
-                public boolean compacted(Callable<Boolean> setHead)
-                        throws Exception {
-                    // Need to guard against concurrent commits to avoid
-                    // mixed segments. See OAK-2192.
-                    return segmentStore.locked(setHead, lockWaitTime, SECONDS);
-                }
-            };
+            compactionStrategy = new CompactionStrategy(pauseCompaction, cloneBinaries,
+                CleanupType.valueOf(cleanup), cleanupTs, memoryThreshold);
             compactionStrategy.setRetryCount(retryCount);
             compactionStrategy.setForceAfterFail(forceAfterFail);
+            compactionStrategy.setLockWaitTime(lockWaitTime);
             compactionStrategy.setGainThreshold(gainThreshold);
         } else {
             compactionStrategy = NO_COMPACTION;

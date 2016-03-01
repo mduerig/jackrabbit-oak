@@ -147,6 +147,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
+    // michid remove and use FileStore exclusive locking mechanism instead
     boolean locked(Callable<Boolean> c) throws Exception {
         if (commitSemaphore.tryAcquire()) {
             try {
@@ -167,6 +168,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
+    // michid remove and use FileStore exclusive locking mechanism instead
     boolean locked(Callable<Boolean> c, long timeout, TimeUnit unit) throws Exception {
         if (commitSemaphore.tryAcquire(timeout, unit)) {
             try {
