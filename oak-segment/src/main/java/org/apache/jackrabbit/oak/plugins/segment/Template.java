@@ -178,7 +178,7 @@ public class Template {
         checkElementIndex(index, properties.length);
         Segment segment = checkNotNull(recordId).getSegment();
 
-        int offset = recordId.getOffset() + RECORD_ID_BYTES;
+        int offset = recordId.getOffset() + 2 * RECORD_ID_BYTES;
         if (childName != ZERO_CHILD_NODES) {
             offset += RECORD_ID_BYTES;
         }
@@ -197,7 +197,7 @@ public class Template {
     MapRecord getChildNodeMap(RecordId recordId) {
         checkState(childName != ZERO_CHILD_NODES);
         Segment segment = recordId.getSegment();
-        int offset = recordId.getOffset() + RECORD_ID_BYTES;
+        int offset = recordId.getOffset() + 2 * RECORD_ID_BYTES;
         RecordId childNodesId = segment.readRecordId(offset);
         return segment.readMap(childNodesId);
     }
@@ -215,7 +215,7 @@ public class Template {
             }
         } else if (name.equals(childName)) {
             Segment segment = recordId.getSegment();
-            int offset = recordId.getOffset() + RECORD_ID_BYTES;
+            int offset = recordId.getOffset() + 2 * RECORD_ID_BYTES;
             RecordId childNodeId = segment.readRecordId(offset);
             return new SegmentNodeState(childNodeId);
         } else {
@@ -231,7 +231,7 @@ public class Template {
             return map.getEntries();
         } else {
             Segment segment = recordId.getSegment();
-            int offset = recordId.getOffset() + RECORD_ID_BYTES;
+            int offset = recordId.getOffset() + 2 * RECORD_ID_BYTES;
             RecordId childNodeId = segment.readRecordId(offset);
             return Collections.singletonList(new MemoryChildNodeEntry(
                     childName, new SegmentNodeState(childNodeId)));

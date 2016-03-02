@@ -62,6 +62,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.jcr.PropertyType;
 
@@ -771,16 +772,16 @@ public class SegmentWriter {
                 }
             }
 
-            Template template = new Template(state);
-            RecordId templateId;
-            if (template.equals(beforeTemplate)) {
-                templateId = before.getTemplateId();
-            } else {
-                templateId = writeTemplate(template);
-            }
-
             List<RecordId> ids = newArrayList();
-            ids.add(templateId);
+            String id = "nodeid-" + (COUNTI.incrementAndGet());  // michid replace with id of this node or of that node if latter is SegmentNodeState
+            ids.add(writeString(id));
+
+            Template template = new Template(state);
+            if (template.equals(beforeTemplate)) {
+                ids.add(before.getTemplateId());
+            } else {
+                ids.add(writeTemplate(template));
+            }
 
             String childName = template.getChildName();
             if (childName == Template.MANY_CHILD_NODES) {
@@ -940,5 +941,8 @@ public class SegmentWriter {
             return Objects.hashCode(t, generation);
         }
     }
+
+    // michid remove
+    private static final AtomicInteger COUNTI = new AtomicInteger();
 
 }

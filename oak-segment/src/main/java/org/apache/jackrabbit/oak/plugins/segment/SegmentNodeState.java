@@ -67,7 +67,7 @@ public class SegmentNodeState extends Record implements NodeState {
         if (templateId == null) {
             // no problem if updated concurrently,
             // as each concurrent thread will just get the same value
-            templateId = getSegment().readRecordId(getOffset(0));
+            templateId = getSegment().readRecordId(getOffset(0, 1));
         }
         return templateId;
     }
@@ -83,7 +83,7 @@ public class SegmentNodeState extends Record implements NodeState {
 
     MapRecord getChildNodeMap() {
         Segment segment = getSegment();
-        return segment.readMap(segment.readRecordId(getOffset(0, 1)));
+        return segment.readMap(segment.readRecordId(getOffset(0, 2)));
     }
 
     @Override
@@ -149,7 +149,7 @@ public class SegmentNodeState extends Record implements NodeState {
 
     private RecordId getRecordIdV10(Segment segment, Template template,
             PropertyTemplate propertyTemplate) {
-        int ids = 1 + propertyTemplate.getIndex();
+        int ids = 2 + propertyTemplate.getIndex();
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
@@ -158,7 +158,7 @@ public class SegmentNodeState extends Record implements NodeState {
 
     private RecordId getRecordIdV11(Segment segment, Template template,
             PropertyTemplate propertyTemplate) {
-        int ids = 1;
+        int ids = 2;
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
@@ -186,7 +186,7 @@ public class SegmentNodeState extends Record implements NodeState {
         }
 
         Segment segment = getSegment();
-        int ids = 1;
+        int ids = 2;
         if (template.getChildName() != Template.ZERO_CHILD_NODES) {
             ids++;
         }
@@ -285,7 +285,7 @@ public class SegmentNodeState extends Record implements NodeState {
 
         Segment segment = getSegment();
         RecordId id;
-        if (getSegment().getSegmentVersion().onOrAfter(V_11)) {
+        if (segment.getSegmentVersion().onOrAfter(V_11)) {
             id = getRecordIdV11(segment, template, propertyTemplate);
         } else {
             id = getRecordIdV10(segment, template, propertyTemplate);
@@ -387,7 +387,7 @@ public class SegmentNodeState extends Record implements NodeState {
         } else if (childName != Template.ZERO_CHILD_NODES
                 && childName.equals(name)) {
             Segment segment = getSegment();
-            RecordId childNodeId = segment.readRecordId(getOffset(0, 1));
+            RecordId childNodeId = segment.readRecordId(getOffset(0, 2));
             return new SegmentNodeState(childNodeId);
         }
         checkValidName(name);
@@ -415,7 +415,7 @@ public class SegmentNodeState extends Record implements NodeState {
             return getChildNodeMap().getEntries();
         } else {
             Segment segment = getSegment();
-            RecordId childNodeId = segment.readRecordId(getOffset(0, 1));
+            RecordId childNodeId = segment.readRecordId(getOffset(0, 2));
             return Collections.singletonList(new MemoryChildNodeEntry(
                     childName, new SegmentNodeState(childNodeId)));
         }
