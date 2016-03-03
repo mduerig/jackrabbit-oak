@@ -591,6 +591,8 @@ public class SegmentWriter {
         }
 
         private RecordId internalWriteStream(InputStream stream) throws IOException {
+            // michid if this is a segment stream just write the list of block ids
+            // michid we could do the same for strings
             BlobStore blobStore = store.getBlobStore();
             byte[] data = new byte[Segment.MEDIUM_LIMIT];
             int n = read(stream, data, 0, data.length);
