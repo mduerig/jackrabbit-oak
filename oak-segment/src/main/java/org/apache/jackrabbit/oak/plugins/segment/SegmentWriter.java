@@ -63,7 +63,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.jcr.PropertyType;
@@ -765,8 +764,6 @@ public class SegmentWriter {
             }
         }
 
-        // michid defer compacted items are not in the compaction map -> performance regression
-        //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
         private WriteNodeResult writeNode(NodeState state) throws IOException {
             if (state instanceof SegmentNodeState) {
                 RecordId id = frequentNodes.get(key(state));
@@ -1005,8 +1002,5 @@ public class SegmentWriter {
             return Objects.hashCode(t, generation);
         }
     }
-
-    // michid remove
-    private static final AtomicInteger COUNTI = new AtomicInteger();
 
 }
