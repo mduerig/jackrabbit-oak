@@ -1038,7 +1038,7 @@ public class FileStore implements SegmentStore {
         gcMonitor.info("TarMK GC #{}: compaction started, strategy={}", gcCount, compactionStrategy);
         Stopwatch watch = Stopwatch.createStarted();
         Supplier<Boolean> compactionCanceled = newCancelCompactionCondition();
-        Compactor compactor = new Compactor(tracker, compactionStrategy, compactionCanceled);
+        Compactor compactor = new Compactor(tracker);  // michid implement cancellation
         SegmentNodeState before = getHead();
         long existing = before.getChildNode(SegmentNodeStore.CHECKPOINTS)
                 .getChildNodeCount(Long.MAX_VALUE);

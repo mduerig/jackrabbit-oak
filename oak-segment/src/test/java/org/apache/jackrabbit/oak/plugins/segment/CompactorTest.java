@@ -16,11 +16,8 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import static org.junit.Assert.assertFalse;
-
 import java.io.IOException;
 
-import com.google.common.base.Suppliers;
 import junit.framework.Assert;
 import org.apache.jackrabbit.oak.Oak;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -67,18 +64,19 @@ public class CompactorTest {
         Assert.assertEquals(store.getRoot(), after);
     }
 
-    @Test
-    public void testCancel() throws Throwable {
-
-        // Create a Compactor that will cancel itself as soon as possible. The
-        // early cancellation is the reason why the returned SegmentNodeState
-        // doesn't have the child named "b".
-
-        NodeStore store = SegmentNodeStore.newSegmentNodeStore(segmentStore).create();
-        Compactor compactor = new Compactor(segmentStore.getTracker(), Suppliers.ofInstance(true));
-        SegmentNodeState sns = compactor.compact(store.getRoot(), addChild(store.getRoot(), "b"), store.getRoot());
-        assertFalse(sns.hasChildNode("b"));
-    }
+// michid re-enable testCancel()
+//    @Test
+//    public void testCancel() throws Throwable {
+//
+//        // Create a Compactor that will cancel itself as soon as possible. The
+//        // early cancellation is the reason why the returned SegmentNodeState
+//        // doesn't have the child named "b".
+//
+//        NodeStore store = SegmentNodeStore.newSegmentNodeStore(segmentStore).create();
+//        Compactor compactor = new Compactor(segmentStore.getTracker(), Suppliers.ofInstance(true));
+//        SegmentNodeState sns = compactor.compact(store.getRoot(), addChild(store.getRoot(), "b"), store.getRoot());
+//        assertFalse(sns.hasChildNode("b"));
+//    }
 
     private NodeState addChild(NodeState current, String name) {
         NodeBuilder builder = current.builder();

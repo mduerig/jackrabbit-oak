@@ -27,6 +27,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
  * Supplier}. If the {@code Supplier} returns {@code true}, the diffing process
  * will be canceled at the first possible occasion.
  */
+// michid remove?
 class CancelableDiff implements NodeStateDiff {
 
     private final NodeStateDiff delegate;
