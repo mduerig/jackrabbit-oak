@@ -22,8 +22,6 @@ import static org.apache.jackrabbit.oak.commons.PathUtils.concat;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.annotation.Nonnull;
 
@@ -33,9 +31,6 @@ import com.google.common.base.Suppliers;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
-import org.apache.jackrabbit.oak.plugins.memory.BinaryPropertyState;
-import org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState;
-import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy;
 import org.apache.jackrabbit.oak.spi.state.ApplyDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
@@ -252,24 +247,13 @@ public class Compactor {
                 return false;
             }
         }
-    }
 
-    private PropertyState compact(PropertyState property) throws IOException {
-        String name = property.getName();
-        Type<?> type = property.getType();
-        if (type == BINARY) {
-            Blob blob = writer.writeBlob(property.getValue(Type.BINARY));
-            return BinaryPropertyState.binaryProperty(name, blob);
-        } else if (type == BINARIES) {
-            List<Blob> blobs = new ArrayList<Blob>();
-            for (Blob blob : property.getValue(BINARIES)) {
-                blobs.add(writer.writeBlob(blob));
-            }
-            return MultiBinaryPropertyState.binaryPropertyFromBlob(name, blobs);
-        } else {
-            Object value = property.getValue(type);
-            return PropertyStates.createProperty(name, value, type);
+        private PropertyState compact(PropertyState property) throws IOException {
+            RecordId id = writer.writeProperty(property);
+            PropertyTemplate template = new PropertyTemplate(property);  // michid this hack might not work, but it will go away anyway
+            return new SegmentPropertyState(id, template);
         }
+
     }
 
     private static class ProgressTracker {
