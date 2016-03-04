@@ -591,17 +591,24 @@ public class SegmentWriter {
         }
 
         private RecordId internalWriteStream(InputStream stream) throws IOException {
-            // michid if this is a segment stream just write the list of block ids
-            // michid we could do the same for strings
-            BlobStore blobStore = store.getBlobStore();
-            byte[] data = new byte[Segment.MEDIUM_LIMIT];
-            int n = read(stream, data, 0, data.length);
+            if (stream instanceof SegmentStream) {
+                // michid we could do the same for strings
+                SegmentStream segmentStream = (SegmentStream) stream;
+                List<RecordId> blockIds = segmentStream.getBlockIds();
+                if (blockIds != null) {
+                    return writeValueRecord(segmentStream.getLength(), writeList(blockIds));
+                }
+            }
 
             // Special case for short binaries (up to about 16kB):
             // store them directly as small- or medium-sized value records
+            byte[] data = new byte[Segment.MEDIUM_LIMIT];
+            int n = read(stream, data, 0, data.length);
             if (n < Segment.MEDIUM_LIMIT) {
                 return writeValueRecord(n, data);
             }
+
+            BlobStore blobStore = store.getBlobStore();
             if (blobStore != null) {
                 String blobId = blobStore.writeBlob(new SequenceInputStream(
                     new ByteArrayInputStream(data, 0, n), stream));
