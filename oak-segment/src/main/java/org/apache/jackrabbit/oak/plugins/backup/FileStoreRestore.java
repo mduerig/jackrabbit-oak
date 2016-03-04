@@ -53,7 +53,7 @@ public class FileStoreRestore {
         SegmentNodeState current = store.getHead();
         try {
             Compactor compactor = new Compactor(store.getTracker());
-            compactor.setDeepCheckLargeBinaries(true);
+            // michid use dedicated differ instead of compactor compactor.setDeepCheckLargeBinaries(true);
             SegmentNodeState after = compactor.compact(current,
                     restore.getHead(), current);
             store.setHead(current, after);
