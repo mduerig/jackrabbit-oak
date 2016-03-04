@@ -16,15 +16,10 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
-
 import java.io.IOException;
 
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.spi.state.ApplyDiff;
-import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,86 +53,11 @@ public class Compactor {
      * @param onto    the onto state
      * @return  the compacted state
      */
+    // michid inline as this is really slim now ;-)
     public SegmentNodeState compact(NodeState before, NodeState after, NodeState onto) throws IOException {
-        SegmentNodeBuilder builder = new SegmentNodeBuilder(writer.writeNode(onto), writer);
-        new CompactDiff(builder).diff(before, after);
-        SegmentNodeState compacted = builder.getNodeState();
+        SegmentNodeState nodeState = writer.writeNode(after);
         writer.flush();
-        return compacted;
-    }
-
-    private class CompactDiff extends ApplyDiff {
-        private IOException exception;
-
-        CompactDiff(NodeBuilder builder) {
-            super(builder);
-        }
-
-        boolean diff(NodeState before, NodeState after) throws IOException {
-            boolean success = after.compareAgainstBaseState(before, this);
-            if (exception != null) {
-                throw new IOException(exception);
-            }
-            return success;
-        }
-
-        @Override
-        public boolean propertyAdded(PropertyState after) {
-            try {
-                return super.propertyAdded(compact(after));
-            } catch (IOException e) {
-                exception = e;
-                return false;
-            }
-        }
-
-        @Override
-        public boolean propertyChanged(PropertyState before, PropertyState after) {
-            try {
-                return super.propertyChanged(before, compact(after));
-            } catch (IOException e) {
-                exception = e;
-                return false;
-            }
-        }
-
-        @Override
-        public boolean childNodeAdded(String name, NodeState after) {
-            try {
-                NodeBuilder child = EMPTY_NODE.builder();
-                boolean success =  new CompactDiff(child).diff(EMPTY_NODE, after);
-                if (success) {
-                    builder.setChildNode(name, writer.writeNode(child.getNodeState()));
-                }
-                return success;
-            } catch (IOException e) {
-                exception = e;
-                return false;
-            }
-        }
-
-        @Override
-        public boolean childNodeChanged(
-                String name, NodeState before, NodeState after) {
-            try {
-                NodeBuilder child = builder.getChildNode(name);
-                boolean success = new CompactDiff(child).diff(before, after);
-                if (success) {
-                    writer.writeNode(child.getNodeState()).getRecordId();
-                }
-                return success;
-            } catch (IOException e) {
-                exception = e;
-                return false;
-            }
-        }
-
-        private PropertyState compact(PropertyState property) throws IOException {
-            RecordId id = writer.writeProperty(property);
-            PropertyTemplate template = new PropertyTemplate(property);  // michid this hack might not work, but it will go away anyway
-            return new SegmentPropertyState(id, template);
-        }
-
+        return nodeState;
     }
 
 }
