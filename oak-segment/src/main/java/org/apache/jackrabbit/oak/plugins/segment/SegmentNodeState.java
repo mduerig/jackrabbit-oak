@@ -601,6 +601,12 @@ public class SegmentNodeState extends Record implements NodeState {
 
     //------------------------------------------------------------< Object >--
 
+
+    @Override
+    public int hashCode() {
+        return getId().hashCode();
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object || Record.fastEqualsNO(this, object)) {
