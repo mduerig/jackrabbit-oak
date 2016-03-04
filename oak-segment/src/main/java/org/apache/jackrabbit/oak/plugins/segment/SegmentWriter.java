@@ -113,7 +113,8 @@ public class SegmentWriter {
         TPL_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (TPL_RECORDS_CACHE_SIZE * 1.2),
         TPL_RECORDS_CACHE_SIZE, TPL_RECORDS_CACHE_SIZE <= 0);
 
-    // michid add node cache (for compaction)
+    // michid add node cache (for de-duplication / compaction)
+    // michid add binary cache (for de-duplication / compaction)
 
     private final SegmentStore store;
 
@@ -193,26 +194,6 @@ public class SegmentWriter {
                 return with(writer).writeBlock(bytes, offset, length);
             }
         });
-    }
-
-    SegmentBlob writeExternalBlob(final String blobId) throws IOException {
-        return new SegmentBlob(
-            writeOperationHandler.execute(new SegmentWriteOperation() {
-                @Override
-                public RecordId execute(SegmentBufferWriter writer) throws IOException {
-                    return with(writer).writeExternalBlob(blobId);
-                }
-            }));
-    }
-
-    SegmentBlob writeLargeBlob(final long length, final List<RecordId> list) throws IOException {
-        return new SegmentBlob(
-            writeOperationHandler.execute(new SegmentWriteOperation() {
-                @Override
-                public RecordId execute(SegmentBufferWriter writer) throws IOException {
-                    return with(writer).writeLargeBlob(length, list);
-                }
-            }));
     }
 
     /**
@@ -566,14 +547,6 @@ public class SegmentWriter {
             checkNotNull(bytes);
             checkPositionIndexes(offset, offset + length, bytes.length);
             return newBlockWriter(bytes, offset, length).write(writer);
-        }
-
-        private RecordId writeExternalBlob(String blobId) throws IOException {
-            return writeBlobId(blobId);
-        }
-
-        private RecordId writeLargeBlob(long length, List<RecordId> list) throws IOException {
-            return writeValueRecord(length, writeList(list));
         }
 
         private RecordId writeStream(InputStream stream) throws IOException {

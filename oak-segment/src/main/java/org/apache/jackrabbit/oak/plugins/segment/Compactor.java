@@ -16,30 +16,23 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Maps.newHashMap;
 import static org.apache.jackrabbit.oak.api.Type.BINARIES;
 import static org.apache.jackrabbit.oak.api.Type.BINARY;
 import static org.apache.jackrabbit.oak.commons.PathUtils.concat;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
-import com.google.common.hash.Hashing;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
-import org.apache.jackrabbit.oak.commons.IOUtils;
 import org.apache.jackrabbit.oak.plugins.memory.BinaryPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
@@ -70,20 +63,7 @@ public class Compactor {
 
     private final SegmentWriter writer;
 
-    /**
-     * Filters nodes that will be included in the compaction map, allowing for
-     * optimization in case of an offline compaction
-     */
-    private Predicate<NodeState> includeInMap = Predicates.alwaysTrue();
-
     private final ProgressTracker progress = new ProgressTracker();
-
-    /**
-     * Map from {@link #getBlobKey(Blob) blob keys} to matching compacted
-     * blob record identifiers. Used to de-duplicate copies of the same
-     * binary values.
-     */
-    private final Map<String, List<RecordId>> binaries = newHashMap();
 
     /**
      * If the compactor should copy large binaries as streams or just copy the
@@ -206,7 +186,12 @@ public class Compactor {
                 log.trace("propertyAdded {}/{}", path, after.getName());
             }
             progress.onProperty();
-            return super.propertyAdded(compact(after));
+            try {
+                return super.propertyAdded(compact(after));
+            } catch (IOException e) {
+                exception = e;
+                return false;
+            }
         }
 
         @Override
@@ -215,7 +200,12 @@ public class Compactor {
                 log.trace("propertyChanged {}/{}", path, after.getName());
             }
             progress.onProperty();
-            return super.propertyChanged(before, compact(after));
+            try {
+                return super.propertyChanged(before, compact(after));
+            } catch (IOException e) {
+                exception = e;
+                return false;
+            }
         }
 
         @Override
@@ -264,95 +254,21 @@ public class Compactor {
         }
     }
 
-    private PropertyState compact(PropertyState property) {
+    private PropertyState compact(PropertyState property) throws IOException {
         String name = property.getName();
         Type<?> type = property.getType();
         if (type == BINARY) {
-            Blob blob = compact(property.getValue(Type.BINARY));
+            Blob blob = writer.writeBlob(property.getValue(Type.BINARY));
             return BinaryPropertyState.binaryProperty(name, blob);
         } else if (type == BINARIES) {
             List<Blob> blobs = new ArrayList<Blob>();
             for (Blob blob : property.getValue(BINARIES)) {
-                blobs.add(compact(blob));
+                blobs.add(writer.writeBlob(blob));
             }
             return MultiBinaryPropertyState.binaryPropertyFromBlob(name, blobs);
         } else {
             Object value = property.getValue(type);
             return PropertyStates.createProperty(name, value, type);
-        }
-    }
-
-    /**
-     * Compacts (and de-duplicates) the given blob.
-     *
-     * @param blob blob to be compacted
-     * @return compacted blob
-     */
-    private Blob compact(Blob blob) {
-        if (blob instanceof SegmentBlob) {
-            SegmentBlob sb = (SegmentBlob) blob;
-            try {
-                // Check if we've already cloned this specific record
-                progress.onBinary();
-
-                // if the blob is inlined or external, just clone it
-                if (sb.isExternal() || sb.length() < Segment.MEDIUM_LIMIT) {
-                    return sb.clone(writer, false);
-                }
-
-                // alternatively look if the exact same binary has been cloned
-                String key = getBlobKey(blob);
-                List<RecordId> ids = binaries.get(key);
-                if (ids != null) {
-                    for (RecordId duplicateId : ids) {
-                        if (new SegmentBlob(duplicateId).equals(sb)) {
-                            return new SegmentBlob(duplicateId);
-                        }
-                    }
-                }
-
-                boolean clone = cloneBinaries;
-                if (deepCheckLargeBinaries) {
-                    clone = clone
-                            || !tracker.getStore().containsSegment(
-                                    sb.getRecordId().getSegmentId());
-                    if (!clone) {
-                        for (SegmentId bid : SegmentBlob.getBulkSegmentIds(sb)) {
-                            if (!tracker.getStore().containsSegment(bid)) {
-                                clone = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // if not, clone the large blob and keep track of the result
-                sb = sb.clone(writer, clone);
-                if (ids == null) {
-                    ids = newArrayList();
-                    binaries.put(key, ids);
-                }
-                ids.add(sb.getRecordId());
-
-                return sb;
-            } catch (IOException e) {
-                log.warn("Failed to compact a blob", e);
-                // fall through
-            }
-        }
-
-        // no way to compact this blob, so we'll just keep it as-is
-        return blob;
-    }
-
-    private static String getBlobKey(Blob blob) throws IOException {
-        InputStream stream = blob.getNewStream();
-        try {
-            byte[] buffer = new byte[SegmentWriter.BLOCK_SIZE];
-            int n = IOUtils.readFully(stream, buffer, 0, buffer.length);
-            return blob.length() + ":" + Hashing.sha1().hashBytes(buffer, 0, n);
-        } finally {
-            stream.close();
         }
     }
 
