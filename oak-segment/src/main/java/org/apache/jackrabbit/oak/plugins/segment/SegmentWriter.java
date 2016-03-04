@@ -228,7 +228,7 @@ public class SegmentWriter {
             writeOperationHandler.execute(new SegmentWriteOperation() {
                 @Override
                 public RecordId execute(SegmentBufferWriter writer) throws IOException {
-                    return with(writer).writeNode(state);
+                    return with(writer).writeNode(state).recordId;
                 }
             }));
     }
@@ -736,18 +736,34 @@ public class SegmentWriter {
             return tid;
         }
 
+        // michid horrible hack, which properly kills performance as it pushes method results from the stack to the heap
+        class WriteNodeResult {
+            final RecordId recordId;
+            final int cost;
+
+            WriteNodeResult(RecordId recordId, int cost) {
+                this.recordId = recordId;
+                this.cost = cost;
+            }
+
+            WriteNodeResult(RecordId recordId) {
+                this(recordId, 0);
+            }
+        }
+
         // michid defer compacted items are not in the compaction map -> performance regression
         //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
-        private RecordId writeNode(NodeState state) throws IOException {
+        private WriteNodeResult writeNode(NodeState state) throws IOException {
             if (state instanceof SegmentNodeState) {
                 SegmentNodeState sns = ((SegmentNodeState) state);
                 if (hasSegment(sns)) {
                     if (!isOldGen(sns.getRecordId())) {
-                        return sns.getRecordId();
+                        return new WriteNodeResult(sns.getRecordId());
                     }
                 }
             }
 
+            int cost = 0;
             SegmentNodeState before = null;
             Template beforeTemplate = null;
             ModifiedNodeState after = null;
@@ -782,24 +798,25 @@ public class SegmentWriter {
             String childName = template.getChildName();
             if (childName == Template.MANY_CHILD_NODES) {
                 MapRecord base;
-                Map<String, RecordId> childNodes;
+                Map<String, RecordId> childNodes = newHashMap();
                 if (before != null
                     && before.getChildNodeCount(2) > 1
                     && after.getChildNodeCount(2) > 1) {
                     base = before.getChildNodeMap();
-                    childNodes = new ChildNodeCollectorDiff().diff(before, after);
+                    cost += new ChildNodeCollectorDiff(childNodes).diff(before, after);
                 } else {
                     base = null;
-                    childNodes = newHashMap();
                     for (ChildNodeEntry entry : state.getChildNodeEntries()) {
-                        childNodes.put(
-                            entry.getName(),
-                            writeNode(entry.getNodeState()));
+                        WriteNodeResult writeNodeResult = writeNode(entry.getNodeState());
+                        cost += writeNodeResult.cost;
+                        childNodes.put(entry.getName(), writeNodeResult.recordId);
                     }
                 }
                 ids.add(writeMap(base, childNodes));
             } else if (childName != Template.ZERO_CHILD_NODES) {
-                ids.add(writeNode(state.getChildNode(template.getChildName())));
+                WriteNodeResult writeNodeResult = writeNode(state.getChildNode(template.getChildName()));
+                cost += writeNodeResult.cost;
+                ids.add(writeNodeResult.recordId);
             }
 
             List<RecordId> pIds = newArrayList();
@@ -842,7 +859,7 @@ public class SegmentWriter {
                     ids.addAll(pIds);
                 }
             }
-            return newNodeStateWriter(ids).write(writer);
+            return new WriteNodeResult(newNodeStateWriter(ids).write(writer), cost + ids.size() + pIds.size());
         }
 
         private boolean hasSegment(NodeState node) {
@@ -866,22 +883,30 @@ public class SegmentWriter {
         }
 
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
-            private final Map<String, RecordId> childNodes = newHashMap();
+            private final Map<String, RecordId> childNodes;
+            private int cost;
             private IOException exception;
 
-            public Map<String, RecordId> diff(SegmentNodeState before, ModifiedNodeState after) throws IOException {
+            ChildNodeCollectorDiff(Map<String, RecordId> childNodes) {
+                this.childNodes = childNodes;
+            }
+
+            public int diff(SegmentNodeState before, ModifiedNodeState after)
+                    throws IOException {
                 after.compareAgainstBaseState(before, this);
                 if (exception != null) {
                     throw new IOException(exception);
                 } else {
-                    return childNodes;
+                    return cost;
                 }
             }
 
             @Override
             public boolean childNodeAdded(String name, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    WriteNodeResult writeNodeResult = writeNode(after);
+                    cost += writeNodeResult.cost;
+                    childNodes.put(name, writeNodeResult.recordId);
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -893,7 +918,9 @@ public class SegmentWriter {
             public boolean childNodeChanged(
                 String name, NodeState before, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    WriteNodeResult writeNodeResult = writeNode(after);
+                    cost += writeNodeResult.cost;
+                    childNodes.put(name, writeNodeResult.recordId);
                 } catch (IOException e) {
                     exception = e;
                     return false;
