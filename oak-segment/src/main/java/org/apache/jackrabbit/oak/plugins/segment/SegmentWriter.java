@@ -113,7 +113,13 @@ public class SegmentWriter {
         TPL_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (TPL_RECORDS_CACHE_SIZE * 1.2),
         TPL_RECORDS_CACHE_SIZE, TPL_RECORDS_CACHE_SIZE <= 0);
 
-    // michid add node cache (for de-duplication / compaction)
+    // michid tweak caches
+    private final RecordCache<Key<SegmentNodeState>> frequentNodes = newRecordCache(3000, 3600, false);
+
+    // michid make the max cost a concern of the cache
+    private int maxCost;
+    private final RecordCache<Key<SegmentNodeState>> expensiveNodes = newRecordCache(3000, 3600, false);
+
     // michid add binary cache (for de-duplication / compaction)
 
     private final SegmentStore store;
@@ -135,6 +141,14 @@ public class SegmentWriter {
         this.store = store;
         this.version = version;
         this.writeOperationHandler = writeOperationHandler;
+    }
+
+    // michid replace with GCMonitor.compacted()
+    public void dropCache() {
+        stringCache.clear();
+        templateCache.clear();
+        frequentNodes.clear();
+        expensiveNodes.clear();
     }
 
     public void flush() throws IOException {
@@ -755,6 +769,14 @@ public class SegmentWriter {
         //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
         private WriteNodeResult writeNode(NodeState state) throws IOException {
             if (state instanceof SegmentNodeState) {
+                RecordId id = frequentNodes.get(key(state));
+                if (id == null) {
+                    id = expensiveNodes.get((key(state)));
+                }
+                if (id != null) {
+                    return new WriteNodeResult(id);
+                }
+
                 SegmentNodeState sns = ((SegmentNodeState) state);
                 if (hasSegment(sns)) {
                     if (!isOldGen(sns.getRecordId())) {
@@ -859,7 +881,21 @@ public class SegmentWriter {
                     ids.addAll(pIds);
                 }
             }
-            return new WriteNodeResult(newNodeStateWriter(ids).write(writer), cost + ids.size() + pIds.size());
+            WriteNodeResult result = new WriteNodeResult(newNodeStateWriter(ids).write(writer), cost + ids.size() + pIds.size());
+            SegmentNodeState nodeState = new SegmentNodeState(result.recordId);
+
+            // michid make this logic part of the concern of the cache
+            synchronized (expensiveNodes) {
+                if (result.cost > maxCost) {
+                    maxCost = result.cost;
+                }
+            }
+            if (result.cost > maxCost/2) {
+                expensiveNodes.put(key(nodeState), result.recordId);
+            } else {
+                frequentNodes.put(key(nodeState), result.recordId);
+            }
+            return result;
         }
 
         private boolean hasSegment(NodeState node) {

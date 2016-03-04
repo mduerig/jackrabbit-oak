@@ -25,6 +25,7 @@ import java.util.Map;
 /**
  * michid document
  */
+// michid add cache stats for RecordCaches
 abstract class RecordCache<T> {
     // michid this caches retain in mem refs to old gens. assess impact and mitigate/fix
     private static final RecordCache<?> DISABLED_CACHE = new RecordCache<Object>() {
@@ -40,6 +41,11 @@ abstract class RecordCache<T> {
 
         @Override
         void clear() { }
+
+        @Override
+        int size() {
+            return 0;
+        }
     };
 
     @SuppressWarnings("unchecked")
@@ -54,6 +60,7 @@ abstract class RecordCache<T> {
     abstract RecordId get(Object key);
     abstract RecordId put(T key, RecordId value);
     abstract void clear();
+    abstract int size();
 
     private static final class LRURecordCache<T> extends RecordCache<T> {
         private final Map<T, RecordId> cache;
@@ -80,6 +87,11 @@ abstract class RecordCache<T> {
         @Override
         public synchronized void clear() {
             cache.clear();
+        }
+
+        @Override
+        public synchronized int size() {
+            return cache.size();
         }
     }
 }

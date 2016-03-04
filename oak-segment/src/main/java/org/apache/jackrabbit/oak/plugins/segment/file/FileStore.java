@@ -1079,8 +1079,12 @@ public class FileStore implements SegmentStore {
                 }
             }
             if (success) {
-                tracker.clearSegmentIdTables(compactionStrategy);
+                // michid remove once clean_old is gone tracker.clearSegmentIdTables(compactionStrategy);
                 gcMonitor.compacted();
+                // michid replace this with a more selective approach: only drop those keys that are older
+                // than 2 generations (so deferred compaction can still use the cache). Also put in the
+                // keys from the cache used by the compactor.
+                tracker.getWriter().dropCache();
             } else {
                 gcMonitor.info("TarMK GC #{}: compaction gave up compacting concurrent commits after {} cycles.",
                     gcCount, cycles - 1);
