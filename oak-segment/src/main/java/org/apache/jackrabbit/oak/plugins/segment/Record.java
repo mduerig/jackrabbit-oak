@@ -16,11 +16,8 @@
  */
 package org.apache.jackrabbit.oak.plugins.segment;
 
-import static com.google.common.base.Preconditions.checkState;
-
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.spi.state.AbstractNodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
@@ -36,7 +33,6 @@ class Record {
     static boolean fastEqualsNN(NodeState a, NodeState b) {
         if (a instanceof SegmentNodeState && b instanceof SegmentNodeState) {
             if (((SegmentNodeState) a).getId().equals(((SegmentNodeState) b).getId())) {
-                checkState(AbstractNodeState.equals(a, b)); // michid remove this performance killer
                 return true;
             }
         }

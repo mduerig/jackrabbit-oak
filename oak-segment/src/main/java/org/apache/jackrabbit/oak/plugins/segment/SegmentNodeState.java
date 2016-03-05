@@ -601,15 +601,25 @@ public class SegmentNodeState extends Record implements NodeState {
 
     //------------------------------------------------------------< Object >--
 
+
+    @Override
+    public int hashCode() {
+        return getId().hashCode();
+    }
+
     @Override
     public boolean equals(Object object) {
         if (this == object || Record.fastEqualsNO(this, object)) {
             return true;
         } else if (object instanceof SegmentNodeState) {
             SegmentNodeState that = (SegmentNodeState) object;
-            Template template = getTemplate();
-            return template.equals(that.getTemplate())
+            if (Record.fastEqualsNN(this, that)) {
+                return true;
+            } else {
+                Template template = getTemplate();
+                return template.equals(that.getTemplate())
                     && template.compare(getRecordId(), that.getRecordId());
+            }
         } else {
             return object instanceof NodeState
                     && AbstractNodeState.equals(this, (NodeState) object); // TODO

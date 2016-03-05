@@ -63,7 +63,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.jcr.PropertyType;
@@ -942,8 +941,5 @@ public class SegmentWriter {
             return Objects.hashCode(t, generation);
         }
     }
-
-    // michid remove
-    private static final AtomicInteger COUNTI = new AtomicInteger();
 
 }
