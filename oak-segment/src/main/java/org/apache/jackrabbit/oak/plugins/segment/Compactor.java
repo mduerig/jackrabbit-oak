@@ -46,40 +46,11 @@ public class Compactor {
     /** Logger instance */
     private static final Logger log = LoggerFactory.getLogger(Compactor.class);
 
-    /**
-     * Locks down the RecordId persistence structure
-     */
-    static long[] recordAsKey(RecordId r) {
-        return new long[] { r.getSegmentId().getMostSignificantBits(),
-                r.getSegmentId().getLeastSignificantBits(), r.getOffset() };
-    }
-
     private final SegmentTracker tracker;
 
     private final SegmentWriter writer;
 
     private final ProgressTracker progress = new ProgressTracker();
-
-    /**
-     * If the compactor should copy large binaries as streams or just copy the
-     * refs
-     */
-    private final boolean cloneBinaries;
-
-    /**
-     * In the case of large inlined binaries, compaction will verify if all
-     * referenced segments exist in order to determine if a full clone is
-     * necessary, or just a shallow copy of the RecordId list is enough
-     * (Used in Backup scenario)
-     */
-    private boolean deepCheckLargeBinaries;
-
-    /**
-     * Flag to use content equality verification before actually compacting the
-     * state, on the childNodeChanged diff branch
-     * (Used in Backup scenario)
-     */
-    private boolean contentEqualityCheck;
 
     /**
      * Allows the cancellation of the compaction process. If this {@code
@@ -93,21 +64,16 @@ public class Compactor {
         this(tracker, Suppliers.ofInstance(false));
     }
 
-    public Compactor(SegmentTracker tracker, Supplier<Boolean> cancel) {
+    Compactor(SegmentTracker tracker, Supplier<Boolean> cancel) {
         this.tracker = tracker;
         this.writer = tracker.getWriter();
-        this.cloneBinaries = false;
         this.cancel = cancel;
     }
 
-    public Compactor(SegmentTracker tracker, CompactionStrategy compactionStrategy) {
-        this(tracker, compactionStrategy, Suppliers.ofInstance(false));
-    }
-
+    // michid remove clone binaries and compaction strategy
     public Compactor(SegmentTracker tracker, CompactionStrategy compactionStrategy, Supplier<Boolean> cancel) {
         this.tracker = tracker;
         this.writer = createSegmentWriter(tracker);
-        this.cloneBinaries = compactionStrategy.cloneBinaries();
         this.cancel = cancel;
     }
 
@@ -115,12 +81,6 @@ public class Compactor {
     private static SegmentWriter createSegmentWriter(SegmentTracker tracker) {
         return new SegmentWriter(tracker.getStore(), tracker.getSegmentVersion(),
             new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "c", tracker.getGcGen() + 1));
-    }
-
-    protected SegmentNodeBuilder process(NodeState before, NodeState after, NodeState onto) throws IOException {
-        SegmentNodeBuilder builder = new SegmentNodeBuilder(writer.writeNode(onto), writer);
-        new CompactDiff(builder).diff(before, after);
-        return builder;
     }
 
     /**
@@ -133,7 +93,9 @@ public class Compactor {
      */
     public SegmentNodeState compact(NodeState before, NodeState after, NodeState onto) throws IOException {
         progress.start();
-        SegmentNodeState compacted = process(before, after, onto).getNodeState();
+        SegmentNodeBuilder builder = new SegmentNodeBuilder(writer.writeNode(onto), writer);
+        new CompactDiff(builder).diff(before, after);
+        SegmentNodeState compacted = builder.getNodeState();
         writer.flush();
         progress.stop();
         return compacted;
@@ -230,10 +192,6 @@ public class Compactor {
                 log.trace("childNodeChanged {}/{}", path, name);
             }
 
-            if (contentEqualityCheck && before.equals(after)) {
-                return true;
-            }
-
             progress.onNode();
             try {
                 NodeBuilder child = builder.getChildNode(name);
@@ -250,7 +208,7 @@ public class Compactor {
 
         private PropertyState compact(PropertyState property) throws IOException {
             RecordId id = writer.writeProperty(property);
-            PropertyTemplate template = new PropertyTemplate(property);  // michid this hack might not work, but it will go away anyway
+            PropertyTemplate template = new PropertyTemplate(property);  // michid this hack might not work, check, improve
             return new SegmentPropertyState(id, template);
         }
 
@@ -343,14 +301,6 @@ public class Compactor {
             }
             return false;
         }
-    }
-
-    public void setDeepCheckLargeBinaries(boolean deepCheckLargeBinaries) {
-        this.deepCheckLargeBinaries = deepCheckLargeBinaries;
-    }
-
-    public void setContentEqualityCheck(boolean contentEqualityCheck) {
-        this.contentEqualityCheck = contentEqualityCheck;
     }
 
 }
