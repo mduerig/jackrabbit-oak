@@ -19,7 +19,6 @@ package org.apache.jackrabbit.oak.plugins.segment;
 import static org.apache.jackrabbit.oak.api.Type.BINARIES;
 import static org.apache.jackrabbit.oak.api.Type.BINARY;
 import static org.apache.jackrabbit.oak.commons.PathUtils.concat;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 
 import java.io.IOException;
 
@@ -79,6 +78,7 @@ public class Compactor {
 
     @Nonnull
     private static SegmentWriter createSegmentWriter(SegmentTracker tracker) {
+        // michid pass specialised caching policies for the compaction case (de-duplication of binaries, expensive nodes (checkpoints))
         return new SegmentWriter(tracker.getStore(), tracker.getSegmentVersion(),
             new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "c", tracker.getGcGen() + 1));
     }
@@ -173,12 +173,9 @@ public class Compactor {
 
             progress.onNode();
             try {
-                NodeBuilder child = EMPTY_NODE.builder();
-                boolean success =  new CompactDiff(child, path, name).diff(EMPTY_NODE, after);
-                if (success) {
-                    builder.setChildNode(name, writer.writeNode(child.getNodeState()));
-                }
-                return success;
+                // michid extend cancellation to writer.writeNode
+                super.childNodeAdded(name, writer.writeNode(after));
+                return true;
             } catch (IOException e) {
                 exception = e;
                 return false;
@@ -186,8 +183,7 @@ public class Compactor {
         }
 
         @Override
-        public boolean childNodeChanged(
-                String name, NodeState before, NodeState after) {
+        public boolean childNodeChanged(String name, NodeState before, NodeState after) {
             if (path != null) {
                 log.trace("childNodeChanged {}/{}", path, name);
             }
