@@ -213,13 +213,14 @@ public class SegmentWriter {
             }));
     }
 
-    RecordId writeProperty(final PropertyState state) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+    SegmentPropertyState writeProperty(final PropertyState state) throws IOException {
+        RecordId id = writeOperationHandler.execute(new SegmentWriteOperation() {
             @Override
             public RecordId execute(SegmentBufferWriter writer) throws IOException {
                 return with(writer).writeProperty(state);
             }
         });
+        return new SegmentPropertyState(id, state.getName(), state.getType());
     }
 
     public SegmentNodeState writeNode(final NodeState state) throws IOException {

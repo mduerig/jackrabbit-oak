@@ -144,7 +144,7 @@ public class Compactor {
             }
             progress.onProperty();
             try {
-                return super.propertyAdded(compact(after));
+                return super.propertyAdded(writer.writeProperty(after));
             } catch (IOException e) {
                 exception = e;
                 return false;
@@ -158,7 +158,7 @@ public class Compactor {
             }
             progress.onProperty();
             try {
-                return super.propertyChanged(before, compact(after));
+                return super.propertyChanged(before, writer.writeProperty(after));
             } catch (IOException e) {
                 exception = e;
                 return false;
@@ -200,12 +200,6 @@ public class Compactor {
                 exception = e;
                 return false;
             }
-        }
-
-        private PropertyState compact(PropertyState property) throws IOException {
-            RecordId id = writer.writeProperty(property);
-            PropertyTemplate template = new PropertyTemplate(property);  // michid this hack might not work, check, improve
-            return new SegmentPropertyState(id, template);
         }
 
     }
