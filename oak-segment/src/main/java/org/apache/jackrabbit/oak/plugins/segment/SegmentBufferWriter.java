@@ -225,14 +225,18 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
-    // michid improve gen handling
+    // michid disable/remove this in production
     private void checkGCGen(SegmentId id) {
-        if (SegmentId.isDataSegmentId(id.getLeastSignificantBits())) {
-            int gen = id.getSegment().getGcGen();
-            if (gen < generation) {
-                LOG.warn("checkGen detected backref from {}",
-                    info(this.segment) + " to " + info(id.getSegment()), new Exception());
+        try {
+            if (isDataSegmentId(id.getLeastSignificantBits())) {
+                if (id.getSegment().getGcGen() < generation) {
+                    LOG.warn("Detected reference from {} to segment {} from a previous gc generation.",
+                        info(this.segment), info(id.getSegment()), new Exception());
+                }
             }
+        } catch (SegmentNotFoundException snfe) {
+            LOG.warn("Detected reference from {} to non existing segment {}",
+                info(this.segment), id, snfe);
         }
     }
 
