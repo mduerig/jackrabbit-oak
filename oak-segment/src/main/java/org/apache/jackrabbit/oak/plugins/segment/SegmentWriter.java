@@ -491,7 +491,7 @@ public class SegmentWriter {
 
             // write as many full bulk segments as possible
             while (pos + MAX_SEGMENT_SIZE <= data.length) {
-                SegmentId bulkId = store.getTracker().newBulkSegmentId();
+                SegmentId bulkId = getTracker().newBulkSegmentId();
                 store.writeSegment(bulkId, data, pos, MAX_SEGMENT_SIZE);
                 for (int i = 0; i < MAX_SEGMENT_SIZE; i += BLOCK_SIZE) {
                     blockIds.add(new RecordId(bulkId, i));
@@ -511,7 +511,7 @@ public class SegmentWriter {
 
         private boolean hasSegment(Blob blob) {
             return (blob instanceof SegmentBlob)
-                    && (((Record) blob).getRecordId().getSegmentId().isSegmentPresent());
+                    && (getTracker().isTracking(((Record) blob).getRecordId().getSegmentId()));
         }
 
         private RecordId writeBlob(Blob blob) throws IOException {
@@ -605,7 +605,7 @@ public class SegmentWriter {
 
             // Write the data to bulk segments and collect the list of block ids
             while (n != 0) {
-                SegmentId bulkId = store.getTracker().newBulkSegmentId();
+                SegmentId bulkId = getTracker().newBulkSegmentId();
                 int len = align(n, 1 << Segment.RECORD_ALIGN_BITS);
                 LOG.debug("Writing bulk segment {} ({} bytes)", bulkId, n);
                 store.writeSegment(bulkId, data, 0, len);
@@ -847,12 +847,12 @@ public class SegmentWriter {
 
         private boolean hasSegment(NodeState node) {
             return (node instanceof SegmentNodeState)
-                && (((Record) node).getRecordId().getSegmentId().isSegmentPresent());
+                && (getTracker().isTracking(((Record) node).getRecordId().getSegmentId()));
         }
 
         private boolean hasSegment(PropertyState property) {
             return (property instanceof SegmentPropertyState)
-                && (((Record) property).getRecordId().getSegmentId().isSegmentPresent());
+                && (getTracker().isTracking(((Record) property).getRecordId().getSegmentId()));
         }
 
         private boolean isOldGen(RecordId id) {
@@ -907,6 +907,10 @@ public class SegmentWriter {
                 return true;
             }
         }
+    }
+
+    private SegmentTracker getTracker() {
+        return store.getTracker();
     }
 
     // michid come up with good ids
