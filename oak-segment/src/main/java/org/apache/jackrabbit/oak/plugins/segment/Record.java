@@ -18,42 +18,21 @@ package org.apache.jackrabbit.oak.plugins.segment;
 
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-
 /**
  * Record within a segment.
  */
 class Record {
 
-    // michid undo type specialisation
-    static boolean fastEqualsMM(MapRecord a, MapRecord b) {
-        return fastEqualsRR(a, b);
+    static boolean fastEquals(Object a, Object b) {
+        return a instanceof Record && fastEquals((Record) a, b);
     }
 
-    static boolean fastEqualsNN(NodeState a, NodeState b) {
-        if (a instanceof SegmentNodeState && b instanceof SegmentNodeState) {
-            if (((SegmentNodeState) a).getId().equals(((SegmentNodeState) b).getId())) {
-                return true;
-            }
-        }
-
-        return a instanceof Record && fastEqualsRO((Record) a, b);
+    private static boolean fastEquals(@Nonnull Record a, Object b) {
+        return b instanceof Record && fastEquals(a, (Record) b);
     }
 
-    static boolean fastEqualsNO(SegmentNodeState a, Object b) {
-        return b instanceof Record && fastEqualsRR(a, (Record) b);
-    }
-
-    static boolean fastEqualsBO(SegmentBlob a, Object b) {
-        return b instanceof Record && fastEqualsRR(a, (Record) b);
-    }
-
-    private static boolean fastEqualsRR(Record a, Record b) {
-        return a.offset == b.offset && a.segmentId.equals(b.segmentId);
-    }
-
-    private static boolean fastEqualsRO(Record a, Object b) {
-        return b instanceof Record && fastEqualsRR(a, (Record) b);
+    private static boolean fastEquals(@Nonnull Record a, @Nonnull Record b) {
+        return a == b || (a.offset == b.offset && a.segmentId.equals(b.segmentId));
     }
 
     /**
@@ -143,7 +122,7 @@ class Record {
 
     @Override
     public boolean equals(Object that) {
-        return fastEqualsRO(this, that);
+        return fastEquals(this, that);
     }
 
     @Override

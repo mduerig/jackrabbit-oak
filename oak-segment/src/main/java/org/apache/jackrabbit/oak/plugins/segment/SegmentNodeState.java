@@ -433,7 +433,7 @@ public class SegmentNodeState extends Record implements NodeState {
 
     @Override
     public boolean compareAgainstBaseState(NodeState base, NodeStateDiff diff) {
-        if (this == base || Record.fastEqualsNN(this, base)) {
+        if (this == base || fastEquals(this, base)) {
              return true; // no changes
         } else if (base == EMPTY_NODE || !base.exists()) { // special case
             return EmptyNodeState.compareAgainstEmptyState(this, diff);
@@ -529,7 +529,7 @@ public class SegmentNodeState extends Record implements NodeState {
                 if (!diff.childNodeAdded(afterChildName, afterNode)) {
                     return false;
                 }
-            } else if (!Record.fastEqualsNN(afterNode, beforeNode)) {
+            } else if (!fastEquals(afterNode, beforeNode)) {
                 if (!diff.childNodeChanged(
                         afterChildName, beforeNode, afterNode)) {
                     return false;
@@ -565,7 +565,7 @@ public class SegmentNodeState extends Record implements NodeState {
                     NodeState beforeChild =
                             beforeTemplate.getChildNode(beforeChildName, beforeId);
                     if (beforeChild.exists()) {
-                        if (!Record.fastEqualsNN(afterChild, beforeChild)
+                        if (!fastEquals(afterChild, beforeChild)
                                 && !diff.childNodeChanged(
                                         childName, beforeChild, afterChild)) {
                             return false;
@@ -601,6 +601,18 @@ public class SegmentNodeState extends Record implements NodeState {
 
     //------------------------------------------------------------< Object >--
 
+    static boolean fastEquals(NodeState a, NodeState b) {
+        if (Record.fastEquals(a, b)) {
+            return true;
+        }
+
+        if (a instanceof SegmentNodeState && b instanceof SegmentNodeState
+            && ((SegmentNodeState) a).getId().equals(((SegmentNodeState) b).getId())) {
+                return true;
+        }
+
+        return false;
+    }
 
     @Override
     public int hashCode() {
@@ -609,11 +621,9 @@ public class SegmentNodeState extends Record implements NodeState {
 
     @Override
     public boolean equals(Object object) {
-        if (this == object || Record.fastEqualsNO(this, object)) {
-            return true;
-        } else if (object instanceof SegmentNodeState) {
+        if (object instanceof SegmentNodeState) {
             SegmentNodeState that = (SegmentNodeState) object;
-            if (Record.fastEqualsNN(this, that)) {
+            if (fastEquals(this, that)) {
                 return true;
             } else {
                 Template template = getTemplate();
