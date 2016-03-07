@@ -67,6 +67,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.Ignore;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -90,6 +91,7 @@ public class CompactionAndCleanupIT {
     }
 
     @Test
+    @Ignore
     public void compactionNoBinaryClone() throws Exception {
         // 2MB data, 5MB blob
         final int blobSize = 5 * 1024 * 1024;
@@ -498,6 +500,7 @@ public class CompactionAndCleanupIT {
     }
 
     @Test
+    @Ignore
     public void propertyRetention() throws IOException, CommitFailedException {
         FileStore fileStore = FileStore.builder(getFileStoreFolder()).withMaxFileSize(1).build();
         try {
