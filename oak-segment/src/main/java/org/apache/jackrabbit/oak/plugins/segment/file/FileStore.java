@@ -1079,6 +1079,8 @@ public class FileStore implements SegmentStore {
                 }
             }
             if (success) {
+                // michid is there a better way for passing along the de-dup cache? Could the compactor implement GCMonitor an react on compacted()?
+                tracker.getWriter().setDeduplicationCache(compactor.getGCGeneration(), compactor.getDeduplicationCache());
                 tracker.clearSegmentIdTables(compactionStrategy);
                 gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
             } else {

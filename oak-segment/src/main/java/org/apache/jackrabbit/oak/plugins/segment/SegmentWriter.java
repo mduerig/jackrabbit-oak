@@ -28,6 +28,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Lists.newArrayListWithExpectedSize;
 import static com.google.common.collect.Lists.partition;
+import static com.google.common.collect.Maps.newConcurrentMap;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.io.ByteStreams.read;
 import static java.lang.String.valueOf;
@@ -61,6 +62,7 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -112,8 +114,7 @@ public class SegmentWriter {
         TPL_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (TPL_RECORDS_CACHE_SIZE * 1.2),
         TPL_RECORDS_CACHE_SIZE, TPL_RECORDS_CACHE_SIZE <= 0);
 
-    // michid add node cache (for de-duplication / compaction)
-    // michid add binary cache (for de-duplication / compaction)
+    // michid add binary cache (for de-duplication / compaction)!?
 
     private final SegmentStore store;
 
@@ -123,6 +124,9 @@ public class SegmentWriter {
     private final SegmentVersion version;
 
     private final WriteOperationHandler writeOperationHandler;
+
+    // michid replace with a 2 slot buffer
+    private final Map<Integer, DeduplicationCache> deduplicationCaches = newConcurrentMap();
 
     /**
      * @param store     store to write to
@@ -134,6 +138,23 @@ public class SegmentWriter {
         this.store = store;
         this.version = version;
         this.writeOperationHandler = writeOperationHandler;
+    }
+
+    // michid refactor cache injection
+    protected void cache(String key, RecordId value, int depth) { }
+
+    protected RecordId cached(String key) {
+        return null;
+    }
+
+    public void setDeduplicationCache(int generation, DeduplicationCache cache) {
+        deduplicationCaches.put(generation, cache);
+        Iterator<Integer> iterator = deduplicationCaches.keySet().iterator();
+        while (iterator.hasNext()) {
+            if (iterator.next() < generation - 1) {
+                iterator.remove();
+            }
+        }
     }
 
     public void flush() throws IOException {
@@ -228,7 +249,7 @@ public class SegmentWriter {
             writeOperationHandler.execute(new SegmentWriteOperation() {
                 @Override
                 public RecordId execute(SegmentBufferWriter writer) throws IOException {
-                    return with(writer).writeNode(state);
+                    return with(writer).writeNode(state, 0);
                 }
             }));
     }
@@ -740,18 +761,44 @@ public class SegmentWriter {
             return tid;
         }
 
-        // michid defer compacted items are not in the compaction map -> performance regression
-        //        split compaction map into 1) id based equality and 2) cache (like string and template) for nodes
-        private RecordId writeNode(NodeState state) throws IOException {
+        private RecordId fromCached(String id) {
+            RecordId recordId = cached(id);
+            if (recordId != null) {
+                return recordId;
+            }
+
+            DeduplicationCache cache = deduplicationCaches.get(writer.getGeneration());
+            return cache == null
+                ? null
+                : cache.get(id);
+        }
+
+        private RecordId toCache(NodeState state, int depth, RecordId id) {
+            if (state instanceof SegmentNodeState) {
+                cache(((SegmentNodeState)state).getId(), id, depth);
+            }
+            return id;
+        }
+
+        private RecordId writeNode(NodeState state, int depth) throws IOException {
             if (state instanceof SegmentNodeState) {
                 SegmentNodeState sns = ((SegmentNodeState) state);
                 if (hasSegment(sns)) {
-                    if (!isOldGen(sns.getRecordId())) {
+                    if (isOldGen(sns.getRecordId())) {
+                        RecordId cachedId = fromCached(sns.getId());
+                        if (cachedId != null) {
+                            return cachedId;
+                        }
+                    } else {
                         return sns.getRecordId();
                     }
                 }
             }
 
+            return toCache(state, depth, writeNodeUncached(state, depth));
+        }
+
+        private RecordId writeNodeUncached(NodeState state, int depth) throws IOException {
             SegmentNodeState before = null;
             Template beforeTemplate = null;
             ModifiedNodeState after = null;
@@ -791,19 +838,19 @@ public class SegmentWriter {
                     && before.getChildNodeCount(2) > 1
                     && after.getChildNodeCount(2) > 1) {
                     base = before.getChildNodeMap();
-                    childNodes = new ChildNodeCollectorDiff().diff(before, after);
+                    childNodes = new ChildNodeCollectorDiff(depth).diff(before, after);
                 } else {
                     base = null;
                     childNodes = newHashMap();
                     for (ChildNodeEntry entry : state.getChildNodeEntries()) {
                         childNodes.put(
                             entry.getName(),
-                            writeNode(entry.getNodeState()));
+                            writeNode(entry.getNodeState(), depth + 1));
                     }
                 }
                 ids.add(writeMap(base, childNodes));
             } else if (childName != Template.ZERO_CHILD_NODES) {
-                ids.add(writeNode(state.getChildNode(template.getChildName())));
+                ids.add(writeNode(state.getChildNode(template.getChildName()), depth + 1));
             }
 
             List<RecordId> pIds = newArrayList();
@@ -869,8 +916,13 @@ public class SegmentWriter {
         }
 
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
+            private final int depth;
             private final Map<String, RecordId> childNodes = newHashMap();
             private IOException exception;
+
+            private ChildNodeCollectorDiff(int depth) {
+                this.depth = depth;
+            }
 
             public Map<String, RecordId> diff(SegmentNodeState before, ModifiedNodeState after) throws IOException {
                 after.compareAgainstBaseState(before, this);
@@ -884,7 +936,7 @@ public class SegmentWriter {
             @Override
             public boolean childNodeAdded(String name, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    childNodes.put(name, writeNode(after, depth + 1));
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -896,7 +948,7 @@ public class SegmentWriter {
             public boolean childNodeChanged(
                 String name, NodeState before, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    childNodes.put(name, writeNode(after, depth + 1));
                 } catch (IOException e) {
                     exception = e;
                     return false;

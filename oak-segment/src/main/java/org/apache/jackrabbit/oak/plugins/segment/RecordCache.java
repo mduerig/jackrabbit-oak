@@ -25,6 +25,7 @@ import java.util.Map;
 /**
  * michid document
  */
+// michid implement monitoring for this cache
 abstract class RecordCache<T> {
     // michid this caches retain in mem refs to old gens. assess impact and mitigate/fix
     private static final RecordCache<?> DISABLED_CACHE = new RecordCache<Object>() {
