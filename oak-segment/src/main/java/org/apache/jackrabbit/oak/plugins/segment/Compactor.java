@@ -171,12 +171,7 @@ public class Compactor {
         public boolean childNodeChanged(String name, NodeState before, NodeState after) {
             try {
                 progress.onNode("childNodeChanged", path, name);
-                NodeBuilder child = builder.getChildNode(name);
-                boolean success = new CompactDiff(child, path, name).diff(before, after);
-                if (success) {
-                    writer.writeNode(child.getNodeState()).getRecordId();
-                }
-                return success;
+                return new CompactDiff(builder.getChildNode(name), path, name).diff(before, after);
             } catch (IOException e) {
                 exception = e;
                 return false;
