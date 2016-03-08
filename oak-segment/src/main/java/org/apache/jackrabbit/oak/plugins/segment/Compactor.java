@@ -134,11 +134,8 @@ public class Compactor {
 
         @Override
         public boolean propertyAdded(PropertyState after) {
-            if (path != null) {
-                log.trace("propertyAdded {}/{}", path, after.getName());
-            }
-            progress.onProperty();
             try {
+                progress.onProperty("propertyAdded", path, after);
                 return super.propertyAdded(writer.writeProperty(after));
             } catch (IOException e) {
                 exception = e;
@@ -148,11 +145,8 @@ public class Compactor {
 
         @Override
         public boolean propertyChanged(PropertyState before, PropertyState after) {
-            if (path != null) {
-                log.trace("propertyChanged {}/{}", path, after.getName());
-            }
-            progress.onProperty();
             try {
+                progress.onProperty("propertyChanged", path, after);
                 return super.propertyChanged(before, writer.writeProperty(after));
             } catch (IOException e) {
                 exception = e;
@@ -162,12 +156,8 @@ public class Compactor {
 
         @Override
         public boolean childNodeAdded(String name, NodeState after) {
-            if (path != null) {
-                log.trace("childNodeAdded {}/{}", path, name);
-            }
-
-            progress.onNode();
             try {
+                progress.onNode("childNodeAdded", path, name);
                 // michid extend cancellation to writer.writeNode
                 super.childNodeAdded(name, writer.writeNode(after));
                 return true;
@@ -179,12 +169,8 @@ public class Compactor {
 
         @Override
         public boolean childNodeChanged(String name, NodeState before, NodeState after) {
-            if (path != null) {
-                log.trace("childNodeChanged {}/{}", path, name);
-            }
-
-            progress.onNode();
             try {
+                progress.onNode("childNodeChanged", path, name);
                 NodeBuilder child = builder.getChildNode(name);
                 boolean success = new CompactDiff(child, path, name).diff(before, after);
                 if (success) {
@@ -216,14 +202,20 @@ public class Compactor {
             start = System.currentTimeMillis();
         }
 
-        void onNode() {
+        void onNode(String msg, String path, String nodeName) {
+            if (path != null) {
+                log.trace("{} {}/{}", msg, path, nodeName);
+            }
             if (++nodes % logAt == 0) {
                 logProgress(start, false);
                 start = System.currentTimeMillis();
             }
         }
 
-        void onProperty() {
+        void onProperty(String msg, String path, PropertyState propertyState) {
+            if (path != null) {
+                log.trace("{} {}/{}", msg, path, propertyState.getName());
+            }
             properties++;
         }
 
