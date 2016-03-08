@@ -849,9 +849,8 @@ public class SegmentWriter {
             return newNodeStateWriter(ids).write(writer);
         }
 
-        private boolean hasSegment(NodeState node) {
-            return (node instanceof SegmentNodeState)
-                && (getTracker().isTracking(((Record) node).getRecordId().getSegmentId()));
+        private boolean hasSegment(SegmentNodeState node) {
+            return getTracker().isTracking(node.getRecordId().getSegmentId());
         }
 
         private boolean hasSegment(PropertyState property) {
