@@ -599,7 +599,6 @@ public class SegmentWriter {
 
         private RecordId internalWriteStream(InputStream stream) throws IOException {
             if (stream instanceof SegmentStream) {
-                // michid we could do the same for strings
                 SegmentStream segmentStream = (SegmentStream) stream;
                 List<RecordId> blockIds = segmentStream.getBlockIds();
                 if (blockIds != null) {

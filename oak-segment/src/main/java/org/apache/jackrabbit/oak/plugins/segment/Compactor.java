@@ -109,7 +109,6 @@ public class Compactor {
         writer.flush();
         progress.stop();
         return compacted;
-        // michid once done, hand node state cache over to SW
     }
 
     private class CompactDiff extends ApplyDiff {
