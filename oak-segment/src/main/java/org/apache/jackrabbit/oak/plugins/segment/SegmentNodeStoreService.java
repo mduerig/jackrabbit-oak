@@ -153,7 +153,7 @@ public class SegmentNodeStoreService extends ProxyNodeStore
             @PropertyOption(name = "CLEAN_ALL", value = "CLEAN_ALL"),
             @PropertyOption(name = "CLEAN_NONE", value = "CLEAN_NONE"),
             @PropertyOption(name = "CLEAN_OLD", value = "CLEAN_OLD") },
-            value = "CLEAN_OLD",
+            value = "CLEAN_NONE",
             label = "Cleanup Strategy",
             description = "Cleanup strategy used for live in memory segment references while performing cleanup. "+
                     "1. CLEAN_NONE: All in memory references are considered valid, " +
