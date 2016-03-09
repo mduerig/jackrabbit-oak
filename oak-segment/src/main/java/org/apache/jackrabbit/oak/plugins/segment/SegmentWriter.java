@@ -155,11 +155,6 @@ public class SegmentWriter {
 
     // michid there should be a cleaner way for adding the cached nodes from the compactor
     public void addCachedNodes(int generation, Cache<String> cache) {
-        // michid implement eviction of old generation within the cache instead of here
-        stringCache.clear(generation - 2);
-        templateCache.clear(generation - 2);
-        nodeCache.clear(generation - 2);
-
         nodeCache.put(cache, generation);
     }
 

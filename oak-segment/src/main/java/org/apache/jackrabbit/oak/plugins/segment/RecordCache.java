@@ -79,9 +79,23 @@ public class RecordCache<T> {
         if (!generations.containsKey(generation)) {
             // The small race here might still result in getCache being called
             // more than once. Implementors much take this into account.
-            generations.putIfAbsent(generation, getCache(generation));
+            if (generations.putIfAbsent(generation, getCache(generation)) == null) {
+                evictOldestGeneration();
+            }
         }
         return generations.get(generation);
+    }
+
+    private void evictOldestGeneration() {
+        if (generations.size() > 1) {  // michid don't hc eviction threshold
+            int min = Integer.MAX_VALUE;
+            for (Integer i : generations.keySet()) {
+                if (i < min) {
+                    min = i;
+                }
+            }
+            clear(min);
+        }
     }
 
     public void put(Cache<T> cache, int generation) {
