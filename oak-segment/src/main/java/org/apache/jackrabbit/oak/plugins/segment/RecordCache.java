@@ -25,6 +25,7 @@ import static com.google.common.collect.Maps.newConcurrentMap;
 import static com.google.common.collect.Sets.newHashSet;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,27 +81,23 @@ public class RecordCache<T> {
         if (!generations.containsKey(generation)) {
             // The small race here might still result in getCache being called
             // more than once. Implementors much take this into account.
-            if (generations.putIfAbsent(generation, getCache(generation)) == null) {
-                evictOldestGeneration();
-            }
+            generations.putIfAbsent(generation, getCache(generation));
         }
         return generations.get(generation);
     }
 
-    private void evictOldestGeneration() {
-        if (generations.size() > RETENTION_THRESHOLD) {
-            int min = Integer.MAX_VALUE;
-            for (Integer i : generations.keySet()) {
-                if (i < min) {
-                    min = i;
-                }
-            }
-            clear(min);
-        }
-    }
-
     public void put(Cache<T> cache, int generation) {
         generations.put(generation, cache);
+    }
+
+    public void clearUpTo(int maxGen) {
+        Iterator<Integer> it = generations.keySet().iterator();
+        while (it.hasNext()) {
+            Integer gen =  it.next();
+            if (gen <= maxGen) {
+                it.remove();
+            }
+        }
     }
 
     public void clear(int generation) {

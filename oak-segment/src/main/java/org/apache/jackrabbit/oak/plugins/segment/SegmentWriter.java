@@ -155,6 +155,11 @@ public class SegmentWriter {
     // michid there should be a cleaner way for adding the cached nodes from the compactor
     public void addCachedNodes(int generation, Cache<String> cache) {
         nodeCache.put(cache, generation);
+
+        // michid find a better way to evict the cache from within
+        stringCache.clearUpTo(generation - 1);
+        templateCache.clearUpTo(generation - 1);
+        nodeCache.clearUpTo(generation - 1);
     }
 
     public void flush() throws IOException {
