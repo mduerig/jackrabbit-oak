@@ -28,7 +28,6 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Lists.newArrayListWithExpectedSize;
 import static com.google.common.collect.Lists.partition;
-import static com.google.common.collect.Maps.newConcurrentMap;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.io.ByteStreams.read;
 import static java.util.Arrays.asList;
@@ -40,7 +39,6 @@ import static org.apache.jackrabbit.oak.api.Type.NAME;
 import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.plugins.segment.MapRecord.BUCKETS_PER_LEVEL;
-import static org.apache.jackrabbit.oak.plugins.segment.RecordCache.newRecordCache;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newBlobIdWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newBlockWriter;
 import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newListBucketWriter;
@@ -61,18 +59,17 @@ import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import javax.jcr.PropertyType;
 
-import com.google.common.base.Objects;
 import com.google.common.io.Closeables;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
+import org.apache.jackrabbit.oak.plugins.segment.RecordCache.Cache;
 import org.apache.jackrabbit.oak.plugins.segment.WriteOperationHandler.WriteOperation;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
@@ -85,6 +82,7 @@ import org.slf4j.LoggerFactory;
  * Converts nodes, properties, and values to records, which are written to segments.
  * michid doc thread safe
  */
+// michid add convenience to set his up
 public class SegmentWriter {
     private static final Logger LOG = LoggerFactory.getLogger(SegmentWriter.class);
 
@@ -97,9 +95,15 @@ public class SegmentWriter {
      * Cache of recently stored string records, used to avoid storing duplicates
      * of frequently occurring data.
      */
-    private final RecordCache<Object> stringCache = newRecordCache(
-        STRING_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (STRING_RECORDS_CACHE_SIZE * 1.2),
-        STRING_RECORDS_CACHE_SIZE, STRING_RECORDS_CACHE_SIZE <= 0);
+    private final RecordCache<String> stringCache =
+        STRING_RECORDS_CACHE_SIZE <= 0
+            ? RecordCache.<String>disabled()
+            : new RecordCache<String>() {
+                @Override
+                protected Cache<String> getCache(int generation) {
+                    return new LRUCache<String>(STRING_RECORDS_CACHE_SIZE);
+                }
+        };
 
     private static final int TPL_RECORDS_CACHE_SIZE = Integer.getInteger(
             "oak.segment.writer.templatesCacheSize", 3000);
@@ -108,9 +112,18 @@ public class SegmentWriter {
      * Cache of recently stored template records, used to avoid storing
      * duplicates of frequently occurring data.
      */
-    private final RecordCache<Object> templateCache = newRecordCache(
-        TPL_RECORDS_CACHE_SIZE <= 0 ? 0 : (int) (TPL_RECORDS_CACHE_SIZE * 1.2),
-        TPL_RECORDS_CACHE_SIZE, TPL_RECORDS_CACHE_SIZE <= 0);
+    private final RecordCache<Template> templateCache =
+        TPL_RECORDS_CACHE_SIZE <= 0
+            ? RecordCache.<Template>disabled()
+            : new RecordCache<Template>() {
+            @Override
+            protected Cache<Template> getCache(int generation) {
+                return new LRUCache<Template>(TPL_RECORDS_CACHE_SIZE);
+            }
+        };
+
+    // michid make size configurable
+    private final RecordCache<String> nodeCache;
 
     // michid add binary cache (for de-duplication / compaction)!?
 
@@ -123,36 +136,31 @@ public class SegmentWriter {
 
     private final WriteOperationHandler writeOperationHandler;
 
-    // michid replace with a 2 slot buffer
-    private final Map<Integer, DeduplicationCache> deduplicationCaches = newConcurrentMap();
+    public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler,
+        RecordCache<String> nodeCache) {
+        this.store = store;
+        this.version = version;
+        this.writeOperationHandler = writeOperationHandler;
+        this.nodeCache = nodeCache;
+    }
 
     /**
      * @param store     store to write to
      * @param version   segment version to write
      * michid doc
      */
-    // michid add convenience to set his up
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
-        this.store = store;
-        this.version = version;
-        this.writeOperationHandler = writeOperationHandler;
+        this(store, version, writeOperationHandler, new RecordCache<String>());
     }
 
-    // michid refactor cache injection
-    protected void cache(String key, RecordId value, int depth) { }
+    // michid there should be a cleaner way for adding the cached nodes from the compactor
+    public void addCachedNodes(int generation, Cache<String> cache) {
+        // michid implement eviction of old generation within the cache instead of here
+        stringCache.clear(generation - 2);
+        templateCache.clear(generation - 2);
+        nodeCache.clear(generation - 2);
 
-    protected RecordId cached(String key) {
-        return null;
-    }
-
-    public void setDeduplicationCache(int generation, DeduplicationCache cache) {
-        deduplicationCaches.put(generation, cache);
-        Iterator<Integer> iterator = deduplicationCaches.keySet().iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next() < generation - 1) {
-                iterator.remove();
-            }
-        }
+        nodeCache.put(cache, generation);
     }
 
     public void flush() throws IOException {
@@ -267,6 +275,10 @@ public class SegmentWriter {
             checkState(this.writer == null);
             this.writer = writer;
             return this;
+        }
+
+        private int generation() {
+            return writer.getGeneration();
         }
 
         private RecordId writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
@@ -494,7 +506,7 @@ public class SegmentWriter {
          * @return value record identifier
          */
         private RecordId writeString(String string) throws IOException {
-            RecordId id = stringCache.get(key(string));
+            RecordId id = stringCache.generation(generation()).get(string);
             if (id != null) {
                 return id; // shortcut if the same string was recently stored
             }
@@ -504,7 +516,7 @@ public class SegmentWriter {
             if (data.length < Segment.MEDIUM_LIMIT) {
                 // only cache short strings to avoid excessive memory use
                 id = writeValueRecord(data.length, data);
-                stringCache.put(key(string), id);
+                stringCache.generation(generation()).put(string, id);
                 return id;
             }
 
@@ -683,7 +695,7 @@ public class SegmentWriter {
         private RecordId writeTemplate(Template template) throws IOException {
             checkNotNull(template);
 
-            RecordId id = templateCache.get(key(template));
+            RecordId id = templateCache.generation(generation()).get(template);
             if (id != null) {
                 return id; // shortcut if the same template was recently stored
             }
@@ -754,27 +766,16 @@ public class SegmentWriter {
             RecordId tid = newTemplateWriter(ids, propertyNames,
                 propertyTypes, head, primaryId, mixinIds, childNameId,
                 propNamesId, version).write(writer);
-            templateCache.put(key(template), tid);
+            templateCache.generation(generation()).put(template, tid);
             return tid;
         }
 
-        private RecordId fromCached(String id) {
-            RecordId recordId = cached(id);
-            if (recordId != null) {
-                return recordId;
-            }
-
-            DeduplicationCache cache = deduplicationCaches.get(writer.getGeneration());
-            return cache == null
-                ? null
-                : cache.get(id);
-        }
-
-        private RecordId toCache(NodeState state, int depth, RecordId id) {
+        private RecordId toCache(NodeState state, int depth, RecordId recordId) {
             if (state instanceof SegmentNodeState) {
-                cache(((SegmentNodeState)state).getId(), id, depth);
+                SegmentNodeState sns = (SegmentNodeState) state;
+                nodeCache.generation(generation()).put(sns.getId(), recordId, depth);
             }
-            return id;
+            return recordId;
         }
 
         private RecordId writeNode(NodeState state, int depth) throws IOException {
@@ -782,7 +783,7 @@ public class SegmentWriter {
                 SegmentNodeState sns = ((SegmentNodeState) state);
                 if (hasSegment(sns)) {
                     if (isOldGen(sns.getRecordId())) {
-                        RecordId cachedId = fromCached(sns.getId());
+                        RecordId cachedId = nodeCache.generation(generation()).get(sns.getId());
                         if (cachedId != null) {
                             return cachedId;
                         }
@@ -792,7 +793,12 @@ public class SegmentWriter {
                 }
             }
 
-            return toCache(state, depth, writeNodeUncached(state, depth));
+            RecordId recordId = writeNodeUncached(state, depth);
+            if (state instanceof SegmentNodeState) {
+                SegmentNodeState sns = (SegmentNodeState) state;
+                nodeCache.generation(generation()).put(sns.getId(), recordId, depth);
+            }
+            return recordId;
         }
 
         private RecordId writeNodeUncached(NodeState state, int depth) throws IOException {
@@ -908,10 +914,6 @@ public class SegmentWriter {
             return thatGen < thisGen;
         }
 
-        private <T> Key<T> key(T t) {
-            return new Key<T>(t, writer.getGeneration());
-        }
-
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
             private final int depth;
             private final Map<String, RecordId> childNodes = newHashMap();
@@ -963,34 +965,6 @@ public class SegmentWriter {
 
     private SegmentTracker getTracker() {
         return store.getTracker();
-    }
-
-    private static final class Key<T> {
-        private final T t;
-        private final int generation;
-
-        private Key(T t, int generation) {
-            this.t = t;
-            this.generation = generation;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (other == null || getClass() != other.getClass()) {
-                return false;
-            }
-
-            Key<?> that = (Key<?>) other;
-            return generation == that.generation && t.equals(that.t);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(t, generation);
-        }
     }
 
 }

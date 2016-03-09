@@ -65,6 +65,7 @@ import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.segment.Compactor;
+import org.apache.jackrabbit.oak.plugins.segment.RecordCache.DeduplicationCache;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.SegmentGraphVisitor;
@@ -1040,7 +1041,8 @@ public class FileStore implements SegmentStore {
         gcMonitor.info("TarMK GC #{}: compaction started, strategy={}", gcCount, compactionStrategy);
         Stopwatch watch = Stopwatch.createStarted();
         Supplier<Boolean> compactionCanceled = newCancelCompactionCondition();
-        Compactor compactor = new Compactor(tracker, compactionStrategy, compactionCanceled);
+        DeduplicationCache<String> nodeCache = new DeduplicationCache<String>(1000000, 20);
+        Compactor compactor = new Compactor(tracker, nodeCache, compactionCanceled);
         SegmentNodeState before = getHead();
         long existing = before.getChildNode(SegmentNodeStore.CHECKPOINTS)
                 .getChildNodeCount(Long.MAX_VALUE);
@@ -1081,8 +1083,7 @@ public class FileStore implements SegmentStore {
                 }
             }
             if (success) {
-                // michid is there a better way for passing along the de-dup cache? Could the compactor implement GCMonitor an react on compacted()?
-                tracker.getWriter().setDeduplicationCache(compactor.getGCGeneration(), compactor.getDeduplicationCache());
+                tracker.getWriter().addCachedNodes(compactor.getGCGeneration(), nodeCache);
                 tracker.clearSegmentIdTables(compactionStrategy);
                 gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
             } else {

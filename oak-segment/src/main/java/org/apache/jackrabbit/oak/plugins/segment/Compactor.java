@@ -23,7 +23,7 @@ import java.io.IOException;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.plugins.segment.compaction.CompactionStrategy;
+import org.apache.jackrabbit.oak.plugins.segment.RecordCache.Cache;
 import org.apache.jackrabbit.oak.spi.state.ApplyDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -53,7 +53,6 @@ public class Compactor {
      * compacted before the cancellation.
      */
     private final Supplier<Boolean> cancel;
-    private final DeduplicationCache cache = new DeduplicationCache(1000000, 25); // michid validate, optimise cache parameters
 
     public Compactor(SegmentTracker tracker) {
         this(tracker, Suppliers.ofInstance(false));
@@ -66,27 +65,18 @@ public class Compactor {
         this.cancel = cancel;
     }
 
-    // michid remove clone binaries and compaction strategy
-    public Compactor(SegmentTracker tracker, CompactionStrategy compactionStrategy, Supplier<Boolean> cancel) {
+    public Compactor(SegmentTracker tracker, final Cache<String> cache, Supplier<Boolean> cancel) {
         this.tracker = tracker;
         this.gcGeneration = tracker.getGcGen() + 1;
         this.writer = new SegmentWriter(tracker.getStore(), tracker.getSegmentVersion(),
-            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "c", gcGeneration)) {
-            @Override
-            protected void cache(String key, RecordId value, int depth) {
-                cache.put(key, value, depth);
-            }
-
-            @Override
-            protected RecordId cached(String key) {
-                return cache.get(key);
-            }
-        };
+            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "c", gcGeneration),
+                new RecordCache<String>() {
+                    @Override
+                    protected Cache<String> getCache(int generation) {
+                        return cache;
+                    }
+                });
         this.cancel = cancel;
-    }
-
-    public DeduplicationCache getDeduplicationCache() {
-        return cache;
     }
 
     public int getGCGeneration() {
