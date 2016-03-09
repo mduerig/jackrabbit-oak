@@ -556,9 +556,8 @@ public class CompactionAndCleanupIT {
         }
     }
 
-    // michid move and rename
     @Test
-    public void cp() throws IOException, CommitFailedException {
+    public void checkpointDeduplicationTest() throws IOException, CommitFailedException {
         FileStore fileStore = FileStore.newFileStore(directory).create();
         CompactionStrategy strategy = new CompactionStrategy(false, false, CLEAN_NONE, 0, (byte) 0);
         fileStore.setCompactionStrategy(strategy);
