@@ -36,13 +36,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * michid document
+ * FIXME michid document
  */
-// michid implement monitoring for this cache
-// michid unit test
+// FIXME michid implement monitoring for this cache
+// FIXME michid unit test
 public class RecordCache<T> {
     private static final Logger LOG = LoggerFactory.getLogger(RecordCache.class);
-    private static final int RETENTION_THRESHOLD = 1;  // michid make this a feature flag
+    // FIXME michid make this a feature flag
+    private static final int RETENTION_THRESHOLD = 1;
 
     private final ConcurrentMap<Integer, Cache<T>> generations = newConcurrentMap();
 
@@ -70,7 +71,9 @@ public class RecordCache<T> {
     }
 
     /**
-     * michid doc: Might get called multiple times per generation
+     * FIXME michid The getCache might get called multiple times per generation
+     * as per the comment below. Either come up with a fix for this race
+     * or clearly state that API consumers need to be prepared for this.
      */
     protected Cache<T> getCache(int generation) {
         return Cache.disabled();
@@ -166,7 +169,10 @@ public class RecordCache<T> {
 
         @Override
         public synchronized void put(T key, RecordId value, int cost) {
-            // michid validate and optimise eviction strategy
+            // FIXME michid Validate and optimise the eviction strategy.
+            // Nodes with many children should probably get a boost to
+            // protecting them from preemptive eviction. Also it might be
+            // necessary to implement pinning (e.g. for checkpoints).
             while (size >= capacity) {
                 int d = maps.size() - 1;
                 int removed = maps.remove(d).size();

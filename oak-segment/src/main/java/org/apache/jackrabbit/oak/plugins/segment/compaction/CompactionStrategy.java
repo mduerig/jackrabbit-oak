@@ -28,7 +28,7 @@ import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// michid make into proper AST
+// FIXME michid Refactor this into a proper AST. Identify and remove "legacy" parts
 public class CompactionStrategy {
     private static final Logger LOG = LoggerFactory.getLogger(CompactionStrategy.class);
 
@@ -115,7 +115,8 @@ public class CompactionStrategy {
 
     private boolean forceAfterFail = FORCE_AFTER_FAIL_DEFAULT;
 
-    private int lockWaitTime = 60;  // seconds michid don't hc
+    // FIXME michid Make the lock wait time configurable
+    private int lockWaitTime = 60;
 
     private long compactionStart = currentTimeMillis();
 

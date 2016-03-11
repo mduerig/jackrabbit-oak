@@ -163,7 +163,10 @@ public class Compactor {
         public boolean childNodeAdded(String name, NodeState after) {
             try {
                 progress.onNode("childNodeAdded", path, name);
-                // michid extend cancellation to writer.writeNode
+                // FIXME michid Extend cancellation to writer.writeNode.
+                // Note that we *have* to go through SegmentWriter.writeNode
+                // as that is the place where deduplication of node states
+                // is done.
                 super.childNodeAdded(name, writer.writeNode(after));
                 return true;
             } catch (IOException e) {

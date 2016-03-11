@@ -37,7 +37,7 @@ import org.junit.Test;
 /**
  * Test case for ensuring that segment size remains within bounds.
  */
-@Ignore  // michid fix failing test SegmentSizeTest
+@Ignore  // FIXME michid fix failing test SegmentSizeTest
 public class SegmentSizeTest {
 
     @Test

@@ -91,7 +91,7 @@ public class CompactionAndCleanupIT {
     }
 
     @Test
-    @Ignore  // michid fix failing test compactionNoBinaryClone
+    @Ignore  // FIXME michid fix failing test compactionNoBinaryClone
     public void compactionNoBinaryClone() throws Exception {
         // 2MB data, 5MB blob
         final int blobSize = 5 * 1024 * 1024;
@@ -500,7 +500,7 @@ public class CompactionAndCleanupIT {
     }
 
     @Test
-    @Ignore  // michid fix failing test propertyRetention
+    @Ignore  // FIXME michid fix failing test propertyRetention
     public void propertyRetention() throws IOException, CommitFailedException {
         FileStore fileStore = FileStore.builder(getFileStoreFolder()).withMaxFileSize(1).build();
         try {

@@ -147,10 +147,12 @@ public class SegmentTracker {
             .build();
     }
 
-    // michid come up with good ids
+    // FIXME michid Come up with good node ids that are sufficiently
+    // are sufficiently unique and compact.
     private final AtomicLong nextId = new AtomicLong();
 
-    // michid remove this hack
+    // FIXME michid Remove this hack, which purpose is to avoid node id
+    // collisions on restart.
     public void setInitialId(long id) {
         nextId.set(id);
     }
@@ -261,7 +263,9 @@ public class SegmentTracker {
         segmentCache.put(id, segment, segment.size());
     }
 
-    // michid improve retrieving current gc gen (aka initialisation mess)
+    // FIXME michid Improve retrieving current GC generation.
+    // See also the comments in FileStore regarding initialisation and
+    // cyclic dependencies.
     int getGcGen() {
         if (store instanceof FileStore) {
             return ((FileStore) store).getGcGen();
