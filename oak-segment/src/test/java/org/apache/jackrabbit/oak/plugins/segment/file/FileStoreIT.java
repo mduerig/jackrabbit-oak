@@ -116,7 +116,7 @@ public class FileStoreIT {
     }
 
     @Test
-    @Ignore  // michid fix failing test testCompaction
+    @Ignore  // FIXME michid fix failing test testCompaction
     public void testCompaction() throws IOException {
         int largeBinarySize = 10 * 1024 * 1024;
 

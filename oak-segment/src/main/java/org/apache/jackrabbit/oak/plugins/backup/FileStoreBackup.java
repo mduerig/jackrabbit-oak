@@ -57,7 +57,9 @@ public class FileStoreBackup {
         try {
             SegmentNodeState state = backup.getHead();
             Compactor compactor = new Compactor(backup.getTracker());
-            // michid use dedicated differ instead of compactor
+            // FIXME michid Use dedicated implementation instead of compactor.
+            // This is allows us to decouple and fix problems for online compaction independent
+            // of backup / restore.
 //            compactor.setDeepCheckLargeBinaries(true);
 //            compactor.setContentEqualityCheck(true);
             SegmentNodeState after = compactor.compact(state, current, state);

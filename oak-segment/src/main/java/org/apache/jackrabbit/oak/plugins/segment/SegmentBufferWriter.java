@@ -161,7 +161,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         buffer[4] = 0; // reserved
         buffer[5] = 0; // refcount
 
-        // michid doc format
+        // FIXME michid document change in format
         buffer[GC_GEN_OFFSET] = (byte) (generation >> 24);
         buffer[GC_GEN_OFFSET + 1] = (byte) (generation >> 16);
         buffer[GC_GEN_OFFSET + 2] = (byte) (generation >> 8);
@@ -171,7 +171,9 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         roots.clear();
         blobrefs.clear();
 
-        // michid leave gc gen out of info as it can be retrieved from header -> update tooling (segment graph)
+        // FIXME michid Don't write the GC generation into the segment info
+        // as it is now available from the segment header. Update the tooling
+        // accordingly (SegmentGraph).
         String metaInfo = "{\"wid\":\"" + wid + '"' +
             ",\"sno\":" + tracker.getNextSegmentNo() +
             ",\"gc\":" + generation +
@@ -225,7 +227,8 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
-    // michid disable/remove this in production
+    // FIXME michid disable/remove the check for references to prior generation
+    // in production as it is quite expensive
     private void checkGCGen(SegmentId id) {
         try {
             if (isDataSegmentId(id.getLeastSignificantBits())) {

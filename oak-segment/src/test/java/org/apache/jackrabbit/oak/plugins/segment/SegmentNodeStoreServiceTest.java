@@ -38,7 +38,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.osgi.framework.ServiceRegistration;
 
-@Ignore  // michid fix failing test SegmentNodeStoreServiceTest
+@Ignore  // FIXME michid fix failing test SegmentNodeStoreServiceTest
 public class SegmentNodeStoreServiceTest {
 
     @Rule

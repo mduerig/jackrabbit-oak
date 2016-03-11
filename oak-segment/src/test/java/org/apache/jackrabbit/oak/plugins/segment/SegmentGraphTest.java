@@ -52,7 +52,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-@Ignore // michid fix SegmentGraphTest
+@Ignore // FIXME michid fix SegmentGraphTest
 public class SegmentGraphTest {
     private final Set<UUID> segments = newHashSet(
         UUID.fromString("5be0c2ea-b6ba-4f80-acad-657a20f920b6"),

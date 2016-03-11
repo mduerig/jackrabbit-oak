@@ -414,6 +414,13 @@ public class FileStore implements SegmentStore {
             checkNotNull(directory).mkdirs();
         }
 
+        // FIXME michid Improve the setup of FileStore and SegmentTracker.
+        // SegmentTracker and FileStore have a cyclic dependency, which we should
+        // try to break. Here we pass along a not fully initialised instances of the
+        // FileStore to the SegmentTracker, which in turn is in later invoked to write
+        // the initial node state. Notably before this instance is fully initialised!
+        // Once consequence of this is that we cannot reliably determine the current
+        // GC generation while writing the initial head state. See further below.
         if (cacheSizeMB < 0) {
             this.tracker = new SegmentTracker(this, 0, getVersion());
         } else if (cacheSizeMB > 0) {
@@ -508,7 +515,6 @@ public class FileStore implements SegmentStore {
         } else {
             NodeBuilder builder = EMPTY_NODE.builder();
             builder.setChildNode("root", initial);
-            // michid improve the setup as this is passing along no fully initialised instances
             head = new AtomicReference<RecordId>(tracker.getWriter().writeNode(
                     builder.getNodeState()).getRecordId());
             persistedHead = new AtomicReference<RecordId>(null);
@@ -567,7 +573,8 @@ public class FileStore implements SegmentStore {
         log.debug("TarMK readers {}", this.readers);
     }
 
-    // michid improve this initialisation mess
+    // FIXME michid hack: We cannot determine the current GC generation before
+    // the FileStore is fully initialised so just return 0 for now.
     public int getGcGen() {
         if (head == null) {
             return 0;  // not fully initialised
@@ -584,7 +591,7 @@ public class FileStore implements SegmentStore {
 
         Runtime runtime = Runtime.getRuntime();
         long avail = runtime.totalMemory() - runtime.freeMemory();
-        long delta = 0;  // michid memory threshold?
+        long delta = 0;  // FIXME michid what value should we use for delta?
         long needed = delta * compactionStrategy.getMemoryThreshold();
         if (needed >= avail) {
             gcMonitor.skipped(
@@ -1041,7 +1048,8 @@ public class FileStore implements SegmentStore {
         gcMonitor.info("TarMK GC #{}: compaction started, strategy={}", gcCount, compactionStrategy);
         Stopwatch watch = Stopwatch.createStarted();
         Supplier<Boolean> compactionCanceled = newCancelCompactionCondition();
-        DeduplicationCache<String> nodeCache = new DeduplicationCache<String>(1000000, 20);      // michid make size configurable
+        // FIXME michid Make the capacity and initial depth of the deduplication cache configurable
+        DeduplicationCache<String> nodeCache = new DeduplicationCache<String>(1000000, 20);
         Compactor compactor = new Compactor(tracker, nodeCache, compactionCanceled);
         SegmentNodeState before = getHead();
         long existing = before.getChildNode(SegmentNodeStore.CHECKPOINTS)
@@ -1156,7 +1164,8 @@ public class FileStore implements SegmentStore {
         return new SegmentNodeState(head.get());
     }
 
-    // michid use expeditable lock
+    // FIXME michid Maybe us a lock implementation that could expedite important commits
+    // like compaction and checkpoints. See OAK-4015. Needs to be evaluated.
     private ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     @Override
@@ -1183,7 +1192,8 @@ public class FileStore implements SegmentStore {
         closeAndLogOnFail(diskSpaceThread);
         try {
             flush();
-            // michid replace with some sort of close call tracker.getWriter().dropCache();
+            // FIXME michid Replace this with a way to "close" the underlying SegmentBufferWriter(s)
+            // tracker.getWriter().dropCache();
             fileStoreLock.writeLock().lock();
             try {
                 closeAndLogOnFail(writer);

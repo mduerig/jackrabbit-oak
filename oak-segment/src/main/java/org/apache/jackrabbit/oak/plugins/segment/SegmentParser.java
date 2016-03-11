@@ -410,7 +410,8 @@ public class SegmentParser {
 
         Segment segment = nodeId.getSegment();
         int offset = nodeId.getOffset();
-        //segment.readRecordId(offset); // michid on string for node id
+        // FIXME michid Call onString for the node id, which was introduced here
+        //segment.readRecordId(offset);
         offset += RECORD_ID_BYTES;
         RecordId templateId = segment.readRecordId(offset);
         onTemplate(nodeId, templateId);

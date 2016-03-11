@@ -80,9 +80,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Converts nodes, properties, and values to records, which are written to segments.
- * michid doc thread safe
+ * FIXME michid document (e.g. thread safety aspects. SegmentWriters are,
+ * SegmentWriter.SegmentWriteOperation are not.
  */
-// michid add convenience to set his up
+// FIXME michid Improve the way how SegmentWriter instances are created.
 public class SegmentWriter {
     private static final Logger LOG = LoggerFactory.getLogger(SegmentWriter.class);
 
@@ -124,7 +125,10 @@ public class SegmentWriter {
 
     private final RecordCache<String> nodeCache;
 
-    // michid add binary cache (for de-duplication / compaction)!?
+    // FIXME michid Do we need a deduplication cache also for binaries?
+    // Probably/preferably not as long binaries are already de-duplicated
+    // by rewriting its list of block ids and because we should recommend
+    // using a data store for big binaries.
 
     private final SegmentStore store;
 
@@ -146,17 +150,17 @@ public class SegmentWriter {
     /**
      * @param store     store to write to
      * @param version   segment version to write
-     * michid doc
+     * FIXME michid document
      */
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
         this(store, version, writeOperationHandler, new RecordCache<String>());
     }
 
-    // michid there should be a cleaner way for adding the cached nodes from the compactor
+    // FIXME michid There should be a cleaner way for adding the cached nodes from the compactor
     public void addCachedNodes(int generation, Cache<String> cache) {
         nodeCache.put(cache, generation);
 
-        // michid find a better way to evict the cache from within
+        // FIXME michid find a better way to evict the cache from within the cache itself
         stringCache.clearUpTo(generation - 1);
         templateCache.clearUpTo(generation - 1);
         nodeCache.clearUpTo(generation - 1);
@@ -259,7 +263,7 @@ public class SegmentWriter {
             }));
     }
 
-    // michid doc: not thread safe
+    // FIXME michid document: not thread safe!
     private abstract class SegmentWriteOperation implements WriteOperation {
         private SegmentBufferWriter writer;
 
