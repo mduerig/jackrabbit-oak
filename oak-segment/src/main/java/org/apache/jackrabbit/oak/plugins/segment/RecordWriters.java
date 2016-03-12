@@ -504,7 +504,11 @@ final class RecordWriters {
         protected RecordId writeRecordContent(RecordId id,
                 SegmentBufferWriter writer) {
             for (RecordId recordId : ids) {
-                writer.writeRecordId(recordId);
+                if (recordId == null) {
+                    writer.writeRecordId(id);
+                } else {
+                    writer.writeRecordId(recordId);
+                }
             }
             return id;
         }

@@ -407,11 +407,13 @@ public class SegmentBufferWriter implements WriteOperationHandler {
             // potentially reference the same record multiple times
             Set<RecordId> notRoots = new HashSet<RecordId>();
             for (RecordId recordId : ids) {
-                SegmentId segmentId = recordId.getSegmentId();
-                if (!(segmentId.equals(segment.getSegmentId()))) {
-                    segmentIds.add(segmentId);
-                } else if (roots.containsKey(recordId)) {
-                    notRoots.add(recordId);
+                if (recordId != null) {
+                    SegmentId segmentId = recordId.getSegmentId();
+                    if (!(segmentId.equals(segment.getSegmentId()))) {
+                        segmentIds.add(segmentId);
+                    } else if (roots.containsKey(recordId)) {
+                        notRoots.add(recordId);
+                    }
                 }
             }
             rootCount -= notRoots.size();

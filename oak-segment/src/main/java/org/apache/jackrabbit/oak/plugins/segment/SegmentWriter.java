@@ -826,7 +826,7 @@ public class SegmentWriter {
             if (state instanceof SegmentNodeState) {
                 ids.add(writeString(((SegmentNodeState) state).getId()));
             } else {
-                ids.add(writeString(store.getTracker().createId()));
+                ids.add(null);
             }
 
             Template template = new Template(state);
