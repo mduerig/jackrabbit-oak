@@ -31,12 +31,14 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.api.Type.STRINGS;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.MISSING_NODE;
+import static org.apache.jackrabbit.oak.plugins.segment.Segment.decode;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.readString;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
 import static org.apache.jackrabbit.oak.spi.state.AbstractNodeState.checkValidName;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -90,9 +92,14 @@ public class SegmentNodeState extends Record implements NodeState {
     String getId() {
         RecordId id = getSegment().readRecordId(getOffset());
         if (id.equals(getRecordId())) {
-            return id.toString();
+            return id.toString10();
         } else {
-            return readString(id);
+            Segment segment = id.getSegment();
+            int pos = id.getOffset();
+            long msb = segment.readLong(pos);
+            long lsb = segment.readLong(pos + 8);
+            int offset = decode(segment.readShort(pos + 16));
+            return new UUID(msb, lsb) + ":" + offset;
         }
     }
 

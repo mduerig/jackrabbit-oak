@@ -824,7 +824,8 @@ public class SegmentWriter {
 
             List<RecordId> ids = newArrayList();
             if (state instanceof SegmentNodeState) {
-                ids.add(writeString(((SegmentNodeState) state).getId()));
+                byte[] id = ((Record) state).getRecordId().toArray();
+                ids.add(writeBlock(id, 0, id.length));
             } else {
                 ids.add(null);
             }
