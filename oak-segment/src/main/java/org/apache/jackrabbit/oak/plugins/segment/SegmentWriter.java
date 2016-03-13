@@ -819,12 +819,6 @@ public class SegmentWriter {
             }
 
             List<RecordId> ids = newArrayList();
-            if (state instanceof SegmentNodeState) {
-                ids.add(writeString(((SegmentNodeState) state).getId()));
-            } else {
-                ids.add(writeString(store.getTracker().createId()));
-            }
-
             Template template = new Template(state);
             if (template.equals(beforeTemplate)) {
                 ids.add(before.getTemplateId());
@@ -895,7 +889,14 @@ public class SegmentWriter {
                     ids.addAll(pIds);
                 }
             }
-            return newNodeStateWriter(ids).write(writer);
+
+            RecordId nodeId = null;
+            if (state instanceof SegmentNodeState) {
+                // michid offline compaction could get rid of these
+                byte[] id = ((Record) state).getRecordId().toArray();
+                nodeId = writeBlock(id, 0, id.length);
+            }
+            return newNodeStateWriter(nodeId, ids).write(writer);
         }
 
         private boolean hasSegment(SegmentNodeState node) {
