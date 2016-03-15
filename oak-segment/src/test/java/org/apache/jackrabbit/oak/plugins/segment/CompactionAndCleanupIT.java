@@ -390,6 +390,9 @@ public class CompactionAndCleanupIT {
                     nodeStore.merge(preGCBuilder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                 }
 
+                // FIXME michid need to compact twice because of the generation cleanup threshold
+                // (currently hard coded to 2);
+                fileStore.compact();
                 fileStore.compact();
 
                 // case 2: merge above changes after compact
