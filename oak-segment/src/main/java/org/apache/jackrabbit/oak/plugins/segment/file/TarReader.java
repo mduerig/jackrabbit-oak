@@ -26,6 +26,7 @@ import static com.google.common.collect.Maps.newTreeMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static com.google.common.collect.Sets.newHashSetWithExpectedSize;
 import static java.util.Collections.singletonList;
+import static org.apache.jackrabbit.oak.plugins.segment.Segment.GC_GEN_OFFSET;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.REF_COUNT_OFFSET;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.plugins.segment.file.TarWriter.GRAPH_MAGIC;
@@ -735,21 +736,15 @@ class TarReader implements Closeable {
         }
     }
 
-    /**
-     * Garbage collects segments in this file. First it collects the set of
-     * segments that are referenced / reachable, then (if more than 25% is
-     * garbage) creates a new generation of the file.
-     * <p>
-     * The old generation files are not removed (they can't easily be removed,
-     * for memory mapped files).
-     * 
-     * @param referencedIds the referenced segment ids (input and output).
-     * @param removed a set which will receive the uuids of all segments that
-     *                have been cleaned.
-     * @return this (if the file is kept as is), or the new generation file, or
-     *         null if the file is fully garbage
-     */
-    synchronized TarReader cleanup(Set<UUID> referencedIds, Set<UUID> removed) throws IOException {
+    private int getGCGeneration(TarEntry entry) throws IOException {
+        ByteBuffer segment = access.read(entry.offset(), GC_GEN_OFFSET + 4);
+        return segment.getInt(GC_GEN_OFFSET);
+    }
+
+    // FIXME michid we still need to track the referenced ids here as we don't have a the generation
+    // for bulk segments.
+    synchronized TarReader cleanup(Set<UUID> referencedIds, int cutOffGeneration, Set<UUID> removed)
+            throws IOException {
         String name = file.getName();
         log.debug("Cleaning up {}", name);
 
@@ -762,7 +757,8 @@ class TarReader implements Closeable {
         for (int i = entries.length - 1; i >= 0; i--) {
             TarEntry entry = entries[i];
             UUID id = new UUID(entry.msb(), entry.lsb());
-            if (!referencedIds.remove(id)) {
+            if (!referencedIds.remove(id)
+                || (isDataSegmentId(id.getLeastSignificantBits()) && getGCGeneration(entry) < cutOffGeneration)) {
                 // this segment is not referenced anywhere
                 cleaned.add(id);
                 entries[i] = null;

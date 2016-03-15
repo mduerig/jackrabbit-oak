@@ -903,8 +903,9 @@ public class FileStore implements SegmentStore {
         includeForwardReferences(cleaned.keySet(), referencedIds);
         LinkedList<File> toRemove = newLinkedList();
         Set<UUID> cleanedIds = newHashSet();
+        int cutOffGen = getGcGen() - 1;
         for (TarReader reader : cleaned.keySet()) {
-            cleaned.put(reader, reader.cleanup(referencedIds, cleanedIds));
+            cleaned.put(reader, reader.cleanup(referencedIds, cutOffGen, cleanedIds));
             if (shutdown) {
                 gcMonitor.info("TarMK GC #{}: cleanup interrupted", gcCount);
                 break;
