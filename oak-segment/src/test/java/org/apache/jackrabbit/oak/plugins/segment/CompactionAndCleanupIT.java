@@ -65,9 +65,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.junit.Ignore;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -377,6 +374,8 @@ public class CompactionAndCleanupIT {
                     nodeStore.merge(preGCBuilder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                 }
 
+                // (currently hard coded to 2);
+                fileStore.compact();
                 fileStore.compact();
 
                 // case 2: merge above changes after compact
@@ -393,11 +392,7 @@ public class CompactionAndCleanupIT {
             // Re-initialise the file store to simulate off-line gc
             fileStore = FileStore.builder(repoDir).withMaxFileSize(2).build();
             try {
-                // The 1M blob should get gc-ed. This works for case 1.
-                // However it doesn't for case 2 as merging after compaction
-                // apparently creates references from the current segment
-                // to the pre-compacted segment to which above changes have
-                // been pre-written.
+                // The 1M blob should get gc-ed
                 fileStore.cleanup();
                 assertTrue(ref + " repository size " + fileStore.size() + " < " + 1024 * 1024,
                         fileStore.size() < 1024 * 1024);
