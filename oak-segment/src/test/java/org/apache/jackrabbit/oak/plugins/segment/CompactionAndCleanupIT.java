@@ -405,8 +405,10 @@ public class CompactionAndCleanupIT {
 
             // Re-initialise the file store to simulate off-line gc
             fileStore = newFileStore(repoDir).withMaxFileSize(2).create();
+            fileStore.setCompactionStrategy(new CompactionStrategy(true, false, CLEAN_NONE, 0, (byte) 5));
             try {
                 // The 1M blob should get gc-ed
+                fileStore.compact();
                 fileStore.cleanup();
                 assertTrue(ref + " repository size " + fileStore.size() + " < " + 1024 * 1024,
                         fileStore.size() < 1024 * 1024);

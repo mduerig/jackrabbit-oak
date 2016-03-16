@@ -872,7 +872,6 @@ public class FileStore implements SegmentStore {
     public List<File> cleanup() throws IOException {
         Stopwatch watch = Stopwatch.createStarted();
         long initialSize = size();
-        Set<UUID> referencedIds = newHashSet();
         Map<TarReader, TarReader> cleaned = newLinkedHashMap();
 
         fileStoreLock.writeLock().lock();
@@ -883,14 +882,6 @@ public class FileStore implements SegmentStore {
             newWriter();
             tracker.clearCache();
 
-            // Suggest to the JVM that now would be a good time
-            // to clear stale weak references in the SegmentTracker
-            System.gc();
-
-            for (SegmentId id : tracker.getReferencedSegmentIds()) {
-                referencedIds.add(id.asUUID());
-            }
-            writer.collectReferences(referencedIds);
             for (TarReader reader : readers) {
                 cleaned.put(reader, reader);
             }
@@ -900,12 +891,25 @@ public class FileStore implements SegmentStore {
 
         // Do actual cleanup outside of the lock to prevent blocking
         // concurrent writers for a long time
-        includeForwardReferences(cleaned.keySet(), referencedIds);
-        LinkedList<File> toRemove = newLinkedList();
-        Set<UUID> cleanedIds = newHashSet();
+        Set<UUID> bulkIds = newHashSet();
         int cutOffGen = getGcGen() - 1;
         for (TarReader reader : cleaned.keySet()) {
-            cleaned.put(reader, reader.cleanup(referencedIds, cutOffGen, cleanedIds));
+            reader.collectBulkCandidates(cutOffGen, bulkIds);
+        }
+        gcMonitor.info("TarMK GC #{}: cleanup found {} bulk segment candidates pre generation {}",
+            gcCount, bulkIds.size(), cutOffGen);
+
+        Set<UUID> dataIds = newHashSet();
+        for (TarReader reader : cleaned.keySet()) {
+            reader.collectOldSegments(cutOffGen, bulkIds, dataIds);
+        }
+        gcMonitor.info("TarMK GC #{}: cleanup found {} data segment pre generation {}",
+            gcCount, dataIds.size(), cutOffGen);
+        gcMonitor.info("TarMK GC #{}: cleanup found {} bulk segment pre generation {}",
+            gcCount, bulkIds.size(), cutOffGen);
+
+        for (TarReader reader : cleaned.keySet()) {
+            cleaned.put(reader, reader.cleanup(bulkIds, dataIds));
             if (shutdown) {
                 gcMonitor.info("TarMK GC #{}: cleanup interrupted", gcCount);
                 break;
@@ -938,6 +942,7 @@ public class FileStore implements SegmentStore {
 
         // Close old readers *after* setting readers to the new readers to avoid accessing
         // a closed reader from readSegment()
+        LinkedList<File> toRemove = newLinkedList();
         for (TarReader oldReader : oldReaders) {
             closeAndLogOnFail(oldReader);
             File file = oldReader.getFile();
@@ -955,28 +960,6 @@ public class FileStore implements SegmentStore {
                 humanReadableByteCount(finalSize), finalSize,
                 humanReadableByteCount(initialSize - finalSize), initialSize - finalSize);
         return toRemove;
-    }
-
-    /**
-     * Include the ids of all segments transitively reachable through forward references from
-     * {@code referencedIds}. See OAK-3864.
-     */
-    private void includeForwardReferences(Iterable<TarReader> readers, Set<UUID> referencedIds)
-            throws IOException {
-        Set<UUID> fRefs = newHashSet(referencedIds);
-        do {
-            // Add direct forward references
-            for (TarReader reader : readers) {
-                reader.calculateForwardReferences(fRefs);
-                if (fRefs.isEmpty()) {
-                    break;  // Optimisation: bail out if no references left
-                }
-            }
-            if (!fRefs.isEmpty()) {
-                gcMonitor.info("TarMK GC #{}: cleanup found forward references to {}", gcCount, fRefs);
-            }
-            // ... as long as new forward references are found.
-        } while (referencedIds.addAll(fRefs));
     }
 
     /**

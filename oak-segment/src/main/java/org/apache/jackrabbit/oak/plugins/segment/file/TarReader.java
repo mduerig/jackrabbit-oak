@@ -709,42 +709,48 @@ class TarReader implements Closeable {
         }
     }
 
-    /**
-     * Calculate the ids of the segments directly referenced from {@code referenceIds}
-     * through forward references.
-     *
-     * @param referencedIds  The initial set of ids to start from. On return it
-     *                       contains the set of direct forward references.
-     *
-     * @throws IOException
-     */
-    void calculateForwardReferences(Set<UUID> referencedIds) throws IOException {
+    private int getGCGeneration(TarEntry entry) throws IOException {
+        ByteBuffer segment = access.read(entry.offset(), GC_GEN_OFFSET + 4);
+        return segment.getInt(GC_GEN_OFFSET);
+    }
+
+    // FIXME michid document: All bulk segments referenced from 'old' generation
+    void collectBulkCandidates(int generation, Set<UUID> bulk) throws IOException {
         Map<UUID, List<UUID>> graph = getGraph();
-        TarEntry[] entries = getEntries();
-        for (int i = entries.length - 1; i >= 0; i--) {
-            TarEntry entry = entries[i];
-            UUID id = new UUID(entry.msb(), entry.lsb());
-            if (referencedIds.remove(id)) {
-                if (isDataSegmentId(entry.lsb())) {
-                    // this is a referenced data segment, so follow the graph
-                    List<UUID> refIds = getReferences(entry, id, graph);
-                    if (refIds != null) {
-                        referencedIds.addAll(refIds);
+        for (TarEntry entry : getEntries()) {
+            if (isDataSegmentId(entry.lsb()) && getGCGeneration(entry) < generation) {
+                List<UUID> refIds = getReferences(entry, new UUID(entry.msb(), entry.lsb()), graph);
+                if (refIds != null) {
+                    for (UUID refId : refIds) {
+                        if (!isDataSegmentId(refId.getLeastSignificantBits())) {
+                            bulk.add(refId);
+                        }
                     }
                 }
             }
         }
     }
 
-    private int getGCGeneration(TarEntry entry) throws IOException {
-        ByteBuffer segment = access.read(entry.offset(), GC_GEN_OFFSET + 4);
-        return segment.getInt(GC_GEN_OFFSET);
+    // FIXME michid document: All old segments in data. Remove all segments from bulk that are still
+    // reference from a 'not old' generation
+    void collectOldSegments(int generation, Set<UUID> bulk, Set<UUID> data) throws IOException {
+        Map<UUID, List<UUID>> graph = getGraph();
+        for (TarEntry entry : getEntries()) {
+            UUID id = new UUID(entry.msb(), entry.lsb());
+            if (isDataSegmentId(entry.lsb())) {
+                if (getGCGeneration(entry) < generation) {
+                    data.add(id);
+                } else {
+                    List<UUID> refIds = getReferences(entry, id, graph);
+                    if (refIds != null) {
+                        bulk.removeAll(refIds);
+                    }
+                }
+            }
+        }
     }
 
-    // FIXME michid we still need to track the referenced ids here as we don't have a the generation
-    // for bulk segments.
-    synchronized TarReader cleanup(Set<UUID> referencedIds, int cutOffGeneration, Set<UUID> removed)
-            throws IOException {
+    synchronized TarReader cleanup(Set<UUID> bulkIds, Set<UUID> dataIds) throws IOException {
         String name = file.getName();
         log.debug("Cleaning up {}", name);
 
@@ -754,24 +760,15 @@ class TarReader implements Closeable {
 
         int size = 0;
         int count = 0;
-        for (int i = entries.length - 1; i >= 0; i--) {
+        for (int i = 0; i < entries.length; i++) {
             TarEntry entry = entries[i];
             UUID id = new UUID(entry.msb(), entry.lsb());
-            if (!referencedIds.remove(id)
-                || (isDataSegmentId(id.getLeastSignificantBits()) && getGCGeneration(entry) < cutOffGeneration)) {
-                // this segment is not referenced anywhere
+            if (bulkIds.remove(id) || dataIds.remove(id)) {
                 cleaned.add(id);
                 entries[i] = null;
             } else {
                 size += getEntrySize(entry.size());
                 count += 1;
-                if (isDataSegmentId(entry.lsb())) {
-                    // this is a referenced data segment, so follow the graph
-                    List<UUID> refIds = getReferences(entry, id, graph);
-                    if (refIds != null) {
-                        referencedIds.addAll(refIds);
-                    }
-                }
             }
         }
         size += getEntrySize(24 * count + 16);
@@ -779,16 +776,16 @@ class TarReader implements Closeable {
 
         if (count == 0) {
             log.debug("None of the entries of {} are referenceable.", name);
-            removed.addAll(cleaned);
             logCleanedSegments(cleaned);
             return null;
-        } else if (size >= access.length() * 3 / 4 && graph != null) {
+        }
+        if (size >= access.length() * 3 / 4 && graph != null) {
             // the space savings are not worth it at less than 25%,
             // unless this tar file lacks a pre-compiled segment graph
             // in which case we'll always generate a new tar file with
             // the graph to speed up future garbage collection runs.
             log.debug("Not enough space savings. ({}/{}). Skipping clean up of {}",
-                    access.length() - size, access.length(), name);
+                access.length() - size, access.length(), name);
             return this;
         }
 
@@ -800,8 +797,8 @@ class TarReader implements Closeable {
         }
 
         File newFile = new File(
-                file.getParentFile(),
-                name.substring(0, pos) + (char) (generation + 1) + ".tar");
+            file.getParentFile(),
+            name.substring(0, pos) + (char) (generation + 1) + ".tar");
 
         log.debug("Writing new generation {}", newFile.getName());
         TarWriter writer = new TarWriter(newFile);
@@ -810,16 +807,15 @@ class TarReader implements Closeable {
                 byte[] data = new byte[entry.size()];
                 access.read(entry.offset(), entry.size()).get(data);
                 writer.writeEntry(
-                        entry.msb(), entry.lsb(), data, 0, entry.size());
+                    entry.msb(), entry.lsb(), data, 0, entry.size());
             }
         }
         writer.close();
 
         TarReader reader = openFirstFileWithValidIndex(
-                singletonList(newFile), access.isMemoryMapped());
+            singletonList(newFile), access.isMemoryMapped());
         if (reader != null) {
             logCleanedSegments(cleaned);
-            removed.addAll(cleaned);
             return reader;
         } else {
             log.warn("Failed to open cleaned up tar file {}", file);
