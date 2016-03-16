@@ -393,11 +393,7 @@ public class CompactionAndCleanupIT {
             // Re-initialise the file store to simulate off-line gc
             fileStore = FileStore.builder(repoDir).withMaxFileSize(2).build();
             try {
-                // The 1M blob should get gc-ed. This works for case 1.
-                // However it doesn't for case 2 as merging after compaction
-                // apparently creates references from the current segment
-                // to the pre-compacted segment to which above changes have
-                // been pre-written.
+                // The 1M blob should get gc-ed
                 fileStore.cleanup();
                 assertTrue(ref + " repository size " + fileStore.size() + " < " + 1024 * 1024,
                         fileStore.size() < 1024 * 1024);
