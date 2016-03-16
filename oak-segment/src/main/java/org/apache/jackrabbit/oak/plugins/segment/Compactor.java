@@ -167,6 +167,8 @@ public class Compactor {
                 // Note that we *have* to go through SegmentWriter.writeNode
                 // as that is the place where deduplication of node states
                 // is done.
+
+                // FIXME michid this also causes the counts in the progress counter to be off
                 super.childNodeAdded(name, writer.writeNode(after));
                 return true;
             } catch (IOException e) {
