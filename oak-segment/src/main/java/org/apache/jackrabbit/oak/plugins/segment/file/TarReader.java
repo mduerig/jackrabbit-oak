@@ -706,6 +706,29 @@ class TarReader implements Closeable {
         }
     }
 
+    /**
+     * Calculate the ids of the segments directly referenced from {@code referenceIds}
+     * through forward references.
+     *
+     * @param referencedIds  The initial set of ids to start from. On return it
+     *                       contains the set of direct forward references.
+     *
+     * @throws IOException
+     */
+    void calculateForwardReferences(Set<UUID> referencedIds) throws IOException {
+        Map<UUID, List<UUID>> graph = getGraph(false);
+        TarEntry[] entries = getEntries();
+        for (int i = entries.length - 1; i >= 0; i--) {
+            TarEntry entry = entries[i];
+            UUID id = new UUID(entry.msb(), entry.lsb());
+            if (referencedIds.remove(id)) {
+                if (isDataSegmentId(entry.lsb())) {
+                    referencedIds.addAll(getReferences(entry, id, graph));
+                }
+            }
+        }
+    }
+
     private int getGCGeneration(TarEntry entry) throws IOException {
         ByteBuffer segment = access.read(entry.offset(), GC_GEN_OFFSET + 4);
         return segment.getInt(GC_GEN_OFFSET);

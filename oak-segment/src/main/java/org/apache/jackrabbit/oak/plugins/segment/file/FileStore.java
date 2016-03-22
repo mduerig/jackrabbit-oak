@@ -1466,6 +1466,25 @@ public class FileStore implements SegmentStore {
         }
 
         /**
+         * Include the ids of all segments transitively reachable through forward references from
+         * {@code referencedIds}. See OAK-3864.
+         */
+        private static void includeForwardReferences(Iterable<TarReader> readers, Set<UUID> referencedIds)
+            throws IOException {
+            Set<UUID> fRefs = newHashSet(referencedIds);
+            do {
+                // Add direct forward references
+                for (TarReader reader : readers) {
+                    reader.calculateForwardReferences(fRefs);
+                    if (fRefs.isEmpty()) {
+                        break;  // Optimisation: bail out if no references left
+                    }
+                }
+                // ... as long as new forward references are found.
+            } while (referencedIds.addAll(fRefs));
+        }
+
+        /**
          * Build the graph of segments reachable from an initial set of segments
          * @param roots     the initial set of segments
          * @param visitor   visitor receiving call back while following the segment graph
@@ -1474,7 +1493,10 @@ public class FileStore implements SegmentStore {
         public void traverseSegmentGraph(
             @Nonnull Set<UUID> roots,
             @Nonnull SegmentGraphVisitor visitor) throws IOException {
-            for (TarReader reader : super.readers) {
+
+            List<TarReader> readers = super.readers;
+            includeForwardReferences(readers, roots);
+            for (TarReader reader : readers) {
                 reader.traverseSegmentGraph(checkNotNull(roots), checkNotNull(visitor));
             }
         }
