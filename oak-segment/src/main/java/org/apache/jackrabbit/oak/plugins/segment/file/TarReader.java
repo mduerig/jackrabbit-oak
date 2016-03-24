@@ -55,7 +55,7 @@ import org.apache.jackrabbit.oak.plugins.segment.SegmentGraph.SegmentGraphVisito
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class TarReader implements Closeable {
+public class TarReader implements Closeable {
 
     /** Logger instance */
     private static final Logger log = LoggerFactory.getLogger(TarReader.class);
@@ -80,7 +80,7 @@ class TarReader implements Closeable {
         return BLOCK_SIZE + size + TarWriter.getPaddingSize(size);
     }
 
-    static TarReader open(File file, boolean memoryMapping) throws IOException {
+    public static TarReader open(File file, boolean memoryMapping) throws IOException {
         TarReader reader = openFirstFileWithValidIndex(
                 singletonList(file), memoryMapping);
         if (reader != null) {
@@ -761,7 +761,7 @@ class TarReader implements Closeable {
         }
     }
 
-    TarReader sweep(Set<UUID> reclaim) throws IOException {
+    public TarReader sweep(Set<UUID> reclaim) throws IOException {
         String name = file.getName();
         log.debug("Cleaning up {}", name);
 
@@ -795,6 +795,7 @@ class TarReader implements Closeable {
             // the graph to speed up future garbage collection runs.
             log.debug("Not enough space savings. ({}/{}). Skipping clean up of {}",
                     access.length() - size, access.length(), name);
+            System.out.println("skipping " + name);
             return this;
         }
 
@@ -823,6 +824,9 @@ class TarReader implements Closeable {
 
         TarReader reader = openFirstFileWithValidIndex(
                 singletonList(newFile), access.isMemoryMapped());
+
+        reader.loadGraph();
+
         if (reader != null) {
             logCleanedSegments(cleaned);
             return reader;
@@ -899,7 +903,7 @@ class TarReader implements Closeable {
      */
     private ByteBuffer loadGraph() throws IOException {
         // read the graph metadata just before the tar index entry
-        int pos = access.length() - 2 * BLOCK_SIZE - getEntrySize(index.remaining());
+        int pos = access.length() - 2 * BLOCK_SIZE - getEntrySize(index.remaining() + 16);
         ByteBuffer meta = access.read(pos - 16, 16);
         int crc32 = meta.getInt();
         int count = meta.getInt();
