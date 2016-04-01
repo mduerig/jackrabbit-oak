@@ -93,9 +93,7 @@ public class Compactor {
      */
     public SegmentNodeState compact(NodeState before, NodeState after, NodeState onto) throws IOException {
         progress.start();
-        SegmentNodeBuilder builder = new SegmentNodeBuilder(writer.writeNode(onto), writer);
-        new CompactDiff(builder).diff(before, after);
-        SegmentNodeState compacted = builder.getNodeState();
+        SegmentNodeState compacted = writer.writeNode(after);
         writer.flush();
         progress.stop();
         return compacted;
