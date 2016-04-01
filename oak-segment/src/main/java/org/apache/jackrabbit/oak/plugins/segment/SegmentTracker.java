@@ -249,7 +249,7 @@ public class SegmentTracker {
     // FIXME michid Improve retrieving current GC generation.
     // See also the comments in FileStore regarding initialisation and
     // cyclic dependencies.
-    int getGcGen() {
+    public int getGcGen() {
         if (store instanceof FileStore) {
             return ((FileStore) store).getGcGen();
         } else {
