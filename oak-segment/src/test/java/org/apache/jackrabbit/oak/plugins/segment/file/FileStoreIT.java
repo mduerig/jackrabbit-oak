@@ -21,7 +21,6 @@ import static com.google.common.collect.Sets.newTreeSet;
 import static org.apache.commons.io.FileUtils.deleteDirectory;
 import static org.apache.jackrabbit.oak.commons.FixturesHelper.Fixture.SEGMENT_MK;
 import static org.apache.jackrabbit.oak.commons.FixturesHelper.getFixtures;
-import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -39,11 +38,8 @@ import java.util.Random;
 
 import com.google.common.base.Strings;
 import org.apache.jackrabbit.oak.api.Blob;
-import org.apache.jackrabbit.oak.plugins.segment.Compactor;
 import org.apache.jackrabbit.oak.plugins.segment.RecordId;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentBlob;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentBufferWriter;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentWriter;
@@ -51,7 +47,6 @@ import org.apache.jackrabbit.oak.plugins.segment.file.FileStore.ReadOnlyStore;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class FileStoreIT {
@@ -112,73 +107,6 @@ public class FileStoreIT {
         store.close();
 
         store = new FileStore(directory, 1, memoryMapping);
-        store.close();
-    }
-
-    @Test
-    @Ignore  // FIXME michid fix failing test testCompaction
-    public void testCompaction() throws IOException {
-        int largeBinarySize = 10 * 1024 * 1024;
-
-        FileStore store = new FileStore(directory, 1, false);
-        SegmentWriter writer = store.getTracker().getWriter();
-
-        SegmentNodeState base = store.getHead();
-        SegmentNodeBuilder builder = base.builder();
-        byte[] data = new byte[largeBinarySize];
-        new Random().nextBytes(data);
-        SegmentBlob blob = writer.writeStream(new ByteArrayInputStream(data));
-        builder.setProperty("foo", blob);
-        builder.getNodeState(); // write the blob reference to the segment
-        builder.setProperty("foo", "bar");
-        SegmentNodeState head = builder.getNodeState();
-        assertTrue(store.setHead(base, head));
-        assertEquals("bar", store.getHead().getString("foo"));
-
-        Compactor compactor = new Compactor(store.getTracker());
-        SegmentNodeState compacted =
-                compactor.compact(EMPTY_NODE, head, EMPTY_NODE);
-        store.close();
-
-        // First simulate the case where during compaction a reference to the
-        // older segments is added to a segment that the compactor is writing
-        store = new FileStore(directory, 1, false);
-        head = store.getHead();
-        assertTrue(store.size() > largeBinarySize);
-        builder = head.builder();
-        builder.setChildNode("old", head); // reference to pre-compacted state
-        builder.getNodeState();
-        assertTrue(store.setHead(head, compacted));
-        store.close();
-
-        // In this case the revision cleanup is unable to reclaim the old data
-        store = new FileStore(directory, 1, false);
-        assertTrue(store.size() > largeBinarySize);
-        store.cleanup();
-        assertTrue(store.size() > largeBinarySize);
-        store.close();
-
-        // Now we do the same thing, but let the compactor use a different
-        // SegmentWriter
-        store = new FileStore(directory, 1, false);
-        head = store.getHead();
-        assertTrue(store.size() > largeBinarySize);
-        writer = new SegmentWriter(store, store.getTracker().getSegmentVersion(),
-            new SegmentBufferWriter(store, store.getTracker().getSegmentVersion(), ""));
-        compactor = new Compactor(store.getTracker());
-        compacted = compactor.compact(EMPTY_NODE, head, EMPTY_NODE);
-        builder = head.builder();
-        builder.setChildNode("old", head); // reference to pre-compacted state
-        builder.getNodeState();
-        writer.flush();
-        assertTrue(store.setHead(head, compacted));
-        store.close();
-
-        // Revision cleanup is now able to reclaim the extra space (OAK-1932)
-        store = new FileStore(directory, 1, false);
-        assertTrue(store.size() > largeBinarySize);
-        store.cleanup();
-        assertTrue(store.size() < largeBinarySize);
         store.close();
     }
 

@@ -24,7 +24,7 @@ import static org.apache.jackrabbit.oak.plugins.segment.file.FileStore.newFileSt
 import java.io.File;
 import java.io.IOException;
 
-import org.apache.jackrabbit.oak.plugins.segment.Compactor;
+import com.google.common.base.Stopwatch;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.plugins.segment.file.FileStore;
@@ -33,8 +33,6 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Stopwatch;
 
 public class FileStoreBackup {
 
@@ -56,14 +54,14 @@ public class FileStoreBackup {
         FileStore backup = builder.create();
         try {
             SegmentNodeState state = backup.getHead();
-            Compactor compactor = new Compactor(backup.getTracker());
             // FIXME michid Use dedicated implementation instead of compactor.
             // This is allows us to decouple and fix problems for online compaction independent
             // of backup / restore.
+//            Compactor compactor = new Compactor(backup.getTracker());
 //            compactor.setDeepCheckLargeBinaries(true);
 //            compactor.setContentEqualityCheck(true);
-            SegmentNodeState after = compactor.compact(state, current, state);
-            backup.setHead(state, after);
+//            SegmentNodeState after = compactor.compact(state, current, state);
+//            backup.setHead(state, after);
         } finally {
             backup.close();
         }
