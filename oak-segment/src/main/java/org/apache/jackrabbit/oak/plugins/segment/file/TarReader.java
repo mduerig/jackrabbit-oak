@@ -795,7 +795,6 @@ public class TarReader implements Closeable {
             // the graph to speed up future garbage collection runs.
             log.debug("Not enough space savings. ({}/{}). Skipping clean up of {}",
                     access.length() - size, access.length(), name);
-            System.out.println("skipping " + name);
             return this;
         }
 

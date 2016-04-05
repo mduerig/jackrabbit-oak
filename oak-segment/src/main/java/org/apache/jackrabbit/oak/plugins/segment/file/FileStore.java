@@ -1042,8 +1042,8 @@ public class FileStore implements SegmentStore {
 
         // FIXME michid this way of compacting has not progress logging and cannot be cancelled
         int gcGeneration = tracker.getGcGen() + 1;
-        SegmentWriter writer = new SegmentWriter(tracker.getStore(), tracker.getSegmentVersion(),
-            new SegmentBufferWriter(tracker.getStore(), tracker.getSegmentVersion(), "c", gcGeneration),
+        SegmentWriter writer = new SegmentWriter(this, tracker.getSegmentVersion(),
+            new SegmentBufferWriter(this, tracker.getSegmentVersion(), "c", gcGeneration),
             new RecordCache<String>() {
                 @Override
                 protected Cache<String> getCache(int generation) {
