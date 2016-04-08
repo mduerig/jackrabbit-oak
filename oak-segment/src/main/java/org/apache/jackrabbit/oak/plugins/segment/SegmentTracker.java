@@ -333,6 +333,7 @@ public class SegmentTracker {
 
     // FIXME OAK-3348 with clean brutal we need to remove those ids that have been cleaned
     // i.e. those whose segment was from an old generation
+    // michid FIXME do cleanup by listening to GCMonitor instead of this direct call?
     public synchronized void clearSegmentIdTables(CompactionStrategy strategy) {
         for (SegmentIdTable table : tables) {
             table.clearSegmentIdTables(strategy);

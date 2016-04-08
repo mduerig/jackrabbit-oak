@@ -34,6 +34,7 @@ import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentPropertyState;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 
+// michid FIXME remove CompactionGainEstimate
 class CompactionGainEstimate implements TarEntryVisitor {
 
     private static final Funnel<UUID> UUID_FUNNEL = new Funnel<UUID>() {
