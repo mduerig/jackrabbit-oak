@@ -17,6 +17,16 @@
 
 package org.apache.jackrabbit.oak.plugins.segment.scheduler;
 
+import org.apache.jackrabbit.oak.spi.commit.CommitHook;
+import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+
+/**
+ * Scheduling options for parametrising individual
+ * {@link Scheduler#schedule(NodeBuilder, CommitHook, CommitInfo, SchedulerOptions) commits}.
+ * (E.g. expedite, prioritise, defer, collapse, coalesce, parallelise, etc).
+ *
+ */
 public interface SchedulerOptions {
 
 }
