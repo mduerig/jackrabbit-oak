@@ -18,22 +18,23 @@
 package org.apache.jackrabbit.oak.plugins.segment.scheduler;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentStore;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * A {@code Commit} instance represents a set of related changes that atomically take a
- * {@link SegmentStore} instance from its current persisted state to the next persisted state.
+ * A {@code Commit} instance represents a set of related changes, which when applied to
+ * a base node state result in a new node state.
  */
 public interface Commit {
 
     /**
-     * Apply the changes represented by this commit to the passed {@code store}.
+     * Apply the changes represented by this commit to the passed {@code base}
+     * node state.
      *
-     * @param store  the {@code SegmentStore} instance to apply this commit to
-     * @return       the resulting state from applying this commit
-     * @throws CommitFailedException
+     * @param base   the base node state to apply this commit to
+     * @return       the resulting state from applying this commit to {@code base}.
+     * @throws CommitFailedException  if the commit cannot be applied to {@code base}.
+     *                                (e.g. because of a conflict.)
      */
-    NodeState apply(SegmentStore store) throws CommitFailedException;
+    NodeState apply(NodeState base) throws CommitFailedException;
 
 }

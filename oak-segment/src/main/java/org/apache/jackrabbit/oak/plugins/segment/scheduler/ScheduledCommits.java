@@ -23,7 +23,7 @@ import org.apache.jackrabbit.oak.plugins.segment.SegmentStore;
  * A back log of {@link Commit commits} yet to be applied to a
  * {@link SegmentStore segment store}.
  */
-public interface CommitBacklog {
+public interface ScheduledCommits {
 
     /**
      * Returns the next commit blocking until one becomes available if

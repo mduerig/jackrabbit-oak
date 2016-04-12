@@ -24,7 +24,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 
 /**
  * A {@code Scheduler} instance transforms changes to the content tree
- * into a {@link CommitBacklog backlog} of {@link Commit commits}.
+ * into a {@link ScheduledCommits backlog} of {@link Commit commits}.
  * <p>
  * An implementation is free to employ any scheduling strategy as long
  * as it guarantees all changes are applied atomically without changing
