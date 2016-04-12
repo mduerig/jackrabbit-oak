@@ -34,11 +34,13 @@ import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class CheckpointTest {
 
     @Test
+    @Ignore("OAK-4122")
     public void testCheckpoint() throws CommitFailedException, IOException {
         SegmentNodeStore store = new SegmentNodeStore(new MemoryStore());
         addTestNode(store, "test-checkpoint");
@@ -51,6 +53,7 @@ public class CheckpointTest {
     }
 
     @Test
+    @Ignore("OAK-4122")
     public void testRelease() throws CommitFailedException, IOException {
         SegmentNodeStore store = new SegmentNodeStore(new MemoryStore());
         addTestNode(store, "test-checkpoint");
@@ -96,6 +99,7 @@ public class CheckpointTest {
      * then releases the lock and tries again
      */
     @Test
+    @Ignore("OAK-4122")
     public void testShortWait() throws Exception {
         final SegmentNodeStore store = new SegmentNodeStore(new MemoryStore());
         store.setCheckpointsLockWaitTime(1);
@@ -144,6 +148,7 @@ public class CheckpointTest {
      * checkpoint call must return a valid value
      */
     @Test
+    @Ignore("OAK-4122")
     public void testLongWait() throws Exception {
         final int blockTime = 1;
         final SegmentNodeStore store = new SegmentNodeStore(new MemoryStore());

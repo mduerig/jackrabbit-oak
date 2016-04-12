@@ -34,6 +34,7 @@ import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class MergeTest {
@@ -85,6 +86,7 @@ public class MergeTest {
     }
 
     @Test
+    @Ignore("OAK-4122")
     public void testPessimisticMerge() throws Exception {
         final SegmentNodeStore store = new SegmentNodeStore(new MemoryStore());
         final Semaphore semaphore = new Semaphore(0);
