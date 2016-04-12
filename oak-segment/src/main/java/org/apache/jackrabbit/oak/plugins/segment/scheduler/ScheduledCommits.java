@@ -17,8 +17,22 @@
 
 package org.apache.jackrabbit.oak.plugins.segment.scheduler;
 
-public interface CommitStream {
+import org.apache.jackrabbit.oak.plugins.segment.SegmentStore;
 
+/**
+ * A back log of {@link Commit commits} yet to be applied to a
+ * {@link SegmentStore segment store}.
+ */
+public interface ScheduledCommits {
+
+    /**
+     * Returns the next commit blocking until one becomes available if
+     * there is currently none. Returns {@code null} if the underlying
+     * store does not accept any further commits (e.g. because it is
+     * shutting down or in an error state).
+     *
+     * @return  the next commit or {@code null}.
+     */
     Commit next();
 
 }

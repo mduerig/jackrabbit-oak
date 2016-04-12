@@ -20,8 +20,21 @@ package org.apache.jackrabbit.oak.plugins.segment.scheduler;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
+/**
+ * A {@code Commit} instance represents a set of related changes, which when applied to
+ * a base node state result in a new node state.
+ */
 public interface Commit {
 
+    /**
+     * Apply the changes represented by this commit to the passed {@code base}
+     * node state.
+     *
+     * @param base   the base node state to apply this commit to
+     * @return       the resulting state from applying this commit to {@code base}.
+     * @throws CommitFailedException  if the commit cannot be applied to {@code base}.
+     *                                (e.g. because of a conflict.)
+     */
     NodeState apply(NodeState base) throws CommitFailedException;
 
 }
