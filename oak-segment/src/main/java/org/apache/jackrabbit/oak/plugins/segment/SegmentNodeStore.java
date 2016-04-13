@@ -226,14 +226,10 @@ public class SegmentNodeStore implements NodeStore, Observable {
         return scheduler.addCheckpoint(lifetime, properties);
     }
 
-    private static Map<String, String> emptyCheckpointProperties() {
-        return Collections.emptyMap();
-    }
-
     @Override
     @Nonnull
     public String checkpoint(long lifetime) {
-        return checkpoint(lifetime, emptyCheckpointProperties());
+        return checkpoint(lifetime, Collections.<String, String>emptyMap());
     }
 
     @Nonnull
