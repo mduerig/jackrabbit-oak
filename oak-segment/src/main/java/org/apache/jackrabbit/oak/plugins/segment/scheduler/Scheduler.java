@@ -38,6 +38,10 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
  */
 public interface Scheduler<S extends SchedulerOptions> {
 
+    // TODO returning void instead of NodeState would gain us some additional
+    // flexibility for e.g. batching up multiple commits. Check whether we can
+    // still fulfill the contract of SegmentNodeStore.merge with such a change
+    // or whether we can also loosen up that contract along the same lines.
     /**
      * Schedule {@code changes} for committing. This method blocks until the
      * {@code changes} have been processed and persisted. That is, until a call
