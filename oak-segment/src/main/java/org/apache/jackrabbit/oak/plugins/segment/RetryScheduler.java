@@ -91,8 +91,8 @@ class RetryScheduler implements Scheduler<SchedulerOptions> {
     }
 
     @Override
-    public String addCheckpoint(long duration, Map<String, String> properties) {
-        checkArgument(duration > 0);
+    public String addCheckpoint(long lifetime, Map<String, String> properties) {
+        checkArgument(lifetime > 0);
         checkNotNull(properties);
 
         String name = UUID.randomUUID().toString();
@@ -100,7 +100,7 @@ class RetryScheduler implements Scheduler<SchedulerOptions> {
         try {
             if (commitSemaphore.tryAcquire(checkpointsLockWaitTime, SECONDS)) {
                 try {
-                    lockedAddCheckpoint(name, duration, properties);
+                    lockedAddCheckpoint(name, lifetime, properties);
                 } finally {
                     commitSemaphore.release();
                 }
@@ -143,7 +143,7 @@ class RetryScheduler implements Scheduler<SchedulerOptions> {
         return false;
     }
 
-    private void lockedAddCheckpoint(String name, long duration, Map<String, String> properties) {
+    private void lockedAddCheckpoint(String name, long lifetime, Map<String, String> properties) {
         long now = System.currentTimeMillis();
 
         refreshHead();
@@ -162,7 +162,7 @@ class RetryScheduler implements Scheduler<SchedulerOptions> {
         }
 
         NodeBuilder cp = checkpoints.child(name);
-        cp.setProperty("timestamp", now + duration);
+        cp.setProperty("timestamp", now + lifetime);
         cp.setProperty("created", now);
 
         NodeBuilder props = cp.setChildNode("properties");

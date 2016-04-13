@@ -26,8 +26,8 @@ import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 
 /**
- * A {@code Scheduler} instance transforms changes to the content tree
- * into a {@link ScheduledCommits backlog} of {@link Commit commits}.
+ * A {@code Scheduler} instance atomically persists related changes in the content
+ * tree.
  * <p>
  * An implementation is free to employ any scheduling strategy as long
  * as it guarantees all changes are applied atomically without changing
@@ -53,7 +53,7 @@ public interface Scheduler<S extends SchedulerOptions> {
      */
     NodeState schedule(NodeBuilder changes, CommitHook hook, CommitInfo info, S schedulingOptions) throws CommitFailedException;
 
-    String addCheckpoint(long duration, Map<String, String> properties);
+    String addCheckpoint(long lifetime, Map<String, String> properties);
 
     boolean removeCheckpoint(String name);
 }
