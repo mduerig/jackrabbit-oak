@@ -263,6 +263,10 @@ public class SegmentWriter {
             }));
     }
 
+    public void dropCache() {
+        // michid remove
+    }
+
     // FIXME michid document: not thread safe!
     private abstract class SegmentWriteOperation implements WriteOperation {
         private SegmentBufferWriter writer;
