@@ -283,6 +283,7 @@ public class RepositorySidegradeTest {
 
     @Test
     @Ignore
+    // FIXME OAK-3348 failing test verifyGenericProperties()
     public void verifyGenericProperties() throws Exception {
         Session session = createAdminSession();
         try {

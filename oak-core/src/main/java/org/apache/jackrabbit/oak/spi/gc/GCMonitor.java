@@ -59,6 +59,7 @@ public interface GCMonitor {
      */
     void skipped(String reason, Object... arguments);
 
+    // FIXME OAK-3348 need a mechanism to notify clients of gc completion free of races
     /**
      * The compaction phase of the garbage collection process terminated successfully.
      * @param segmentCounts    number of segments in the individual generations of the map
