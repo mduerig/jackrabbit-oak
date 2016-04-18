@@ -97,7 +97,7 @@ public class FileStoreGCMonitor extends AnnotatedStandardMBean
     }
 
     @Override
-    public void compacted() {
+    public void compacted(long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
         lastCompaction = clock.getTime();
     }
 

@@ -712,8 +712,8 @@ public class SegmentCompactionIT {
         }
 
         @Override
-        public void compacted() {
-            delegate.compacted();
+        public void compacted(long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
+            delegate.compacted(segmentCounts, recordCounts, compactionMapWeights);
             lastCompacted = System.currentTimeMillis();
         }
 

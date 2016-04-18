@@ -1046,7 +1046,7 @@ public class FileStore implements SegmentStore {
             if (success) {
                 tracker.getWriter().addCachedNodes(gcGeneration, nodeCache);
                 tracker.clearSegmentIdTables(compactionStrategy);
-                gcMonitor.compacted();
+                gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
             } else {
                 gcMonitor.info("TarMK GC #{}: compaction gave up compacting concurrent commits after {} cycles.",
                     gcCount, cycles - 1);
@@ -1531,8 +1531,8 @@ public class FileStore implements SegmentStore {
         }
 
         @Override
-        public void compacted() {
-            delegatee.compacted();
+        public void compacted(long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
+            delegatee.compacted(segmentCounts, recordCounts, compactionMapWeights);
         }
 
         @Override

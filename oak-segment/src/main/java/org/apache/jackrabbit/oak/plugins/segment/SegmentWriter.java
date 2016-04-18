@@ -254,6 +254,9 @@ public class SegmentWriter {
             }));
     }
 
+    public void dropCache() {
+    }
+
     // FIXME OAK-3348 document: not thread safe
     private abstract class SegmentWriteOperation implements WriteOperation {
         private SegmentBufferWriter writer;
