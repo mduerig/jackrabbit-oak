@@ -417,7 +417,7 @@ public class FileStore implements SegmentStore {
             checkNotNull(directory).mkdirs();
         }
 
-        // FIXME michid Improve the setup of FileStore and SegmentTracker.
+        // FIXME OAK-3348 Improve the setup of FileStore and SegmentTracker.
         // SegmentTracker and FileStore have a cyclic dependency, which we should
         // try to break. Here we pass along a not fully initialised instances of the
         // FileStore to the SegmentTracker, which in turn is in later invoked to write
@@ -575,7 +575,7 @@ public class FileStore implements SegmentStore {
         log.debug("TarMK readers {}", this.readers);
     }
 
-    // FIXME michid hack: We cannot determine the current GC generation before
+    // FIXME OAK-3348 hack: We cannot determine the current GC generation before
     // the FileStore is fully initialised so just return 0 for now.
     public int getGcGen() {
         if (head == null) {
@@ -593,7 +593,7 @@ public class FileStore implements SegmentStore {
 
         Runtime runtime = Runtime.getRuntime();
         long avail = runtime.totalMemory() - runtime.freeMemory();
-        long delta = 0;  // FIXME michid what value should we use for delta?
+        long delta = 0;  // FIXME OAK-3348 what value should we use for delta?
         long needed = delta * compactionStrategy.getMemoryThreshold();
         if (needed >= avail) {
             gcMonitor.skipped(
@@ -905,11 +905,11 @@ public class FileStore implements SegmentStore {
 
         // Do actual cleanup outside of the lock to prevent blocking
         // concurrent writers for a long time
-        int generation = getGcGen() - 1;  // FIXME michid make the generation threshold configurable
+        int generation = getGcGen() - 1;  // FIXME OAK-3348 make the generation threshold configurable
         Set<UUID> reclaim = newHashSet();
         for (TarReader reader : cleaned.keySet()) {
             reader.mark(bulkRefs, reclaim, generation);
-            // michid FIXME log at debug level
+            // FIXME OAK-3348 log at debug level
             log.info("Size of bulk references/reclaim set {}/{}", bulkRefs.size(), reclaim.size());
             if (shutdown) {
                 gcMonitor.info("TarMK GC #{}: cleanup interrupted", gcCount);
@@ -1038,10 +1038,10 @@ public class FileStore implements SegmentStore {
         gcMonitor.info("TarMK GC #{}: compaction started, strategy={}", gcCount, compactionStrategy);
         Stopwatch watch = Stopwatch.createStarted();
 
-        // FIXME michid Make the capacity and initial depth of the deduplication cache configurable
+        // FIXME OAK-3348 Make the capacity and initial depth of the deduplication cache configurable
         final DeduplicationCache<String> nodeCache = new DeduplicationCache<String>(1000000, 20);
 
-        // FIXME michid this way of compacting has not progress logging and cannot be cancelled
+        // FIXME OAK-3348 this way of compacting has not progress logging and cannot be cancelled
         int gcGeneration = tracker.getGcGen() + 1;
         SegmentWriter writer = new SegmentWriter(this, tracker.getSegmentVersion(),
             new SegmentBufferWriter(this, tracker.getSegmentVersion(), "c", gcGeneration),
@@ -1084,7 +1084,7 @@ public class FileStore implements SegmentStore {
             if (success) {
                 tracker.getWriter().addCachedNodes(gcGeneration, nodeCache);
                 tracker.clearSegmentIdTables(compactionStrategy);
-                // michid FIXME refactor GCMonitor: there is no more compaction map stats
+                // FIXME OAK-3348 refactor GCMonitor: there is no more compaction map stats
                 gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
             } else {
                 gcMonitor.info("TarMK GC #{}: compaction gave up compacting concurrent commits after {} cycles.",
@@ -1161,7 +1161,7 @@ public class FileStore implements SegmentStore {
         return new SegmentNodeState(head.get());
     }
 
-    // FIXME michid Maybe us a lock implementation that could expedite important commits
+    // FIXME OAK-3348 Maybe us a lock implementation that could expedite important commits
     // like compaction and checkpoints. See OAK-4015. Needs to be evaluated.
     private ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
@@ -1189,7 +1189,7 @@ public class FileStore implements SegmentStore {
         closeAndLogOnFail(diskSpaceThread);
         try {
             flush();
-            // FIXME michid Replace this with a way to "close" the underlying SegmentBufferWriter(s)
+            // FIXME OAK-3348 Replace this with a way to "close" the underlying SegmentBufferWriter(s)
             // tracker.getWriter().dropCache();
             fileStoreLock.writeLock().lock();
             try {

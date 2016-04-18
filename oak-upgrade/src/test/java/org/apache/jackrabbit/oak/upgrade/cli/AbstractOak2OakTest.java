@@ -110,7 +110,7 @@ public abstract class AbstractOak2OakTest {
 
     @Test
     @Ignore
-    // FIXME michid failing test validateMigration
+    // FIXME OAK-3348 failing test validateMigration
     public void validateMigration() throws RepositoryException, IOException {
         verifyContent(session);
         verifyBlob(session);

@@ -146,7 +146,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
-    // FIXME michid Remove and use an exclusive locking mechanism of the FileStore
+    // FIXME OAK-3348 Remove and use an exclusive locking mechanism of the FileStore
     // instead. See FileStore.forceCompact
     boolean locked(Callable<Boolean> c) throws Exception {
         if (commitSemaphore.tryAcquire()) {
@@ -168,7 +168,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
      *          of {@code c.call()} otherwise.
      * @throws Exception
      */
-    // FIXME michid Remove and use an exclusive locking mechanism of the FileStore
+    // FIXME OAK-3348 Remove and use an exclusive locking mechanism of the FileStore
     // instead. See FileStore.forceCompact
     boolean locked(Callable<Boolean> c, long timeout, TimeUnit unit) throws Exception {
         if (commitSemaphore.tryAcquire(timeout, unit)) {

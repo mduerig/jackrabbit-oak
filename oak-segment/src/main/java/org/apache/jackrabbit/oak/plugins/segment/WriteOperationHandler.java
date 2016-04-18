@@ -22,7 +22,7 @@ package org.apache.jackrabbit.oak.plugins.segment;
 import java.io.IOException;
 
 /**
- * FIXME michid document
+ * FIXME OAK-3348 document
  */
 interface WriteOperationHandler {
     interface WriteOperation {

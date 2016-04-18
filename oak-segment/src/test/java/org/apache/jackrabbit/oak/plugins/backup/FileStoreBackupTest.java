@@ -44,7 +44,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 @Ignore
-// michid FIXME FileStoreBackupTest
+// FIXME OAK-3348 FileStoreBackupTest
 public class FileStoreBackupTest {
 
     private File src;

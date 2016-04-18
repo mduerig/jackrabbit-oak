@@ -246,7 +246,7 @@ public class SegmentTracker {
         segmentCache.put(id, segment, segment.size());
     }
 
-    // FIXME michid Improve retrieving current GC generation.
+    // FIXME OAK-3348 Improve retrieving current GC generation.
     // See also the comments in FileStore regarding initialisation and
     // cyclic dependencies.
     public int getGcGen() {

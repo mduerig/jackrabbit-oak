@@ -78,7 +78,7 @@ public class SegmentNodeStoreBuilder {
         return this;
     }
 
-    // FIXME michid remove
+    // FIXME OAK-3348 remove
     public CompactionStrategy getCompactionStrategy() {
         checkState(isCreated);
         return compactionStrategy;

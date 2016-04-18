@@ -173,8 +173,8 @@ public class SegmentBlob extends Record implements Blob {
             return true;
         }
 
-        // FIXME michid check / test deduplication of large SegmentBlob instances
-        // FIXME michid Can we do something similar for long strings?
+        // FIXME OAK-3348 check / test deduplication of large SegmentBlob instances
+        // FIXME OAK-3348 Can we do something similar for long strings?
         if (object instanceof SegmentBlob) {
             SegmentBlob that = (SegmentBlob) object;
             if (this.length() != that.length()) {
