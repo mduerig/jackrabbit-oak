@@ -34,7 +34,8 @@
   <packaging>pom</packaging>
 
   <properties>
-    <test.opts.memory>-Xmx512m -XX:MaxPermSize=64m</test.opts.memory>
+    <!--FIXME OAK-3348 revert test heap size to 512m once oak-lucene OOM have been sorted out -->
+    <test.opts.memory>-Xmx4g -XX:MaxPermSize=64m</test.opts.memory>
     <test.opts>${test.opts.coverage} ${test.opts.memory} -XX:+HeapDumpOnOutOfMemoryError -Dupdate.limit=100 -Djava.awt.headless=true</test.opts>
     <skip.deployment>false</skip.deployment>
     <skip.coverage>true</skip.coverage>
