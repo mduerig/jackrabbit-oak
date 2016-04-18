@@ -161,7 +161,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         buffer[4] = 0; // reserved
         buffer[5] = 0; // refcount
 
-        // FIXME michid document change in format
+        // FIXME OAK-3348 document change in format
         buffer[GC_GEN_OFFSET] = (byte) (generation >> 24);
         buffer[GC_GEN_OFFSET + 1] = (byte) (generation >> 16);
         buffer[GC_GEN_OFFSET + 2] = (byte) (generation >> 8);
@@ -171,7 +171,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         roots.clear();
         blobrefs.clear();
 
-        // FIXME michid Don't write the GC generation into the segment info
+        // FIXME OAK-3348 Don't write the GC generation into the segment info
         // as it is now available from the segment header. Update the tooling
         // accordingly (SegmentGraph).
         String metaInfo = "{\"wid\":\"" + wid + '"' +
@@ -227,7 +227,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         buffer[position++] = (byte) (offset >> Segment.RECORD_ALIGN_BITS);
     }
 
-    // FIXME michid disable/remove the check for references to prior generation
+    // FIXME OAK-3348 disable/remove the check for references to prior generation
     // in production as it is quite expensive
     private void checkGCGen(SegmentId id) {
         try {

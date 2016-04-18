@@ -91,7 +91,7 @@ public class CompactionAndCleanupIT {
     }
 
     @Test
-    @Ignore  // FIXME michid fix failing test compactionNoBinaryClone
+    @Ignore  // FIXME OAK-3348 fix failing test compactionNoBinaryClone
     public void compactionNoBinaryClone() throws Exception {
         // 2MB data, 5MB blob
         final int blobSize = 5 * 1024 * 1024;
@@ -377,7 +377,7 @@ public class CompactionAndCleanupIT {
                     nodeStore.merge(preGCBuilder, EmptyHook.INSTANCE, CommitInfo.EMPTY);
                 }
 
-                // FIXME michid need to compact twice because of the generation cleanup threshold
+                // FIXME OAK-3348 need to compact twice because of the generation cleanup threshold
                 // (currently hard coded to 2);
                 fileStore.compact();
                 fileStore.compact();
@@ -499,7 +499,7 @@ public class CompactionAndCleanupIT {
     }
 
     @Test
-    @Ignore  // FIXME michid fix failing test propertyRetention
+    @Ignore  // FIXME OAK-3348 fix failing test propertyRetention
     public void propertyRetention() throws IOException, CommitFailedException {
         FileStore fileStore = FileStore.builder(getFileStoreFolder()).withMaxFileSize(1).build();
         try {

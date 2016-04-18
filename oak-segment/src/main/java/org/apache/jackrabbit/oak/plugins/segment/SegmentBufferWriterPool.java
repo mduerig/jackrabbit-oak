@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * FIXME michid document
+ * FIXME OAK-3348 document
  */
 class SegmentBufferWriterPool implements WriteOperationHandler {
     private final Map<Object, SegmentBufferWriter> writers = newHashMap();

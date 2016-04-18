@@ -42,7 +42,7 @@ public enum SegmentVersion {
 
     V_11((byte) 11);
 
-    // FIXME michid upgrade to version 12
+    // FIXME OAK-3348 upgrade to version 12
 
     /**
      * Latest segment version

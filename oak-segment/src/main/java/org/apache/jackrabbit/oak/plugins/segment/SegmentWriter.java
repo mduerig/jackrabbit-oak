@@ -80,10 +80,10 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Converts nodes, properties, and values to records, which are written to segments.
- * FIXME michid document (e.g. thread safety aspects. SegmentWriters are,
+ * FIXME OAK-3348 document (e.g. thread safety aspects. SegmentWriters are,
  * SegmentWriter.SegmentWriteOperation are not.
  */
-// FIXME michid Improve the way how SegmentWriter instances are created.
+// FIXME OAK-3348 Improve the way how SegmentWriter instances are created.
 public class SegmentWriter {
     private static final Logger LOG = LoggerFactory.getLogger(SegmentWriter.class);
 
@@ -125,7 +125,7 @@ public class SegmentWriter {
 
     private final RecordCache<String> nodeCache;
 
-    // FIXME michid Do we need a deduplication cache also for binaries?
+    // FIXME OAK-3348 Do we need a deduplication cache also for binaries?
     // Probably/preferably not as long binaries are already de-duplicated
     // by rewriting its list of block ids and because we should recommend
     // using a data store for big binaries.
@@ -150,17 +150,17 @@ public class SegmentWriter {
     /**
      * @param store     store to write to
      * @param version   segment version to write
-     * FIXME michid document
+     * FIXME OAK-3348 document
      */
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
         this(store, version, writeOperationHandler, new RecordCache<String>());
     }
 
-    // FIXME michid There should be a cleaner way for adding the cached nodes from the compactor
+    // FIXME OAK-3348 There should be a cleaner way for adding the cached nodes from the compactor
     public void addCachedNodes(int generation, Cache<String> cache) {
         nodeCache.put(cache, generation);
 
-        // FIXME michid find a better way to evict the cache from within the cache itself
+        // FIXME OAK-3348 find a better way to evict the cache from within the cache itself
         stringCache.clearUpTo(generation - 1);
         templateCache.clearUpTo(generation - 1);
         nodeCache.clearUpTo(generation - 1);
@@ -264,10 +264,10 @@ public class SegmentWriter {
     }
 
     public void dropCache() {
-        // michid remove
+        // FIXME OAK-3348 remove
     }
 
-    // FIXME michid document: not thread safe!
+    // FIXME OAK-3348 document: not thread safe!
     private abstract class SegmentWriteOperation implements WriteOperation {
         private SegmentBufferWriter writer;
 
@@ -896,7 +896,7 @@ public class SegmentWriter {
 
             RecordId nodeId = null;
             if (state instanceof SegmentNodeState) {
-                // michid offline compaction could get rid of these
+                // FIXME OAK-3348 offline compaction could remove those ids
                 byte[] id = ((Record) state).getRecordId().toArray();
                 nodeId = writeBlock(id, 0, id.length);
             }
