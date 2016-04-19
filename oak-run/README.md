@@ -964,11 +964,7 @@ Oak TarMK Revision Recovery
 
 Lists candidates for head journal entries. Uses a read-only store, so no updates will be performed on target repository.
 
-    $ java -jar oak-run-*.jar tarmkrecovery path/to/repository [--version-v10]
-
-The following options are available:
-
-    --version-v10           - Uses V10 version repository reading (see OAK-2527)
+    $ java -jar oak-run-*.jar tarmkrecovery path/to/repository
 
 Oak Dump DataStore References
 -----------------------------

@@ -35,14 +35,18 @@ import com.google.common.primitives.UnsignedBytes;
 public enum SegmentVersion {
 
     /**
-     * @deprecated Use latest version V11
+     * @deprecated Use latest version V12
      */
     @Deprecated
     V_10((byte) 10),
 
-    V_11((byte) 11);
+    /**
+     * @deprecated Use latest version V12
+     */
+    @Deprecated
+    V_11((byte) 11),
 
-    // FIXME OAK-3348 upgrade to version 12
+    V_12((byte) 12);
 
     /**
      * Latest segment version
@@ -70,7 +74,9 @@ public enum SegmentVersion {
     }
 
     public static SegmentVersion fromByte(byte v) {
-        if (v == V_11.version) {
+        if (v == V_12.version) {
+            return V_12;
+        } else if (v == V_11.version) {
             return V_11;
         } else if (v == V_10.version) {
             return V_10;
@@ -79,8 +85,12 @@ public enum SegmentVersion {
         }
     }
 
+    public static boolean isValid(SegmentVersion version) {
+        return isValid(version.version);
+    }
+
     public static boolean isValid(byte v) {
-        return v == V_10.version || v == V_11.version;
+        return v == V_12.version;
     }
 
 }

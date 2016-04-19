@@ -24,7 +24,7 @@ import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Maps.newConcurrentMap;
 import static java.lang.Boolean.getBoolean;
 import static org.apache.jackrabbit.oak.commons.IOUtils.closeQuietly;
-import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.isValid;
 import static org.apache.jackrabbit.oak.plugins.segment.SegmentWriter.BLOCK_SIZE;
 
 import java.io.IOException;
@@ -203,10 +203,11 @@ public class Segment {
     }
 
     public Segment(SegmentTracker tracker, SegmentId id, ByteBuffer data) {
-        this(tracker, id, data, V_11);
+        this(tracker, id, data, SegmentVersion.LATEST_VERSION);
     }
 
     public Segment(SegmentTracker tracker, final SegmentId id, final ByteBuffer data, SegmentVersion version) {
+        checkArgument(isValid(version));
         this.tracker = checkNotNull(tracker);
         this.id = checkNotNull(id);
         if (tracker.getStringCache() == null) {
@@ -227,7 +228,7 @@ public class Segment {
             checkState(data.get(0) == '0'
                     && data.get(1) == 'a'
                     && data.get(2) == 'K'
-                    && SegmentVersion.isValid(segmentVersion),
+                    && isValid(segmentVersion),
                 new Object() {  // Defer evaluation of error message
                     @Override
                     public String toString() {
@@ -606,11 +607,7 @@ public class Segment {
         }
 
         PropertyTemplate[] properties;
-        if (version.onOrAfter(V_11)) {
-            properties = readPropsV11(propertyCount, offset);
-        } else {
-            properties = readPropsV10(propertyCount, offset);
-        }
+        properties = readProps(propertyCount, offset);
         return new Template(primaryType, mixinTypes, properties, childName);
     }
 
@@ -626,7 +623,7 @@ public class Segment {
         return properties;
     }
 
-    private PropertyTemplate[] readPropsV11(int propertyCount, int offset) {
+    private PropertyTemplate[] readProps(int propertyCount, int offset) {
         PropertyTemplate[] properties = new PropertyTemplate[propertyCount];
         if (propertyCount > 0) {
             RecordId id = readRecordId(offset);

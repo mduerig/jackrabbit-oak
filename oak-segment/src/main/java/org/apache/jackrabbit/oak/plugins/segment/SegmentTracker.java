@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Preconditions;
 import com.google.common.cache.RemovalCause;
 import org.apache.jackrabbit.oak.cache.CacheLIRS;
 import org.apache.jackrabbit.oak.cache.CacheLIRS.EvictionCallback;
@@ -113,6 +114,7 @@ public class SegmentTracker {
 
     public SegmentTracker(SegmentStore store, int cacheSizeMB,
             SegmentVersion version) {
+        Preconditions.checkArgument(SegmentVersion.isValid(version));
         this.segmentVersion = version;
 
         for (int i = 0; i < tables.length; i++) {
@@ -150,7 +152,7 @@ public class SegmentTracker {
     }
 
     public SegmentTracker(SegmentStore store) {
-        this(store, DEFAULT_MEMORY_CACHE_SIZE, SegmentVersion.V_11);
+        this(store, DEFAULT_MEMORY_CACHE_SIZE, SegmentVersion.LATEST_VERSION);
     }
 
     /**

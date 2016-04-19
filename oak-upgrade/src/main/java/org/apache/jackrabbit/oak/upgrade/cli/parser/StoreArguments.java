@@ -16,6 +16,21 @@
  */
 package org.apache.jackrabbit.oak.upgrade.cli.parser;
 
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.LATEST_VERSION;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_FBS;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_FDS;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_S3;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_S3_CONFIG;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_FBS;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_FDS;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_S3;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_S3_CONFIG;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.JCR2_DIR;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.JCR2_DIR_XML;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.JCR2_XML;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.SEGMENT;
+import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.getMatchingType;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,21 +46,6 @@ import org.apache.jackrabbit.oak.upgrade.cli.blob.S3DataStoreFactory;
 import org.apache.jackrabbit.oak.upgrade.cli.node.StoreFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_FBS;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_FDS;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_S3;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.SRC_S3_CONFIG;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_FBS;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_FDS;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_S3;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.OptionParserFactory.DST_S3_CONFIG;
-
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.JCR2_DIR;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.JCR2_DIR_XML;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.JCR2_XML;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.SEGMENT;
-import static org.apache.jackrabbit.oak.upgrade.cli.parser.StoreType.getMatchingType;
 
 public class StoreArguments {
 
@@ -221,12 +221,10 @@ public class StoreArguments {
     }
 
     private static void logSegmentVersion() {
-        SegmentVersion[] versions = SegmentVersion.values();
-        SegmentVersion lastVersion = versions[versions.length - 1];
         log.info("Using Oak segment format {} - please make sure your version of AEM supports that format",
-                lastVersion);
-        if (lastVersion == SegmentVersion.V_11) {
-            log.info("Requires Oak 1.0.12, 1.1.7 or later");
+                LATEST_VERSION);
+        if (LATEST_VERSION == SegmentVersion.V_12) {
+            log.info("Requires Oak 1.5.2 or later");
         }
     }
 

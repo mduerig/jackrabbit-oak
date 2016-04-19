@@ -24,6 +24,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.reverseOrder;
 import static java.util.Collections.sort;
 import static org.apache.jackrabbit.oak.plugins.segment.FileStoreHelper.readRevisions;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.LATEST_VERSION;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -55,7 +56,7 @@ public class FileStoreRevisionRecovery {
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
             System.out
-                    .println("java -jar oak-run-*.jar tarmkrecovery <path/to/repository> [--version-v10]");
+                    .println("java -jar oak-run-*.jar tarmkrecovery <path/to/repository>");
             System.exit(0);
         }
         OptionParser parser = new OptionParser();
@@ -64,8 +65,6 @@ public class FileStoreRevisionRecovery {
 
         OptionSpec<File> storeO = parser.nonOptions(
                 "Path to segment store (required)").ofType(File.class);
-        OptionSpec<?> v10 = parser
-                .accepts("version-v10", "Use V10 for reading");
 
         OptionSet options = parser.parse(args);
 
@@ -80,18 +79,10 @@ public class FileStoreRevisionRecovery {
             System.exit(0);
         }
 
-        SegmentVersion version;
-        if (options.has(v10)) {
-            version = SegmentVersion.V_10;
-            System.out.println("Store(V10) " + store);
-        } else {
-            version = SegmentVersion.V_11;
-            System.out.println("Store " + store);
-        }
+        System.out.println("Store " + store);
 
         SortedMap<String, UUID> candidates = candidateSegments(store);
-        SortedMap<String, String> roots = extractRoots(store, candidates,
-                version);
+        SortedMap<String, String> roots = extractRoots(store, candidates, LATEST_VERSION);
 
         for (Entry<String, String> r : roots.entrySet()) {
             System.out.println(r.getValue()); // + " @ " + r.getKey());

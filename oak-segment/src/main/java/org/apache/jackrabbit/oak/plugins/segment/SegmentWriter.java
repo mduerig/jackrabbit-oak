@@ -51,7 +51,6 @@ import static org.apache.jackrabbit.oak.plugins.segment.RecordWriters.newValueWr
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.align;
 import static org.apache.jackrabbit.oak.plugins.segment.Segment.readString;
-import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.V_11;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -753,13 +752,9 @@ public class SegmentWriter {
             }
 
             RecordId propNamesId = null;
-            if (version.onOrAfter(V_11)) {
-                if (propertyNames.length > 0) {
-                    propNamesId = writeList(asList(propertyNames));
-                    ids.add(propNamesId);
-                }
-            } else {
-                ids.addAll(asList(propertyNames));
+            if (propertyNames.length > 0) {
+                propNamesId = writeList(asList(propertyNames));
+                ids.add(propNamesId);
             }
 
             checkState(propertyNames.length < (1 << 18));
@@ -886,11 +881,7 @@ public class SegmentWriter {
             }
 
             if (!pIds.isEmpty()) {
-                if (version.onOrAfter(V_11)) {
-                    ids.add(writeList(pIds));
-                } else {
-                    ids.addAll(pIds);
-                }
+                ids.add(writeList(pIds));
             }
 
             RecordId nodeId = null;

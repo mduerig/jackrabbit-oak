@@ -17,6 +17,7 @@
 package org.apache.jackrabbit.oak.plugins.segment.memory;
 
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
+import static org.apache.jackrabbit.oak.plugins.segment.SegmentVersion.LATEST_VERSION;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -24,27 +25,25 @@ import java.util.concurrent.ConcurrentMap;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.segment.Segment;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentId;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentNotFoundException;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentNodeState;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentStore;
-import org.apache.jackrabbit.oak.plugins.segment.SegmentVersion;
+import org.apache.jackrabbit.oak.plugins.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.plugins.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-
-import com.google.common.collect.Maps;
 
 /**
  * A store used for in-memory operations.
  */
 public class MemoryStore implements SegmentStore {
 
-    private final SegmentTracker tracker = new SegmentTracker(this, 16, SegmentVersion.V_11);
+    private final SegmentTracker tracker = new SegmentTracker(this, 16, LATEST_VERSION);
 
     private SegmentNodeState head;
 
