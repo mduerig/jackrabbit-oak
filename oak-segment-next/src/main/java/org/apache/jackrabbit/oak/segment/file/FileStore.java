@@ -62,7 +62,7 @@ import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Predicates;
+import com.google.common.base.Predicate;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.api.Blob;
@@ -898,7 +898,7 @@ public class FileStore implements SegmentStore {
 
         // FIXME OAK-4282: Make the number of retained gc generation configurable
         int generation = getGcGen() - 1;
-        Set<UUID> reclaim = newHashSet();
+        final Set<UUID> reclaim = newHashSet();
         for (TarReader reader : cleaned.keySet()) {
             reader.mark(bulkRefs, reclaim, generation);
             // FIXME OAK-4165: Too verbose logging during revision gc
@@ -908,6 +908,13 @@ public class FileStore implements SegmentStore {
                 break;
             }
         }
+        tracker.clearSegmentIdTables(new Predicate<SegmentId>() {
+            @Override
+            public boolean apply(SegmentId id) {
+                return reclaim.contains(id.asUUID());
+            }
+        });
+
         for (TarReader reader : cleaned.keySet()) {
             cleaned.put(reader, reader.sweep(reclaim));
             if (shutdown) {
@@ -1076,10 +1083,6 @@ public class FileStore implements SegmentStore {
             }
             if (success) {
                 tracker.getWriter().addCachedNodes(gcGeneration, nodeCache);
-                // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
-                // ith clean brutal we need to remove those ids that have been cleaned
-                // i.e. those whose segment was from an old generation
-                tracker.clearSegmentIdTables(Predicates.<SegmentId>alwaysFalse());
                 // FIXME OAK-4283: Align GCMonitor API with implementation
                 // Refactor GCMonitor: there is no more compaction map stats
                 gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});

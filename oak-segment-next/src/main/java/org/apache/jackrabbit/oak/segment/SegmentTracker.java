@@ -284,6 +284,8 @@ public class SegmentTracker {
      * in-memory references and references stored while this method is
      * running.
      */
+    // FIXME OAK-4201: Add an index of binary references in a tar file
+    // Use the binary index in the tar instead of traversing
     public void collectBlobReferences(ReferenceCollector collector) {
         try {
             Set<SegmentId> processed = newHashSet();
@@ -293,12 +295,14 @@ public class SegmentTracker {
                 SegmentId id = queue.remove();
                 if (id.isDataSegmentId() && processed.add(id)) {
                     Segment segment = id.getSegment();
-
-                    segment.collectBlobReferences(collector);
-
-                    for (SegmentId refid : segment.getReferencedIds()) {
-                        if (refid.isDataSegmentId() && !processed.contains(refid)) {
-                            queue.add(refid);
+                    // FIXME OAK-4282: Make the number of retained gc generation configurable
+                    // Need to adjust this to the number of retained gc generations
+                    if (segment.getGcGen() >= store.getTracker().getGcGen() - 1) {
+                        segment.collectBlobReferences(collector);
+                        for (SegmentId refid : segment.getReferencedIds()) {
+                            if (refid.isDataSegmentId() && !processed.contains(refid)) {
+                                queue.add(refid);
+                            }
                         }
                     }
                 }
@@ -334,9 +338,6 @@ public class SegmentTracker {
         return getSegmentId(msb, lsb);
     }
 
-    // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
-    // ith clean brutal we need to remove those ids that have been cleaned
-    // i.e. those whose segment was from an old generation
     public synchronized void clearSegmentIdTables(Predicate<SegmentId> canRemove) {
         for (SegmentIdTable table : tables) {
             table.clearSegmentIdTables(canRemove);
