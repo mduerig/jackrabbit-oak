@@ -20,8 +20,8 @@
 package org.apache.jackrabbit.oak.segment.compaction;
 
 // michid doc
-public interface CompactionStrategyMBean {
-    String TYPE = "CompactionStrategy";
+public interface SegmentRevisionGC {
+    String TYPE = "SegmentRevisionGarbageCollection";
 
     boolean isPausedCompaction();
     void setPausedCompaction(boolean pausedCompaction);

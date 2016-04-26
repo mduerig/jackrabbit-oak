@@ -22,74 +22,74 @@ package org.apache.jackrabbit.oak.segment.compaction;
 import org.apache.jackrabbit.oak.commons.jmx.AnnotatedStandardMBean;
 
 // michid doc
-public class DefaultCompactionStrategyMBean
+public class SegmentRevisionGCMBean
         extends AnnotatedStandardMBean
-        implements CompactionStrategyMBean {
+        implements SegmentRevisionGC {
 
-    private final CompactionStrategy strategy;
+    private final SegmentGCOptions gcOptions;
 
-    public DefaultCompactionStrategyMBean(CompactionStrategy strategy) {
-        super(CompactionStrategyMBean.class);
-        this.strategy = strategy;
+    public SegmentRevisionGCMBean(SegmentGCOptions gcOptions) {
+        super(SegmentRevisionGC.class);
+        this.gcOptions = gcOptions;
     }
 
     @Override
     public boolean isPausedCompaction() {
-        return strategy.isPaused();
+        return gcOptions.isPaused();
     }
 
     @Override
     public void setPausedCompaction(boolean pausedCompaction) {
-        strategy.setPaused(pausedCompaction);
+        gcOptions.setPaused(pausedCompaction);
     }
 
     @Override
     public int getGainThreshold() {
-        return strategy.getGainThreshold();
+        return gcOptions.getGainThreshold();
     }
 
     @Override
     public void setGainThreshold(int gainThreshold) {
-        strategy.setGainThreshold(gainThreshold);
+        gcOptions.setGainThreshold(gainThreshold);
     }
 
     @Override
     public int getMemoryThreshold() {
-        return strategy.getMemoryThreshold();
+        return gcOptions.getMemoryThreshold();
     }
 
     @Override
     public void setMemoryThreshold(int memory) {
-        strategy.setMemoryThreshold(memory);
+        gcOptions.setMemoryThreshold(memory);
     }
 
     @Override
     public int getRetryCount() {
-        return strategy.getRetryCount();
+        return gcOptions.getRetryCount();
     }
 
     @Override
     public void setRetryCount(int retryCount) {
-        strategy.setRetryCount(retryCount);
+        gcOptions.setRetryCount(retryCount);
     }
 
     @Override
     public boolean getForceAfterFail() {
-        return strategy.getForceAfterFail();
+        return gcOptions.getForceAfterFail();
     }
 
     @Override
     public void setForceAfterFail(boolean forceAfterFail) {
-        strategy.setForceAfterFail(forceAfterFail);
+        gcOptions.setForceAfterFail(forceAfterFail);
     }
 
     @Override
     public int getLockWaitTime() {
-        return strategy.getLockWaitTime();
+        return gcOptions.getLockWaitTime();
     }
 
     @Override
     public void setLockWaitTime(int millis) {
-        strategy.setLockWaitTime(millis);
+        gcOptions.setLockWaitTime(millis);
     }
 }

@@ -20,8 +20,8 @@
 package org.apache.jackrabbit.oak.segment.compaction;
 
 // michid doc
-public class CompactionStrategy {
-    public static final CompactionStrategy DEFAULT = new CompactionStrategy();
+public class SegmentGCOptions {
+    public static final SegmentGCOptions DEFAULT = new SegmentGCOptions();
 
     /**
      * Default value for {@link #isPaused()}
@@ -68,8 +68,8 @@ public class CompactionStrategy {
 
     private int lockWaitTime = LOCK_WAIT_TIME_DEFAULT;
 
-    public CompactionStrategy(boolean paused, int memoryThreshold, int gainThreshold,
-                              int retryCount, boolean forceAfterFail, int lockWaitTime) {
+    public SegmentGCOptions(boolean paused, int memoryThreshold, int gainThreshold,
+                            int retryCount, boolean forceAfterFail, int lockWaitTime) {
         this.paused = paused;
         this.memoryThreshold = memoryThreshold;
         this.gainThreshold = gainThreshold;
@@ -78,7 +78,7 @@ public class CompactionStrategy {
         this.lockWaitTime = lockWaitTime;
     }
 
-    public CompactionStrategy() {
+    public SegmentGCOptions() {
         this(PAUSE_DEFAULT, MEMORY_THRESHOLD_DEFAULT, GAIN_THRESHOLD_DEFAULT,
                 RETRY_COUNT_DEFAULT, FORCE_AFTER_FAIL_DEFAULT, LOCK_WAIT_TIME_DEFAULT);
     }
@@ -87,7 +87,7 @@ public class CompactionStrategy {
         return paused;
     }
 
-    public CompactionStrategy setPaused(boolean paused) {
+    public SegmentGCOptions setPaused(boolean paused) {
         this.paused = paused;
         return this;
     }
@@ -96,7 +96,7 @@ public class CompactionStrategy {
         return memoryThreshold;
     }
 
-    public CompactionStrategy setMemoryThreshold(int memoryThreshold) {
+    public SegmentGCOptions setMemoryThreshold(int memoryThreshold) {
         this.memoryThreshold = memoryThreshold;
         return this;
     }
@@ -115,7 +115,7 @@ public class CompactionStrategy {
      * run
      * @param gainThreshold
      */
-    public CompactionStrategy setGainThreshold(int gainThreshold) {
+    public SegmentGCOptions setGainThreshold(int gainThreshold) {
         this.gainThreshold = gainThreshold;
         return this;
     }
@@ -134,7 +134,7 @@ public class CompactionStrategy {
      * compacted commits
      * @param retryCount
      */
-    public CompactionStrategy setRetryCount(int retryCount) {
+    public SegmentGCOptions setRetryCount(int retryCount) {
         this.retryCount = retryCount;
         return this;
     }
@@ -155,7 +155,7 @@ public class CompactionStrategy {
      * Force committing tries to exclusively write lock the node store.
      * @param forceAfterFail
      */
-    public CompactionStrategy setForceAfterFail(boolean forceAfterFail) {
+    public SegmentGCOptions setForceAfterFail(boolean forceAfterFail) {
         this.forceAfterFail = forceAfterFail;
         return this;
     }
@@ -164,7 +164,7 @@ public class CompactionStrategy {
         return lockWaitTime;
     }
 
-    public CompactionStrategy setLockWaitTime(int lockWaitTime) {
+    public SegmentGCOptions setLockWaitTime(int lockWaitTime) {
         this.lockWaitTime = lockWaitTime;
         return this;
     }
