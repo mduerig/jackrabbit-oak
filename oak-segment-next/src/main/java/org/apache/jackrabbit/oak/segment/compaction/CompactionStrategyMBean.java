@@ -19,29 +19,44 @@
 
 package org.apache.jackrabbit.oak.segment.compaction;
 
+// michid doc
 public interface CompactionStrategyMBean {
-
     String TYPE = "CompactionStrategy";
 
-    boolean isCloneBinaries();
-
-    void setCloneBinaries(boolean cloneBinaries);
-
     boolean isPausedCompaction();
-
     void setPausedCompaction(boolean pausedCompaction);
 
-    String getCleanupStrategy();
+    /**
+     * Get the compaction gain estimate threshold beyond which compaction should
+     * run
+     * @return gainThreshold
+     */
+    int getGainThreshold();
 
-    void setCleanupStrategy(String cleanup);
+    /**
+     * Set the compaction gain estimate threshold beyond which compaction should
+     * run
+     * @param gainThreshold
+     */
+    void setGainThreshold(int gainThreshold);
 
-    long getOlderThan();
+    int getMemoryThreshold();
 
-    void setOlderThan(long olderThan);
+    void setMemoryThreshold(int memory);
 
-    byte getMemoryThreshold();
+    /**
+     * Get the number of tries to compact concurrent commits on top of already
+     * compacted commits
+     * @return  retry count
+     */
+    int getRetryCount();
 
-    void setMemoryThreshold(byte memory);
+    /**
+     * Set the number of tries to compact concurrent commits on top of already
+     * compacted commits
+     * @param retryCount
+     */
+    void setRetryCount(int retryCount);
 
     /**
      * Get whether or not to force compact concurrent commits on top of already
@@ -59,32 +74,8 @@ public interface CompactionStrategyMBean {
      */
     void setForceAfterFail(boolean forceAfterFail);
 
-    /**
-     * Get the number of tries to compact concurrent commits on top of already
-     * compacted commits
-     * @return  retry count
-     */
-    int getRetryCount();
+    int getLockWaitTime();
 
-    /**
-     * Set the number of tries to compact concurrent commits on top of already
-     * compacted commits
-     * @param retryCount
-     */
-    void setRetryCount(int retryCount);
-
-    /**
-     * Get the compaction gain estimate threshold beyond which compaction should
-     * run
-     * @return gainThreshold
-     */
-    byte getGainThreshold();
-
-    /**
-     * Set the compaction gain estimate threshold beyond which compaction should
-     * run
-     * @param gainThreshold
-     */
-    void setGainThreshold(byte gainThreshold);
+    void setLockWaitTime(int millis);
 
 }
