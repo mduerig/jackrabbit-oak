@@ -43,36 +43,36 @@ import org.slf4j.LoggerFactory;
 // add unit tests
 public class RecordCache<T> {
     private static final Logger LOG = LoggerFactory.getLogger(RecordCache.class);
-    // FIXME OAK-4277: Finalise de-duplication caches
-    // make this configurable
 
     private final ConcurrentMap<Integer, Supplier<Cache<T>>> generations = newConcurrentMap();
+    private final Supplier<Cache<T>> factory;
 
-    public abstract static class Cache<T> {
-        public static <T> Cache<T> disabled() {
-            return new Cache<T>() {
-                @Override void put(T key, RecordId value) { }
-                @Override void put(T key, RecordId value, int cost) { }
-                @Override RecordId get(T key) { return null; }
-                @Override void clear() { }
+    public static class Cache<T> {
+        public static final <T> Supplier<Cache<T>> alwaysEmpty() {
+            return new Supplier<Cache<T>>() {
+                @Override
+                public Cache<T> get() {
+                    return new Cache<>();
+                }
             };
         }
-        abstract void put(T key, RecordId value);
-        abstract void put(T key, RecordId value, int cost);
-        abstract RecordId get(T key);
-        abstract void clear();
+
+        void put(T key, RecordId value) {}
+        void put(T key, RecordId value, int cost) {}
+        RecordId get(T key) { return null; }
+        void clear() {}
     }
 
-    public static <T> RecordCache<T> disabled() {
-        return new RecordCache<T>() {
-            @Override public Cache<T> generation(int generation) { return Cache.disabled(); }
+    public static <T> RecordCache<T> alwaysEmpty() {
+        return new RecordCache<T>(Cache.<T>alwaysEmpty()) {
+            @Override public Cache<T> generation(int generation) { return super.factory.get(); }
             @Override public void clear(int generation) { }
             @Override public void clear() { }
         };
     }
 
-    protected Cache<T> getCache(int generation) {
-        return Cache.disabled();
+    public RecordCache(Supplier<Cache<T>> factory) {
+        this.factory = factory;
     }
 
     public Cache<T> generation(final int generation) {
@@ -81,7 +81,7 @@ public class RecordCache<T> {
             generations.putIfAbsent(generation, memoize(new Supplier<Cache<T>>() {
                 @Override
                 public Cache<T> get() {
-                    return getCache(generation);
+                    return factory.get();
                 }
             }));
         }
@@ -112,6 +112,15 @@ public class RecordCache<T> {
 
     public static final class LRUCache<T> extends Cache<T> {
         private final Map<T, RecordId> map;
+
+        public static final <T> Supplier<Cache<T>> factory(final int size) {
+            return new Supplier<Cache<T>>() {
+                @Override
+                public LRUCache<T> get() {
+                    return new LRUCache<>(size);
+                }
+            };
+        }
 
         public LRUCache(final int size) {
             map = new LinkedHashMap<T, RecordId>(size * 4 / 3, 0.75f, true) {
@@ -150,6 +159,15 @@ public class RecordCache<T> {
         private int size;
 
         private final Set<Integer> muteDepths = newHashSet();
+
+        public static final <T> Supplier<Cache<T>> factory(final int capacity, final int maxDepth) {
+            return new Supplier<Cache<T>>() {
+                @Override
+                public DeduplicationCache<T> get() {
+                    return new DeduplicationCache<>(capacity, maxDepth);
+                }
+            };
+        }
 
         public DeduplicationCache(int capacity, int maxDepth) {
             checkArgument(capacity > 0);

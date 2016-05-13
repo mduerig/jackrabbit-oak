@@ -70,6 +70,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.blob.ReferenceCollector;
 import org.apache.jackrabbit.oak.segment.RecordCache;
+import org.apache.jackrabbit.oak.segment.RecordCache.Cache;
 import org.apache.jackrabbit.oak.segment.RecordCache.DeduplicationCache;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.Segment;
@@ -1070,12 +1071,12 @@ public class FileStore implements SegmentStore {
         final int gcGeneration = tracker.getGcGen() + 1;
         SegmentWriter writer = new SegmentWriter(this, tracker.getSegmentVersion(),
             new SegmentBufferWriter(this, tracker.getSegmentVersion(), "c", gcGeneration),
-            new RecordCache<String>() {
-                @Override
-                protected Cache<String> getCache(int generation) {
-                    return nodeCache;
-                }
-            });
+                new RecordCache<>(new Supplier<Cache<String>>() {
+                    @Override
+                    public Cache<String> get() {
+                        return nodeCache;
+                    }
+                }));
 
         SegmentNodeState before = getHead();
         long existing = before.getChildNode(SegmentNodeStore.CHECKPOINTS)
