@@ -41,14 +41,14 @@ import org.slf4j.LoggerFactory;
 // FIXME OAK-4277: Finalise de-duplication caches
 // implement monitoring for this cache
 // add unit tests
-public class RecordCache<T> {
-    private static final Logger LOG = LoggerFactory.getLogger(RecordCache.class);
+public class CacheManager<T> {
+    private static final Logger LOG = LoggerFactory.getLogger(CacheManager.class);
 
     private final ConcurrentMap<Integer, Supplier<T>> generations = newConcurrentMap();
-    private final Supplier<T> factory;
+    private final Supplier<T> cacheFactory;
 
-    public RecordCache(Supplier<T> factory) {
-        this.factory = factory;
+    public CacheManager(Supplier<T> cacheFactory) {
+        this.cacheFactory = cacheFactory;
     }
 
     public T generation(final int generation) {
@@ -57,17 +57,19 @@ public class RecordCache<T> {
             generations.putIfAbsent(generation, memoize(new Supplier<T>() {
                 @Override
                 public T get() {
-                    return factory.get();
+                    return cacheFactory.get();
                 }
             }));
         }
         return generations.get(generation).get();
     }
 
+    // michid remove
     public void put(T cache, int generation) {
         generations.put(generation, Suppliers.ofInstance(cache));
     }
 
+    // michid remove
     public void clearUpTo(int maxGen) {
         Iterator<Integer> it = generations.keySet().iterator();
         while (it.hasNext()) {
@@ -78,41 +80,32 @@ public class RecordCache<T> {
         }
     }
 
-    public void clear(int generation) {
-        generations.remove(generation);
-    }
+    public static class RecordCache<T> {
+        private final Map<T, RecordId> records;
 
-    public void clear() {
-        generations.clear();
-    }
-
-    public static class LRUCache<T> {
-        private final Map<T, RecordId> map;
-
-        public static final <T> Supplier<LRUCache<T>> factory(final int size) {
-            return new Supplier<LRUCache<T>>() {
+        public static final <T> Supplier<RecordCache<T>> factory(final int size) {
+            return new Supplier<RecordCache<T>>() {
                 @Override
-                public LRUCache<T> get() {
-                    return new LRUCache<>(size);
+                public RecordCache<T> get() {
+                    return new RecordCache<>(size);
                 }
             };
         }
 
-        public static final <T> Supplier<LRUCache<T>> empty() {
-            return new Supplier<LRUCache<T>>() {
+        public static final <T> Supplier<RecordCache<T>> empty() {
+            return new Supplier<RecordCache<T>>() {
                 @Override
-                public LRUCache<T> get() {
-                    return new LRUCache<T>(0) {
+                public RecordCache<T> get() {
+                    return new RecordCache<T>(0) {
                         @Override public synchronized void put(T key, RecordId value) { }
                         @Override public synchronized RecordId get(T key) { return null; }
-                        @Override public synchronized void clear() { }
                     };
                 }
             };
         }
 
-        public LRUCache(final int size) {
-            map = new LinkedHashMap<T, RecordId>(size * 4 / 3, 0.75f, true) {
+        public RecordCache(final int size) {
+            records = new LinkedHashMap<T, RecordId>(size * 4 / 3, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<T, RecordId> eldest) {
                     return size() >= size;
@@ -121,67 +114,62 @@ public class RecordCache<T> {
         }
 
         public synchronized void put(T key, RecordId value) {
-            map.put(key, value);
+            records.put(key, value);
         }
 
         public synchronized RecordId get(T key) {
-            return map.get(key);
-        }
-
-        public synchronized void clear() {
-            map.clear();
+            return records.get(key);
         }
     }
 
-    public static class DeduplicationCache<T> {
+    public static class NodeCache<T> {
         private final int capacity;
-        private final List<Map<T, RecordId>> maps;
+        private final List<Map<T, RecordId>> nodes;
 
         private int size;
 
         private final Set<Integer> muteDepths = newHashSet();
 
-        public static final <T> Supplier<DeduplicationCache<T>> factory(final int capacity, final int maxDepth) {
-            return new Supplier<DeduplicationCache<T>>() {
+        public static final <T> Supplier<NodeCache<T>> factory(final int capacity, final int maxDepth) {
+            return new Supplier<NodeCache<T>>() {
                 @Override
-                public DeduplicationCache<T> get() {
-                    return new DeduplicationCache<>(capacity, maxDepth);
+                public NodeCache<T> get() {
+                    return new NodeCache<>(capacity, maxDepth);
                 }
             };
         }
 
-        public static final <T> Supplier<DeduplicationCache<T>> empty() {
-            return new Supplier<DeduplicationCache<T>>() {
+        public static final <T> Supplier<NodeCache<T>> empty() {
+            return new Supplier<NodeCache<T>>() {
                 @Override
-                public DeduplicationCache<T> get() {
-                    return new DeduplicationCache<T>(0, 0){
-                        @Override public synchronized void put(T key, RecordId value, int cost) { }
+                public NodeCache<T> get() {
+                    return new NodeCache<T>(0, 0){
+                        @Override public synchronized void put(T key, RecordId value, int depth) { }
                         @Override public synchronized RecordId get(T key) { return null; }
-                        @Override public synchronized void clear() { }
                     };
                 }
             };
         }
 
-        public DeduplicationCache(int capacity, int maxDepth) {
+        public NodeCache(int capacity, int maxDepth) {
             checkArgument(capacity > 0);
             checkArgument(maxDepth > 0);
             this.capacity = capacity;
-            this.maps = newArrayList();
+            this.nodes = newArrayList();
             for (int k = 0; k < maxDepth; k++) {
-                maps.add(new HashMap<T, RecordId>());
+                nodes.add(new HashMap<T, RecordId>());
             }
         }
 
-        public synchronized void put(T key, RecordId value, int cost) {
+        public synchronized void put(T key, RecordId value, int depth) {
             // FIXME OAK-4277: Finalise de-duplication caches
             // Validate and optimise the eviction strategy.
             // Nodes with many children should probably get a boost to
             // protecting them from preemptive eviction. Also it might be
             // necessary to implement pinning (e.g. for checkpoints).
             while (size >= capacity) {
-                int d = maps.size() - 1;
-                int removed = maps.remove(d).size();
+                int d = nodes.size() - 1;
+                int removed = nodes.remove(d).size();
                 size -= removed;
                 if (removed > 0) {
                     // FIXME OAK-4165: Too verbose logging during revision gc
@@ -190,20 +178,20 @@ public class RecordCache<T> {
                 }
             }
 
-            if (cost < maps.size()) {
-                if (maps.get(cost).put(key, value) == null) {
+            if (depth < nodes.size()) {
+                if (nodes.get(depth).put(key, value) == null) {
                     size++;
                 }
             } else {
-                if (muteDepths.add(cost)) {
+                if (muteDepths.add(depth)) {
                     LOG.info("Not caching {} -> {} as depth {} reaches or exceeds the maximum of {}",
-                        key, value, cost, maps.size());
+                        key, value, depth, nodes.size());
                 }
             }
         }
 
         public synchronized RecordId get(T key) {
-            for (Map<T, RecordId> map : maps) {
+            for (Map<T, RecordId> map : nodes) {
                 if (!map.isEmpty()) {
                     RecordId recordId = map.get(key);
                     if (recordId != null) {
@@ -212,10 +200,6 @@ public class RecordCache<T> {
                 }
             }
             return null;
-        }
-
-        public synchronized void clear() {
-            maps.clear();
         }
 
     }

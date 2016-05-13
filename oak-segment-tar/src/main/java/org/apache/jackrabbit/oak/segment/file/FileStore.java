@@ -69,8 +69,8 @@ import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.blob.ReferenceCollector;
-import org.apache.jackrabbit.oak.segment.RecordCache;
-import org.apache.jackrabbit.oak.segment.RecordCache.DeduplicationCache;
+import org.apache.jackrabbit.oak.segment.CacheManager;
+import org.apache.jackrabbit.oak.segment.CacheManager.NodeCache;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.SegmentBufferWriter;
@@ -1063,16 +1063,16 @@ public class FileStore implements SegmentStore {
 
         // FIXME OAK-4277: Finalise de-duplication caches
         // Make the capacity and initial depth of the deduplication cache configurable
-        final DeduplicationCache<String> nodeCache = new DeduplicationCache<>(1000000, 20);
+        final NodeCache<String> nodeCache = new NodeCache<>(1000000, 20);
 
         // FIXME OAK-4279: Rework offline compaction
         // This way of compacting has no progress logging
         final int gcGeneration = tracker.getGcGen() + 1;
         SegmentWriter writer = new SegmentWriter(this, tracker.getSegmentVersion(),
             new SegmentBufferWriter(this, tracker.getSegmentVersion(), "c", gcGeneration),
-                new RecordCache<>(new Supplier<DeduplicationCache<String>>() {
+                new CacheManager<>(new Supplier<NodeCache<String>>() {
                     @Override
-                    public DeduplicationCache<String> get() {
+                    public NodeCache<String> get() {
                         return nodeCache;
                     }
                 }));
