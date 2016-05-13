@@ -122,30 +122,30 @@ public class CacheManager<T> {
         }
     }
 
-    public static class NodeCache<T> {
+    public static class NodeCache {
         private final int capacity;
-        private final List<Map<T, RecordId>> nodes;
+        private final List<Map<String, RecordId>> nodes;
 
         private int size;
 
         private final Set<Integer> muteDepths = newHashSet();
 
-        public static final <T> Supplier<NodeCache<T>> factory(final int capacity, final int maxDepth) {
-            return new Supplier<NodeCache<T>>() {
+        public static final Supplier<NodeCache> factory(final int capacity, final int maxDepth) {
+            return new Supplier<NodeCache>() {
                 @Override
-                public NodeCache<T> get() {
-                    return new NodeCache<>(capacity, maxDepth);
+                public NodeCache get() {
+                    return new NodeCache(capacity, maxDepth);
                 }
             };
         }
 
-        public static final <T> Supplier<NodeCache<T>> empty() {
-            return new Supplier<NodeCache<T>>() {
+        public static final Supplier<NodeCache> empty() {
+            return new Supplier<NodeCache>() {
                 @Override
-                public NodeCache<T> get() {
-                    return new NodeCache<T>(0, 0){
-                        @Override public synchronized void put(T key, RecordId value, int depth) { }
-                        @Override public synchronized RecordId get(T key) { return null; }
+                public NodeCache get() {
+                    return new NodeCache(0, 0){
+                        @Override public synchronized void put(String key, RecordId value, int depth) { }
+                        @Override public synchronized RecordId get(String key) { return null; }
                     };
                 }
             };
@@ -157,11 +157,11 @@ public class CacheManager<T> {
             this.capacity = capacity;
             this.nodes = newArrayList();
             for (int k = 0; k < maxDepth; k++) {
-                nodes.add(new HashMap<T, RecordId>());
+                nodes.add(new HashMap<String, RecordId>());
             }
         }
 
-        public synchronized void put(T key, RecordId value, int depth) {
+        public synchronized void put(String key, RecordId value, int depth) {
             // FIXME OAK-4277: Finalise de-duplication caches
             // Validate and optimise the eviction strategy.
             // Nodes with many children should probably get a boost to
@@ -190,8 +190,8 @@ public class CacheManager<T> {
             }
         }
 
-        public synchronized RecordId get(T key) {
-            for (Map<T, RecordId> map : nodes) {
+        public synchronized RecordId get(String key) {
+            for (Map<String, RecordId> map : nodes) {
                 if (!map.isEmpty()) {
                     RecordId recordId = map.get(key);
                     if (recordId != null) {

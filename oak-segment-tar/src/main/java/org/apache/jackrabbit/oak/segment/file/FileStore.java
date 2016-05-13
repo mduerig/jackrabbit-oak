@@ -1063,16 +1063,16 @@ public class FileStore implements SegmentStore {
 
         // FIXME OAK-4277: Finalise de-duplication caches
         // Make the capacity and initial depth of the deduplication cache configurable
-        final NodeCache<String> nodeCache = new NodeCache<>(1000000, 20);
+        final NodeCache nodeCache = new NodeCache(1000000, 20);
 
         // FIXME OAK-4279: Rework offline compaction
         // This way of compacting has no progress logging
         final int gcGeneration = tracker.getGcGen() + 1;
         SegmentWriter writer = new SegmentWriter(this, tracker.getSegmentVersion(),
             new SegmentBufferWriter(this, tracker.getSegmentVersion(), "c", gcGeneration),
-                new CacheManager<>(new Supplier<NodeCache<String>>() {
+                new CacheManager<>(new Supplier<NodeCache>() {
                     @Override
-                    public NodeCache<String> get() {
+                    public NodeCache get() {
                         return nodeCache;
                     }
                 }));

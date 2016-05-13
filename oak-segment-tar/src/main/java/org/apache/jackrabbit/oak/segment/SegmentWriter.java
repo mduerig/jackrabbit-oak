@@ -111,7 +111,7 @@ public class SegmentWriter {
             ? RecordCache.<Template>empty()
             : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE));
 
-    private final CacheManager<NodeCache<String>> nodeCaches;
+    private final CacheManager<NodeCache> nodeCaches;
 
     // FIXME OAK-4277: Finalise de-duplication caches
     // Do we need a deduplication cache also for binaries?
@@ -138,7 +138,7 @@ public class SegmentWriter {
      * @param nodeCaches  de-duplication cache for nodes
      */
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler,
-            CacheManager<NodeCache<String>> nodeCaches) {
+            CacheManager<NodeCache> nodeCaches) {
         this.store = store;
         this.version = version;
         this.writeOperationHandler = writeOperationHandler;
@@ -154,12 +154,12 @@ public class SegmentWriter {
      * @param writeOperationHandler  handler for write operations.
      */
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
-        this(store, version, writeOperationHandler, new CacheManager<>(NodeCache.<String>empty()));
+        this(store, version, writeOperationHandler, new CacheManager<>(NodeCache.empty()));
     }
 
     // FIXME OAK-4277: Finalise de-duplication caches
     // There should be a cleaner way for adding the cached nodes from the compactor
-    public void addCachedNodes(int generation, NodeCache<String> cache) {
+    public void addCachedNodes(int generation, NodeCache cache) {
         nodeCaches.put(cache, generation);
 
         // FIXME OAK-4277: Finalise de-duplication caches
@@ -317,7 +317,7 @@ public class SegmentWriter {
         private SegmentBufferWriter writer;
         private RecordCache<String> stringCache;
         private RecordCache<Template> templateCache;
-        private NodeCache<String> nodeCache;
+        private NodeCache nodeCache;
 
         protected SegmentWriteOperation(Supplier<Boolean> cancel) {
             this.cancel = cancel;
