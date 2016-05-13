@@ -63,7 +63,7 @@ import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
-import org.apache.jackrabbit.oak.segment.RecordCache.Cache;
+import org.apache.jackrabbit.oak.segment.RecordCache.DeduplicationCache;
 import org.apache.jackrabbit.oak.segment.RecordCache.LRUCache;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -94,10 +94,10 @@ public class SegmentWriter {
      * Cache of recently stored string records, used to avoid storing duplicates
      * of frequently occurring data.
      */
-    private final RecordCache<String> stringCaches =
-        STRING_RECORDS_CACHE_SIZE <= 0
-            ? RecordCache.<String>alwaysEmpty()
-            : new RecordCache<>(LRUCache.<String>factory(STRING_RECORDS_CACHE_SIZE));
+    private final RecordCache<LRUCache<String>> stringCaches =
+        new RecordCache<>(STRING_RECORDS_CACHE_SIZE <= 0
+            ? LRUCache.<String>empty()
+            : LRUCache.<String>factory(STRING_RECORDS_CACHE_SIZE));
 
     private static final int TPL_RECORDS_CACHE_SIZE = Integer.getInteger(
             "oak.segment.writer.templatesCacheSize", 3000);
@@ -106,12 +106,12 @@ public class SegmentWriter {
      * Cache of recently stored template records, used to avoid storing
      * duplicates of frequently occurring data.
      */
-    private final RecordCache<Template> templateCaches =
-        TPL_RECORDS_CACHE_SIZE <= 0
-            ? RecordCache.<Template>alwaysEmpty()
-            : new RecordCache<>(LRUCache.<Template>factory(TPL_RECORDS_CACHE_SIZE));
+    private final RecordCache<LRUCache<Template>> templateCaches =
+        new RecordCache<>(TPL_RECORDS_CACHE_SIZE <= 0
+            ? LRUCache.<Template>empty()
+            : LRUCache.<Template>factory(TPL_RECORDS_CACHE_SIZE));
 
-    private final RecordCache<String> nodeCaches;
+    private final RecordCache<DeduplicationCache<String>> nodeCaches;
 
     // FIXME OAK-4277: Finalise de-duplication caches
     // Do we need a deduplication cache also for binaries?
@@ -138,7 +138,7 @@ public class SegmentWriter {
      * @param nodeCaches  de-duplication cache for nodes
      */
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler,
-            RecordCache<String> nodeCaches) {
+            RecordCache<DeduplicationCache<String>> nodeCaches) {
         this.store = store;
         this.version = version;
         this.writeOperationHandler = writeOperationHandler;
@@ -154,12 +154,12 @@ public class SegmentWriter {
      * @param writeOperationHandler  handler for write operations.
      */
     public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
-        this(store, version, writeOperationHandler, new RecordCache<>(Cache.<String>alwaysEmpty()));
+        this(store, version, writeOperationHandler, new RecordCache<>(DeduplicationCache.<String>empty()));
     }
 
     // FIXME OAK-4277: Finalise de-duplication caches
     // There should be a cleaner way for adding the cached nodes from the compactor
-    public void addCachedNodes(int generation, Cache<String> cache) {
+    public void addCachedNodes(int generation, DeduplicationCache<String> cache) {
         nodeCaches.put(cache, generation);
 
         // FIXME OAK-4277: Finalise de-duplication caches
@@ -315,9 +315,9 @@ public class SegmentWriter {
 
         private final Supplier<Boolean> cancel;
         private SegmentBufferWriter writer;
-        private Cache<String> stringCache;
-        private Cache<Template> templateCache;
-        private Cache<String> nodeCache;
+        private LRUCache<String> stringCache;
+        private LRUCache<Template> templateCache;
+        private DeduplicationCache<String> nodeCache;
 
         protected SegmentWriteOperation(Supplier<Boolean> cancel) {
             this.cancel = cancel;

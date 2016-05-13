@@ -44,43 +44,19 @@ import org.slf4j.LoggerFactory;
 public class RecordCache<T> {
     private static final Logger LOG = LoggerFactory.getLogger(RecordCache.class);
 
-    private final ConcurrentMap<Integer, Supplier<Cache<T>>> generations = newConcurrentMap();
-    private final Supplier<Cache<T>> factory;
+    private final ConcurrentMap<Integer, Supplier<T>> generations = newConcurrentMap();
+    private final Supplier<T> factory;
 
-    public static class Cache<T> {
-        public static final <T> Supplier<Cache<T>> alwaysEmpty() {
-            return new Supplier<Cache<T>>() {
-                @Override
-                public Cache<T> get() {
-                    return new Cache<>();
-                }
-            };
-        }
-
-        void put(T key, RecordId value) {}
-        void put(T key, RecordId value, int cost) {}
-        RecordId get(T key) { return null; }
-        void clear() {}
-    }
-
-    public static <T> RecordCache<T> alwaysEmpty() {
-        return new RecordCache<T>(Cache.<T>alwaysEmpty()) {
-            @Override public Cache<T> generation(int generation) { return super.factory.get(); }
-            @Override public void clear(int generation) { }
-            @Override public void clear() { }
-        };
-    }
-
-    public RecordCache(Supplier<Cache<T>> factory) {
+    public RecordCache(Supplier<T> factory) {
         this.factory = factory;
     }
 
-    public Cache<T> generation(final int generation) {
+    public T generation(final int generation) {
         // Preemptive check to limit the number of wasted Supplier instances
         if (!generations.containsKey(generation)) {
-            generations.putIfAbsent(generation, memoize(new Supplier<Cache<T>>() {
+            generations.putIfAbsent(generation, memoize(new Supplier<T>() {
                 @Override
-                public Cache<T> get() {
+                public T get() {
                     return factory.get();
                 }
             }));
@@ -88,7 +64,7 @@ public class RecordCache<T> {
         return generations.get(generation).get();
     }
 
-    public void put(Cache<T> cache, int generation) {
+    public void put(T cache, int generation) {
         generations.put(generation, Suppliers.ofInstance(cache));
     }
 
@@ -110,14 +86,27 @@ public class RecordCache<T> {
         generations.clear();
     }
 
-    public static final class LRUCache<T> extends Cache<T> {
+    public static class LRUCache<T> {
         private final Map<T, RecordId> map;
 
-        public static final <T> Supplier<Cache<T>> factory(final int size) {
-            return new Supplier<Cache<T>>() {
+        public static final <T> Supplier<LRUCache<T>> factory(final int size) {
+            return new Supplier<LRUCache<T>>() {
                 @Override
                 public LRUCache<T> get() {
                     return new LRUCache<>(size);
+                }
+            };
+        }
+
+        public static final <T> Supplier<LRUCache<T>> empty() {
+            return new Supplier<LRUCache<T>>() {
+                @Override
+                public LRUCache<T> get() {
+                    return new LRUCache<T>(0) {
+                        @Override public synchronized void put(T key, RecordId value) { }
+                        @Override public synchronized RecordId get(T key) { return null; }
+                        @Override public synchronized void clear() { }
+                    };
                 }
             };
         }
@@ -131,28 +120,20 @@ public class RecordCache<T> {
             };
         }
 
-        @Override
         public synchronized void put(T key, RecordId value) {
             map.put(key, value);
         }
 
-        @Override
-        public void put(T key, RecordId value, int cost) {
-            throw new UnsupportedOperationException("Cannot put with a cost");
-        }
-
-        @Override
         public synchronized RecordId get(T key) {
             return map.get(key);
         }
 
-        @Override
         public synchronized void clear() {
             map.clear();
         }
     }
 
-    public static final class DeduplicationCache<T> extends Cache<T> {
+    public static class DeduplicationCache<T> {
         private final int capacity;
         private final List<Map<T, RecordId>> maps;
 
@@ -160,11 +141,24 @@ public class RecordCache<T> {
 
         private final Set<Integer> muteDepths = newHashSet();
 
-        public static final <T> Supplier<Cache<T>> factory(final int capacity, final int maxDepth) {
-            return new Supplier<Cache<T>>() {
+        public static final <T> Supplier<DeduplicationCache<T>> factory(final int capacity, final int maxDepth) {
+            return new Supplier<DeduplicationCache<T>>() {
                 @Override
                 public DeduplicationCache<T> get() {
                     return new DeduplicationCache<>(capacity, maxDepth);
+                }
+            };
+        }
+
+        public static final <T> Supplier<DeduplicationCache<T>> empty() {
+            return new Supplier<DeduplicationCache<T>>() {
+                @Override
+                public DeduplicationCache<T> get() {
+                    return new DeduplicationCache<T>(0, 0){
+                        @Override public synchronized void put(T key, RecordId value, int cost) { }
+                        @Override public synchronized RecordId get(T key) { return null; }
+                        @Override public synchronized void clear() { }
+                    };
                 }
             };
         }
@@ -179,12 +173,6 @@ public class RecordCache<T> {
             }
         }
 
-        @Override
-        public void put(T key, RecordId value) {
-            throw new UnsupportedOperationException("Cannot put without a cost");
-        }
-
-        @Override
         public synchronized void put(T key, RecordId value, int cost) {
             // FIXME OAK-4277: Finalise de-duplication caches
             // Validate and optimise the eviction strategy.
@@ -214,7 +202,6 @@ public class RecordCache<T> {
             }
         }
 
-        @Override
         public synchronized RecordId get(T key) {
             for (Map<T, RecordId> map : maps) {
                 if (!map.isEmpty()) {
@@ -227,7 +214,6 @@ public class RecordCache<T> {
             return null;
         }
 
-        @Override
         public synchronized void clear() {
             maps.clear();
         }
