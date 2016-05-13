@@ -324,6 +324,9 @@ public class SegmentWriter {
 
         private final Supplier<Boolean> cancel;
         private SegmentBufferWriter writer;
+        private Cache<String> stringCache;
+        private Cache<Template> templateCache;
+        private Cache<String> nodeCache;
 
         protected SegmentWriteOperation(Supplier<Boolean> cancel) {
             this.cancel = cancel;
@@ -339,11 +342,11 @@ public class SegmentWriter {
         SegmentWriteOperation with(SegmentBufferWriter writer) {
             checkState(this.writer == null);
             this.writer = writer;
+            int generation = writer.getGeneration();
+            this.stringCache = SegmentWriter.this.stringCache.generation(generation);
+            this.templateCache = SegmentWriter.this.templateCache.generation(generation);
+            this.nodeCache = SegmentWriter.this.nodeCache.generation(generation);
             return this;
-        }
-
-        private int generation() {
-            return writer.getGeneration();
         }
 
         private RecordId writeMap(MapRecord base, Map<String, RecordId> changes) throws IOException {
@@ -571,7 +574,7 @@ public class SegmentWriter {
          * @return value record identifier
          */
         private RecordId writeString(String string) throws IOException {
-            RecordId id = stringCache.generation(generation()).get(string);
+            RecordId id = stringCache.get(string);
             if (id != null) {
                 return id; // shortcut if the same string was recently stored
             }
@@ -581,7 +584,7 @@ public class SegmentWriter {
             if (data.length < Segment.MEDIUM_LIMIT) {
                 // only cache short strings to avoid excessive memory use
                 id = writeValueRecord(data.length, data);
-                stringCache.generation(generation()).put(string, id);
+                stringCache.put(string, id);
                 return id;
             }
 
@@ -764,7 +767,7 @@ public class SegmentWriter {
         private RecordId writeTemplate(Template template) throws IOException {
             checkNotNull(template);
 
-            RecordId id = templateCache.generation(generation()).get(template);
+            RecordId id = templateCache.get(template);
             if (id != null) {
                 return id; // shortcut if the same template was recently stored
             }
@@ -831,7 +834,7 @@ public class SegmentWriter {
             RecordId tid = RecordWriters.newTemplateWriter(ids, propertyNames,
                 propertyTypes, head, primaryId, mixinIds, childNameId,
                 propNamesId, version).write(writer);
-            templateCache.generation(generation()).put(template, tid);
+            templateCache.put(template, tid);
             return tid;
         }
 
@@ -844,7 +847,7 @@ public class SegmentWriter {
                 SegmentNodeState sns = ((SegmentNodeState) state);
                 if (hasSegment(sns)) {
                     if (isOldGen(sns.getRecordId())) {
-                        RecordId cachedId = nodeCache.generation(generation()).get(sns.getStableId());
+                        RecordId cachedId = nodeCache.get(sns.getStableId());
                         if (cachedId != null) {
                             return cachedId;
                         }
@@ -857,7 +860,7 @@ public class SegmentWriter {
             RecordId recordId = writeNodeUncached(state, depth);
             if (state instanceof SegmentNodeState) {
                 SegmentNodeState sns = (SegmentNodeState) state;
-                nodeCache.generation(generation()).put(sns.getStableId(), recordId, depth);
+                nodeCache.put(sns.getStableId(), recordId, depth);
             }
             return recordId;
         }
