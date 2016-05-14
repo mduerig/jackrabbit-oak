@@ -118,12 +118,6 @@ public class SegmentWriter {
     private final CacheManager<NodeCache> nodeCaches =
         new CacheManager<>(NodeCache.factory(1000000, 20));
 
-    // michid OAK-4277: Finalise de-duplication caches
-    // Do we need a deduplication cache also for binaries?
-    // Probably/preferably not as long binaries are already de-duplicated
-    // by rewriting its list of block ids and because we should recommend
-    // using a data store for big binaries.
-
     private final SegmentStore store;
 
     /**

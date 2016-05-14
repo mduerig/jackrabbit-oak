@@ -39,8 +39,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 // michid OAK-4277: Finalise de-duplication caches
-// implement monitoring for this cache
+// implement monitoring and management
 // add unit tests
+// document, nullability
 public class CacheManager<T> {
     private static final Logger LOG = LoggerFactory.getLogger(CacheManager.class);
 
