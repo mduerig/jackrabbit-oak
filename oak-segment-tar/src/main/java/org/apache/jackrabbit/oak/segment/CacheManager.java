@@ -52,14 +52,9 @@ public class CacheManager<T> {
     }
 
     public T generation(final int generation) {
-        // Preemptive check to limit the number of wasted Supplier instances
+        // Preemptive check to limit the number of wasted (Memoizing)Supplier instances
         if (!generations.containsKey(generation)) {
-            generations.putIfAbsent(generation, memoize(new Supplier<T>() {
-                @Override
-                public T get() {
-                    return cacheFactory.get();
-                }
-            }));
+            generations.putIfAbsent(generation, memoize(cacheFactory));
         }
         return generations.get(generation).get();
     }
