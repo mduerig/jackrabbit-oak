@@ -37,7 +37,7 @@ import com.google.common.base.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-// FIXME OAK-4277: Finalise de-duplication caches
+// michid OAK-4277: Finalise de-duplication caches
 // implement monitoring for this cache
 // add unit tests
 public class CacheManager<T> {
@@ -151,7 +151,7 @@ public class CacheManager<T> {
         }
 
         public synchronized void put(String key, RecordId value, int depth) {
-            // FIXME OAK-4277: Finalise de-duplication caches
+            // michid OAK-4277: Finalise de-duplication caches
             // Validate and optimise the eviction strategy.
             // Nodes with many children should probably get a boost to
             // protecting them from preemptive eviction. Also it might be

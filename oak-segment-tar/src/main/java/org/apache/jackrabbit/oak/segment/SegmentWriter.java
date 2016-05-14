@@ -117,7 +117,7 @@ public class SegmentWriter {
     private final CacheManager<NodeCache> nodeCaches =
         new CacheManager<>(NodeCache.factory(1000000, 20));
 
-    // FIXME OAK-4277: Finalise de-duplication caches
+    // michid OAK-4277: Finalise de-duplication caches
     // Do we need a deduplication cache also for binaries?
     // Probably/preferably not as long binaries are already de-duplicated
     // by rewriting its list of block ids and because we should recommend
@@ -146,10 +146,10 @@ public class SegmentWriter {
         this.writeOperationHandler = writeOperationHandler;
     }
 
-    // FIXME OAK-4277: Finalise de-duplication caches
+    // michid OAK-4277: Finalise de-duplication caches
     // There should be a cleaner way for adding the cached nodes from the compactor
     public void compacted(int generation) {
-        // FIXME OAK-4277: Finalise de-duplication caches
+        // michid OAK-4277: Finalise de-duplication caches
         // Find a better way to evict the cache from within the cache itself
         stringCaches.clearUpTo(generation - 1);
         templateCaches.clearUpTo(generation - 1);
