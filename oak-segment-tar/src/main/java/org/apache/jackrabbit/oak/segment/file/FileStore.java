@@ -69,8 +69,6 @@ import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.blob.BlobStoreBlob;
 import org.apache.jackrabbit.oak.plugins.blob.ReferenceCollector;
-import org.apache.jackrabbit.oak.segment.CacheManager;
-import org.apache.jackrabbit.oak.segment.CacheManager.NodeCache;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.SegmentBufferWriter;
@@ -82,7 +80,6 @@ import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentStore;
 import org.apache.jackrabbit.oak.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.segment.SegmentVersion;
-import org.apache.jackrabbit.oak.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
@@ -1061,22 +1058,6 @@ public class FileStore implements SegmentStore {
         gcMonitor.info("TarMK GC #{}: compaction started, gc options={}", GC_COUNT, gcOptions);
         Stopwatch watch = Stopwatch.createStarted();
 
-        // FIXME OAK-4277: Finalise de-duplication caches
-        // Make the capacity and initial depth of the deduplication cache configurable
-        final NodeCache nodeCache = new NodeCache(1000000, 20);
-
-        // FIXME OAK-4279: Rework offline compaction
-        // This way of compacting has no progress logging
-        final int gcGeneration = tracker.getGcGen() + 1;
-        SegmentWriter writer = new SegmentWriter(this, tracker.getSegmentVersion(),
-            new SegmentBufferWriter(this, tracker.getSegmentVersion(), "c", gcGeneration),
-                new CacheManager<>(new Supplier<NodeCache>() {
-                    @Override
-                    public NodeCache get() {
-                        return nodeCache;
-                    }
-                }));
-
         SegmentNodeState before = getHead();
         long existing = before.getChildNode(SegmentNodeStore.CHECKPOINTS)
                 .getChildNodeCount(Long.MAX_VALUE);
@@ -1086,8 +1067,11 @@ public class FileStore implements SegmentStore {
                     GC_COUNT, existing);
         }
 
+        final int gcGeneration = tracker.getGcGen() + 1;
+        SegmentBufferWriter bufferWriter = new SegmentBufferWriter(
+                this, tracker.getSegmentVersion(), "c", gcGeneration);
         Supplier<Boolean> cancel = newCancelCompactionCondition();
-        SegmentNodeState after = compact(writer, before, cancel);
+        SegmentNodeState after = compact(bufferWriter, before, cancel);
         if (after == null) {
             gcMonitor.info("TarMK GC #{}: compaction cancelled.", GC_COUNT);
             return false;
@@ -1107,7 +1091,7 @@ public class FileStore implements SegmentStore {
                 gcMonitor.info("TarMK GC #{}: compaction detected concurrent commits while compacting. " +
                     "Compacting these commits. Cycle {}", GC_COUNT, cycles);
                 SegmentNodeState head = getHead();
-                after = compact(writer, head, cancel);
+                after = compact(bufferWriter, head, cancel);
                 if (after == null) {
                     gcMonitor.info("TarMK GC #{}: compaction cancelled.", GC_COUNT);
                     return false;
@@ -1118,7 +1102,9 @@ public class FileStore implements SegmentStore {
                 before = head;
             }
             if (success) {
-                tracker.getWriter().addCachedNodes(gcGeneration, nodeCache);
+                // michid replace with GCMonitor?
+                tracker.getWriter().compacted(gcGeneration);
+
                 // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
                 // ith clean brutal we need to remove those ids that have been cleaned
                 // i.e. those whose segment was from an old generation
@@ -1131,7 +1117,7 @@ public class FileStore implements SegmentStore {
                         GC_COUNT, cycles - 1);
                 if (gcOptions.getForceAfterFail()) {
                     gcMonitor.info("TarMK GC #{}: compaction force compacting remaining commits", GC_COUNT);
-                    if (!forceCompact(writer, cancel)) {
+                    if (!forceCompact(bufferWriter, cancel)) {
                         gcMonitor.warn("TarMK GC #{}: compaction failed to force compact remaining commits. " +
                             "Most likely compaction didn't get exclusive access to the store or was " +
                             "prematurely cancelled. Cleaning up.",
@@ -1160,22 +1146,22 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    private static SegmentNodeState compact(SegmentWriter writer, NodeState node,
-                                            Supplier<Boolean> cancel)
+    private SegmentNodeState compact(SegmentBufferWriter bufferWriter, NodeState node,
+                                     Supplier<Boolean> cancel)
     throws IOException {
-        SegmentNodeState compacted = writer.writeNode(node, cancel);
+        SegmentNodeState compacted = tracker.getWriter().writeNode(node, bufferWriter, cancel);
         if (compacted != null) {
-            writer.flush();
+            bufferWriter.flush();
         }
         return compacted;
     }
 
-    private boolean forceCompact(SegmentWriter writer, Supplier<Boolean> cancel)
+    private boolean forceCompact(SegmentBufferWriter bufferWriter, Supplier<Boolean> cancel)
     throws InterruptedException, IOException {
         if (rwLock.writeLock().tryLock(gcOptions.getLockWaitTime(), TimeUnit.SECONDS)) {
             try {
                 SegmentNodeState head = getHead();
-                SegmentNodeState after = compact(writer, head, cancel);
+                SegmentNodeState after = compact(bufferWriter, head, cancel);
                 if (after == null) {
                     gcMonitor.info("TarMK GC #{}: compaction cancelled.", GC_COUNT);
                     return false;

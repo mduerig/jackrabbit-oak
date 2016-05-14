@@ -94,6 +94,7 @@ public class SegmentWriter {
      * Cache of recently stored string records, used to avoid storing duplicates
      * of frequently occurring data.
      */
+    // michid cfg
     private final CacheManager<RecordCache<String>> stringCaches =
         new CacheManager<>(STRING_RECORDS_CACHE_SIZE <= 0
             ? RecordCache.<String>empty()
@@ -106,12 +107,15 @@ public class SegmentWriter {
      * Cache of recently stored template records, used to avoid storing
      * duplicates of frequently occurring data.
      */
+    // michid cfg
     private final CacheManager<RecordCache<Template>> templateCaches =
         new CacheManager<>(TPL_RECORDS_CACHE_SIZE <= 0
             ? RecordCache.<Template>empty()
             : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE));
 
-    private final CacheManager<NodeCache> nodeCaches;
+    // michid cfg
+    private final CacheManager<NodeCache> nodeCaches =
+        new CacheManager<>(NodeCache.factory(1000000, 20));
 
     // FIXME OAK-4277: Finalise de-duplication caches
     // Do we need a deduplication cache also for binaries?
@@ -135,33 +139,16 @@ public class SegmentWriter {
      * @param store      store to write to
      * @param version    segment version to write
      * @param writeOperationHandler  handler for write operations.
-     * @param nodeCaches  de-duplication cache for nodes
      */
-    public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler,
-            CacheManager<NodeCache> nodeCaches) {
+    public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
         this.store = store;
         this.version = version;
         this.writeOperationHandler = writeOperationHandler;
-        this.nodeCaches = nodeCaches;
-    }
-
-    /**
-     * Create a new instance of a {@code SegmentWriter}. Note the thread safety properties
-     * pointed out in the class comment.
-     *
-     * @param store      store to write to
-     * @param version    segment version to write
-     * @param writeOperationHandler  handler for write operations.
-     */
-    public SegmentWriter(SegmentStore store, SegmentVersion version, WriteOperationHandler writeOperationHandler) {
-        this(store, version, writeOperationHandler, new CacheManager<>(NodeCache.empty()));
     }
 
     // FIXME OAK-4277: Finalise de-duplication caches
     // There should be a cleaner way for adding the cached nodes from the compactor
-    public void addCachedNodes(int generation, NodeCache cache) {
-        nodeCaches.put(cache, generation);
-
+    public void compacted(int generation) {
         // FIXME OAK-4277: Finalise de-duplication caches
         // Find a better way to evict the cache from within the cache itself
         stringCaches.clearUpTo(generation - 1);
@@ -276,12 +263,15 @@ public class SegmentWriter {
     /**
      * Write a node state, unless cancelled
      * @param state   node state to write
+     * @param writeOperationHandler  michid doc
      * @param cancel  supplier to signal cancellation of this write operation
      * @return segment node state equal to {@code state} or {@code null} if cancelled.
      * @throws IOException
      */
     @CheckForNull
-    public SegmentNodeState writeNode(final NodeState state, Supplier<Boolean> cancel)
+    public SegmentNodeState writeNode(final NodeState state,
+                                      WriteOperationHandler writeOperationHandler,
+                                      Supplier<Boolean> cancel)
     throws IOException {
         try {
             return new SegmentNodeState(writeOperationHandler.execute(new SegmentWriteOperation(cancel) {

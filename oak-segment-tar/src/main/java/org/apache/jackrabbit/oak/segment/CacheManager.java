@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,11 +56,6 @@ public class CacheManager<T> {
             generations.putIfAbsent(generation, memoize(cacheFactory));
         }
         return generations.get(generation).get();
-    }
-
-    // michid remove
-    public void put(T cache, int generation) {
-        generations.put(generation, Suppliers.ofInstance(cache));
     }
 
     // michid remove
