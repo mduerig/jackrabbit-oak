@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,12 +59,10 @@ public class CacheManager<T> {
         return generations.get(generation).get();
     }
 
-    // michid remove
-    public void clearUpTo(int maxGen) {
+    public void evictGenerations(Predicate<Integer> evict) {
         Iterator<Integer> it = generations.keySet().iterator();
         while (it.hasNext()) {
-            Integer gen =  it.next();
-            if (gen <= maxGen) {
+            if (evict.apply(it.next())) {
                 it.remove();
             }
         }

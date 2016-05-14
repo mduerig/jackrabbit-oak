@@ -1067,9 +1067,9 @@ public class FileStore implements SegmentStore {
                     GC_COUNT, existing);
         }
 
-        final int gcGeneration = tracker.getGcGen() + 1;
+        final int newGeneration = tracker.getGcGen() + 1;
         SegmentBufferWriter bufferWriter = new SegmentBufferWriter(
-                this, tracker.getSegmentVersion(), "c", gcGeneration);
+                this, tracker.getSegmentVersion(), "c", newGeneration);
         Supplier<Boolean> cancel = newCancelCompactionCondition();
         SegmentNodeState after = compact(bufferWriter, before, cancel);
         if (after == null) {
@@ -1083,8 +1083,7 @@ public class FileStore implements SegmentStore {
         try {
             int cycles = 0;
             boolean success = false;
-            while (cycles++ < gcOptions.getRetryCount()
-                && !(success = setHead(before, after))) {
+            while (cycles++ < gcOptions.getRetryCount() && !(success = setHead(before, after))) {
                 // Some other concurrent changes have been made.
                 // Rebase (and compact) those changes on top of the
                 // compacted state before retrying to set the head.
@@ -1101,23 +1100,13 @@ public class FileStore implements SegmentStore {
                         GC_COUNT, head.getRecordId(), before.getRecordId(), after.getRecordId());
                 before = head;
             }
-            if (success) {
-                // michid replace with GCMonitor?
-                tracker.getWriter().compacted(gcGeneration);
-
-                // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
-                // ith clean brutal we need to remove those ids that have been cleaned
-                // i.e. those whose segment was from an old generation
-                tracker.clearSegmentIdTables(Predicates.<SegmentId>alwaysFalse());
-                // FIXME OAK-4283: Align GCMonitor API with implementation
-                // Refactor GCMonitor: there is no more compaction map stats
-                gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
-            } else {
+            if (!success) {
                 gcMonitor.info("TarMK GC #{}: compaction gave up compacting concurrent commits after {} cycles.",
                         GC_COUNT, cycles - 1);
                 if (gcOptions.getForceAfterFail()) {
                     gcMonitor.info("TarMK GC #{}: compaction force compacting remaining commits", GC_COUNT);
-                    if (!forceCompact(bufferWriter, cancel)) {
+                    success = forceCompact(bufferWriter, cancel);
+                    if (!success) {
                         gcMonitor.warn("TarMK GC #{}: compaction failed to force compact remaining commits. " +
                             "Most likely compaction didn't get exclusive access to the store or was " +
                             "prematurely cancelled. Cleaning up.",
@@ -1125,17 +1114,44 @@ public class FileStore implements SegmentStore {
                         cleanup(new Predicate<Integer>() {
                             @Override
                             public boolean apply(Integer generation) {
-                                return generation == gcGeneration;
+                                return generation == newGeneration;
                             }
                         });
-                        return false;
                     }
                 }
             }
 
-            gcMonitor.info("TarMK GC #{}: compaction completed in {} ({} ms), after {} cycles",
-                    GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
-            return true;
+            if (success) {
+                tracker.getWriter().evictCaches(new Predicate<Integer>() {
+                    @Override
+                    public boolean apply(Integer generation) {
+                        return generation < newGeneration;
+                    }
+                });
+
+                // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
+                // ith clean brutal we need to remove those ids that have been cleaned
+                // i.e. those whose segment was from an old generation
+                tracker.clearSegmentIdTables(Predicates.<SegmentId>alwaysFalse());
+
+                // FIXME OAK-4283: Align GCMonitor API with implementation
+                // Refactor GCMonitor: there is no more compaction map stats
+                gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
+
+                gcMonitor.info("TarMK GC #{}: compaction succeeded in {} ({} ms), after {} cycles",
+                        GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
+                return true;
+            } else {
+                tracker.getWriter().evictCaches(new Predicate<Integer>() {
+                    @Override
+                    public boolean apply(Integer generation) {
+                        return generation == newGeneration;
+                    }
+                });
+                gcMonitor.info("TarMK GC #{}: compaction failed after {} ({} ms), and {} cycles",
+                        GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
+                return false;
+            }
         } catch (InterruptedException e) {
             gcMonitor.error("TarMK GC #" + GC_COUNT + ": compaction interrupted", e);
             currentThread().interrupt();

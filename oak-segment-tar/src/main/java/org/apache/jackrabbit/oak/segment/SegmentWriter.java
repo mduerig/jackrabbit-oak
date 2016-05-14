@@ -56,6 +56,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.jcr.PropertyType;
 
+import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.io.Closeables;
@@ -147,13 +148,11 @@ public class SegmentWriter {
     }
 
     // michid OAK-4277: Finalise de-duplication caches
-    // There should be a cleaner way for adding the cached nodes from the compactor
-    public void compacted(int generation) {
-        // michid OAK-4277: Finalise de-duplication caches
-        // Find a better way to evict the cache from within the cache itself
-        stringCaches.clearUpTo(generation - 1);
-        templateCaches.clearUpTo(generation - 1);
-        nodeCaches.clearUpTo(generation - 1);
+    // There should be a cleaner way to control the deduplication caches across gc generations
+    public void evictCaches(Predicate<Integer> evict) {
+        stringCaches.evictGenerations(evict);
+        templateCaches.evictGenerations(evict);
+        nodeCaches.evictGenerations(evict);
     }
 
     public void flush() throws IOException {
