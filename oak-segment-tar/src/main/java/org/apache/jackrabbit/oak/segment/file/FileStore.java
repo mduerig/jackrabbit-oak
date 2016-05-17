@@ -30,6 +30,7 @@ import static java.lang.String.format;
 import static java.lang.Thread.currentThread;
 import static java.nio.ByteBuffer.wrap;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -80,8 +81,10 @@ import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentStore;
 import org.apache.jackrabbit.oak.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.segment.SegmentVersion;
+import org.apache.jackrabbit.oak.segment.compaction.LoggingGCMonitor;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
+import org.apache.jackrabbit.oak.spi.gc.DelegatingGCMonitor;
 import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -193,7 +196,8 @@ public class FileStore implements SegmentStore {
     /**
      * {@code GCMonitor} monitoring this instance's gc progress
      */
-    private final GCMonitor gcMonitor;
+    // michid make gcMonitor private
+    public final DelegatingGCMonitor gcMonitor;
 
     /**
      * Represents the approximate size on disk of the repository.
@@ -242,7 +246,8 @@ public class FileStore implements SegmentStore {
 
         private boolean memoryMapping;
 
-        private final LoggingGCMonitor gcMonitor = new LoggingGCMonitor();
+        private final DelegatingGCMonitor gcMonitor = new DelegatingGCMonitor(
+            singleton(new LoggingGCMonitor(log)));
 
         private StatisticsProvider statsProvider = StatisticsProvider.NOOP;
 
@@ -336,7 +341,7 @@ public class FileStore implements SegmentStore {
          */
         @Nonnull
         public Builder withGCMonitor(@Nonnull GCMonitor gcMonitor) {
-            this.gcMonitor.delegatee = checkNotNull(gcMonitor);
+            this.gcMonitor.registerGCMonitor(checkNotNull(gcMonitor));
             return this;
         }
 
@@ -405,6 +410,7 @@ public class FileStore implements SegmentStore {
         } else {
             checkNotNull(builder.directory).mkdirs();
         }
+        this.gcMonitor = builder.gcMonitor;
 
         // FIXME OAK-4102: Break cyclic dependency of FileStore and SegmentTracker
         // SegmentTracker and FileStore have a cyclic dependency, which we should
@@ -424,7 +430,6 @@ public class FileStore implements SegmentStore {
         this.directory = builder.directory;
         this.maxFileSize = builder.maxFileSize * MB;
         this.memoryMapping = builder.memoryMapping;
-        this.gcMonitor = builder.gcMonitor;
         this.gcOptions = builder.gcOptions;
 
         if (readOnly) {
@@ -1124,13 +1129,6 @@ public class FileStore implements SegmentStore {
             }
 
             if (success) {
-                tracker.getWriter().evictCaches(new Predicate<Integer>() {
-                    @Override
-                    public boolean apply(Integer generation) {
-                        return generation < newGeneration;
-                    }
-                });
-
                 // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
                 // ith clean brutal we need to remove those ids that have been cleaned
                 // i.e. those whose segment was from an old generation
@@ -1138,20 +1136,19 @@ public class FileStore implements SegmentStore {
 
                 // FIXME OAK-4283: Align GCMonitor API with implementation
                 // Refactor GCMonitor: there is no more compaction map stats
-                gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
+                // michid OAK-4283 call a dedicated call back passing some GCContext instead of relying on this hack
+                gcMonitor.compacted(new long[]{newGeneration}, new long[]{}, new long[]{});
 
                 gcMonitor.info("TarMK GC #{}: compaction succeeded in {} ({} ms), after {} cycles",
                         GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
                 return true;
             } else {
-                tracker.getWriter().evictCaches(new Predicate<Integer>() {
-                    @Override
-                    public boolean apply(Integer generation) {
-                        return generation == newGeneration;
-                    }
-                });
                 gcMonitor.info("TarMK GC #{}: compaction failed after {} ({} ms), and {} cycles",
                         GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
+
+                // michid OAK-4283 call a dedicated call back passing some GCContext instead of relying on this hack
+                gcMonitor.info("TarMK GC #{}: removing new gc generation generation {} from cache",
+                        GC_COUNT, newGeneration);
                 return false;
             }
         } catch (InterruptedException e) {
@@ -1610,40 +1607,4 @@ public class FileStore implements SegmentStore {
         }
     }
 
-    private static class LoggingGCMonitor implements GCMonitor {
-        public GCMonitor delegatee = GCMonitor.EMPTY;
-
-        @Override
-        public void info(String message, Object... arguments) {
-            log.info(message, arguments);
-            delegatee.info(message, arguments);
-        }
-
-        @Override
-        public void warn(String message, Object... arguments) {
-            log.warn(message, arguments);
-            delegatee.warn(message, arguments);
-        }
-
-        @Override
-        public void error(String message, Exception exception) {
-            delegatee.error(message, exception);
-        }
-
-        @Override
-        public void skipped(String reason, Object... arguments) {
-            log.info(reason, arguments);
-            delegatee.skipped(reason, arguments);
-        }
-
-        @Override
-        public void compacted(long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
-            delegatee.compacted(segmentCounts, recordCounts, compactionMapWeights);
-        }
-
-        @Override
-        public void cleaned(long reclaimedSize, long currentSize) {
-            delegatee.cleaned(reclaimedSize, currentSize);
-        }
-    }
 }

@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
+import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +65,43 @@ public class WriterCacheManager {
     private final Generation<NodeCache> nodeCaches =
             new Generation<>(NodeCache.factory(1000000, 20));
 
+    // michid make gcMonitor private
+    final GCMonitor gcMonitor = new GCMonitor.Empty(){
+
+        // michid OAK-4283 use a dedicated call back passing some GCContext instead of relying on this hack
+        @Override
+        public void compacted(final long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
+            if (segmentCounts.length > 0) {
+                evictCaches(new Predicate<Integer>() {
+                    @Override
+                    public boolean apply(Integer generation) {
+                        return generation < segmentCounts[0];
+                    }
+                });
+            }
+        }
+
+        // michid OAK-4283 use a dedicated call back passing some GCContext instead of relying on this hack
+        @Override
+        public void info(String message, Object[] arguments) {
+            if (arguments.length > 0 && message.contains("removing new gc generation generation")) {
+                final int newGeneration = (int) arguments[0];
+                evictCaches(new Predicate<Integer>() {
+                    @Override
+                    public boolean apply(Integer generation) {
+                        return generation == newGeneration;
+                    }
+                });
+            }
+        }
+
+        private void evictCaches(Predicate<Integer> evict) {
+            stringCaches.evictGenerations(evict);
+            templateCaches.evictGenerations(evict);
+            nodeCaches.evictGenerations(evict);
+        }
+    };
+
     private static class Generation<T> {
         private final ConcurrentMap<Integer, Supplier<T>> generations = newConcurrentMap();
         private final Supplier<T> cacheFactory;
@@ -88,13 +126,6 @@ public class WriterCacheManager {
                 }
             }
         }
-    }
-
-    // FIXME OAK-4277 replace with GC monitor (improved with notification of failed and interrupted compaction)
-    public void evictCaches(Predicate<Integer> evict) {
-        stringCaches.evictGenerations(evict);
-        templateCaches.evictGenerations(evict);
-        nodeCaches.evictGenerations(evict);
     }
 
     public RecordCache<String> getStringCache(int generation) {

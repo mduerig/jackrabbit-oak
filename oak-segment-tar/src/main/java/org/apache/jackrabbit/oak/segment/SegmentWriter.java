@@ -56,7 +56,6 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.jcr.PropertyType;
 
-import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
 import com.google.common.io.Closeables;
@@ -65,6 +64,7 @@ import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
+import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -111,12 +111,10 @@ public class SegmentWriter {
         this.version = version;
         this.writeOperationHandler = writeOperationHandler;
         this.cacheManager = new WriterCacheManager();
-    }
-
-    // FIXME OAK-4277: Finalise de-duplication caches
-    // There should be a cleaner way to control the deduplication caches across gc generations
-    public void evictCaches(Predicate<Integer> evict) {
-        cacheManager.evictCaches(evict);
+        if (store instanceof FileStore) {
+            // michid clean up dependency injection for registering the cache manager gc monitor with the file store
+            ((FileStore) store).gcMonitor.registerGCMonitor(cacheManager.gcMonitor);
+        }
     }
 
     public void flush() throws IOException {
