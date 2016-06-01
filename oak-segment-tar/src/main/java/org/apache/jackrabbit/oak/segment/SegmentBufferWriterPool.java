@@ -34,6 +34,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Supplier;
+import com.google.common.util.concurrent.Monitor;
+import com.google.common.util.concurrent.Monitor.Guard;
 
 /**
  * This {@link WriteOperationHandler} uses a pool of {@link SegmentBufferWriter}s,
@@ -92,41 +94,97 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
         }
     }
 
+    private final Monitor poolMonitor = new Monitor(true);
+    private final Monitor flushMonitor = new Monitor(true);
+
     @Override
     public void flush() throws IOException {
-        List<SegmentBufferWriter> toFlush = newArrayList();
-        synchronized (this) {
-            toFlush.addAll(writers.values());
-            toFlush.addAll(disposed);
-            writers.clear();
-            disposed.clear();
-            borrowed.clear();
-        }
-        // Call flush from outside a synchronized context to avoid
-        // deadlocks of that method calling SegmentStore.writeSegment
-        for (SegmentBufferWriter writer : toFlush) {
-            writer.flush();
+        flushMonitor.enter();
+        try {
+            List<SegmentBufferWriter> toFlush = newArrayList();
+            List<SegmentBufferWriter> toReturn = newArrayList();
+            poolMonitor.enter();
+            try {
+                toFlush.addAll(writers.values());
+                writers.clear();
+                toReturn.addAll(borrowed);
+                borrowed.clear();
+            } finally {
+                poolMonitor.leave();
+            }
+
+            if (safeEnterWhen(poolMonitor, allReturned(toReturn))) {
+                try {
+                    toFlush.addAll(disposed);
+                    disposed.clear();
+                } finally {
+                    poolMonitor.leave();
+                }
+
+                // Call flush from outside a synchronized context to avoid
+                // deadlocks of that method calling SegmentStore.writeSegment
+                for (SegmentBufferWriter writer : toFlush) {
+                    writer.flush();
+                }
+            }
+        } finally {
+            flushMonitor.leave();
         }
     }
 
-    private synchronized SegmentBufferWriter borrowWriter(Object key) {
-        SegmentBufferWriter writer = writers.remove(key);
-        if (writer == null) {
-            writer = new SegmentBufferWriter(store, tracker, reader, version, getWriterId(wid), gcGeneration.get());
-        } else if (writer.getGeneration() != gcGeneration.get()) {
-            disposed.add(writer);
-            writer = new SegmentBufferWriter(store, tracker, reader, version, getWriterId(wid), gcGeneration.get());
+    @Nonnull
+    private Guard allReturned(final List<SegmentBufferWriter> toReturn) {
+        poolMonitor.enter();
+        try {
+            return new Guard(poolMonitor) {
+                @Override
+                public boolean isSatisfied() {
+                    return disposed.containsAll(toReturn);
+                }
+            };
+        } finally {
+            poolMonitor.leave();
         }
-        borrowed.add(writer);
-        return writer;
     }
 
-    private synchronized void returnWriter(Object key, SegmentBufferWriter writer) {
-        if (borrowed.remove(writer)) {
-            checkState(writers.put(key, writer) == null);
-        } else {
-            // Defer flush this writer as it was borrowed while flush() was called.
-            disposed.add(writer);
+    private static boolean safeEnterWhen(Monitor monitor, Guard guard) {
+        try {
+            monitor.enterWhen(guard);
+            return true;
+        } catch (InterruptedException ignore) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private SegmentBufferWriter borrowWriter(Object key) {
+        poolMonitor.enter();
+        try {
+            SegmentBufferWriter writer = writers.remove(key);
+            if (writer == null) {
+                writer = new SegmentBufferWriter(store, tracker, reader, version, getWriterId(wid), gcGeneration.get());
+            } else if (writer.getGeneration() != gcGeneration.get()) {
+                disposed.add(writer);
+                writer = new SegmentBufferWriter(store, tracker, reader, version, getWriterId(wid), gcGeneration.get());
+            }
+            borrowed.add(writer);
+            return writer;
+        } finally {
+            poolMonitor.leave();
+        }
+    }
+
+    private void returnWriter(Object key, SegmentBufferWriter writer) {
+        poolMonitor.enter();
+        try {
+            if (borrowed.remove(writer)) {
+                checkState(writers.put(key, writer) == null);
+            } else {
+                // Defer flush this writer as it was borrowed while flush() was called.
+                disposed.add(writer);
+            }
+        } finally {
+            poolMonitor.leave();
         }
     }
 
