@@ -58,7 +58,7 @@ public abstract class WriterCacheManager {
 
         private final RecordCache<String> stringCache = newRecordCache(0);
         private final RecordCache<Template> templateCache = newRecordCache(0);
-        private final NodeCache nodeCache = NodeCache.empty().get();
+        private final NodeCache nodeCache = NodeCache.newNodeCache(0, 0);
 
         private Empty() {}
 
