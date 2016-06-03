@@ -23,6 +23,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Suppliers.memoize;
 import static com.google.common.collect.Maps.newConcurrentMap;
 import static java.lang.Integer.getInteger;
+import static org.apache.jackrabbit.oak.segment.RecordCache.newRecordCache;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentMap;
@@ -55,8 +56,8 @@ public abstract class WriterCacheManager {
     public static class Empty extends WriterCacheManager {
         public static final WriterCacheManager INSTANCE = new Empty();
 
-        private final RecordCache<String> stringCache = RecordCache.<String>empty().get();
-        private final RecordCache<Template> templateCache = RecordCache.<Template>empty().get();
+        private final RecordCache<String> stringCache = newRecordCache(0);
+        private final RecordCache<Template> templateCache = newRecordCache(0);
         private final NodeCache nodeCache = NodeCache.empty().get();
 
         private Empty() {}
@@ -106,12 +107,8 @@ public abstract class WriterCacheManager {
         }
 
         public Default() {
-            this(DEFAULT_STRING_CACHE_SIZE <= 0
-                    ? RecordCache.<String>empty()
-                    : RecordCache.<String>factory(DEFAULT_STRING_CACHE_SIZE),
-                 DEFAULT_TEMPLATE_CACHE_SIZE <= 0
-                    ? RecordCache.<Template>empty()
-                    : RecordCache.<Template>factory(DEFAULT_TEMPLATE_CACHE_SIZE),
+            this(RecordCache.<String>factory(DEFAULT_STRING_CACHE_SIZE),
+                 RecordCache.<Template>factory(DEFAULT_TEMPLATE_CACHE_SIZE),
                  NodeCache.factory(1000000, 20));
         }
 
