@@ -23,6 +23,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Collections.singleton;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
+import static org.apache.jackrabbit.oak.segment.SegmentWriterBuilder.STRING_RECORDS_CACHE_SIZE;
+import static org.apache.jackrabbit.oak.segment.SegmentWriterBuilder.TPL_RECORDS_CACHE_SIZE;
 import static org.apache.jackrabbit.oak.segment.SegmentWriterBuilder.segmentWriterBuilder;
 
 import java.io.File;
@@ -31,11 +33,16 @@ import java.io.IOException;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
+import org.apache.jackrabbit.oak.segment.NodeCache;
+import org.apache.jackrabbit.oak.segment.RecordCache;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentVersion;
 import org.apache.jackrabbit.oak.segment.SegmentWriter;
+import org.apache.jackrabbit.oak.segment.Template;
+import org.apache.jackrabbit.oak.segment.WriterCacheManager;
 import org.apache.jackrabbit.oak.segment.compaction.LoggingGCMonitor;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions;
 import org.apache.jackrabbit.oak.segment.file.FileStore.ReadOnlyStore;
@@ -301,5 +308,44 @@ public class FileStoreBuilder {
     TarRevisions getRevisions() {
         checkState(revisions != null, "File store not yet built");
         return revisions;
+    }
+
+    @Nonnull
+    WriterCacheManager getCacheManager() {
+        // michid where to put these defaults shared by SWB
+        return new WriterCacheManager.Default(
+                STRING_RECORDS_CACHE_SIZE <= 0
+                        ? RecordCache.<String>empty()
+                        : RecordCache.<String>factory(STRING_RECORDS_CACHE_SIZE),
+                TPL_RECORDS_CACHE_SIZE <= 0
+                        ? RecordCache.<Template>empty()
+                        : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE),
+                NodeCache.factory(1000000, 20)) {
+
+            {
+                gcMonitor.registerGCMonitor(new GCMonitor.Empty() {
+                    @Override
+                    public void compacted( long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
+                        // michid replace this hack with dedicated call
+                        final long newGeneration = segmentCounts[0];
+                        if (newGeneration >= 0) {
+                            evictCaches(new Predicate<Integer>() {
+                                @Override
+                                public boolean apply(Integer generation) {
+                                    return generation < newGeneration;
+                                }
+                            });
+                        } else {
+                            evictCaches(new Predicate<Integer>() {
+                                @Override
+                                public boolean apply(Integer generation) {
+                                    return generation < -newGeneration;
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+        };
     }
 }

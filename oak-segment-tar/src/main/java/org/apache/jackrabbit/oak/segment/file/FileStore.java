@@ -259,6 +259,7 @@ public class FileStore implements SegmentStore, Closeable {
                 .with(version)
                 .withGeneration(getGeneration)
                 .withWriterPool()
+                .with(builder.getCacheManager())
                 .build(this);
         this.directory = builder.getDirectory();
         this.maxFileSize = builder.getMaxFileSize() * MB;
@@ -903,13 +904,6 @@ public class FileStore implements SegmentStore, Closeable {
             }
 
             if (success) {
-                segmentWriter.evictCaches(new Predicate<Integer>() {
-                    @Override
-                    public boolean apply(Integer generation) {
-                        return generation < newGeneration;
-                    }
-                });
-
                 // FIXME OAK-4285: Align cleanup of segment id tables with the new cleanup strategy
                 // ith clean brutal we need to remove those ids that have been cleaned
                 // i.e. those whose segment was from an old generation
@@ -917,18 +911,15 @@ public class FileStore implements SegmentStore, Closeable {
 
                 // FIXME OAK-4283: Align GCMonitor API with implementation
                 // Refactor GCMonitor: there is no more compaction map stats
-                gcMonitor.compacted(new long[]{}, new long[]{}, new long[]{});
+                // michid replace this hack with a dedicated call
+                gcMonitor.compacted(new long[]{newGeneration}, new long[]{}, new long[]{});
 
                 gcMonitor.info("TarMK GC #{}: compaction succeeded in {} ({} ms), after {} cycles",
                         GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
                 return true;
             } else {
-                segmentWriter.evictCaches(new Predicate<Integer>() {
-                    @Override
-                    public boolean apply(Integer generation) {
-                        return generation == newGeneration;
-                    }
-                });
+                // michid replace this hack with a dedicated call
+                gcMonitor.compacted(new long[]{-newGeneration}, new long[]{}, new long[]{});
                 gcMonitor.info("TarMK GC #{}: compaction failed after {} ({} ms), and {} cycles",
                         GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles - 1);
                 return false;

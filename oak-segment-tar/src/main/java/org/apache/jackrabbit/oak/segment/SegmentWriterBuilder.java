@@ -33,10 +33,10 @@ import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
 
 // michid doc (thread safety, defaults)
 public final class SegmentWriterBuilder {
-    private static final int STRING_RECORDS_CACHE_SIZE = getInteger(
+    public static final int STRING_RECORDS_CACHE_SIZE = getInteger(
             "oak.segment.writer.stringsCacheSize", 15000);
 
-    private static final int TPL_RECORDS_CACHE_SIZE = getInteger(
+    public static final int TPL_RECORDS_CACHE_SIZE = getInteger(
             "oak.segment.writer.templatesCacheSize", 3000);
 
     @Nonnull

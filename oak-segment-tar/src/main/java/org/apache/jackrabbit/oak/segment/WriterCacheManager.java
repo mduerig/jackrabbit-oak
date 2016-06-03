@@ -46,8 +46,6 @@ public interface WriterCacheManager {
     @Nonnull
     NodeCache getNodeCache(int generation);
 
-    void evictCaches(Predicate<Integer> generations);
-
     class Empty implements WriterCacheManager {
         private static final WriterCacheManager EMPTY = new Empty();
         private final RecordCache<String> stringCache = RecordCache.<String>empty().get();
@@ -72,9 +70,6 @@ public interface WriterCacheManager {
         public NodeCache getNodeCache(int generation) {
             return nodeCache;
         }
-
-        @Override
-        public void evictCaches(Predicate<Integer> generations) { }
     }
 
     class Default implements WriterCacheManager {
@@ -103,7 +98,7 @@ public interface WriterCacheManager {
             return new Default(stringCacheFactory, templateCacheFactory, nodeCacheFactory);
         }
 
-        private Default(
+        protected Default(
                 @Nonnull Supplier<RecordCache<String>> stringCacheFactory,
                 @Nonnull Supplier<RecordCache<Template>> templateCacheFactory,
                 @Nonnull Supplier<NodeCache> nodeCacheFactory) {
@@ -156,8 +151,7 @@ public interface WriterCacheManager {
             return nodeCaches.getGeneration(generation);
         }
 
-        @Override
-        public void evictCaches(Predicate<Integer> generations) {
+        protected void evictCaches(Predicate<Integer> generations) {
             stringCaches.evictGenerations(generations);
             templateCaches.evictGenerations(generations);
             nodeCaches.evictGenerations(generations);
