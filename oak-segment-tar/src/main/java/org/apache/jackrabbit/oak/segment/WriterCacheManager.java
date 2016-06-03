@@ -22,6 +22,7 @@ package org.apache.jackrabbit.oak.segment;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Suppliers.memoize;
 import static com.google.common.collect.Maps.newConcurrentMap;
+import static java.lang.Integer.getInteger;
 
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentMap;
@@ -35,26 +36,30 @@ import com.google.common.base.Supplier;
 // implement configuration, monitoring and management
 // add unit tests
 // document, nullability
-public interface WriterCacheManager {
+public abstract class WriterCacheManager {
+    private static final int DEFAULT_STRING_CACHE_SIZE = getInteger(
+            "oak.tar.stringsCacheSize", 15000);
+
+    private static final int DEFAULT_TEMPLATE_CACHE_SIZE = getInteger(
+            "oak.tar.templatesCacheSize", 3000);
 
     @Nonnull
-    RecordCache<String> getStringCache(int generation);
+    public abstract RecordCache<String> getStringCache(int generation);
 
     @Nonnull
-    RecordCache<Template> getTemplateCache(int generation);
+    public abstract RecordCache<Template> getTemplateCache(int generation);
 
     @Nonnull
-    NodeCache getNodeCache(int generation);
+    public abstract NodeCache getNodeCache(int generation);
 
-    class Empty implements WriterCacheManager {
-        private static final WriterCacheManager EMPTY = new Empty();
+    public static class Empty extends WriterCacheManager {
+        public static final WriterCacheManager INSTANCE = new Empty();
+
         private final RecordCache<String> stringCache = RecordCache.<String>empty().get();
         private final RecordCache<Template> templateCache = RecordCache.<Template>empty().get();
         private final NodeCache nodeCache = NodeCache.empty().get();
 
-        public static WriterCacheManager create() { return EMPTY; }
-
-        private Empty(){}
+        private Empty() {}
 
         @Override
         public RecordCache<String> getStringCache(int generation) {
@@ -72,7 +77,7 @@ public interface WriterCacheManager {
         }
     }
 
-    class Default implements WriterCacheManager {
+    public static class Default extends WriterCacheManager {
         /**
          * Cache of recently stored string records, used to avoid storing duplicates
          * of frequently occurring data.
@@ -91,20 +96,23 @@ public interface WriterCacheManager {
          */
         private final Generation<NodeCache> nodeCaches;
 
-        public static WriterCacheManager create(
-                @Nonnull Supplier<RecordCache<String>> stringCacheFactory,
-                @Nonnull Supplier<RecordCache<Template>> templateCacheFactory,
-                @Nonnull Supplier<NodeCache> nodeCacheFactory) {
-            return new Default(stringCacheFactory, templateCacheFactory, nodeCacheFactory);
-        }
-
-        protected Default(
+        public Default(
                 @Nonnull Supplier<RecordCache<String>> stringCacheFactory,
                 @Nonnull Supplier<RecordCache<Template>> templateCacheFactory,
                 @Nonnull Supplier<NodeCache> nodeCacheFactory) {
             this.stringCaches = new Generation<>(stringCacheFactory);
             this.templateCaches = new Generation<>(templateCacheFactory);
             this.nodeCaches = new Generation<>(nodeCacheFactory);
+        }
+
+        public Default() {
+            this(DEFAULT_STRING_CACHE_SIZE <= 0
+                    ? RecordCache.<String>empty()
+                    : RecordCache.<String>factory(DEFAULT_STRING_CACHE_SIZE),
+                 DEFAULT_TEMPLATE_CACHE_SIZE <= 0
+                    ? RecordCache.<Template>empty()
+                    : RecordCache.<Template>factory(DEFAULT_TEMPLATE_CACHE_SIZE),
+                 NodeCache.factory(1000000, 20));
         }
 
         private static class Generation<T> {

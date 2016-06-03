@@ -20,24 +20,19 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static java.lang.Integer.getInteger;
 import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Supplier;
 import com.google.common.base.Suppliers;
+import org.apache.jackrabbit.oak.segment.WriterCacheManager.Empty;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.http.HttpStore;
 import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
 
 // michid doc (thread safety, defaults)
 public final class SegmentWriterBuilder {
-    public static final int STRING_RECORDS_CACHE_SIZE = getInteger(
-            "oak.segment.writer.stringsCacheSize", 15000);
-
-    public static final int TPL_RECORDS_CACHE_SIZE = getInteger(
-            "oak.segment.writer.templatesCacheSize", 3000);
 
     @Nonnull
     private final String name;
@@ -51,15 +46,7 @@ public final class SegmentWriterBuilder {
     private boolean pooled = false;
 
     @Nonnull
-    private WriterCacheManager cacheManager = WriterCacheManager.Default.create(
-        STRING_RECORDS_CACHE_SIZE <= 0
-            ? RecordCache.<String>empty()
-            : RecordCache.<String>factory(STRING_RECORDS_CACHE_SIZE),
-        TPL_RECORDS_CACHE_SIZE <= 0
-            ? RecordCache.<Template>empty()
-            : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE),
-        NodeCache.factory(1000000, 20)); // michid don't hc
-
+    private WriterCacheManager cacheManager = new WriterCacheManager.Default();
 
     private SegmentWriterBuilder(@Nonnull String name) { this.name = checkNotNull(name); }
 
@@ -107,7 +94,7 @@ public final class SegmentWriterBuilder {
 
     @Nonnull
     public SegmentWriterBuilder withoutCache() {
-        this.cacheManager = WriterCacheManager.Empty.create();
+        this.cacheManager = Empty.INSTANCE;
         return this;
     }
 
