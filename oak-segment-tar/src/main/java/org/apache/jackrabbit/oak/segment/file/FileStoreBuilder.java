@@ -307,7 +307,6 @@ public class FileStoreBuilder {
 
     @Nonnull
     WriterCacheManager getCacheManager() {
-        // michid where to put these defaults shared by SWB
         return new WriterCacheManager.Default() {{
             gcMonitor.registerGCMonitor(new GCMonitor.Empty() {
                 @Override
