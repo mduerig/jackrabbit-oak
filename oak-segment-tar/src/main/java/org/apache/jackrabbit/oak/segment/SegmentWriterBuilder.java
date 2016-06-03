@@ -20,6 +20,7 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.lang.Integer.getInteger;
 import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
 
 import javax.annotation.Nonnull;
@@ -30,8 +31,13 @@ import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.http.HttpStore;
 import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
 
-// michid doc (thread safety)
+// michid doc (thread safety, defaults)
 public final class SegmentWriterBuilder {
+    private static final int STRING_RECORDS_CACHE_SIZE = getInteger(
+            "oak.segment.writer.stringsCacheSize", 15000);
+
+    private static final int TPL_RECORDS_CACHE_SIZE = getInteger(
+            "oak.segment.writer.templatesCacheSize", 3000);
 
     @Nonnull
     private final String name;

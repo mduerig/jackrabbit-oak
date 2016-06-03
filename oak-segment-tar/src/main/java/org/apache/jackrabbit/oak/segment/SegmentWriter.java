@@ -42,6 +42,8 @@ import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.segment.MapRecord.BUCKETS_PER_LEVEL;
 import static org.apache.jackrabbit.oak.segment.RecordWriters.newNodeStateWriter;
+import static org.apache.jackrabbit.oak.segment.WriterCacheManager.STRING_RECORDS_CACHE_SIZE;
+import static org.apache.jackrabbit.oak.segment.WriterCacheManager.TPL_RECORDS_CACHE_SIZE;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -122,7 +124,14 @@ public class SegmentWriter {
         this.blobStore = blobStore;
         this.tracker = checkNotNull(tracker);
         this.writeOperationHandler = checkNotNull(writeOperationHandler);
-        this.cacheManager = new WriterCacheManager();
+        this.cacheManager = WriterCacheManager.Default.create(
+            STRING_RECORDS_CACHE_SIZE <= 0
+                ? RecordCache.<String>empty()
+                : RecordCache.<String>factory(STRING_RECORDS_CACHE_SIZE),
+            TPL_RECORDS_CACHE_SIZE <= 0
+                ? RecordCache.<Template>empty()
+                : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE),
+            NodeCache.factory(1000000, 20));  // michid don't hc
     }
 
     // FIXME OAK-4277: Finalise de-duplication caches
