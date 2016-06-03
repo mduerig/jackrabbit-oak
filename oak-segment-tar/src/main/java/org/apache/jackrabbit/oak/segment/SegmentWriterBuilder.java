@@ -50,6 +50,17 @@ public final class SegmentWriterBuilder {
 
     private boolean pooled = false;
 
+    @Nonnull
+    private WriterCacheManager cacheManager = WriterCacheManager.Default.create(
+        STRING_RECORDS_CACHE_SIZE <= 0
+            ? RecordCache.<String>empty()
+            : RecordCache.<String>factory(STRING_RECORDS_CACHE_SIZE),
+        TPL_RECORDS_CACHE_SIZE <= 0
+            ? RecordCache.<Template>empty()
+            : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE),
+        NodeCache.factory(1000000, 20)); // michid don't hc
+
+
     private SegmentWriterBuilder(@Nonnull String name) { this.name = checkNotNull(name); }
 
     @Nonnull
@@ -88,23 +99,34 @@ public final class SegmentWriterBuilder {
         return this;
     }
 
+    @Nonnull
+    public SegmentWriterBuilder with(WriterCacheManager cacheManager) {
+        this.cacheManager = checkNotNull(cacheManager);
+        return this;
+    }
+
+    @Nonnull
+    public SegmentWriterBuilder withoutCache() {
+        this.cacheManager = WriterCacheManager.Empty.create();
+        return this;
+    }
 
     @Nonnull
     public SegmentWriter build(@Nonnull FileStore store) {
         return new SegmentWriter(checkNotNull(store), store.getReader(),
-                store.getBlobStore(), store.getTracker(), createWriter(store, pooled));
+                store.getBlobStore(), store.getTracker(), cacheManager, createWriter(store, pooled));
     }
 
     @Nonnull
     public SegmentWriter build(@Nonnull MemoryStore store) {
         return new SegmentWriter(checkNotNull(store), store.getReader(),
-                store.getBlobStore(), store.getTracker(), createWriter(store, pooled));
+                store.getBlobStore(), store.getTracker(), cacheManager, createWriter(store, pooled));
     }
 
     @Nonnull
     public SegmentWriter build(@Nonnull HttpStore store) {
         return new SegmentWriter(checkNotNull(store), store.getReader(),
-                store.getBlobStore(), store.getTracker(), createWriter(store, pooled));
+                store.getBlobStore(), store.getTracker(), cacheManager, createWriter(store, pooled));
     }
 
     @Nonnull

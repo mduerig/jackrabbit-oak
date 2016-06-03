@@ -42,8 +42,6 @@ import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.segment.MapRecord.BUCKETS_PER_LEVEL;
 import static org.apache.jackrabbit.oak.segment.RecordWriters.newNodeStateWriter;
-import static org.apache.jackrabbit.oak.segment.WriterCacheManager.STRING_RECORDS_CACHE_SIZE;
-import static org.apache.jackrabbit.oak.segment.WriterCacheManager.TPL_RECORDS_CACHE_SIZE;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -112,26 +110,21 @@ public class SegmentWriter {
      * @param reader     segment reader for the {@code store}
      * @param blobStore  the blog store or {@code null} for inlined blobs
      * @param tracker    segment tracker for {@code store}
+     * @param cacheManager  cache manager instance for the de-duplication caches used by this writer
      * @param writeOperationHandler  handler for write operations.
      */
     public SegmentWriter(@Nonnull SegmentStore store,
                          @Nonnull SegmentReader reader,
                          @Nullable BlobStore blobStore,
                          @Nonnull SegmentTracker tracker,
+                         @Nonnull WriterCacheManager cacheManager,
                          @Nonnull WriteOperationHandler writeOperationHandler) {
         this.store = checkNotNull(store);
         this.reader = checkNotNull(reader);
         this.blobStore = blobStore;
         this.tracker = checkNotNull(tracker);
+        this.cacheManager = checkNotNull(cacheManager);
         this.writeOperationHandler = checkNotNull(writeOperationHandler);
-        this.cacheManager = WriterCacheManager.Default.create(
-            STRING_RECORDS_CACHE_SIZE <= 0
-                ? RecordCache.<String>empty()
-                : RecordCache.<String>factory(STRING_RECORDS_CACHE_SIZE),
-            TPL_RECORDS_CACHE_SIZE <= 0
-                ? RecordCache.<Template>empty()
-                : RecordCache.<Template>factory(TPL_RECORDS_CACHE_SIZE),
-            NodeCache.factory(1000000, 20));  // michid don't hc
     }
 
     // FIXME OAK-4277: Finalise de-duplication caches
