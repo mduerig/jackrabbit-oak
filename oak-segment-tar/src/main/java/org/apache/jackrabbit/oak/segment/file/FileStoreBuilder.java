@@ -81,6 +81,66 @@ public class FileStoreBuilder {
     @Nonnull
     private SegmentGCOptions gcOptions = SegmentGCOptions.DEFAULT;
 
+    @Nonnull
+    private GCListener gcListener;
+
+    @Nonnull
+    private final WriterCacheManager cacheManager = new WriterCacheManager.Default() {{
+        gcListener = new GCListener() {
+            @Override
+            public void info(String message, Object... arguments) {
+                gcMonitor.info(message, arguments);
+            }
+
+            @Override
+            public void warn(String message, Object... arguments) {
+                gcMonitor.warn(message, arguments);
+            }
+
+            @Override
+            public void error(String message, Exception exception) {
+                gcMonitor.error(message, exception);
+            }
+
+            @Override
+            public void skipped(String reason, Object... arguments) {
+                gcMonitor.skipped(reason, arguments);
+            }
+
+            @Override
+            public void compacted(long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
+                gcMonitor.compacted(segmentCounts, recordCounts, compactionMapWeights);
+            }
+
+            @Override
+            public void cleaned(long reclaimedSize, long currentSize) {
+                gcMonitor.cleaned(reclaimedSize, currentSize);
+            }
+
+            @Override
+            public void compacted(@Nonnull Status status, final int newGeneration) {
+                switch (status) {
+                    case SUCCESS:
+                        evictCaches(new Predicate<Integer>() {
+                            @Override
+                            public boolean apply(Integer generation) {
+                                return generation < newGeneration;
+                            }
+                        });
+                        break;
+                    case FAILURE:
+                        evictCaches(new Predicate<Integer>() {
+                            @Override
+                            public boolean apply(Integer generation) {
+                                return generation == newGeneration;
+                            }
+                        });
+                        break;
+                }
+            }
+        };
+    }};
+
     @CheckForNull
     private TarRevisions revisions;
 
@@ -280,8 +340,8 @@ public class FileStoreBuilder {
     }
 
     @Nonnull
-    DelegatingGCMonitor getGcMonitor() {
-        return gcMonitor;
+    GCListener getGcListener() {
+        return gcListener;
     }
 
     @Nonnull
@@ -307,29 +367,6 @@ public class FileStoreBuilder {
 
     @Nonnull
     WriterCacheManager getCacheManager() {
-        return new WriterCacheManager.Default() {{
-            gcMonitor.registerGCMonitor(new GCMonitor.Empty() {
-                @Override
-                public void compacted( long[] segmentCounts, long[] recordCounts, long[] compactionMapWeights) {
-                    // michid replace this hack with dedicated call
-                    final long newGeneration = segmentCounts[0];
-                    if (newGeneration >= 0) {
-                        evictCaches(new Predicate<Integer>() {
-                            @Override
-                            public boolean apply(Integer generation) {
-                                return generation < newGeneration;
-                            }
-                        });
-                    } else {
-                        evictCaches(new Predicate<Integer>() {
-                            @Override
-                            public boolean apply(Integer generation) {
-                                return generation < -newGeneration;
-                            }
-                        });
-                    }
-                }
-            });
-        }};
+        return cacheManager;
     }
 }
