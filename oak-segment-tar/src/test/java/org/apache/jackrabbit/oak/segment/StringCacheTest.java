@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nullable;
 
-import org.apache.jackrabbit.oak.segment.StringCache;
 import org.junit.Test;
 
 import com.google.common.base.Function;
@@ -48,7 +47,7 @@ public class StringCacheTest {
         StringCache c = new StringCache(0);
         for (int repeat = 0; repeat < 10; repeat++) {
             for (int i = 0; i < 1000; i++) {
-                assertEquals("" + i, c.getString(i, i, i, loader));
+                assertEquals("" + i, c.get(i, i, i, loader));
             }
         }
         // the LIRS cache should be almost empty (low hit rate there)
@@ -71,8 +70,8 @@ public class StringCacheTest {
         StringCache c = new StringCache(1024);
         for (int repeat = 0; repeat < 10; repeat++) {
             for (int i = 0; i < 1000; i++) {
-                assertEquals(large + i, c.getString(i, i, i, loader));
-                assertEquals(large + 0, c.getString(0, 0, 0, loader));
+                assertEquals(large + i, c.get(i, i, i, loader));
+                assertEquals(large + 0, c.get(0, 0, 0, loader));
             }
         }
         // the LIRS cache should be almost empty (low hit rate there)
@@ -92,13 +91,13 @@ public class StringCacheTest {
         };
         StringCache c = new StringCache(0);
         // load a new entry
-        assertEquals("1", c.getString(0, 0, 0, uniqueLoader));
+        assertEquals("1", c.get(0, 0, 0, uniqueLoader));
         // but only once
-        assertEquals("1", c.getString(0, 0, 0, uniqueLoader));
+        assertEquals("1", c.get(0, 0, 0, uniqueLoader));
         c.clear();
         // after clearing the cache, load a new entry
-        assertEquals("2", c.getString(0, 0, 0, uniqueLoader));
-        assertEquals("2", c.getString(0, 0, 0, uniqueLoader));
+        assertEquals("2", c.get(0, 0, 0, uniqueLoader));
+        assertEquals("2", c.get(0, 0, 0, uniqueLoader));
     }
     
     @Test
@@ -121,7 +120,7 @@ public class StringCacheTest {
             int segment = r.nextInt(segmentCount);
             int offset = r.nextInt(10);
             Function<Integer, String> loader = loaderList.get(segment);
-            String x = c.getString(segment, segment, offset, loader);
+            String x = c.get(segment, segment, offset, loader);
             assertEquals(loader.apply(offset), x);
         }
     }

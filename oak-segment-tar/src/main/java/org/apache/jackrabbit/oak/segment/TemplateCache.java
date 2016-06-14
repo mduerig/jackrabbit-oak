@@ -19,34 +19,29 @@
 
 package org.apache.jackrabbit.oak.segment;
 
-import static org.apache.jackrabbit.oak.commons.StringUtils.estimateMemoryUsage;
-
-public class StringCache extends ReaderCache<String> {
-    /**
-     * The maximum number of characters of string so they go into the fast cache
-     */
-    private static final int MAX_STRING_SIZE = 128;
+public class TemplateCache extends ReaderCache<Template> {
 
     /**
-     * Create a new string cache.
+     * Create a new template cache.
      *
      * @param maxSize the maximum memory in bytes.
      */
-    StringCache(long maxSize) {
-        super(maxSize, "String Cache");
+    TemplateCache(long maxSize) {
+        super(maxSize, "Template Cache");
     }
 
     @Override
-    protected int getEntryWeight(String string) {
+    protected int getEntryWeight(Template template) {
         int size = 168; // overhead for each cache entry
         size += 40; // key
-        size += estimateMemoryUsage(string); // value
+        size += 1000; // FIXME implement TemplateCache.getEntryWeight
         return size;
     }
 
     @Override
-    protected boolean isSmall(String string) {
-        return string.length() <= MAX_STRING_SIZE;
+    protected boolean isSmall(Template template) {
+        // FIXME implement TemplateCache.isSmall
+        return true;
     }
 
 }
