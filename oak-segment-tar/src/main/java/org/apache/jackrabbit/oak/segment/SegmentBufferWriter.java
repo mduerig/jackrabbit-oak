@@ -86,6 +86,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     @Nonnull
     private final SegmentStore store;
 
+    // michid remove segment tracker
     @Nonnull
     private final SegmentTracker tracker;
 

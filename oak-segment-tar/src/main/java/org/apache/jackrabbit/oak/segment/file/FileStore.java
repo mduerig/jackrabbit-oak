@@ -102,6 +102,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The storage implementation for tar files.
+ * michid clean up
  */
 public class FileStore implements SegmentStore, Closeable {
     private static final Logger log = LoggerFactory.getLogger(FileStore.class);
@@ -642,6 +643,7 @@ public class FileStore implements SegmentStore, Closeable {
             pendingRemove.addAll(cleanup());
         }
 
+        // michid OAK-4138 instead of synchronizing, skip flush if already in progress
         // remove all obsolete tar generations
         synchronized (pendingRemove) {
             Iterator<File> iterator = pendingRemove.iterator();
@@ -1308,6 +1310,7 @@ public class FileStore implements SegmentStore, Closeable {
         compactionThread.trigger();
     }
 
+    // michid fileStoreLock?, visibility?
     public Map<String, Set<UUID>> getTarReaderIndex() {
         Map<String, Set<UUID>> index = new HashMap<String, Set<UUID>>();
         for (TarReader reader : readers) {
@@ -1316,6 +1319,7 @@ public class FileStore implements SegmentStore, Closeable {
         return index;
     }
 
+    // michid fileStoreLock?, visibility?
     public Map<UUID, List<UUID>> getTarGraph(String fileName) throws IOException {
         for (TarReader reader : readers) {
             if (fileName.equals(reader.getFile().getName())) {
