@@ -21,12 +21,12 @@ package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Sets.newHashSet;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Map.Entry;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -36,6 +36,7 @@ import com.google.common.cache.CacheStats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// michid doc: update
 /**
  * Partial mapping of string keys to values of type {@link RecordId}. This is
  * typically used for de-duplicating nodes that have already been persisted and thus
@@ -51,7 +52,7 @@ public abstract class NodeCache {
      * Add a mapping from {@code key} to {@code value} where {@code value} is the
      * id of a node at the given {@code depth}. Any existing mapping is replaced.
      */
-    public abstract void put(@Nonnull String key, @Nonnull RecordId value, int depth);
+    public abstract void put(@Nonnull String key, @Nonnull RecordId value, int cost);
 
     /**
      * @return  The mapping for {@code key}, or {@code null} if none.
@@ -63,6 +64,8 @@ public abstract class NodeCache {
      * @return number of mappings
      */
     public abstract long size();
+
+    public void logSizes() {}
 
     /**
      * @return  access statistics for this cache
@@ -121,7 +124,7 @@ public abstract class NodeCache {
         }
 
         @Override
-        public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int depth) { }
+        public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int cost) { }
 
         @Override
         public synchronized RecordId get(@Nonnull String key) {
@@ -140,10 +143,9 @@ public abstract class NodeCache {
 
         private final int capacity;
         private final List<Map<String, RecordId>> caches;
+        private final int[] costs;
 
         private int size;
-
-        private final Set<Integer> muteDepths = newHashSet();
 
         static final Supplier<NodeCache> supplier(final int capacity, final int size) {
             return new Supplier<NodeCache>() {
@@ -154,38 +156,45 @@ public abstract class NodeCache {
             };
         }
 
-        Default(int capacity, int maxDepth) {
+        Default(int capacity, int levels) {
             checkArgument(capacity > 0);
-            checkArgument(maxDepth > 0);
+            checkArgument(levels > 0);
             this.capacity = capacity;
             this.caches = newArrayList();
-            for (int k = 0; k < maxDepth; k++) {
+            // michid make costs configurable
+            costs = new int[]{0,1,2,3,4,5,6,7,8,9,20,50,100,500,1000,10000,Integer.MAX_VALUE};
+            for (int cost : costs) {
                 caches.add(new HashMap<String, RecordId>());
             }
         }
 
+        // michid replace with more sophisticated monitoring
         @Override
-        public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int depth) {
-            while (size >= capacity) {
-                int d = caches.size() - 1;
-                int removed = caches.remove(d).size();
-                size -= removed;
-                super.evictionCount -= removed;
-                if (removed > 0) {
-                    LOG.info("Evicted cache at depth {} as size {} reached capacity {}. " +
-                            "New size is {}", d, size + removed, capacity, size);
+        public synchronized void logSizes() {
+            for (int k = 0; k < caches.size(); k++) {
+                LOG.info("NodeCache size @{}={}", costs[k], caches.get(k).size());
+            }
+            LOG.info("NodeCache size total={}", size());
+        }
+
+        @Override
+        public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int cost) {
+            for (int k = 0; size >= capacity; k++) {
+                Iterator<Entry<String, RecordId>> entries = caches.get(k).entrySet().iterator();
+                if (entries.hasNext()) {
+                    entries.next();
+                    entries.remove();
+                    size--;
+                    super.evictionCount++;
                 }
             }
 
-            if (depth < caches.size()) {
-                if (caches.get(depth).put(key, value) == null) {
+            for (int k = 0; k < costs.length; k++) {
+                if (cost <= costs[k]) {
+                    caches.get(k).put(key, value);
                     super.loadCount++;
                     size++;
-                }
-            } else {
-                if (muteDepths.add(depth)) {
-                    LOG.info("Not caching {} -> {} as depth {} reaches or exceeds the maximum of {}",
-                            key, value, depth, caches.size());
+                    return;
                 }
             }
         }

@@ -370,6 +370,11 @@ public class SegmentWriter {
         }
     }
 
+    // michid replace with more sophisticated monitoring
+    public void logNodeCacheStats(int newGeneration) {
+        cacheManager.getNodeCache(newGeneration).logSizes();
+    }
+
     /**
      * This {@code WriteOperation} implementation is used internally to provide
      * context to a recursive chain of calls without having pass the context
@@ -1016,7 +1021,9 @@ public class SegmentWriter {
                 // generation (e.g. due to compaction). Put it into the cache for
                 // deduplication of hard links to it (e.g. checkpoints).
                 SegmentNodeState sns = (SegmentNodeState) state;
-                nodeCache.put(sns.getStableId(), recordId, depth);
+                // michid make cost function configurable
+                int cost = depth <= 4 ? Integer.MAX_VALUE : (int) state.getChildNodeCount(10000);
+                nodeCache.put(sns.getStableId(), recordId, cost);
                 nodeWriteStats.isCompactOp = true;
             }
             return recordId;

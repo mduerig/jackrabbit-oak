@@ -23,6 +23,7 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.apache.jackrabbit.oak.segment.NodeCache.newNodeCache;
 import static org.apache.jackrabbit.oak.segment.TestUtils.newRecordId;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 import java.io.IOException;
@@ -53,32 +54,32 @@ public class NodeCacheTest {
         assertEquals(keys.get("key-0"), cache.get("key-0"));
         cache.put("key-1", keys.get("key-1"), 1);
         assertEquals(keys.get("key-1"), cache.get("key-1"));
+
         cache.put("key-2", keys.get("key-2"), 2);
-        assertNull(cache.get("key-2"));
+        assertEquals(keys.get("key-2"), cache.get("key-2"));
+        cache.put("key-2", keys.get("key-3"), 2);
+        assertEquals(keys.get("key-3"), cache.get("key-2"));
+
+        cache.put("key-6", keys.get("key-6"), 1000000);
+        assertEquals(keys.get("key-6"), cache.get("key-6"));
 
         assertNull(keys.get("any"));
-        assertEquals(2, cache.size());
+        assertEquals(4, cache.size());
     }
 
     @Test
-    public void evictLevels() {
+    public void evict() {
         NodeCache cache = newNodeCache(100, 2);
-
-        cache.put("key-0", keys.get("key-0"), 0);
-        assertEquals(keys.get("key-0"), cache.get("key-0"));
-        cache.put("key-1", keys.get("key-1"), 1);
-        assertEquals(keys.get("key-1"), cache.get("key-1"));
-
-        for (int k = 0; k < 100; k++) {
-            if (k <= 98) {
-                assertEquals(k + 2, cache.size());
-            } else {
-                assertEquals(k - 98, cache.size());
-            }
-            cache.put("fill-" + k, newRecordId(store, rnd), 1);
+        for (int k = 1; k <= 100; k++) {
+            cache.put("key-" + k, newRecordId(store, rnd), k*k);
+            assertEquals(k, cache.size());
         }
+        cache.size();
 
-        assertEquals(keys.get("key-0"), cache.get("key-0"));
-        assertNull("Keys at level 1 should have been evicted", cache.get("key-1"));
+        for (int k = 1; k <= 3; k++) {
+            assertNotNull(cache.get("key-" + k));
+            cache.put("evict-" + k, newRecordId(store, rnd), Integer.MAX_VALUE);
+            assertNull(cache.get("key" + k));
+        }
     }
 }

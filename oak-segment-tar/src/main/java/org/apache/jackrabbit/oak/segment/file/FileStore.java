@@ -994,6 +994,7 @@ public class FileStore implements SegmentStore, Closeable {
                 gcListener.compacted(SUCCESS, newGeneration);
                 gcListener.info("TarMK GC #{}: compaction succeeded in {} ({} ms), after {} cycles",
                         GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles);
+                segmentWriter.logNodeCacheStats(newGeneration);
                 return true;
             } else {
                 gcListener.info("TarMK GC #{}: cleaning up after failed compaction", GC_COUNT);
