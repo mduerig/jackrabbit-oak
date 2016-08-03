@@ -73,12 +73,11 @@ public class NodeCacheTest {
             if (k <= 98) {
                 assertEquals(k + 2, cache.size());
             } else {
-                assertEquals(k - 98, cache.size());
+                assertEquals(100, cache.size());
             }
             cache.put("fill-" + k, newRecordId(store, rnd), 1);
         }
 
         assertEquals(keys.get("key-0"), cache.get("key-0"));
-        assertNull("Keys at level 1 should have been evicted", cache.get("key-1"));
     }
 }

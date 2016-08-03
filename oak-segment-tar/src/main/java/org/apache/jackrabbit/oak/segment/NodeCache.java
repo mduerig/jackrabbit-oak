@@ -24,6 +24,7 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -168,12 +169,18 @@ public abstract class NodeCache {
         public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int depth) {
             while (size >= capacity) {
                 int d = caches.size() - 1;
-                int removed = caches.remove(d).size();
-                size -= removed;
-                super.evictionCount -= removed;
-                if (removed > 0) {
-                    LOG.info("Evicted cache at depth {} as size {} reached capacity {}. " +
-                            "New size is {}", d, size + removed, capacity, size);
+                Map<String, RecordId> cache = caches.get(d);
+                if (!cache.isEmpty()) {
+                    Iterator<String> iterator = cache.keySet().iterator();
+                    iterator.next();
+                    iterator.remove();
+                    size--;
+                    super.evictionCount++;
+                }
+                if (cache.isEmpty()) {
+                    caches.remove(d);
+                    LOG.info("Cache reached its capacity of {} nodes. Evicted depth {}.",
+                            capacity, d);
                 }
             }
 
