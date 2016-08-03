@@ -37,6 +37,7 @@ import com.google.common.cache.CacheStats;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// michid doc: update
 /**
  * Partial mapping of string keys to values of type {@link RecordId}. This is
  * typically used for de-duplicating nodes that have already been persisted and thus
