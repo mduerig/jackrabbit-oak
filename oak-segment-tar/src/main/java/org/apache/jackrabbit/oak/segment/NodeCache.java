@@ -20,13 +20,12 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.collect.Lists.newArrayList;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -142,7 +141,8 @@ public abstract class NodeCache {
         private static final Logger LOG = LoggerFactory.getLogger(Default.class);
 
         private final int capacity;
-        private final List<Map<String, RecordId>> caches;
+        private final List<Map<String, RecordId>> caches = new ArrayList<>();
+        private final List<Runnable> evictors = new ArrayList<>();
         private final int[] costs;
 
         private int size;
@@ -160,11 +160,27 @@ public abstract class NodeCache {
             checkArgument(capacity > 0);
             checkArgument(levels > 0);
             this.capacity = capacity;
-            this.caches = newArrayList();
             // michid make costs configurable
             costs = new int[]{0,1,2,3,4,5,6,7,8,9,20,50,100,500,1000,10000,Integer.MAX_VALUE};
             for (int cost : costs) {
-                caches.add(new HashMap<String, RecordId>());
+                final ConcurrentHashMap<String, RecordId> cache = new ConcurrentHashMap<>();
+                caches.add(cache);
+                evictors.add(new Runnable() {
+                    // michid doc: eviction semantic depends on weak iterator from CHM
+                    Iterator<?> it = cache.entrySet().iterator();
+                    @Override
+                    public void run() {
+                        if (it.hasNext()) {
+                            it.next();
+                            it.remove();
+                            size--;
+                            Default.super.evictionCount--;
+                        } else if (!cache.isEmpty()) {
+                            it = cache.entrySet().iterator();
+                            run();
+                        }
+                    }
+                });
             }
         }
 
@@ -180,13 +196,7 @@ public abstract class NodeCache {
         @Override
         public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int cost) {
             for (int k = 0; size >= capacity; k++) {
-                Iterator<Entry<String, RecordId>> entries = caches.get(k).entrySet().iterator();
-                if (entries.hasNext()) {
-                    entries.next();
-                    entries.remove();
-                    size--;
-                    super.evictionCount++;
-                }
+                evictors.get(k).run();
             }
 
             for (int k = 0; k < costs.length; k++) {
