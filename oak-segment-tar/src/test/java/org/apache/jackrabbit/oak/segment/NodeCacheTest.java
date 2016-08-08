@@ -61,7 +61,7 @@ public class NodeCacheTest {
     }
 
     @Test
-    public void evictLevels() {
+    public void evict() {
         NodeCache cache = newNodeCache(100, 2);
 
         cache.put("key-0", keys.get("key-0"), 0);

@@ -23,11 +23,12 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newHashSet;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -141,7 +142,8 @@ public abstract class NodeCache {
         private static final Logger LOG = LoggerFactory.getLogger(Default.class);
 
         private final int capacity;
-        private final List<Map<String, RecordId>> caches;
+        private final List<Map<String, RecordId>> caches = newArrayList();
+        private final List<Runnable> evictors = new ArrayList<>();
 
         private int size;
 
@@ -160,9 +162,25 @@ public abstract class NodeCache {
             checkArgument(capacity > 0);
             checkArgument(maxDepth > 0);
             this.capacity = capacity;
-            this.caches = newArrayList();
             for (int k = 0; k < maxDepth; k++) {
-                caches.add(new HashMap<String, RecordId>());
+                final ConcurrentHashMap<String, RecordId> cache = new ConcurrentHashMap<>();
+                caches.add(cache);
+                evictors.add(new Runnable() {
+                    // michid doc: eviction semantic depends on weak iterator from CHM
+                    Iterator<?> it = cache.entrySet().iterator();
+                    @Override
+                    public void run() {
+                        if (it.hasNext()) {
+                            it.next();
+                            it.remove();
+                            size--;
+                            Default.super.evictionCount--;
+                        } else if (!cache.isEmpty()) {
+                            it = cache.entrySet().iterator();
+                            run();
+                        }
+                    }
+                });
             }
         }
 
@@ -170,15 +188,8 @@ public abstract class NodeCache {
         public synchronized void put(@Nonnull String key, @Nonnull RecordId value, int depth) {
             while (size >= capacity) {
                 int d = caches.size() - 1;
-                Map<String, RecordId> cache = caches.get(d);
-                if (!cache.isEmpty()) {
-                    Iterator<String> iterator = cache.keySet().iterator();
-                    iterator.next();
-                    iterator.remove();
-                    size--;
-                    super.evictionCount++;
-                }
-                if (cache.isEmpty()) {
+                evictors.get(d).run();
+                if (caches.get(d).isEmpty()) {
                     caches.remove(d);
                     LOG.info("Cache reached its capacity of {} nodes. Evicted depth {}.",
                             capacity, d);
