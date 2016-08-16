@@ -1003,7 +1003,7 @@ public class SegmentWriter {
             checkState(nodeWriteStats != null);
             nodeWriteStats.nodeCount++;
 
-            RecordId compactedId = deduplicateNode(state);
+            RecordId compactedId = deduplicateNode(state, nodeWriteStats);
 
             if (compactedId != null) {
                 return compactedId;
@@ -1032,7 +1032,7 @@ public class SegmentWriter {
             RecordId beforeId = null;
 
             if (after != null) {
-                beforeId = deduplicateNode(after.getBaseState());
+                beforeId = deduplicateNode(after.getBaseState(), null);
             }
 
             SegmentNodeState before = null;
@@ -1140,8 +1140,8 @@ public class SegmentWriter {
          * @param node The node states to de-duplicate.
          * @return the id of the de-duplicated node or {@code null} if none.
          */
-        private RecordId deduplicateNode(NodeState node) {
-            checkState(nodeWriteStats != null);
+        private RecordId deduplicateNode(NodeState node, NodeWriteStats nodeWriteStats) {  // michid clean collecting stats
+            // michid checkState(nodeWriteStats != null);
 
             if (!(node instanceof SegmentNodeState)) {
                 // De-duplication only for persisted node states
@@ -1158,7 +1158,9 @@ public class SegmentWriter {
             if (!isOldGeneration(sns.getRecordId())) {
                 // This segment node state is already in this store, no need to
                 // write it again
-                nodeWriteStats.deDupNodes++;
+                if (nodeWriteStats != null) {
+                    nodeWriteStats.deDupNodes++;
+                }
                 return sns.getRecordId();
             }
 
@@ -1168,11 +1170,15 @@ public class SegmentWriter {
             RecordId compacted = nodeCache.get(sns.getStableId());
 
             if (compacted == null) {
-                nodeWriteStats.cacheMiss++;
+                if (nodeWriteStats != null) {
+                    nodeWriteStats.cacheMiss++;
+                }
                 return null;
             }
 
-            nodeWriteStats.cacheHits++;
+            if (nodeWriteStats != null) {
+                nodeWriteStats.cacheHits++;
+            }
             return compacted;
         }
 
