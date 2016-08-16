@@ -171,7 +171,7 @@ public class SegmentNodeStoreService extends ProxyNodeStore
     public static final String TEMPLATE_DEDUPLICATION_CACHE_SIZE = "templateDeduplicationCache.size";
 
     @Property(
-            intValue = 10000000,
+            intValue = 20000000,
             label = "Node deduplication cache size  (#items)",
             description = "Maximum number of nodes to keep in the deduplication cache"
     )
