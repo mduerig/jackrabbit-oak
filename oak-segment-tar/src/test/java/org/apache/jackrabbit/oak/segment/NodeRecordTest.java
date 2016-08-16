@@ -187,6 +187,11 @@ public class NodeRecordTest {
                 return defaultCache.getNodeCache(generation);
             }
 
+            @Nonnull
+            @Override
+            public NodeCache2 getNodeCache2(int generation) {
+                return defaultCache.getNodeCache2(generation);
+            }
         };
     }
 

@@ -38,6 +38,7 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Supplier;
 import com.google.common.cache.CacheStats;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
+import org.apache.jackrabbit.oak.segment.file.PriorityCache;
 
 /**
  * Instances of this class manage the deduplication caches used
@@ -97,6 +98,10 @@ public abstract class WriterCacheManager {
     @Nonnull
     public abstract NodeCache getNodeCache(int generation);
 
+    // michid rename
+    @Nonnull
+    public abstract NodeCache2 getNodeCache2(int generation);
+
     /**
      * @return  statistics for the string cache or {@code null} if not available.
      */
@@ -119,6 +124,19 @@ public abstract class WriterCacheManager {
     @CheckForNull
     public CacheStatsMBean getNodeCacheStats() {
         return null;
+    }
+
+    // michid remove this hack
+    public String getNodeCache2Stats() {
+        return "NA";
+    }
+
+    // michid move
+    public interface NodeCache2 {
+        void put(@Nonnull String stableId, @Nonnull RecordId recordId, byte cost);
+
+        @CheckForNull
+        RecordId get(@Nonnull String stableId);
     }
 
     /**
@@ -162,6 +180,19 @@ public abstract class WriterCacheManager {
         public NodeCache getNodeCache(int generation) {
             return nodeCache;
         }
+
+        @Nonnull
+        @Override
+        public NodeCache2 getNodeCache2(int generation) {
+            return new NodeCache2() {
+                @Override
+                public void put(@Nonnull String stableId, @Nonnull RecordId recordId, byte cost) { }
+
+                @CheckForNull
+                @Override
+                public RecordId get(@Nonnull String stableId) { return null; }
+            };
+        }
     }
 
     /**
@@ -187,6 +218,14 @@ public abstract class WriterCacheManager {
          * during compaction.
          */
         private final Generations<NodeCache> nodeCaches;
+
+        private final Supplier<PriorityCache<String, RecordId>> nodeCache2 = memoize(
+            new Supplier<PriorityCache<String, RecordId>>() {
+                @Override
+                public PriorityCache<String, RecordId> get() {
+                    return new PriorityCache<>(16777216, 7);
+                }
+            });
 
         /**
          * New instance using the passed factories for creating cache instances.
@@ -271,6 +310,23 @@ public abstract class WriterCacheManager {
             return nodeCaches.getGeneration(generation);
         }
 
+        @Override
+        @Nonnull
+        public NodeCache2 getNodeCache2(final int generation) {
+            return new NodeCache2() {
+                @Override
+                public void put(@Nonnull String stableId, @Nonnull RecordId recordId, byte cost) {
+                    nodeCache2.get().put(stableId, recordId, generation, cost);
+                }
+
+                @CheckForNull
+                @Override
+                public RecordId get(@Nonnull String stableId) {
+                    return nodeCache2.get().get(stableId, generation);
+                }
+            };
+        }
+
         @CheckForNull
         @Override
         public CacheStatsMBean getStringCacheStats() {
@@ -319,7 +375,23 @@ public abstract class WriterCacheManager {
         @Override
         public CacheStatsMBean getNodeCacheStats() {
             return new RecordCacheStats("Node deduplication cache stats",
-                    accumulateNodeCacheStats(nodeCaches), accumulateNodeCacheSizes(nodeCaches));
+                    new Supplier<CacheStats>() {
+                        @Override
+                        public CacheStats get() {
+                            return nodeCache2.get().getStats();
+                        }
+                    },
+                    new Supplier<Long>() {
+                        @Override
+                        public Long get() {
+                            return nodeCache2.get().size();
+                        }
+                    });
+        }
+
+        @Override
+        public String getNodeCache2Stats() {
+            return nodeCache2.get().toString();
         }
 
         @Nonnull

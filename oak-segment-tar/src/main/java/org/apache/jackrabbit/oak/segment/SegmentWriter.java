@@ -33,6 +33,7 @@ import static com.google.common.collect.Lists.partition;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.io.ByteStreams.read;
 import static java.lang.Integer.getInteger;
+import static java.lang.Math.min;
 import static java.lang.System.nanoTime;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -70,6 +71,7 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
+import org.apache.jackrabbit.oak.segment.WriterCacheManager.NodeCache2;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -156,6 +158,7 @@ public class SegmentWriter {
      */
     @Nonnull
     public DescriptiveStatistics getNodeCompactTimeStats() {
+        LOG.info(cacheManager.getNodeCache2Stats());  // michid remove this hack
         return nodeCompactTimeStats;
     }
 
@@ -446,7 +449,7 @@ public class SegmentWriter {
         private SegmentBufferWriter writer;
         private RecordCache<String> stringCache;
         private RecordCache<Template> templateCache;
-        private NodeCache nodeCache;
+        private NodeCache2 nodeCache;
 
         protected SegmentWriteOperation(@Nonnull Supplier<Boolean> cancel) {
             this.cancel = cancel;
@@ -466,7 +469,7 @@ public class SegmentWriter {
             int generation = writer.getGeneration();
             this.stringCache = cacheManager.getStringCache(generation);
             this.templateCache = cacheManager.getTemplateCache(generation);
-            this.nodeCache = cacheManager.getNodeCache(generation);
+            this.nodeCache = cacheManager.getNodeCache2(generation);
             return this;
         }
 
@@ -727,7 +730,7 @@ public class SegmentWriter {
 
             // inline the remaining data as block records
             while (pos < data.length) {
-                int len = Math.min(BLOCK_SIZE, data.length - pos);
+                int len = min(BLOCK_SIZE, data.length - pos);
                 blockIds.add(writeBlock(data, pos, len));
                 pos += len;
             }
@@ -1016,10 +1019,14 @@ public class SegmentWriter {
                 // generation (e.g. due to compaction). Put it into the cache for
                 // deduplication of hard links to it (e.g. checkpoints).
                 SegmentNodeState sns = (SegmentNodeState) state;
-                nodeCache.put(sns.getStableId(), recordId, depth);
+                nodeCache.put(sns.getStableId(), recordId, cost(depth));
                 nodeWriteStats.isCompactOp = true;
             }
             return recordId;
+        }
+
+        private byte cost(int depth) {
+            return (byte) (Byte.MIN_VALUE + 0xff - (min(depth, 0xff) & 0xff));
         }
 
         private RecordId writeNodeUncached(@Nonnull NodeState state, int depth) throws IOException {
