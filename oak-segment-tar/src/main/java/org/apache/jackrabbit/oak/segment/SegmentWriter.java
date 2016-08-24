@@ -33,6 +33,7 @@ import static com.google.common.collect.Lists.partition;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.io.ByteStreams.read;
 import static java.lang.Integer.getInteger;
+import static java.lang.Long.numberOfLeadingZeros;
 import static java.lang.Math.min;
 import static java.lang.System.nanoTime;
 import static java.util.Arrays.asList;
@@ -1019,14 +1020,15 @@ public class SegmentWriter {
                 // generation (e.g. due to compaction). Put it into the cache for
                 // deduplication of hard links to it (e.g. checkpoints).
                 SegmentNodeState sns = (SegmentNodeState) state;
-                nodeCache.put(sns.getStableId(), recordId, cost(depth));
+                nodeCache.put(sns.getStableId(), recordId, cost(sns));
                 nodeWriteStats.isCompactOp = true;
             }
             return recordId;
         }
 
-        private byte cost(int depth) {
-            return (byte) (Byte.MIN_VALUE + 0xff - (min(depth, 0xff) & 0xff));
+        private byte cost(SegmentNodeState node) {
+            long childCount = node.getChildNodeCount(Long.MAX_VALUE);
+            return (byte) (Byte.MIN_VALUE + 64 - numberOfLeadingZeros(childCount));
         }
 
         private RecordId writeNodeUncached(@Nonnull NodeState state, int depth) throws IOException {
