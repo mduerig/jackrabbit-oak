@@ -38,9 +38,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.UUID;
-import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.CheckForNull;
@@ -196,32 +194,6 @@ public class SegmentNodeStore implements NodeStore, Observable {
     }
 
     /**
-     * Execute the passed callable with trying to acquire this store's commit lock.
-     * @param timeout the maximum time to wait for the store's commit lock
-     * @param unit the time unit of the {@code timeout} argument
-     * @param c  callable to execute
-     * @return  {@code false} if the store's commit lock cannot be acquired, the result
-     *          of {@code c.call()} otherwise.
-     * @throws Exception
-     */
-    // FIXME OAK-4015: Expedite commits from the compactor
-    // FIXME OAK-4122: Replace the commit semaphore in the segment node store with a scheduler
-    // Replace by usage of expeditable lock or commit scheduler
-    boolean locked(Callable<Boolean> c, long timeout, TimeUnit unit) throws Exception {
-        if (commitSemaphore.tryAcquire(timeout, unit)) {
-            try {
-                return c.call();
-            } finally {
-                // Explicitly give up reference to the previous root state
-                // otherwise they would block cleanup. See OAK-3347
-                refreshHead();
-                commitSemaphore.release();
-            }
-        }
-        return false;
-    }
-
-    /**
      * Refreshes the head state. Should only be called while holding a
      * permit from the {@link #commitSemaphore}.
      */
@@ -338,12 +310,46 @@ public class SegmentNodeStore implements NodeStore, Observable {
         checkNotNull(properties);
         String name = UUID.randomUUID().toString();
         try {
-            CPCreator cpc = new CPCreator(name, lifetime, properties);
-            if (locked(cpc, checkpointsLockWaitTime, TimeUnit.SECONDS)) {
-                return name;
+            if (commitSemaphore.tryAcquire((long) checkpointsLockWaitTime, SECONDS)) {
+                try {
+                    long now = System.currentTimeMillis();
+                    refreshHead();
+
+                    SegmentNodeState state = head.get();
+                    SegmentNodeBuilder builder = state.builder();
+
+                    NodeBuilder checkpoints = builder.child("checkpoints");
+                    for (String n : checkpoints.getChildNodeNames()) {
+                        NodeBuilder cp = checkpoints.getChildNode(n);
+                        PropertyState ts = cp.getProperty("timestamp");
+                        if (ts == null || ts.getType() != LONG || now > ts.getValue(LONG)) {
+                            cp.remove();
+                        }
+                    }
+
+                    NodeBuilder cp = checkpoints.child(name);
+                    if (Long.MAX_VALUE - now > lifetime) {
+                        cp.setProperty("timestamp", now + lifetime);
+                    } else {
+                        cp.setProperty("timestamp", Long.MAX_VALUE);
+                    }
+                    cp.setProperty("created", now);
+
+                    NodeBuilder props = cp.setChildNode("properties");
+                    for (Entry<String, String> p : properties.entrySet()) {
+                        props.setProperty(p.getKey(), p.getValue());
+                    }
+                    cp.setChildNode(ROOT, state.getChildNode(ROOT));
+
+                    revisions.setHead(state.getRecordId(), builder.getNodeState().getRecordId());
+                } finally {
+                    // Explicitly give up reference to the previous root state
+                    // otherwise they would block cleanup. See OAK-3347
+                    refreshHead();
+                    commitSemaphore.release();
+                }
             }
-            log.warn("Failed to create checkpoint {} in {} seconds.", name,
-                    checkpointsLockWaitTime);
+            log.warn("Failed to create checkpoint {} in {} seconds.", name, checkpointsLockWaitTime);
         } catch (InterruptedException e) {
             currentThread().interrupt();
             log.error("Failed to create checkpoint {}.", name, e);
@@ -351,61 +357,6 @@ public class SegmentNodeStore implements NodeStore, Observable {
             log.error("Failed to create checkpoint {}.", name, e);
         }
         return name;
-    }
-
-    private final class CPCreator implements Callable<Boolean> {
-
-        private final String name;
-        private final long lifetime;
-        private final Map<String, String> properties;
-
-        CPCreator(String name, long lifetime, Map<String, String> properties) {
-            this.name = name;
-            this.lifetime = lifetime;
-            this.properties = properties;
-        }
-
-        @Override
-        public Boolean call() {
-            long now = System.currentTimeMillis();
-
-            refreshHead();
-
-            SegmentNodeState state = head.get();
-            SegmentNodeBuilder builder = state.builder();
-
-            NodeBuilder checkpoints = builder.child("checkpoints");
-            for (String n : checkpoints.getChildNodeNames()) {
-                NodeBuilder cp = checkpoints.getChildNode(n);
-                PropertyState ts = cp.getProperty("timestamp");
-                if (ts == null || ts.getType() != LONG
-                        || now > ts.getValue(LONG)) {
-                    cp.remove();
-                }
-            }
-
-            NodeBuilder cp = checkpoints.child(name);
-            if (Long.MAX_VALUE - now > lifetime) {
-                cp.setProperty("timestamp", now + lifetime);
-            } else {
-                cp.setProperty("timestamp", Long.MAX_VALUE);
-            }
-            cp.setProperty("created", now);
-
-            NodeBuilder props = cp.setChildNode("properties");
-            for (Entry<String, String> p : properties.entrySet()) {
-                props.setProperty(p.getKey(), p.getValue());
-            }
-            cp.setChildNode(ROOT, state.getChildNode(ROOT));
-
-            SegmentNodeState newState = builder.getNodeState();
-            if (revisions.setHead(state.getRecordId(), newState.getRecordId())) {
-                refreshHead();
-                return true;
-            } else {
-                return false;
-            }
-        }
     }
 
     @Override @Nonnull

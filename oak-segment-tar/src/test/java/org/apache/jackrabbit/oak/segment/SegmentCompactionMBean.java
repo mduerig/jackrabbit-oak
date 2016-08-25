@@ -75,14 +75,14 @@ public interface SegmentCompactionMBean {
     /**
      * Time to wait for the commit lock for committing the compacted head.
      * @param seconds  number of seconds to wait
-     * @see SegmentNodeStore#locked(java.util.concurrent.Callable, long, java.util.concurrent.TimeUnit)
+     * @see SegmentNodeStore#locked(java.util.concurrent.Callable, long, java.util.concurrent.TimeUnit)  // michid doc
      */
     void setLockWaitTime(int seconds);
 
     /**
      * Time to wait for the commit lock for committing the compacted head.
      * @return  number of seconds
-     * @see SegmentNodeStore#locked(java.util.concurrent.Callable, long, java.util.concurrent.TimeUnit)
+     * @see SegmentNodeStore#locked(java.util.concurrent.Callable, long, java.util.concurrent.TimeUnit)  // michid doc
      */
     int getLockWaitTime();
 
