@@ -26,7 +26,10 @@ import static com.google.common.collect.Lists.newLinkedList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static java.lang.Math.min;
 import static java.lang.String.format;
+import static java.lang.Thread.MAX_PRIORITY;
+import static java.lang.Thread.NORM_PRIORITY;
 import static java.lang.Thread.currentThread;
 import static java.nio.ByteBuffer.wrap;
 import static java.util.Collections.emptyMap;
@@ -52,7 +55,6 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -1040,6 +1042,7 @@ public class FileStore implements SegmentStore, Closeable {
                 gcListener.info("TarMK GC #{}: compaction detected concurrent commits while compacting. " +
                     "Compacting these commits. Cycle {} of {}",
                     GC_COUNT, cycles, gcOptions.getRetryCount());
+                currentThread().setPriority(min(currentThread().getPriority() + 1, MAX_PRIORITY));
                 SegmentNodeState head = getHead();
                 after = compact(bufferWriter, head, cancel);
                 if (after == null) {
@@ -1058,6 +1061,7 @@ public class FileStore implements SegmentStore, Closeable {
                 if (gcOptions.getForceAfterFail()) {
                     gcListener.info("TarMK GC #{}: compaction force compacting remaining commits", GC_COUNT);
                     cycles++;
+                    currentThread().setPriority(MAX_PRIORITY);
                     success = forceCompact(bufferWriter, cancel);
                     if (!success) {
                         gcListener.warn("TarMK GC #{}: compaction failed to force compact remaining commits. " +
@@ -1099,6 +1103,8 @@ public class FileStore implements SegmentStore, Closeable {
         } catch (Exception e) {
             gcListener.error("TarMK GC #" + GC_COUNT + ": compaction encountered an error", e);
             return false;
+        } finally {
+            currentThread().setPriority(NORM_PRIORITY);
         }
     }
 
@@ -1217,7 +1223,7 @@ public class FileStore implements SegmentStore, Closeable {
                 log.warn("The compaction background thread takes too long to shutdown");
             }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            currentThread().interrupt();
         }
 
         try {
@@ -1227,7 +1233,7 @@ public class FileStore implements SegmentStore, Closeable {
                 log.warn("The flush background thread takes too long to shutdown");
             }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            currentThread().interrupt();
         }
 
         try {
@@ -1237,7 +1243,7 @@ public class FileStore implements SegmentStore, Closeable {
                 log.warn("The disk space check background thread takes too long to shutdown");
             }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            currentThread().interrupt();
         }
 
         try {
