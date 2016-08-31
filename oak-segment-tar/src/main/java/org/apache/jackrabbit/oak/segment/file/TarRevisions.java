@@ -85,7 +85,7 @@ public class TarRevisions implements Revisions, Closeable {
     // FIXME OAK-4015: Expedite commits from the compactor
     // use a lock that can expedite important commits like compaction and checkpoints.
     @Nonnull
-    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock(true);
 
     private static class TimeOutOption implements Option {
         private final long time;
