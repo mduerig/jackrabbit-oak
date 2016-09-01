@@ -23,6 +23,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Maps.newHashMap;
 import static java.lang.System.currentTimeMillis;
+import static java.lang.System.nanoTime;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -47,6 +48,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.math3.stat.descriptive.SynchronizedDescriptiveStatistics;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -238,14 +240,28 @@ public class SegmentNodeStore implements NodeStore, Observable {
         return changeDispatcher.addObserver(observer);
     }
 
+    private final SynchronizedDescriptiveStatistics commitTimeStats = new SynchronizedDescriptiveStatistics(100);
+
+    public volatile int percentile = 0;
+
     @Override @Nonnull
     public NodeState getRoot() {
-        if (commitSemaphore.tryAcquire()) {
-            try {
-                refreshHead();
-            } finally {
-                commitSemaphore.release();
+        long delay = percentile == 0 ? 0 : (long) commitTimeStats.getPercentile(percentile);
+        double median = commitTimeStats.getPercentile(50);
+        long t0 = nanoTime();
+        try {
+            if (commitSemaphore.tryAcquire(delay, NANOSECONDS)) {
+                System.out.println("hit: " + (nanoTime() - t0) + " / " + delay + " / " + median);
+                try {
+                    refreshHead();
+                } finally {
+                    commitSemaphore.release();
+                }
+            } else{
+                System.out.println("miss: " + (nanoTime() - t0) + " / " + delay + " / " + median);
             }
+        } catch (InterruptedException e) {
+            currentThread().interrupt();
         }
         return head.get().getChildNode(ROOT);
     }
@@ -261,12 +277,14 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
         try {
             commitSemaphore.acquire();
+            long t0 = nanoTime();
             try {
                 Commit commit = new Commit(snb, commitHook, info);
                 NodeState merged = commit.execute();
                 snb.reset(merged);
                 return merged;
             } finally {
+                commitTimeStats.addValue(nanoTime() - t0);
                 commitSemaphore.release();
             }
         } catch (InterruptedException e) {
@@ -538,7 +556,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
 
             // use exponential backoff in case of concurrent commits
             for (long backoff = 1; backoff < maximumBackoff; backoff *= 2) {
-                long start = System.nanoTime();
+                long start = nanoTime();
 
                 refreshHead();
                 SegmentNodeState state = head.get();
@@ -557,7 +575,7 @@ public class SegmentNodeStore implements NodeStore, Observable {
                 // someone else was faster, so wait a while and retry later
                 Thread.sleep(backoff, random.nextInt(1000000));
 
-                long stop = System.nanoTime();
+                long stop = nanoTime();
                 if (stop - start > timeout) {
                     timeout = stop - start;
                 }

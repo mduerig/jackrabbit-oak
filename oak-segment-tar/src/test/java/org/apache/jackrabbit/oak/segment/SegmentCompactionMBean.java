@@ -27,6 +27,10 @@ import org.apache.jackrabbit.oak.segment.file.FileStore;
  */
 public interface SegmentCompactionMBean {
 
+    int getPercentile();
+
+    void setPercentile(int value);
+
     /**
      * Stop the test.
      */

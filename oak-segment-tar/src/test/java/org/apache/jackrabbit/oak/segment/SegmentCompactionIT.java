@@ -144,11 +144,11 @@ public class SegmentCompactionIT {
     private volatile ListenableFuture<?> compactor = immediateCancelledFuture();
     private volatile ReadWriteLock compactionLock = null;
     private volatile int lockWaitTime = 60;
-    private volatile int maxReaders = 10;
-    private volatile int maxWriters = 10;
+    private volatile int maxReaders = 20;
+    private volatile int maxWriters = 20;
     private volatile long maxStoreSize = 200000000000L;
-    private volatile int maxBlobSize = 1000000;
-    private volatile int maxStringSize = 10000;
+    private volatile int maxBlobSize = 100;
+    private volatile int maxStringSize = 100;
     private volatile int maxReferences = 10;
     private volatile int maxWriteOps = 10000;
     private volatile int maxNodeCount = 1000;
@@ -158,10 +158,9 @@ public class SegmentCompactionIT {
     private volatile int nodeAddRatio = 40;
     private volatile int addStringRatio = 20;
     private volatile int addBinaryRatio = 20;
-    private volatile int compactionInterval = 1;
+    private volatile int compactionInterval = 60;
     private volatile boolean stopping;
     private volatile Reference rootReference;
-    private volatile long fileStoreSize;
 
     @Rule
     public TemporaryFolder folder = new TemporaryFolder(new File("target"));
@@ -279,7 +278,6 @@ public class SegmentCompactionIT {
 
     @Test
     public void run() throws InterruptedException {
-        scheduleSizeMonitor();
         scheduleCompactor();
         addReaders(maxReaders);
         addWriters(maxWriters);
@@ -289,15 +287,6 @@ public class SegmentCompactionIT {
                 wait();
             }
         }
-    }
-
-    private void scheduleSizeMonitor() {
-        scheduler.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                fileStoreSize = fileStore.getStats().getApproximateSize();
-            }
-        }, 1, 1, MINUTES);
     }
 
     private synchronized void scheduleCompactor() {
@@ -466,7 +455,7 @@ public class SegmentCompactionIT {
             int p3 = p2 + addStringRatio;
             double p = p3 + addBinaryRatio;
 
-            boolean deleteOnly = fileStoreSize > maxStoreSize;
+            boolean deleteOnly = fileStore.getStats().getApproximateSize() > maxStoreSize;
             double k = rnd.nextDouble();
             if (k < p0/p) {
                 chooseRandomNode(nodeBuilder).remove();
@@ -747,6 +736,16 @@ public class SegmentCompactionIT {
         }
 
         @Override
+        public int getPercentile() {
+            return nodeStore.percentile;
+        }
+
+        @Override
+        public void setPercentile(int value) {
+            nodeStore.percentile = value;
+        }
+
+        @Override
         public void stop() {
             SegmentCompactionIT.this.stop();
         }
@@ -993,7 +992,7 @@ public class SegmentCompactionIT {
 
         @Override
         public long getFileStoreSize() {
-            return fileStoreSize;
+            return fileStore.getStats().getApproximateSize();
         }
 
         @Override
