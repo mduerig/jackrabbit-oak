@@ -108,6 +108,13 @@ public class TarRevisions implements Revisions, Closeable {
         }
     }
 
+    public static final Option EXPEDITE_OPTION = new Option() {
+        @Override
+        public String toString() {
+            return "Expedite Option";
+        }
+    };
+
     /**
      * Timeout option approximating no time out ({@code Long.MAX_VALUE} days).
      */
@@ -234,12 +241,15 @@ public class TarRevisions implements Revisions, Closeable {
             @Nonnull RecordId head,
             @Nonnull Option... options) {
         checkBound();
-        rwLock.readLock().lock();
+        Lock lock = expedite(options)
+            ? rwLock.writeLock()
+            : rwLock.readLock();
+        lock.lock();
         try {
             RecordId id = this.head.get();
             return id.equals(expected) && this.head.compareAndSet(id, head);
         } finally {
-            rwLock.readLock().unlock();
+            lock.unlock();
         }
     }
 
@@ -277,6 +287,16 @@ public class TarRevisions implements Revisions, Closeable {
             }
         } else {
             return false;
+        }
+    }
+
+    private static boolean expedite(Option[] options) {
+        if (options.length == 0) {
+            return false;
+        } else if (options.length == 1) {
+            return options[0] == EXPEDITE_OPTION;
+        } else {
+            throw new IllegalArgumentException("Expected zero or one options, got " + options.length);
         }
     }
 

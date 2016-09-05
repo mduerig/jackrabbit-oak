@@ -40,6 +40,7 @@ import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.segment.SegmentWriterBuilder.segmentWriterBuilder;
 import static org.apache.jackrabbit.oak.segment.file.GCListener.Status.FAILURE;
 import static org.apache.jackrabbit.oak.segment.file.GCListener.Status.SUCCESS;
+import static org.apache.jackrabbit.oak.segment.file.TarRevisions.EXPEDITE_OPTION;
 import static org.apache.jackrabbit.oak.segment.file.TarRevisions.timeout;
 
 import java.io.Closeable;
@@ -52,7 +53,6 @@ import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -1032,7 +1032,7 @@ public class FileStore implements SegmentStore, Closeable {
             int cycles = 0;
             boolean success = false;
             while (cycles < gcOptions.getRetryCount() &&
-                    !(success = revisions.setHead(before.getRecordId(), after.getRecordId()))) {
+                    !(success = revisions.setHead(before.getRecordId(), after.getRecordId(), EXPEDITE_OPTION))) {
                 // Some other concurrent changes have been made.
                 // Rebase (and compact) those changes on top of the
                 // compacted state before retrying to set the head.
