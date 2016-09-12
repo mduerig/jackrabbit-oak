@@ -143,7 +143,7 @@ public class SegmentCompactionIT {
 
     private volatile ListenableFuture<?> compactor = immediateCancelledFuture();
     private volatile ReadWriteLock compactionLock = null;
-    private volatile int lockWaitTime = 60;
+    private volatile int forceTimeout = 60;
     private volatile int maxReaders = 10;
     private volatile int maxWriters = 10;
     private volatile long maxStoreSize = 200000000000L;
@@ -222,7 +222,7 @@ public class SegmentCompactionIT {
     public void setUp() throws Exception {
         assumeTrue(ENABLED);
 
-        SegmentGCOptions gcOptions = defaultGCOptions().setLockWaitTime(lockWaitTime);
+        SegmentGCOptions gcOptions = defaultGCOptions().setForceTimeout(forceTimeout);
         ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
         fileStore = fileStoreBuilder(folder.getRoot())
                 .withMemoryMapping(true)
@@ -795,12 +795,12 @@ public class SegmentCompactionIT {
 
         @Override
         public void setLockWaitTime(int seconds) {
-            lockWaitTime = seconds;
+            forceTimeout = seconds;
         }
 
         @Override
         public int getLockWaitTime() {
-            return lockWaitTime;
+            return forceTimeout;
         }
 
         @Override
