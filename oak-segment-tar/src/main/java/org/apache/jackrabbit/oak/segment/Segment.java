@@ -452,7 +452,7 @@ public class Segment {
     }
 
     private static int asUnsigned(short value) {
-        return (value & 0xff00) | value & 0xff;
+        return value & 0xffff;
     }
 
     private SegmentId dereferenceSegmentId(int reference) {
