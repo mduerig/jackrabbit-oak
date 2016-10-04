@@ -664,7 +664,7 @@ public class SegmentCompactionIT {
                         @Override
                         public Void call() throws Exception {
                             gcMonitor.resetCleaned();
-                            fileStore.maybeCompact(true);
+                            fileStore.gc();
                             return null;
                         }
                     });
