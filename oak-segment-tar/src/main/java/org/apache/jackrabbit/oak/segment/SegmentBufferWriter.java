@@ -285,7 +285,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     private static short toShort(int value) {
-        return (short) (value & 0xffff);
+        return (short) value;
     }
 
     private int writeSegmentIdReference(SegmentId id) {
