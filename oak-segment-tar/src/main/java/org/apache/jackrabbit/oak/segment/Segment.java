@@ -259,14 +259,25 @@ public class Segment {
 
         final int referencedSegmentIdCount = getReferencedSegmentIdCount();
         final int refOffset = data.position() + HEADER_SIZE;
+        final SegmentId[] refIds = new SegmentId[referencedSegmentIdCount];
         return new SegmentReferences() {
             @Override
             public SegmentId getSegmentId(int reference) {
                 checkArgument(reference <= referencedSegmentIdCount);
-                int position = refOffset + (reference - 1) * 16;
-                long msb = data.getLong(position);
-                long lsb = data.getLong(position + 8);
-                return store.newSegmentId(msb, lsb);
+                SegmentId id = refIds[reference - 1];
+                if (id == null) {
+                    synchronized(refIds) {
+                        id = refIds[reference - 1];
+                        if (id == null) {
+                            int position = refOffset + (reference - 1) * SEGMENT_REFERENCE_SIZE;
+                            long msb = data.getLong(position);
+                            long lsb = data.getLong(position + 8);
+                            id = store.newSegmentId(msb, lsb);
+                            refIds[reference - 1] = id;
+                        }
+                    }
+                }
+                return id;
             }
 
             @Override
