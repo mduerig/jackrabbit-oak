@@ -18,10 +18,11 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.collect.Lists.newArrayListWithCapacity;
+import static com.google.common.base.Suppliers.memoize;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static org.apache.jackrabbit.oak.commons.IOUtils.closeQuietly;
 import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
@@ -37,7 +38,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
@@ -45,6 +46,9 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
+import com.google.common.collect.AbstractIterator;
 import org.apache.commons.io.HexDump;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -156,7 +160,7 @@ public class Segment {
     /**
      * The table translating record numbers to offsets.
      */
-    private final RecordNumbers recordNumbers;
+    private final Supplier<RecordNumbers> recordNumbers;
 
     /**
      * The table translating references to segment IDs.
@@ -197,11 +201,16 @@ public class Segment {
                     }
             });
             this.version = SegmentVersion.fromByte(segmentVersion);
-            this.recordNumbers = readRecordNumberOffsets();
+            this.recordNumbers = memoize(new Supplier<RecordNumbers>() {
+                @Override
+                public RecordNumbers get() {
+                    return readRecordNumberOffsets();
+                }
+            });
             this.segmentReferences = readReferencedSegments();
         } else {
             this.version = LATEST_VERSION;
-            this.recordNumbers = new IdentityRecordNumbers();
+            this.recordNumbers = Suppliers.ofInstance((RecordNumbers) new IdentityRecordNumbers());
             this.segmentReferences = new IllegalSegmentReferences();
         }
     }
@@ -248,21 +257,33 @@ public class Segment {
         checkState(getReferencedSegmentIdCount() + 1 < 0xffff,
                 "Segment cannot have more than 0xffff references");
 
-        List<SegmentId> referencedSegments = newArrayListWithCapacity(getReferencedSegmentIdCount());
+        final int referencedSegmentIdCount = getReferencedSegmentIdCount();
+        final int refOffset = data.position() + HEADER_SIZE;
+        return new SegmentReferences() {
+            @Override
+            public SegmentId getSegmentId(int reference) {
+                checkArgument(reference <= referencedSegmentIdCount);
+                int position = refOffset + (reference - 1) * 16;
+                long msb = data.getLong(position);
+                long lsb = data.getLong(position + 8);
+                return store.newSegmentId(msb, lsb);
+            }
 
-        int position = data.position();
-
-        position += HEADER_SIZE;
-
-        for (int i = 0; i < getReferencedSegmentIdCount(); i++) {
-            long msb = data.getLong(position);
-            position += 8;
-            long lsb = data.getLong(position);
-            position += 8;
-            referencedSegments.add(store.newSegmentId(msb, lsb));
-        }
-
-        return new ImmutableSegmentReferences(referencedSegments);
+            @Override
+            public Iterator<SegmentId> iterator() {
+                return new AbstractIterator<SegmentId>() {
+                    private int reference = 1;
+                    @Override
+                    protected SegmentId computeNext() {
+                        if (reference <= referencedSegmentIdCount) {
+                            return getSegmentId(reference++);
+                        } else {
+                            return endOfData();
+                        }
+                    }
+                };
+            }
+        };
     }
 
     Segment(@Nonnull SegmentStore store,
@@ -278,7 +299,7 @@ public class Segment {
         this.info = checkNotNull(info);
         this.data = ByteBuffer.wrap(checkNotNull(buffer));
         this.version = SegmentVersion.fromByte(buffer[3]);
-        this.recordNumbers = recordNumbers;
+        this.recordNumbers = Suppliers.ofInstance(recordNumbers);
         this.segmentReferences = segmentReferences;
         id.loaded(this);
     }
@@ -308,7 +329,7 @@ public class Segment {
      * @return position within the data array
      */
     private int pos(int recordNumber, int rawOffset, int recordIdOffset, int length) {
-        int offset = recordNumbers.getOffset(recordNumber);
+        int offset = recordNumbers.get().getOffset(recordNumber);
 
         if (offset == -1) {
             throw new IllegalStateException("invalid record number");
@@ -380,7 +401,7 @@ public class Segment {
     @CheckForNull
     public String getSegmentInfo() {
         if (info == null && id.isDataSegmentId()) {
-            info = readString(recordNumbers.iterator().next().getRecordNumber());
+            info = readString(recordNumbers.get().iterator().next().getRecordNumber());
         }
         return info;
     }
@@ -609,7 +630,7 @@ public class Segment {
                     writer.format("reference %02x: %s%n", i++, segmentId);
                 }
 
-                for (Entry entry : recordNumbers) {
+                for (Entry entry : recordNumbers.get()) {
                     writer.format("%10s record %08x: %08x%n",
                             entry.getType(), entry.getRecordNumber(), entry.getOffset());
                 }
@@ -680,7 +701,7 @@ public class Segment {
      * @param consumer an instance of {@link RecordConsumer}.
      */
     public void forEachRecord(RecordConsumer consumer) {
-        for (Entry entry : recordNumbers) {
+        for (Entry entry : recordNumbers.get()) {
             consumer.consume(entry.getRecordNumber(), entry.getType(), entry.getOffset());
         }
     }
