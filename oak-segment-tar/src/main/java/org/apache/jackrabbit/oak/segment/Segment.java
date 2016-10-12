@@ -23,7 +23,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Suppliers.memoize;
-import static com.google.common.collect.Maps.newLinkedHashMap;
 import static org.apache.jackrabbit.oak.commons.IOUtils.closeQuietly;
 import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
@@ -39,7 +38,6 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.CheckForNull;
@@ -233,24 +231,57 @@ public class Segment {
      * @return An instance of {@link RecordNumbers}, never {@code null}.
      */
     private RecordNumbers readRecordNumberOffsets() {
-        Map<Integer, RecordEntry> recordNumberOffsets = newLinkedHashMap();
+        int position = data.position() + HEADER_SIZE + getReferencedSegmentIdCount() * SEGMENT_REFERENCE_SIZE;
+        final int recordNumberCount = getRecordNumberCount();
 
-        int position = data.position();
-
-        position += HEADER_SIZE;
-        position += getReferencedSegmentIdCount() * SEGMENT_REFERENCE_SIZE;
-
-        for (int i = 0; i < getRecordNumberCount(); i++) {
+        final RecordType[] types = new RecordType[recordNumberCount];
+        final int[] offsets = new int[recordNumberCount];
+        for (int i = 0; i < recordNumberCount; i++) {
             int recordNumber = data.getInt(position);
             position += 4;
-            int type = data.get(position);
+            types[recordNumber] = RecordType.values()[(int) data.get(position)];
             position += 1;
-            int offset = data.getInt(position);
+            offsets[recordNumber] = data.getInt(position);
             position += 4;
-            recordNumberOffsets.put(recordNumber, new RecordEntry(RecordType.values()[type], offset));
         }
 
-        return new ImmutableRecordNumbers(recordNumberOffsets);
+        return new RecordNumbers() {
+            @Override
+            public int getOffset(int recordNumber) {
+                return offsets[recordNumber];
+            }
+
+            @Override
+            public Iterator<Entry> iterator() {
+                return new AbstractIterator<Entry>() {
+                    private int recordNumber = -1;
+
+                    @Override
+                    protected Entry computeNext() {
+                        if (++recordNumber < recordNumberCount) {
+                            return new Entry() {
+                                @Override
+                                public int getRecordNumber() {
+                                    return recordNumber;
+                                }
+
+                                @Override
+                                public int getOffset() {
+                                    return offsets[recordNumber];
+                                }
+
+                                @Override
+                                public RecordType getType() {
+                                    return types[recordNumber];
+                                }
+                            };
+                        } else {
+                            return endOfData();
+                        }
+                    }
+                };
+            }
+        };
     }
 
     private SegmentReferences readReferencedSegments() {
