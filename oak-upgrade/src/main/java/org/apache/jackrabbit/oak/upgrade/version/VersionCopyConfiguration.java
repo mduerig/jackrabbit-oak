@@ -64,8 +64,4 @@ public class VersionCopyConfiguration {
         return copyVersions == null || copyOrphanedVersions == null;
     }
 
-    public boolean isCopyAll() {
-        return copyVersions != null && copyVersions.getTimeInMillis() == 0 && copyOrphanedVersions != null && copyOrphanedVersions.getTimeInMillis() == 0;
-    }
-
 }

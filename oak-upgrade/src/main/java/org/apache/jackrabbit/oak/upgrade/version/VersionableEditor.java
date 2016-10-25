@@ -16,23 +16,6 @@
  */
 package org.apache.jackrabbit.oak.upgrade.version;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
-import org.apache.jackrabbit.oak.api.Type;
-import org.apache.jackrabbit.oak.commons.PathUtils;
-import org.apache.jackrabbit.oak.plugins.nodetype.TypePredicate;
-import org.apache.jackrabbit.oak.plugins.version.ReadWriteVersionManager;
-import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
-import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
-import org.apache.jackrabbit.oak.spi.commit.Editor;
-import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
-import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
-import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.Collections;
-import java.util.Set;
-
 import static com.google.common.collect.ImmutableSet.of;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.apache.jackrabbit.JcrConstants.JCR_BASEVERSION;
@@ -47,6 +30,23 @@ import static org.apache.jackrabbit.oak.plugins.memory.MultiGenericPropertyState
 import static org.apache.jackrabbit.oak.plugins.version.VersionConstants.MIX_REP_VERSIONABLE_PATHS;
 import static org.apache.jackrabbit.oak.upgrade.version.VersionHistoryUtil.getVersionHistoryNodeState;
 import static org.apache.jackrabbit.oak.upgrade.version.VersionHistoryUtil.getVersionStorage;
+
+import java.util.Collections;
+import java.util.Set;
+
+import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.commons.PathUtils;
+import org.apache.jackrabbit.oak.plugins.nodetype.TypePredicate;
+import org.apache.jackrabbit.oak.plugins.version.ReadWriteVersionManager;
+import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
+import org.apache.jackrabbit.oak.spi.commit.DefaultEditor;
+import org.apache.jackrabbit.oak.spi.commit.Editor;
+import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The VersionableEditor provides two possible ways to handle
@@ -163,9 +163,7 @@ public class VersionableEditor extends DefaultEditor {
 
     private void setVersionablePath(String versionableUuid) {
         final NodeBuilder versionHistory = VersionHistoryUtil.getVersionHistoryBuilder(versionStorage, versionableUuid);
-        if (!versionHistory.hasProperty(provider.workspaceName)) {
-            versionHistory.setProperty(provider.workspaceName, path, Type.PATH);
-        }
+        versionHistory.setProperty(provider.workspaceName, path, Type.PATH);
         addMixin(versionHistory, MIX_REP_VERSIONABLE_PATHS);
     }
 

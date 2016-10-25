@@ -16,6 +16,24 @@
  */
 package org.apache.jackrabbit.oak.upgrade;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.ImmutableSet.copyOf;
+import static com.google.common.collect.ImmutableSet.of;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Lists.transform;
+import static com.google.common.collect.Sets.union;
+import static java.util.Collections.sort;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.DEFAULT_EXCLUDE_PATHS;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.DEFAULT_INCLUDE_PATHS;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.DEFAULT_MERGE_PATHS;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.calculateEffectiveIncludePaths;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.createIndexEditorProvider;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.createTypeEditorProvider;
+import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.markIndexesToBeRebuilt;
+import static org.apache.jackrabbit.oak.upgrade.nodestate.NodeStateCopier.copyProperties;
+import static org.apache.jackrabbit.oak.upgrade.version.VersionCopier.copyVersionStorage;
+import static org.apache.jackrabbit.oak.upgrade.version.VersionHistoryUtil.getVersionStorage;
+
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
@@ -27,7 +45,7 @@ import javax.annotation.Nullable;
 import javax.jcr.RepositoryException;
 
 import com.google.common.base.Function;
-import org.apache.commons.lang.StringUtils;
+import org.apache.jackrabbit.oak.Oak;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
@@ -42,35 +60,13 @@ import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.LoggingCompositeHook;
 import org.apache.jackrabbit.oak.upgrade.cli.node.TarNodeStore;
 import org.apache.jackrabbit.oak.upgrade.nodestate.NameFilteringNodeState;
+import org.apache.jackrabbit.oak.upgrade.nodestate.NodeStateCopier;
 import org.apache.jackrabbit.oak.upgrade.nodestate.report.LoggingReporter;
 import org.apache.jackrabbit.oak.upgrade.nodestate.report.ReportingNodeState;
-import org.apache.jackrabbit.oak.upgrade.nodestate.NodeStateCopier;
 import org.apache.jackrabbit.oak.upgrade.version.VersionCopyConfiguration;
 import org.apache.jackrabbit.oak.upgrade.version.VersionableEditor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.collect.ImmutableSet.copyOf;
-import static com.google.common.collect.ImmutableSet.of;
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Lists.transform;
-import static com.google.common.collect.Sets.union;
-import static java.util.Collections.sort;
-import static org.apache.jackrabbit.JcrConstants.JCR_PRIMARYTYPE;
-import static org.apache.jackrabbit.JcrConstants.JCR_SYSTEM;
-import static org.apache.jackrabbit.oak.spi.security.authorization.permission.PermissionConstants.NT_REP_PERMISSION_STORE;
-import static org.apache.jackrabbit.oak.spi.security.authorization.permission.PermissionConstants.REP_PERMISSION_STORE;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.DEFAULT_EXCLUDE_PATHS;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.DEFAULT_INCLUDE_PATHS;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.DEFAULT_MERGE_PATHS;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.calculateEffectiveIncludePaths;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.createIndexEditorProvider;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.createTypeEditorProvider;
-import static org.apache.jackrabbit.oak.upgrade.RepositoryUpgrade.markIndexesToBeRebuilt;
-import static org.apache.jackrabbit.oak.upgrade.nodestate.NodeStateCopier.copyProperties;
-import static org.apache.jackrabbit.oak.upgrade.version.VersionCopier.copyVersionStorage;
-import static org.apache.jackrabbit.oak.upgrade.version.VersionHistoryUtil.getVersionStorage;
 
 public class RepositorySidegrade {
 
@@ -286,7 +282,7 @@ public class RepositorySidegrade {
         builder.setChildNode(":async");
     }
 
-    private void copyState(NodeState sourceRoot, NodeBuilder targetRoot) throws CommitFailedException, RepositoryException {
+    private void copyState(NodeState sourceRoot, NodeBuilder targetRoot) throws CommitFailedException {
         copyWorkspace(sourceRoot, targetRoot);
 
         if (includeIndex) {
@@ -305,13 +301,13 @@ public class RepositorySidegrade {
             removeCheckpointReferences(targetRoot);
         }
 
-        final List<CommitHook> hooks = new ArrayList<CommitHook>();
-        if (!versionCopyConfiguration.isCopyAll()) {
-            if (!versionCopyConfiguration.skipOrphanedVersionsCopy()) {
-                copyVersionStorage(targetRoot, getVersionStorage(sourceRoot), getVersionStorage(targetRoot), versionCopyConfiguration);
-            }
-            hooks.add(new EditorHook(new VersionableEditor.Provider(sourceRoot, getWorkspaceName(), versionCopyConfiguration)));
+        if (!versionCopyConfiguration.skipOrphanedVersionsCopy()) {
+            copyVersionStorage(targetRoot, getVersionStorage(sourceRoot), getVersionStorage(targetRoot), versionCopyConfiguration);
         }
+
+        final List<CommitHook> hooks = new ArrayList<CommitHook>();
+        hooks.add(new EditorHook(
+                new VersionableEditor.Provider(sourceRoot, Oak.DEFAULT_WORKSPACE_NAME, versionCopyConfiguration)));
 
         if (customCommitHooks != null) {
             hooks.addAll(customCommitHooks);
@@ -335,12 +331,7 @@ public class RepositorySidegrade {
 
     private void copyWorkspace(NodeState sourceRoot, NodeBuilder targetRoot) {
         final Set<String> includes = calculateEffectiveIncludePaths(includePaths, sourceRoot);
-        final Set<String> excludes;
-        if (versionCopyConfiguration.isCopyAll()) {
-            excludes = copyOf(this.excludePaths);
-        } else {
-            excludes = union(copyOf(this.excludePaths), of("/jcr:system/jcr:versionStorage"));
-        }
+        final Set<String> excludes = union(copyOf(this.excludePaths), of("/jcr:system/jcr:versionStorage"));
         final Set<String> merges = union(copyOf(this.mergePaths), of("/jcr:system"));
 
         NodeStateCopier.builder()
@@ -429,41 +420,6 @@ public class RepositorySidegrade {
 
     private static NodeBuilder getCheckpoint(NodeBuilder superRoot, String name) {
         return superRoot.child("checkpoints").child(name);
-    }
-
-    private String getWorkspaceName() throws RepositoryException {
-        String definedName = System.getProperty(WORKSPACE_NAME_PROP);
-        String detectedName = deriveWorkspaceName();
-        if (StringUtils.isNotBlank(definedName)) {
-            return definedName;
-        } else if (StringUtils.isNotBlank(detectedName)) {
-            return detectedName;
-        } else {
-            throw new RepositoryException("Can't detect the workspace name. Please use the system property " + WORKSPACE_NAME_PROP + " to set it manually.");
-        }
-    }
-
-    /**
-     * This method tries to derive the workspace name from the source repository. It uses the
-     * fact that the /jcr:system/rep:permissionStore usually contains just one child
-     * named after the workspace.
-     *
-     * @return the workspace name or null if it can't be derived
-     */
-    private String deriveWorkspaceName() {
-        NodeState permissionStore = source.getRoot().getChildNode(JCR_SYSTEM).getChildNode(REP_PERMISSION_STORE);
-        List<String> nameCandidates = new ArrayList<String>();
-        for (ChildNodeEntry e : permissionStore.getChildNodeEntries()) {
-            String primaryType = e.getNodeState().getName(JCR_PRIMARYTYPE);
-            if (NT_REP_PERMISSION_STORE.equals(primaryType)) {
-                nameCandidates.add(e.getName());
-            }
-        }
-        if (nameCandidates.size() == 1) {
-            return nameCandidates.get(0);
-        } else {
-            return null;
-        }
     }
 
     private void verify() {
