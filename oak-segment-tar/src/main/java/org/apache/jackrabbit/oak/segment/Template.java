@@ -28,6 +28,7 @@ import static org.apache.jackrabbit.oak.segment.CacheWeights.OBJECT_HEADER_SIZE;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.annotation.CheckForNull;
@@ -135,15 +136,23 @@ public class Template {
                 templates.toArray(new PropertyTemplate[templates.size()]);
         Arrays.sort(properties);
 
-        long count = state.getChildNodeCount(2);
-        if (count == 0) {
-            childName = ZERO_CHILD_NODES;
-        } else if (count == 1) {
-            childName = state.getChildNodeNames().iterator().next();
-            checkState(childName != null && !childName.equals(MANY_CHILD_NODES));
-        } else {
-            childName = MANY_CHILD_NODES;
+        childName = childName(state);
+    }
+
+    @Nullable
+    private static String childName(@Nonnull NodeState state) {
+        Iterator<String> childNames = state.getChildNodeNames().iterator();
+        if (!childNames.hasNext()) {
+            return ZERO_CHILD_NODES;
         }
+
+        String childName = childNames.next();
+        if (childNames.hasNext()) {
+            return MANY_CHILD_NODES;
+        }
+
+        checkState(childName != null && !childName.equals(MANY_CHILD_NODES));
+        return childName;
     }
 
     @CheckForNull
