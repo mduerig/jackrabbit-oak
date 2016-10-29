@@ -400,16 +400,17 @@ public class SegmentNodeStoreService extends ProxyNodeStore
             return false;
         }
 
+        // michid replace
         // Expose stats about the segment cache
-
-        CacheStatsMBean segmentCacheStats = store.getSegmentCacheStats();
-        registrations.add(registerMBean(
-                whiteboard,
-                CacheStatsMBean.class,
-                segmentCacheStats,
-                CacheStats.TYPE,
-                segmentCacheStats.getName()
-        ));
+//
+//        CacheStatsMBean segmentCacheStats = store.getSegmentCacheStats();
+//        registrations.add(registerMBean(
+//                whiteboard,
+//                CacheStatsMBean.class,
+//                segmentCacheStats,
+//                CacheStats.TYPE,
+//                segmentCacheStats.getName()
+//        ));
 
         // Expose stats about the string and template caches
 

@@ -23,7 +23,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.jackrabbit.oak.segment.CachingSegmentReader.DEFAULT_STRING_CACHE_MB;
 import static org.apache.jackrabbit.oak.segment.CachingSegmentReader.DEFAULT_TEMPLATE_CACHE_MB;
-import static org.apache.jackrabbit.oak.segment.SegmentCache.DEFAULT_SEGMENT_CACHE_MB;
 import static org.apache.jackrabbit.oak.segment.WriterCacheManager.DEFAULT_NODE_CACHE_SIZE;
 import static org.apache.jackrabbit.oak.segment.WriterCacheManager.DEFAULT_STRING_CACHE_SIZE;
 import static org.apache.jackrabbit.oak.segment.WriterCacheManager.DEFAULT_TEMPLATE_CACHE_SIZE;
@@ -65,7 +64,7 @@ public class FileStoreBuilder {
 
     private int maxFileSize = 256;
 
-    private int segmentCacheSize = DEFAULT_SEGMENT_CACHE_MB;
+// michid     private int segmentCacheSize = DEFAULT_SEGMENT_CACHE_MB;
 
     private int stringCacheSize = DEFAULT_STRING_CACHE_MB;
 
@@ -148,7 +147,7 @@ public class FileStoreBuilder {
      */
     @Nonnull
     public FileStoreBuilder withSegmentCacheSize(int segmentCacheSize) {
-        this.segmentCacheSize = segmentCacheSize;
+// michid         this.segmentCacheSize = segmentCacheSize;
         return this;
     }
 
@@ -329,9 +328,10 @@ public class FileStoreBuilder {
         return maxFileSize;
     }
 
-    int getSegmentCacheSize() {
-        return segmentCacheSize;
-    }
+    // michid remove / update
+//    int getSegmentCacheSize() {
+//        return segmentCacheSize;
+//    }
 
     int getStringCacheSize() {
         return stringCacheSize;
@@ -375,7 +375,7 @@ public class FileStoreBuilder {
                 "directory=" + directory +
                 ", blobStore=" + blobStore +
                 ", maxFileSize=" + maxFileSize +
-                ", segmentCacheSize=" + segmentCacheSize +
+// michid                 ", segmentCacheSize=" + segmentCacheSize +
                 ", stringCacheSize=" + stringCacheSize +
                 ", templateCacheSize=" + templateCacheSize +
                 ", stringDeduplicationCacheSize=" + stringDeduplicationCacheSize +

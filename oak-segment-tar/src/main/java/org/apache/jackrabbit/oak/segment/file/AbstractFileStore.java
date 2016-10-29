@@ -37,6 +37,7 @@ import java.util.regex.Pattern;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
 import org.apache.jackrabbit.oak.segment.CachingSegmentReader;
 import org.apache.jackrabbit.oak.segment.RecordType;
@@ -44,7 +45,6 @@ import org.apache.jackrabbit.oak.segment.Revisions;
 import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.Segment.RecordConsumer;
 import org.apache.jackrabbit.oak.segment.SegmentBlob;
-import org.apache.jackrabbit.oak.segment.SegmentCache;
 import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentIdFactory;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
@@ -55,8 +55,6 @@ import org.apache.jackrabbit.oak.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Supplier;
 
 /**
  * The storage implementation for tar files.
@@ -97,9 +95,6 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
 
     final boolean memoryMapping;
 
-    @Nonnull
-    final SegmentCache segmentCache;
-
     final TarRecovery recovery = new TarRecovery() {
 
         @Override
@@ -124,7 +119,6 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         this.directory = builder.getDirectory();
         this.tracker = new SegmentTracker();
         this.blobStore = builder.getBlobStore();
-        this.segmentCache = new SegmentCache(builder.getSegmentCacheSize());
         this.segmentReader = new CachingSegmentReader(new Supplier<SegmentWriter>() {
             @Override
             public SegmentWriter get() {
@@ -172,11 +166,6 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         }
 
         return manifest;
-    }
-
-    @Nonnull
-    public CacheStatsMBean getSegmentCacheStats() {
-        return segmentCache.getCacheStats();
     }
 
     @Nonnull

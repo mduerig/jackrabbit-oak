@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -527,75 +526,64 @@ public class FileStore extends AbstractFileStore {
     @Override
     @Nonnull
     public Segment readSegment(final SegmentId id) {
-        try {
-            return segmentCache.getSegment(id, new Callable<Segment>() {
-                @Override
-                public Segment call() throws Exception {
-                    long msb = id.getMostSignificantBits();
-                    long lsb = id.getLeastSignificantBits();
+        long msb = id.getMostSignificantBits();
+        long lsb = id.getLeastSignificantBits();
 
-                    for (TarReader reader : readers) {
-                        try {
-                            if (reader.isClosed()) {
-                                // Cleanup might already have closed the file.
-                                // The segment should be available from another file.
-                                log.debug("Skipping closed tar file {}", reader);
-                                continue;
-                            }
-
-                            ByteBuffer buffer = reader.readEntry(msb, lsb);
-                            if (buffer != null) {
-                                return new Segment(FileStore.this, segmentReader, id, buffer);
-                            }
-                        } catch (IOException e) {
-                            log.warn("Failed to read from tar file {}", reader, e);
-                        }
-                    }
-
-                    if (tarWriter != null) {
-                        fileStoreLock.readLock().lock();
-                        try {
-                            try {
-                                ByteBuffer buffer = tarWriter.readEntry(msb, lsb);
-                                if (buffer != null) {
-                                    return new Segment(FileStore.this, segmentReader, id, buffer);
-                                }
-                            } catch (IOException e) {
-                                log.warn("Failed to read from tar file {}", tarWriter, e);
-                            }
-                        } finally {
-                            fileStoreLock.readLock().unlock();
-                        }
-                    }
-
-                    // the writer might have switched to a new file,
-                    // so we need to re-check the readers
-                    for (TarReader reader : readers) {
-                        try {
-                            if (reader.isClosed()) {
-                                // Cleanup might already have closed the file.
-                                // The segment should be available from another file.
-                                log.info("Skipping closed tar file {}", reader);
-                                continue;
-                            }
-
-                            ByteBuffer buffer = reader.readEntry(msb, lsb);
-                            if (buffer != null) {
-                                return new Segment(FileStore.this, segmentReader, id, buffer);
-                            }
-                        } catch (IOException e) {
-                            log.warn("Failed to read from tar file {}", reader, e);
-                        }
-                    }
-
-                    throw new SegmentNotFoundException(id);
+        for (TarReader reader : readers) {
+            try {
+                if (reader.isClosed()) {
+                    // Cleanup might already have closed the file.
+                    // The segment should be available from another file.
+                    log.debug("Skipping closed tar file {}", reader);
+                    continue;
                 }
-            });
-        } catch (ExecutionException e) {
-            throw e.getCause() instanceof SegmentNotFoundException
-                ? (SegmentNotFoundException) e.getCause()
-                : new SegmentNotFoundException(id, e);
+
+                ByteBuffer buffer = reader.readEntry(msb, lsb);
+                if (buffer != null) {
+                    return new Segment(FileStore.this, segmentReader, id, buffer);
+                }
+            } catch (IOException e) {
+                log.warn("Failed to read from tar file {}", reader, e);
+            }
         }
+
+        if (tarWriter != null) {
+            fileStoreLock.readLock().lock();
+            try {
+                try {
+                    ByteBuffer buffer = tarWriter.readEntry(msb, lsb);
+                    if (buffer != null) {
+                        return new Segment(FileStore.this, segmentReader, id, buffer);
+                    }
+                } catch (IOException e) {
+                    log.warn("Failed to read from tar file {}", tarWriter, e);
+                }
+            } finally {
+                fileStoreLock.readLock().unlock();
+            }
+        }
+
+        // the writer might have switched to a new file,
+        // so we need to re-check the readers
+        for (TarReader reader : readers) {
+            try {
+                if (reader.isClosed()) {
+                    // Cleanup might already have closed the file.
+                    // The segment should be available from another file.
+                    log.info("Skipping closed tar file {}", reader);
+                    continue;
+                }
+
+                ByteBuffer buffer = reader.readEntry(msb, lsb);
+                if (buffer != null) {
+                    return new Segment(FileStore.this, segmentReader, id, buffer);
+                }
+            } catch (IOException e) {
+                log.warn("Failed to read from tar file {}", reader, e);
+            }
+        }
+
+        throw new SegmentNotFoundException(id);
     }
 
     @Override
@@ -652,11 +640,11 @@ public class FileStore extends AbstractFileStore {
             fileStoreLock.writeLock().unlock();
         }
 
+        // michid move / remove
         // Keep this data segment in memory as it's likely to be accessed soon.
-
-        if (segment != null) {
-            segmentCache.putSegment(segment);
-        }
+//        if (segment != null) {
+//            segmentCache.putSegment(segment);
+//        }
     }
 
     /**
@@ -1036,7 +1024,7 @@ public class FileStore extends AbstractFileStore {
                 gcListener.info("TarMK GC #{}: cleanup started.", GC_COUNT);
 
                 newWriter();
-                segmentCache.clear();
+                // michid move segmentCache.clear();
 
                 // Suggest to the JVM that now would be a good time
                 // to clear stale weak references in the SegmentTracker

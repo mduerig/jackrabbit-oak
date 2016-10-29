@@ -236,9 +236,10 @@ public class SegmentCompactionIT {
                 new ObjectName("IT:TYPE=Segment Compaction")));
         registrations.add(registerMBean(new SegmentRevisionGCMBean(fileStore, gcOptions, fileStoreGCMonitor),
                 new ObjectName("IT:TYPE=Segment Revision GC")));
-        CacheStatsMBean segmentCacheStats = fileStore.getSegmentCacheStats();
-        registrations.add(registerMBean(segmentCacheStats,
-                new ObjectName("IT:TYPE=" + segmentCacheStats.getName())));
+// michid replace
+//        CacheStatsMBean segmentCacheStats = fileStore.getSegmentCacheStats();
+//        registrations.add(registerMBean(segmentCacheStats,
+//                new ObjectName("IT:TYPE=" + segmentCacheStats.getName())));
         CacheStatsMBean stringCacheStats = fileStore.getStringCacheStats();
         registrations.add(registerMBean(stringCacheStats,
                 new ObjectName("IT:TYPE=" + stringCacheStats.getName())));

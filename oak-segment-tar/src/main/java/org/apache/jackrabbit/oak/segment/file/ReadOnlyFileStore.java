@@ -35,8 +35,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 
 import javax.annotation.Nonnull;
 
@@ -173,31 +171,20 @@ public class ReadOnlyFileStore extends AbstractFileStore {
     @Override
     @Nonnull
     public Segment readSegment(final SegmentId id) {
-        try {
-            return segmentCache.getSegment(id, new Callable<Segment>() {
-                @Override
-                public Segment call() throws Exception {
-                    long msb = id.getMostSignificantBits();
-                    long lsb = id.getLeastSignificantBits();
+        long msb = id.getMostSignificantBits();
+        long lsb = id.getLeastSignificantBits();
 
-                    for (TarReader reader : readers) {
-                        try {
-                            ByteBuffer buffer = reader.readEntry(msb, lsb);
-                            if (buffer != null) {
-                                return new Segment(ReadOnlyFileStore.this, segmentReader, id, buffer);
-                            }
-                        } catch (IOException e) {
-                            log.warn("Failed to read from tar file {}", reader, e);
-                        }
-                    }
-                    throw new SegmentNotFoundException(id);
+        for (TarReader reader : readers) {
+            try {
+                ByteBuffer buffer = reader.readEntry(msb, lsb);
+                if (buffer != null) {
+                    return new Segment(ReadOnlyFileStore.this, segmentReader, id, buffer);
                 }
-            });
-        } catch (ExecutionException e) {
-            throw e.getCause() instanceof SegmentNotFoundException
-                ? (SegmentNotFoundException) e.getCause()
-                : new SegmentNotFoundException(id, e);
+            } catch (IOException e) {
+                log.warn("Failed to read from tar file {}", reader, e);
+            }
         }
+        throw new SegmentNotFoundException(id);
     }
 
     @Override
