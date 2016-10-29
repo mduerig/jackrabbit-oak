@@ -57,7 +57,7 @@ public class SegmentId implements Comparable<SegmentId> {
     /**
      * The gc generation of this segment or -1 if unknown.
      */
-    private int gcGeneration = -1;
+    private volatile int gcGeneration = -1;
 
     /**
      * The gc info of this segment if it has been reclaimed or {@code null} otherwise.
@@ -210,9 +210,10 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     public int getGcGeneration() {
         if (gcGeneration < 0) {
-            getSegment();
+            return getSegment().getGcGeneration();
+        } else {
+            return gcGeneration;
         }
-        return gcGeneration;
     }
 
     // --------------------------------------------------------< Comparable >--
