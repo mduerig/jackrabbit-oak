@@ -640,11 +640,10 @@ public class FileStore extends AbstractFileStore {
             fileStoreLock.writeLock().unlock();
         }
 
-        // michid move / remove
         // Keep this data segment in memory as it's likely to be accessed soon.
-//        if (segment != null) {
-//            segmentCache.putSegment(segment);
-//        }
+        if (segment != null) {
+            id.loaded(segment, true);
+        }
     }
 
     /**

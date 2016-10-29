@@ -18,7 +18,11 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
+import static com.google.common.collect.Queues.newConcurrentLinkedQueue;
+
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -47,6 +51,11 @@ public class SegmentId implements Comparable<SegmentId> {
 
     @Nonnull
     private final SegmentStore store;
+
+    private final static SegmentCache CACHE = new SegmentCache(256000000);  // michid inject, don't hc
+
+    @Nonnull
+    private final SegmentCache segmentCache = CACHE;
 
     private final long msb;
 
@@ -104,12 +113,48 @@ public class SegmentId implements Comparable<SegmentId> {
         return lsb;
     }
 
+    private static class SegmentCache {
+        // michid don't cache binaries
+        private final int cacheSize;
+        private final ConcurrentLinkedQueue<Segment> segments = newConcurrentLinkedQueue();
+        private final AtomicLong currentSize = new AtomicLong();
+
+        private SegmentCache(int cacheSize) {this.cacheSize = cacheSize;}
+
+        public void cache(SegmentId id, Segment segment) {
+            long size = segment.getCacheSize();
+            id.segment = segment;
+            segments.add(segment);
+            currentSize.addAndGet(size);
+            log.debug("Added segment {} to tracker cache ({} bytes)", id, size);
+
+            int failedEvictions = 0;
+            while (currentSize.get() > cacheSize) {
+                Segment head = segments.poll();
+                if (head == null) {
+                    return;
+                }
+                SegmentId headId = head.getSegmentId();
+                if (head.accessed()) {
+                    failedEvictions++;
+                    segments.add(head);
+                    log.debug("Segment {} was recently used, keeping in cache", headId);
+                } else {
+                    headId.segment = null;
+                    long lastSize = head.getCacheSize();
+                    currentSize.addAndGet(-lastSize);
+                    log.debug("Removed segment {} from tracker cache ({} bytes) after " +
+                            "{} eviction attempts", headId, lastSize);
+                }
+            }
+        }
+    }
+
     /**
      * Get the segment identified by this instance. The segment is memoised in this instance's
      * {@link #segment} field.
      * @return  the segment identified by this instance.
      * @see #loaded(Segment)
-     * @see #unloaded()
      */
     @Nonnull
     public Segment getSegment() {
@@ -121,6 +166,7 @@ public class SegmentId implements Comparable<SegmentId> {
                     try {
                         log.debug("Loading segment {}", this);
                         segment = store.readSegment(this);
+                        loaded(segment, true);
                     } catch (SegmentNotFoundException snfe) {
                         log.error("Segment not found: {}. {}", this, gcInfo(), snfe);
                         throw snfe;
@@ -128,6 +174,7 @@ public class SegmentId implements Comparable<SegmentId> {
                 }
             }
         }
+        segment.access();
         return segment;
     }
 
@@ -166,21 +213,15 @@ public class SegmentId implements Comparable<SegmentId> {
      * passed {@code segment} has been loaded and should be memoised.
      * @param segment  segment with this id. If the id doesn't match the behaviour is undefined.
      * @see #getSegment()
-     * @see #unloaded()
+     * michid visibility, hack
      */
-    void loaded(@Nonnull Segment segment) {
-        this.segment = segment;
-        this.gcGeneration = segment.getGcGeneration();
-    }
-
-    /**
-     * This method should only be called from lower level caches to notify this instance that the
-     * passed {@code segment} has been unloaded and should no longer be memoised.
-     * @see #getSegment()
-     * @see #loaded(Segment)
-     */
-    void unloaded() {
-        this.segment = null;
+    public void loaded(@Nonnull Segment segment, boolean cache) {
+        if (cache) {
+            segmentCache.cache(this, segment);
+        } else {
+            this.segment = segment;
+        }
+        gcGeneration = segment.getGcGeneration();
     }
 
     /**

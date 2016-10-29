@@ -304,7 +304,7 @@ public class Segment {
         this.version = SegmentVersion.fromByte(buffer[3]);
         this.recordNumbers = recordNumbers;
         this.segmentReferences = segmentReferences;
-        id.loaded(this);
+        id.loaded(this, false);
     }
 
     public SegmentVersion getSegmentVersion() {
@@ -386,6 +386,8 @@ public class Segment {
 
     private volatile String info;
 
+    private volatile int accessed;
+
     /**
      * Returns the segment meta data of this segment or {@code null} if none is present.
      * <p>
@@ -411,6 +413,27 @@ public class Segment {
 
     public int size() {
         return data.remaining();
+    }
+
+    // michid ??
+    long getCacheSize() {
+        int size = 1024;
+        if (!data.isDirect()) {
+            size += size();
+        }
+        if (id.isDataSegmentId()) {
+            size += size();
+        }
+        return size;
+    }
+
+    void access() {
+        accessed++;
+    }
+
+    boolean accessed() {
+        accessed >>>= 1;
+        return accessed != 0;
     }
 
     byte readByte(int recordNumber) {
