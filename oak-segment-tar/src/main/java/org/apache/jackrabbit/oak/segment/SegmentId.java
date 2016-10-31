@@ -119,7 +119,7 @@ public class SegmentId implements Comparable<SegmentId> {
                 segment = this.segment;
                 if (segment == null) {
                     try {
-                        log.debug("Loading segment {}", this);
+                        log.info("SegmentCache: Loading segment {}", this);
                         segment = store.readSegment(this);
                     } catch (SegmentNotFoundException snfe) {
                         log.error("Segment not found: {}. {}", this, gcInfo(), snfe);
@@ -180,6 +180,7 @@ public class SegmentId implements Comparable<SegmentId> {
      * @see #loaded(Segment)
      */
     void unloaded() {
+        log.info("SegmentCache: Unloading segment {}", this);
         this.segment = null;
     }
 
