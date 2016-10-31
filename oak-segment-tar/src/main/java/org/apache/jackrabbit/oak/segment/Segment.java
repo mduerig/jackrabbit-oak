@@ -430,6 +430,9 @@ public class Segment {
     }
 
     void access() {
+        if (accessed == Integer.MAX_VALUE) {
+            return;
+        }
         accessed++;
     }
 
