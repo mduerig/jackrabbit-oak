@@ -417,14 +417,16 @@ public class Segment {
 
     // michid ??
     long getCacheSize() {
-        int size = 1024;
-        if (!data.isDirect()) {
-            size += size();
-        }
-        if (id.isDataSegmentId()) {
-            size += size();
-        }
-        return size;
+        return 224 + size();
+//
+//        int size = 1024;
+//        if (!data.isDirect()) {
+//            size += size();
+//        }
+//        if (id.isDataSegmentId()) {
+//            size += size();
+//        }
+//        return size;
     }
 
     void access() {
