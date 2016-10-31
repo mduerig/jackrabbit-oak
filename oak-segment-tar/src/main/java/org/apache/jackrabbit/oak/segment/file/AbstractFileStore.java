@@ -46,6 +46,7 @@ import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.Segment.RecordConsumer;
 import org.apache.jackrabbit.oak.segment.SegmentBlob;
 import org.apache.jackrabbit.oak.segment.SegmentId;
+import org.apache.jackrabbit.oak.segment.SegmentId.SegmentCache;
 import org.apache.jackrabbit.oak.segment.SegmentIdFactory;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentReader;
@@ -106,11 +107,11 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
 
     @Nonnull
     private final SegmentIdFactory segmentIdFactory = new SegmentIdFactory() {
-
+        private final SegmentCache segmentCache = new SegmentCache(256000000);  // michid review, cfg
         @Override
         @Nonnull
         public SegmentId newSegmentId(long msb, long lsb) {
-            return new SegmentId(AbstractFileStore.this, msb, lsb);
+            return new SegmentId(AbstractFileStore.this, segmentCache, msb, lsb);
         }
 
     };

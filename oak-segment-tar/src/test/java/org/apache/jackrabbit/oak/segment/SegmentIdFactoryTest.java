@@ -22,7 +22,6 @@ import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Set;
 
 import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
@@ -73,23 +72,23 @@ public class SegmentIdFactoryTest {
      * weak for this to work reliably. But it's a good manual check for
      * the correct operation of the tracking of segment id references.
      */
-    // @Test
-    public void garbageCollection() {
-        SegmentId a = store.newDataSegmentId();
-        SegmentId b = store.newBulkSegmentId();
-
-        // generate lots of garbage copies of an UUID to get the
-        // garbage collector to reclaim also the original instance
-        for (int i = 0; i < 1000000; i++) {
-            a = new SegmentId(
-                    null, a.getMostSignificantBits(), a.getLeastSignificantBits());
-        }
-        System.gc();
-
-        // now the original UUID should no longer be present
-        Set<SegmentId> ids = tracker.getReferencedSegmentIds();
-        assertFalse(ids.contains(a));
-        assertTrue(ids.contains(b));
-    }
+    // @Test  michid update test
+//    public void garbageCollection() {
+//        SegmentId a = store.newDataSegmentId();
+//        SegmentId b = store.newBulkSegmentId();
+//
+//        // generate lots of garbage copies of an UUID to get the
+//        // garbage collector to reclaim also the original instance
+//        for (int i = 0; i < 1000000; i++) {
+//            a = new SegmentId(
+//                    null, a.getMostSignificantBits(), a.getLeastSignificantBits());
+//        }
+//        System.gc();
+//
+//        // now the original UUID should no longer be present
+//        Set<SegmentId> ids = tracker.getReferencedSegmentIds();
+//        assertFalse(ids.contains(a));
+//        assertTrue(ids.contains(b));
+//    }
 
 }

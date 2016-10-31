@@ -52,10 +52,8 @@ public class SegmentId implements Comparable<SegmentId> {
     @Nonnull
     private final SegmentStore store;
 
-    private final static SegmentCache CACHE = new SegmentCache(256000000);  // michid inject, don't hc
-
     @Nonnull
-    private final SegmentCache segmentCache = CACHE;
+    private final SegmentCache segmentCache;
 
     private final long msb;
 
@@ -80,8 +78,9 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     private volatile Segment segment;
 
-    public SegmentId(@Nonnull SegmentStore store, long msb, long lsb) {
+    public SegmentId(@Nonnull SegmentStore store, @Nonnull SegmentCache segmentCache, long msb, long lsb) {
         this.store = store;
+        this.segmentCache = segmentCache;
         this.msb = msb;
         this.lsb = lsb;
         this.creationTime = System.currentTimeMillis();
@@ -113,13 +112,14 @@ public class SegmentId implements Comparable<SegmentId> {
         return lsb;
     }
 
-    private static class SegmentCache {
+    // michid abstract
+    public static class SegmentCache {
         // michid don't cache binaries
         private final int cacheSize;
         private final ConcurrentLinkedQueue<Segment> segments = newConcurrentLinkedQueue();
         private final AtomicLong currentSize = new AtomicLong();
 
-        private SegmentCache(int cacheSize) {this.cacheSize = cacheSize;}
+        public SegmentCache(int cacheSize) {this.cacheSize = cacheSize;}
 
         public void cache(SegmentId id, Segment segment) {
             long size = segment.getCacheSize();

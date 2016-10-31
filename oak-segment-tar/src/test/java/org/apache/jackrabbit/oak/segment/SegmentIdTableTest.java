@@ -36,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.jackrabbit.oak.segment.SegmentId.SegmentCache;
 import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
 import org.junit.Test;
 
@@ -43,10 +44,10 @@ public class SegmentIdTableTest {
 
     private static SegmentIdFactory newSegmentIdMaker(final SegmentStore store) {
         return new SegmentIdFactory() {
-
+            private final SegmentCache segmentCache = new SegmentCache(1000000); // michid review
             @Override
             public SegmentId newSegmentId(long msb, long lsb) {
-                return new SegmentId(store, msb, lsb);
+                return new SegmentId(store, segmentCache, msb, lsb);
             }
 
         };

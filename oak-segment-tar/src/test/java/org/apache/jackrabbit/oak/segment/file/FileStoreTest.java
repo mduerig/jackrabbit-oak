@@ -23,7 +23,6 @@ import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreB
 
 import java.io.File;
 
-import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -38,18 +37,19 @@ public class FileStoreTest {
         return folder.getRoot();
     }
 
-    @Test
-    public void containsSegment() throws Exception {
-        FileStore fileStore = fileStoreBuilder(getFileStoreFolder()).build();
-        try {
-            SegmentId id = new SegmentId(fileStore, 0, 0);
-            if (fileStore.containsSegment(id)) {
-                fileStore.readSegment(id);
-            }
-        } finally {
-            fileStore.close();
-        }
-    }
+// michid updated test
+//    @Test
+//    public void containsSegment() throws Exception {
+//        FileStore fileStore = fileStoreBuilder(getFileStoreFolder()).build();
+//        try {
+//            SegmentId id = new SegmentId(fileStore, 0, 0);
+//            if (fileStore.containsSegment(id)) {
+//                fileStore.readSegment(id);
+//            }
+//        } finally {
+//            fileStore.close();
+//        }
+//    }
 
     @Test
     public void overlapping() throws Exception {

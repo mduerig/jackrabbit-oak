@@ -39,6 +39,7 @@ import org.apache.jackrabbit.oak.segment.CachingSegmentReader;
 import org.apache.jackrabbit.oak.segment.Revisions;
 import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.SegmentId;
+import org.apache.jackrabbit.oak.segment.SegmentId.SegmentCache;
 import org.apache.jackrabbit.oak.segment.SegmentIdFactory;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentReader;
@@ -67,11 +68,11 @@ public class HttpStore implements SegmentStore {
             getWriter, null, DEFAULT_STRING_CACHE_MB, DEFAULT_TEMPLATE_CACHE_MB);
 
     private final SegmentIdFactory segmentIdFactory = new SegmentIdFactory() {
-
+        private final SegmentCache segmentCache = new SegmentCache(1000000);  // michid review, cfg
         @Override
         @Nonnull
         public SegmentId newSegmentId(long msb, long lsb) {
-            return new SegmentId(HttpStore.this, msb, lsb);
+            return new SegmentId(HttpStore.this, segmentCache, msb, lsb);
         }
 
     };
