@@ -140,6 +140,7 @@ public class SegmentId implements Comparable<SegmentId> {
                     segments.add(head);
                     log.debug("Segment {} was recently used, keeping in cache", headId);
                 } else {
+                    log.info("SegmentCache: Unloading segment {}", this);
                     headId.segment = null;
                     long lastSize = head.getCacheSize();
                     currentSize.addAndGet(-lastSize);
@@ -164,7 +165,7 @@ public class SegmentId implements Comparable<SegmentId> {
                 segment = this.segment;
                 if (segment == null) {
                     try {
-                        log.debug("Loading segment {}", this);
+                        log.info("SegmentCache: Loading segment {}", this);
                         segment = store.readSegment(this);
                         loaded(segment, true);
                     } catch (SegmentNotFoundException snfe) {
