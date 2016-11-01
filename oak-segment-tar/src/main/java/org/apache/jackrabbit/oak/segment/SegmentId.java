@@ -169,7 +169,9 @@ public class SegmentId implements Comparable<SegmentId> {
      * @see #unloaded()
      */
     void loaded(@Nonnull Segment segment) {
-        this.segment = segment;
+        if (isDataSegmentId()) {
+            this.segment = segment;
+        }
         this.gcGeneration = segment.getGcGeneration();
     }
 
