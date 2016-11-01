@@ -75,6 +75,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.stats.Clock;
 import org.apache.jackrabbit.oak.stats.DefaultStatisticsProvider;
 import org.apache.jackrabbit.oak.stats.StatisticsProvider;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -333,6 +334,7 @@ public class CompactionAndCleanupIT {
      * de-duplication capabilities of compaction.
      */
     @Test
+    @Ignore   // michid fix test
     public void offlineCompactionBinC1() throws Exception {
         SegmentGCOptions gcOptions = defaultGCOptions().setOffline()
                 .withBinaryDeduplication();

@@ -205,6 +205,19 @@ public class Segment {
             this.recordNumbers = new IdentityRecordNumbers();
             this.segmentReferences = new IllegalSegmentReferences();
         }
+        this.isNew = false;
+    }
+
+    private volatile int accessed;
+
+    void access() {
+        if (!isNew) {
+            accessed++;
+        }
+    }
+
+    boolean accessed() {
+        return accessed % 65536 == 1;
     }
 
     private static String toHex(byte[] bytes) {
@@ -289,6 +302,8 @@ public class Segment {
         };
     }
 
+    private final boolean isNew;
+
     Segment(@Nonnull SegmentStore store,
             @Nonnull SegmentReader reader,
             @Nonnull byte[] buffer,
@@ -305,6 +320,7 @@ public class Segment {
         this.recordNumbers = recordNumbers;
         this.segmentReferences = segmentReferences;
         id.loaded(this);
+        this.isNew = true;
     }
 
     public SegmentVersion getSegmentVersion() {

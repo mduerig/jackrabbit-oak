@@ -127,7 +127,12 @@ public class SegmentId implements Comparable<SegmentId> {
                     }
                 }
             }
+        } else {
+            if (segment.accessed()) {
+                store.readSegment(this);
+            }
         }
+        segment.access();
         return segment;
     }
 
