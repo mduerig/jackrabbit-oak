@@ -112,6 +112,20 @@ public class SegmentId implements Comparable<SegmentId> {
         return lsb;
     }
 
+    private volatile int accessed;
+
+    void access() {
+        if (accessed == Integer.MAX_VALUE) {
+            return;
+        }
+        accessed++;
+    }
+
+    boolean accessed() {
+        accessed >>>= 1;
+        return accessed != 0;
+    }
+
     // michid abstract
     public static class SegmentCache {
         // michid don't cache binaries
@@ -135,7 +149,7 @@ public class SegmentId implements Comparable<SegmentId> {
                     return;
                 }
                 SegmentId headId = head.getSegmentId();
-                if (head.accessed()) {
+                if (headId.accessed()) {
                     failedEvictions++;
                     segments.add(head);
                     log.debug("Segment {} was recently used, keeping in cache", headId);
@@ -175,7 +189,7 @@ public class SegmentId implements Comparable<SegmentId> {
                 }
             }
         }
-        segment.access();
+        access();
         return segment;
     }
 

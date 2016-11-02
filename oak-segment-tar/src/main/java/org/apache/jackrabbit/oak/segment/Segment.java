@@ -386,8 +386,6 @@ public class Segment {
 
     private volatile String info;
 
-    private volatile int accessed;
-
     /**
      * Returns the segment meta data of this segment or {@code null} if none is present.
      * <p>
@@ -427,18 +425,6 @@ public class Segment {
 //            size += size();
 //        }
 //        return size;
-    }
-
-    void access() {
-        if (accessed == Integer.MAX_VALUE) {
-            return;
-        }
-        accessed++;
-    }
-
-    boolean accessed() {
-        accessed >>>= 1;
-        return accessed != 0;
     }
 
     byte readByte(int recordNumber) {
