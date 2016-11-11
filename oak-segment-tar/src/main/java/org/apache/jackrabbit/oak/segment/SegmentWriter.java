@@ -352,20 +352,20 @@ public class SegmentWriter {
      * Write a node state, unless cancelled using a dedicated write operation handler.
      * @param state   node state to write
      * @param cancel  supplier to signal cancellation of this write operation
-     * @return segment node state equal to {@code state} or {@code null} if cancelled.
+     * @return record id of the segment node state equal to {@code state} or
+     *         {@code null} if cancelled.
      * @throws IOException
      */
     @CheckForNull
-    public SegmentNodeState writeNode(@Nonnull final NodeState state, @Nonnull Supplier<Boolean> cancel)
+    public RecordId writeNode(@Nonnull final NodeState state, @Nonnull Supplier<Boolean> cancel)
     throws IOException {
         try {
-            RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation(cancel) {
+            return writeOperationHandler.execute(new SegmentWriteOperation(cancel) {
                 @Override
                 public RecordId execute(SegmentBufferWriter writer) throws IOException {
                     return with(writer).writeNode(state);
                 }
             });
-            return new SegmentNodeState(reader, this, nodeId);
         } catch (SegmentWriteOperation.CancelledWriteException ignore) {
             return null;
         }

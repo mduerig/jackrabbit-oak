@@ -434,8 +434,7 @@ public class RecordTest {
     @Test
     public void testCancel() throws IOException {
         NodeBuilder builder = EMPTY_NODE.builder();
-        NodeState state = writer.writeNode(builder.getNodeState(), Suppliers.ofInstance(true));
-        assertNull(state);
+        assertNull(writer.writeNode(builder.getNodeState(), Suppliers.ofInstance(true)));
     }
 
 }

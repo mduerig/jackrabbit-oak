@@ -831,19 +831,19 @@ public class FileStore extends AbstractFileStore {
                         .withoutWriterPool()
                         .build(FileStore.this);
 
-                SegmentNodeState after = compact(before, writer, cancel);
-                if (after == null) {
+                RecordId afterId = compact(before, writer, cancel);
+                if (afterId == null) {
                     gcListener.info("TarMK GC #{}: compaction cancelled: {}.", GC_COUNT, cancel);
                     return -newGeneration;
                 }
 
                 gcListener.info("TarMK GC #{}: compacted {} to {}",
-                        GC_COUNT, before.getRecordId(), after.getRecordId());
+                        GC_COUNT, before.getRecordId(), afterId);
 
                 int cycles = 0;
                 boolean success = false;
                 while (cycles < gcOptions.getRetryCount() &&
-                        !(success = revisions.setHead(before.getRecordId(), after.getRecordId(), EXPEDITE_OPTION))) {
+                        !(success = revisions.setHead(before.getRecordId(), afterId, EXPEDITE_OPTION))) {
                     // Some other concurrent changes have been made.
                     // Rebase (and compact) those changes on top of the
                     // compacted state before retrying to set the head.
@@ -852,14 +852,14 @@ public class FileStore extends AbstractFileStore {
                                     "Compacting these commits. Cycle {} of {}",
                             GC_COUNT, cycles, gcOptions.getRetryCount());
                     SegmentNodeState head = getHead();
-                    after = compact(head, writer, cancel);
-                    if (after == null) {
+                    afterId = compact(head, writer, cancel);
+                    if (afterId == null) {
                         gcListener.info("TarMK GC #{}: compaction cancelled: {}.", GC_COUNT, cancel);
                         return -newGeneration;
                     }
 
                     gcListener.info("TarMK GC #{}: compacted {} against {} to {}",
-                            GC_COUNT, head.getRecordId(), before.getRecordId(), after.getRecordId());
+                            GC_COUNT, head.getRecordId(), before.getRecordId(), afterId);
                     before = head;
                 }
 
@@ -938,11 +938,11 @@ public class FileStore extends AbstractFileStore {
             }
         }
 
-        private SegmentNodeState compact(NodeState head, SegmentWriter writer, Supplier<Boolean> cancel)
+        private RecordId compact(NodeState head, SegmentWriter writer, Supplier<Boolean> cancel)
         throws IOException {
             if (gcOptions.isOffline()) {
                 return new Compactor(segmentReader, writer, getBlobStore(), cancel, gcOptions)
-                        .compact(EMPTY_NODE, head, EMPTY_NODE);
+                        .compact(EMPTY_NODE, head, EMPTY_NODE).getRecordId();
             } else {
                 return writer.writeNode(head, cancel);
             }
@@ -958,14 +958,14 @@ public class FileStore extends AbstractFileStore {
                                 public RecordId apply(RecordId base) {
                                     try {
                                         long t0 = currentTimeMillis();
-                                        SegmentNodeState after = compact(
+                                        RecordId afterId = compact(
                                                 segmentReader.readNode(base), writer, cancel);
-                                        if (after == null) {
+                                        if (afterId == null) {
                                             gcListener.info("TarMK GC #{}: compaction cancelled after {} seconds",
                                                     GC_COUNT, (currentTimeMillis() - t0) / 1000);
                                             return null;
                                         } else {
-                                            return after.getRecordId();
+                                            return afterId;
                                         }
                                     } catch (IOException e) {
                                         gcListener.error("TarMK GC #{" + GC_COUNT + "}: Error during forced compaction.", e);
