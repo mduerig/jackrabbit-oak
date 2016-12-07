@@ -40,6 +40,7 @@ public class IndexMBeanRegistration implements Registration {
     }
 
     public void registerAsyncIndexer(AsyncIndexUpdate task, long delayInSeconds) {
+        task.registerGCMonitor(whiteboard);
         task.setIndexMBeanRegistration(this);
         Map<String, Object> config = ImmutableMap.<String, Object>of(AsyncIndexUpdate.PROP_ASYNC_NAME, task.getName());
         regs.add(scheduleWithFixedDelay(whiteboard, task, config, delayInSeconds, true, true));

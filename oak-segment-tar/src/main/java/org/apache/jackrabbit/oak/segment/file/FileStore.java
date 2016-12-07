@@ -731,6 +731,7 @@ public class FileStore extends AbstractFileStore {
 
         synchronized void run() throws IOException {
             try {
+                gcListener.info("GC-LOCK");
                 gcListener.info("TarMK GC #{}: started", GC_COUNT.incrementAndGet());
                 GCMemoryBarrier gcMemoryBarrier = new GCMemoryBarrier(
                         sufficientMemory, gcListener, GC_COUNT.get(), gcOptions);
@@ -783,6 +784,7 @@ public class FileStore extends AbstractFileStore {
                 }
                 gcMemoryBarrier.close();
             } finally {
+                gcListener.info("GC-UNLOCK");
                 compactionMonitor.finished();
                 gcListener.updateStatus(IDLE.message());
             }

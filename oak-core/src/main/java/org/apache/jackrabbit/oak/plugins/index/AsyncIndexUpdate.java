@@ -21,6 +21,7 @@ package org.apache.jackrabbit.oak.plugins.index;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Throwables.getStackTraceAsString;
 import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Collections.emptyMap;
 import static org.apache.jackrabbit.oak.api.jmx.IndexStatsMBean.STATUS_DONE;
 import static org.apache.jackrabbit.oak.commons.PathUtils.elements;
 import static org.apache.jackrabbit.oak.plugins.index.IndexConstants.ASYNC_PROPERTY_NAME;
@@ -48,6 +49,10 @@ import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
 import javax.management.openmbean.TabularData;
 
+import com.google.common.base.Objects;
+import com.google.common.base.Splitter;
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.jackrabbit.api.stats.TimeSeries;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
@@ -74,10 +79,13 @@ import org.apache.jackrabbit.oak.spi.commit.EditorHook;
 import org.apache.jackrabbit.oak.spi.commit.EditorProvider;
 import org.apache.jackrabbit.oak.spi.commit.ValidatorProvider;
 import org.apache.jackrabbit.oak.spi.commit.VisibleEditor;
+import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.apache.jackrabbit.oak.spi.whiteboard.Registration;
+import org.apache.jackrabbit.oak.spi.whiteboard.Whiteboard;
 import org.apache.jackrabbit.oak.stats.Counting;
 import org.apache.jackrabbit.oak.stats.HistogramStats;
 import org.apache.jackrabbit.oak.stats.MeterStats;
@@ -88,11 +96,6 @@ import org.apache.jackrabbit.stats.TimeSeriesStatsUtil;
 import org.apache.jackrabbit.util.ISO8601;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.base.Objects;
-import com.google.common.base.Splitter;
-import com.google.common.base.Stopwatch;
-import com.google.common.collect.ImmutableMap;
 
 public class AsyncIndexUpdate implements Runnable, Closeable {
     /**
@@ -382,13 +385,42 @@ public class AsyncIndexUpdate implements Runnable, Closeable {
         }
     }
 
+    private final List<Registration> regs = Lists.newArrayList();
+    private final Semaphore gcLock = new Semaphore(1);
+
+    void registerGCMonitor(Whiteboard whiteboard) {
+        GCMonitor gcMonitor = new GCMonitor.Empty() {
+            @Override
+            public void info(String message, Object[] arguments) {
+                if ("GC-LOCK".equals(message)) {
+                    try {
+                        gcLock.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                } else if ("GC-UNLOCK".equals(message)) {
+                    gcLock.release();
+                }
+            }
+        };
+        regs.add(whiteboard.register(GCMonitor.class, gcMonitor, emptyMap()));
+    }
+
     @Override
     public synchronized void run() {
         boolean permitAcquired = false;
         try{
             if (runPermit.tryAcquire()){
                 permitAcquired = true;
-                runWhenPermitted();
+                if (gcLock.tryAcquire()) {
+                    try {
+                        runWhenPermitted();
+                    } finally {
+                        gcLock.release();
+                    }
+                } else {
+                    log.warn("[{}] Could not acquire gc lock. Stop flag set to [{}] Skipping the run", name, forcedStopFlag);
+                }
             } else {
                 log.warn("[{}] Could not acquire run permit. Stop flag set to [{}] Skipping the run", name, forcedStopFlag);
             }
@@ -428,6 +460,9 @@ public class AsyncIndexUpdate implements Runnable, Closeable {
             }
         } else {
             log.info("[{}] Closed", name);
+        }
+        for (Registration reg : regs){
+            reg.unregister();
         }
         closed = true;
     }
