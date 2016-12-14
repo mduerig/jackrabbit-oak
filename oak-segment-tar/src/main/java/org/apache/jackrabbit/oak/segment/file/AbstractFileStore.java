@@ -214,7 +214,7 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
             }
         }
 
-        if (!bulkFiles.isEmpty()) {
+        if (!bulkFiles.isEmpty()) {  // michid issue
             log.info("Upgrading TarMK file names in {}", directory);
 
             if (!dataFiles.isEmpty()) {
