@@ -42,6 +42,7 @@ import static org.apache.jackrabbit.oak.api.Type.BINARY;
 import static org.apache.jackrabbit.oak.api.Type.NAME;
 import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
+import static org.apache.jackrabbit.oak.segment.MapEntry.newModifiedMapEntry;
 import static org.apache.jackrabbit.oak.segment.MapRecord.BUCKETS_PER_LEVEL;
 import static org.apache.jackrabbit.oak.segment.RecordWriters.newNodeStateWriter;
 
@@ -501,7 +502,7 @@ public class SegmentWriter {
                 }
 
                 if (keyId != null) {
-                    entries.add(new MapEntry(reader, key, keyId, entry.getValue()));
+                    entries.add(newModifiedMapEntry(reader, key, keyId, entry.getValue()));
                 }
             }
             return writeMapBucket(base, entries, 0);
@@ -567,10 +568,10 @@ public class SegmentWriter {
                     map.put(entry.getName(), entry);
                 }
                 for (MapEntry entry : entries) {
-                    if (entry.getValue() != null) {
-                        map.put(entry.getName(), entry);
-                    } else {
+                    if (entry.isDeleted()) {
                         map.remove(entry.getName());
+                    } else {
+                        map.put(entry.getName(), entry);
                     }
                 }
                 return writeMapBucket(null, map.values(), level);
