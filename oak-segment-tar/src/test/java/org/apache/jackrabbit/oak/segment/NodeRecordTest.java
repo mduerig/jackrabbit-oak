@@ -102,7 +102,7 @@ public class NodeRecordTest {
                     .with(nodesOnlyCache())
                     .build(store);
 
-            generation.set(1);
+            generation.set(0);
 
             // Write a new node with a non trivial template. This record will
             // belong to generation 1.

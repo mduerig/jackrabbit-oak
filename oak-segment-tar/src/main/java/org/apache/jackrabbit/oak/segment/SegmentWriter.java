@@ -1114,9 +1114,13 @@ public class SegmentWriter {
 
         private boolean isOldGeneration(RecordId id) {
             try {
-                int thatGen = id.getSegmentId().getGcGeneration();
                 int thisGen = writer.getGeneration();
-                return thatGen < thisGen;
+                int thatGen = id.getSegmentId().getGcGeneration();
+                if (thatGen % 2 == 0) { // other uncompacted
+                    return thatGen < thisGen;
+                } else {
+                    return false;
+                }
             } catch (SegmentNotFoundException snfe) {
                 // This SNFE means a defer compacted node state is too far
                 // in the past. It has been gc'ed already and cannot be
