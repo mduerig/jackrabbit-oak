@@ -18,6 +18,7 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.google.common.collect.Lists.newLinkedList;
@@ -96,6 +97,7 @@ import org.slf4j.LoggerFactory;
  * The storage implementation for tar files.
  */
 public class FileStore extends AbstractFileStore {
+
     private static final Logger log = LoggerFactory.getLogger(FileStore.class);
 
     /**
@@ -106,6 +108,12 @@ public class FileStore extends AbstractFileStore {
     private static final long GC_BACKOFF = getInteger("oak.gc.backoff", 10*3600*1000);
 
     private static final int MB = 1024 * 1024;
+
+    private static boolean notEmptyDirectory(File path) {
+        String[] entries = path.list();
+        checkArgument(entries != null, "{} is not a directory, or an I/O error occurred", path);
+        return entries.length > 0;
+    }
 
     static final String LOCK_FILE_NAME = "repo.lock";
 
@@ -193,16 +201,15 @@ public class FileStore extends AbstractFileStore {
         this.garbageCollector = new GarbageCollector(
                 builder.getGcOptions(), builder.getGcListener(), new GCJournal(directory), builder.getCacheManager());
 
-        Map<Integer, Map<Character, File>> map = collectFiles(directory);
-
         Manifest manifest = Manifest.empty();
 
-        if (!map.isEmpty()) {
+        if (notEmptyDirectory(directory)) {
             manifest = checkManifest(openManifest());
         }
 
         saveManifest(manifest);
 
+        Map<Integer, Map<Character, File>> map = collectFiles(directory);
         this.readers = newArrayListWithCapacity(map.size());
         Integer[] indices = map.keySet().toArray(new Integer[map.size()]);
         Arrays.sort(indices);
