@@ -99,7 +99,7 @@ public class SegmentGCOptions {
     private int retainedGenerations = RETAINED_GENERATIONS_DEFAULT;
 
     @Nonnull
-    private GCType gcType = GCType.FULL;
+    private GCType gcType = GCType.TAIL;
 
     private boolean offline = false;
 
