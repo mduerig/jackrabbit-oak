@@ -443,7 +443,7 @@ public class FileStoreBuilder {
 
     @Override
     public String toString() {
-        return "FileStoreBuilder{" +
+        return "FileStoreBuilder-OAK-5970-WIP {" +
                 "version=" + getClass().getPackage().getImplementationVersion() +
                 ", directory=" + directory +
                 ", blobStore=" + blobStore +
