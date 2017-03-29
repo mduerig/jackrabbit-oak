@@ -26,6 +26,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
@@ -35,6 +36,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Supplier;
+import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
 import org.apache.jackrabbit.oak.segment.CachingSegmentReader;
 import org.apache.jackrabbit.oak.segment.RecordType;
@@ -83,9 +85,9 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
     static final String FILE_NAME_FORMAT = "data%05d%s.tar";
 
     protected static boolean notEmptyDirectory(File path) {
-        String[] entries = path.list();
+        Collection<File> entries = FileUtils.listFiles(path, new String[] {"tar"}, false);
         checkArgument(entries != null, "{} is not a directory, or an I/O error occurred", path);
-        return entries.length > 0;
+        return entries.size() > 0;
     }
 
     @Nonnull
