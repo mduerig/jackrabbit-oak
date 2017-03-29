@@ -21,9 +21,14 @@
         </encoder>
     </appender>
 
-    <logger name="org.apache.jackrabbit.oak.segment.standby" level="DEBUG" />
+    <appender name="file" class="ch.qos.logback.core.FileAppender">
+        <file>target/unit-tests.log</file>
+        <encoder>
+            <pattern>%date{HH:mm:ss.SSS} %-5level %-40([%thread] %F:%L) %msg%n</pattern>
+        </encoder>
+    </appender>
 
     <root level="INFO">
-        <appender-ref ref="console"/>
+        <appender-ref ref="file"/>
     </root>
 </configuration>
