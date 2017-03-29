@@ -148,9 +148,9 @@ public class SegmentCompactionIT {
     private volatile ListenableFuture<?> compactor = immediateCancelledFuture();
     private volatile ReadWriteLock compactionLock = null;
     private volatile int maxReaders = Integer.getInteger("SegmentCompactionIT.maxReaders", 10);
-    private volatile int maxWriters = Integer.getInteger("SegmentCompactionIT.maxWriters", 5);
+    private volatile int maxWriters = Integer.getInteger("SegmentCompactionIT.maxWriters", 10);
     private volatile long maxStoreSize = 200000000000L;
-    private volatile int maxBlobSize = 2048;
+    private volatile int maxBlobSize = 16384;
     private volatile int maxStringSize = 10000;
     private volatile int maxReferences = 0;
     private volatile int maxWriteOps = 1000;
