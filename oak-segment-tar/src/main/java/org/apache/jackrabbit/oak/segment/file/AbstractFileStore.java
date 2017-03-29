@@ -27,7 +27,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -292,6 +294,29 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
             }
 
         });
+    }
+
+    static Set<UUID> readReferences(Segment segment) {
+        Set<UUID> references = new HashSet<>();
+        for (int i = 0; i < segment.getReferencedSegmentIdCount(); i++) {
+            references.add(segment.getReferencedSegmentId(i));
+        }
+        return references;
+    }
+
+    static Set<String> readBinaryReferences(final Segment segment) {
+        final Set<String> binaryReferences = new HashSet<>();
+        segment.forEachRecord(new RecordConsumer() {
+
+            @Override
+            public void consume(int number, RecordType type, int offset) {
+                if (type == RecordType.BLOB_ID) {
+                    binaryReferences.add(SegmentBlob.readBlobId(segment, number));
+                }
+            }
+
+        });
+        return binaryReferences;
     }
 
     static void closeAndLogOnFail(Closeable closeable) {
