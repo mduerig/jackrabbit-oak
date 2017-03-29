@@ -210,9 +210,6 @@ class TarFiles implements Closeable {
     public String toString() {
         lock.readLock().lock();
         try {
-            if (closed) {
-                return "TarFiles{}";
-            }
             return "TarFiles{readers=" + readers + ", writer=" + writer + "}";
         } finally {
             lock.readLock().unlock();
