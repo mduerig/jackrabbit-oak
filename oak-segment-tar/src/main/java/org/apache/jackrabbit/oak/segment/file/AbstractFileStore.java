@@ -18,6 +18,7 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -80,6 +81,12 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
             Pattern.compile("(data)((0|[1-9][0-9]*)[0-9]{4})([a-z])?.tar");
 
     static final String FILE_NAME_FORMAT = "data%05d%s.tar";
+
+    protected static boolean notEmptyDirectory(File path) {
+        String[] entries = path.list();
+        checkArgument(entries != null, "{} is not a directory, or an I/O error occurred", path);
+        return entries.length > 0;
+    }
 
     @Nonnull
     final SegmentTracker tracker;

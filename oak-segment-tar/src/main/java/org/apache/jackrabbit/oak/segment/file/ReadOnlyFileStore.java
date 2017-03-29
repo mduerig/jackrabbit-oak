@@ -73,11 +73,11 @@ public class ReadOnlyFileStore extends AbstractFileStore {
     ReadOnlyFileStore(FileStoreBuilder builder) throws InvalidFileStoreVersionException, IOException {
         super(builder);
 
-        Map<Integer, Map<Character, File>> map = collectFiles(directory);
-
-        if (!map.isEmpty()) {
+        if (notEmptyDirectory(directory)) {
             checkManifest(openManifest());
         }
+
+        Map<Integer, Map<Character, File>> map = collectFiles(directory);
 
         this.readers = newArrayListWithCapacity(map.size());
         Integer[] indices = map.keySet().toArray(new Integer[map.size()]);

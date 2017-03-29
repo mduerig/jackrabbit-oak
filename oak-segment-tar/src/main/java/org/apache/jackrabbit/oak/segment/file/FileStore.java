@@ -109,12 +109,6 @@ public class FileStore extends AbstractFileStore {
 
     private static final int MB = 1024 * 1024;
 
-    private static boolean notEmptyDirectory(File path) {
-        String[] entries = path.list();
-        checkArgument(entries != null, "{} is not a directory, or an I/O error occurred", path);
-        return entries.length > 0;
-    }
-
     static final String LOCK_FILE_NAME = "repo.lock";
 
     /**
