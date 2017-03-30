@@ -83,9 +83,6 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
      */
     static final int CURRENT_STORE_VERSION = 1;
 
-    private static final Pattern FILE_NAME_PATTERN =
-            Pattern.compile("(data)((0|[1-9][0-9]*)[0-9]{4})([a-z])?.tar");
-
     static final String FILE_NAME_FORMAT = "data%05d%s.tar";
 
     protected static boolean notEmptyDirectory(File path) {
@@ -200,35 +197,6 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
     @Nonnull
     public CacheStatsMBean getTemplateCacheStats() {
         return segmentReader.getTemplateCacheStats();
-    }
-
-    static Map<Integer, Map<Character, File>> collectFiles(File directory) {
-        Map<Integer, Map<Character, File>> dataFiles = newHashMap();
-
-        for (File file : listFiles(directory)) {
-            Matcher matcher = FILE_NAME_PATTERN.matcher(file.getName());
-            if (matcher.matches()) {
-                Integer index = Integer.parseInt(matcher.group(2));
-                Map<Character, File> files = dataFiles.get(index);
-                if (files == null) {
-                    files = newHashMap();
-                    dataFiles.put(index, files);
-                }
-                Character generation = 'a';
-                if (matcher.group(4) != null) {
-                    generation = matcher.group(4).charAt(0);
-                }
-                checkState(files.put(generation, file) == null);
-            }
-        }
-
-        return dataFiles;
-    }
-
-    @Nonnull
-    private static File[] listFiles(File directory) {
-        File[] files = directory.listFiles();
-        return files == null ? new File[] {} : files;
     }
 
     @Nonnull

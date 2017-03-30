@@ -22,8 +22,10 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
+import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static org.apache.commons.io.FileUtils.listFiles;
 
 import java.io.Closeable;
 import java.io.File;
@@ -39,6 +41,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Predicate;
 import com.google.common.io.Closer;
@@ -144,6 +148,31 @@ class TarFiles implements Closeable {
 
     }
 
+    private static final Logger log = LoggerFactory.getLogger(TarFiles.class);
+
+    private static final Pattern FILE_NAME_PATTERN = Pattern.compile("(data)((0|[1-9][0-9]*)[0-9]{4})([a-z])?.tar");
+
+    private static Map<Integer, Map<Character, File>> collectFiles(File directory) {
+        Map<Integer, Map<Character, File>> dataFiles = newHashMap();
+        for (File file : listFiles(directory, null, false)) {
+            Matcher matcher = FILE_NAME_PATTERN.matcher(file.getName());
+            if (matcher.matches()) {
+                Integer index = Integer.parseInt(matcher.group(2));
+                Map<Character, File> files = dataFiles.get(index);
+                if (files == null) {
+                    files = newHashMap();
+                    dataFiles.put(index, files);
+                }
+                Character generation = 'a';
+                if (matcher.group(4) != null) {
+                    generation = matcher.group(4).charAt(0);
+                }
+                checkState(files.put(generation, file) == null);
+            }
+        }
+        return dataFiles;
+    }
+
     /**
      * Include the ids of all segments transitively reachable through forward
      * references from {@code referencedIds}. See OAK-3864.
@@ -161,8 +190,6 @@ class TarFiles implements Closeable {
             // ... as long as new forward references are found.
         } while (referencedIds.addAll(fRefs));
     }
-
-    private static final Logger log = LoggerFactory.getLogger(TarFiles.class);
 
     public static Builder builder() {
         return new Builder();
@@ -191,7 +218,7 @@ class TarFiles implements Closeable {
         memoryMapping = builder.memoryMapping;
         ioMonitor = builder.ioMonitor;
         readOnly = builder.readOnly;
-        Map<Integer, Map<Character, File>> map = AbstractFileStore.collectFiles(builder.directory);
+        Map<Integer, Map<Character, File>> map = collectFiles(builder.directory);
         readers = newArrayListWithCapacity(map.size());
         Integer[] indices = map.keySet().toArray(new Integer[map.size()]);
         Arrays.sort(indices);
