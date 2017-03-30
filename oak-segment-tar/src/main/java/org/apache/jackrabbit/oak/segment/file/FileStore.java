@@ -52,8 +52,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -115,7 +113,7 @@ public class FileStore extends AbstractFileStore {
     @Nonnull
     private final GarbageCollector garbageCollector;
 
-    private volatile TarFiles tarFiles;
+    private final TarFiles tarFiles;
 
     private final RandomAccessFile lockFile;
 
@@ -151,8 +149,6 @@ public class FileStore extends AbstractFileStore {
      * Flag signalling shutdown of the file store
      */
     private volatile boolean shutdown;
-
-    private final ReadWriteLock fileStoreLock = new ReentrantReadWriteLock();
 
     private final FileStoreStats stats;
 
@@ -296,8 +292,7 @@ public class FileStore extends AbstractFileStore {
     }
 
     /**
-     * @return the size of this store. This method shouldn't be called from
-     * a very tight loop as it contents with the {@link #fileStoreLock}.
+     * @return the size of this store.
      */
     private long size() {
         return tarFiles.size();
@@ -418,20 +413,15 @@ public class FileStore extends AbstractFileStore {
 
         Closer closer = Closer.create();
         closer.register(revisions);
-        fileStoreLock.writeLock().lock();
-        try {
-            if (lock != null) {
-                try {
-                    lock.release();
-                } catch (IOException e) {
-                    log.warn("Unable to release the file lock", e);
-                }
+        if (lock != null) {
+            try {
+                lock.release();
+            } catch (IOException e) {
+                log.warn("Unable to release the file lock", e);
             }
-            closer.register(lockFile);
-            closer.register(tarFiles);
-        } finally {
-            fileStoreLock.writeLock().unlock();
         }
+        closer.register(lockFile);
+        closer.register(tarFiles);
         closeAndLogOnFail(closer);
 
         // Try removing pending files in case the scheduler didn't have a chance to run yet
