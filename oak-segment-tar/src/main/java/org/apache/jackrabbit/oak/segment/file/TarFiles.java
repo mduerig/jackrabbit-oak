@@ -338,20 +338,29 @@ class TarFiles implements Closeable {
 
         Map<TarReader, TarReader> cleaned = newLinkedHashMap();
         lock.writeLock().lock();
+        lock.readLock().lock();
         try {
-            checkState(!closed);
-            newWriter();
+            try {
+                checkOpen();
+                newWriter();
+            } finally {
+                lock.writeLock().unlock();
+            }
+
+            // At this point the write lock is downgraded to a read lock for
+            // better concurrency. It is always necessary to access TarReader
+            // and TarWriter instances while holding a lock (either in read or
+            // write mode) to prevent a concurrent #close(). In this case, we
+            // don't need an exclusive access to the TarReader instances.
+
+            // TODO now that the two protected sections have been merged thanks
+            // to lock downgrading, check if the following code can be
+            // simplified.
+
             for (TarReader reader : readers) {
                 cleaned.put(reader, reader);
                 result.reclaimedSize += reader.size();
             }
-        } finally {
-            lock.writeLock().unlock();
-        }
-
-        lock.readLock().lock();
-        try {
-            checkState(!closed);
             Set<UUID> reclaim = newHashSet();
             for (TarReader reader : cleaned.keySet()) {
                 if (shutdown) {
@@ -412,17 +421,27 @@ class TarFiles implements Closeable {
     }
 
     public void collectBlobReferences(ReferenceCollector collector, int minGeneration) throws IOException {
-        List<TarReader> tarReaders = newArrayList();
         lock.writeLock().lock();
+        lock.readLock().lock();
         try {
-            checkState(!closed);
-            newWriter();
-            tarReaders.addAll(this.readers);
+            try {
+                checkOpen();
+                newWriter();
+            } finally {
+                lock.writeLock().unlock();
+            }
+
+            // At this point the write lock is downgraded to a read lock for
+            // better concurrency. It is always necessary to access TarReader
+            // and TarWriter instances while holding a lock (either in read or
+            // write mode) to prevent a concurrent #close(). In this case, we
+            // don't need an exclusive access to the TarReader instances.
+
+            for (TarReader reader : readers) {
+                reader.collectBlobReferences(collector, minGeneration);
+            }
         } finally {
-            lock.writeLock().unlock();
-        }
-        for (TarReader tarReader : tarReaders) {
-            tarReader.collectBlobReferences(collector, minGeneration);
+            lock.readLock().unlock();
         }
     }
 
