@@ -182,28 +182,21 @@ class TarFiles implements Closeable {
     @Override
     public void close() throws IOException {
         shutdown = true;
-
-        List<TarReader> readers;
-        TarWriter writer;
-
         lock.writeLock().lock();
         try {
-            checkState(!closed);
+            checkOpen();
             closed = true;
-            readers = this.readers;
-            this.readers = null;
-            writer = this.writer;
-            this.writer = null;
+            Closer closer = Closer.create();
+            closer.register(writer);
+            writer = null;
+            for (TarReader reader : readers) {
+                closer.register(reader);
+            }
+            readers = null;
+            closer.close();
         } finally {
             lock.writeLock().unlock();
         }
-
-        Closer closer = Closer.create();
-        for (TarReader reader : readers) {
-            closer.register(reader);
-        }
-        closer.register(writer);
-        closer.close();
     }
 
     @Override
