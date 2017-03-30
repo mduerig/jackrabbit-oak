@@ -453,11 +453,7 @@ public class FileStore extends AbstractFileStore {
             return segmentCache.getSegment(id, new Callable<Segment>() {
                 @Override
                 public Segment call() throws Exception {
-                    ByteBuffer buffer = tarFiles.readSegment(id.getMostSignificantBits(), id.getLeastSignificantBits());
-                    if (buffer == null) {
-                        throw new SegmentNotFoundException(id);
-                    }
-                    return new Segment(tracker, segmentReader, id, buffer);
+                    return readSegmentUncached(tarFiles, id);
                 }
             });
         } catch (ExecutionException e) {
@@ -465,13 +461,6 @@ public class FileStore extends AbstractFileStore {
             snfeListener.notify(id, snfe);
             throw snfe;
         }
-    }
-
-    private static SegmentNotFoundException asSegmentNotFoundException(ExecutionException e, SegmentId id) {
-        if (e.getCause() instanceof SegmentNotFoundException) {
-            return (SegmentNotFoundException) e.getCause();
-        }
-        return new SegmentNotFoundException(id, e);
     }
 
     @Override

@@ -31,6 +31,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,6 +52,7 @@ import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentIdFactory;
 import org.apache.jackrabbit.oak.segment.SegmentIdProvider;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
+import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentReader;
 import org.apache.jackrabbit.oak.segment.SegmentStore;
 import org.apache.jackrabbit.oak.segment.SegmentTracker;
@@ -138,7 +140,14 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         this.ioMonitor = builder.getIOMonitor();
     }
 
-     File getManifestFile() {
+    static SegmentNotFoundException asSegmentNotFoundException(ExecutionException e, SegmentId id) {
+        if (e.getCause() instanceof SegmentNotFoundException) {
+            return (SegmentNotFoundException) e.getCause();
+        }
+        return new SegmentNotFoundException(id, e);
+    }
+
+    File getManifestFile() {
         return new File(directory, MANIFEST_FILE_NAME);
     }
 
@@ -328,6 +337,14 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
                 log.error(ioe.getMessage(), ioe);
             }
         }
+    }
+
+    Segment readSegmentUncached(TarFiles tarFiles, SegmentId id) {
+        ByteBuffer buffer = tarFiles.readSegment(id.getMostSignificantBits(), id.getLeastSignificantBits());
+        if (buffer == null) {
+            throw new SegmentNotFoundException(id);
+        }
+        return new Segment(tracker, segmentReader, id, buffer);
     }
 
 }
