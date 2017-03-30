@@ -72,7 +72,7 @@ public class ReadOnlyFileStore extends AbstractFileStore {
                 .withTarRecovery(recovery)
                 .withIOMonitor(ioMonitor)
                 .withMemoryMapping(memoryMapping)
-                .withReadOnly(true)
+                .withReadOnly()
                 .build();
 
         writer = segmentWriterBuilder("read-only").withoutCache().build(this);

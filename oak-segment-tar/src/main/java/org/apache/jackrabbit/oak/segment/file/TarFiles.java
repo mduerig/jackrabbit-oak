@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
 
 class TarFiles implements Closeable {
 
-    public static class CleanupResult {
+    static class CleanupResult {
 
         private boolean interrupted;
 
@@ -67,25 +67,25 @@ class TarFiles implements Closeable {
             // Prevent external instantiation.
         }
 
-        public long getReclaimedSize() {
+        long getReclaimedSize() {
             return reclaimedSize;
         }
 
-        public List<File> getRemovableFiles() {
+        List<File> getRemovableFiles() {
             return removableFiles;
         }
 
-        public Set<UUID> getReclaimedSegmentIds() {
+        Set<UUID> getReclaimedSegmentIds() {
             return reclaimedSegmentIds;
         }
 
-        public boolean isInterrupted() {
+        boolean isInterrupted() {
             return interrupted;
         }
 
     }
 
-    public static class Builder {
+    static class Builder {
 
         private File directory;
 
@@ -101,39 +101,39 @@ class TarFiles implements Closeable {
 
         private boolean readOnly;
 
-        public Builder withDirectory(File directory) {
+        Builder withDirectory(File directory) {
             this.directory = checkNotNull(directory);
             return this;
         }
 
-        public Builder withMemoryMapping(boolean memoryMapping) {
+        Builder withMemoryMapping(boolean memoryMapping) {
             this.memoryMapping = memoryMapping;
             return this;
         }
 
-        public Builder withTarRecovery(TarRecovery tarRecovery) {
+        Builder withTarRecovery(TarRecovery tarRecovery) {
             this.tarRecovery = checkNotNull(tarRecovery);
             return this;
         }
 
-        public Builder withIOMonitor(IOMonitor ioMonitor) {
+        Builder withIOMonitor(IOMonitor ioMonitor) {
             this.ioMonitor = checkNotNull(ioMonitor);
             return this;
         }
 
-        public Builder withFileStoreStats(FileStoreStats fileStoreStats) {
+        Builder withFileStoreStats(FileStoreStats fileStoreStats) {
             this.fileStoreStats = checkNotNull(fileStoreStats);
             return this;
         }
 
-        public Builder withMaxFileSize(long maxFileSize) {
+        Builder withMaxFileSize(long maxFileSize) {
             checkArgument(maxFileSize > 0);
             this.maxFileSize = maxFileSize;
             return this;
         }
 
-        public Builder withReadOnly(boolean readOnly) {
-            this.readOnly = readOnly;
+        Builder withReadOnly() {
+            this.readOnly = true;
             return this;
         }
 
@@ -191,7 +191,7 @@ class TarFiles implements Closeable {
         } while (referencedIds.addAll(fRefs));
     }
 
-    public static Builder builder() {
+    static Builder builder() {
         return new Builder();
     }
 
@@ -276,7 +276,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public long size() {
+    long size() {
         lock.readLock().lock();
         try {
             checkOpen();
@@ -293,7 +293,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public int readerCount() {
+    int readerCount() {
         lock.readLock().lock();
         try {
             checkOpen();
@@ -303,7 +303,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public void flush() throws IOException {
+    void flush() throws IOException {
         checkReadWrite();
         lock.readLock().lock();
         try {
@@ -314,7 +314,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public boolean containsSegment(long msb, long lsb) {
+    boolean containsSegment(long msb, long lsb) {
         lock.readLock().lock();
         try {
             checkOpen();
@@ -334,7 +334,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public ByteBuffer readSegment(long msb, long lsb) {
+    ByteBuffer readSegment(long msb, long lsb) {
         lock.readLock().lock();
         try {
             checkOpen();
@@ -360,7 +360,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public void writeSegment(UUID id, byte[] buffer, int offset, int length, int generation, Set<UUID> references, Set<String> binaryReferences) throws IOException {
+    void writeSegment(UUID id, byte[] buffer, int offset, int length, int generation, Set<UUID> references, Set<String> binaryReferences) throws IOException {
         checkReadWrite();
         lock.writeLock().lock();
         try {
@@ -404,7 +404,7 @@ class TarFiles implements Closeable {
         writer = newWriter;
     }
 
-    public CleanupResult cleanup(Set<UUID> references, Predicate<Integer> reclaimGeneration) throws IOException {
+    CleanupResult cleanup(Set<UUID> references, Predicate<Integer> reclaimGeneration) throws IOException {
         checkReadWrite();
 
         CleanupResult result = new CleanupResult();
@@ -496,7 +496,7 @@ class TarFiles implements Closeable {
         return result;
     }
 
-    public void collectBlobReferences(ReferenceCollector collector, int minGeneration) throws IOException {
+    void collectBlobReferences(ReferenceCollector collector, int minGeneration) throws IOException {
         lock.writeLock().lock();
         lock.readLock().lock();
         try {
@@ -523,7 +523,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public Iterable<UUID> getSegmentIds() {
+    Iterable<UUID> getSegmentIds() {
         lock.readLock().lock();
         try {
             checkOpen();
@@ -537,7 +537,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public Map<UUID, List<UUID>> getGraph(String fileName) throws IOException {
+    Map<UUID, List<UUID>> getGraph(String fileName) throws IOException {
         Set<UUID> index = null;
         Map<UUID, List<UUID>> graph = null;
 
@@ -567,11 +567,11 @@ class TarFiles implements Closeable {
         return result;
     }
 
-    public Map<String, Set<UUID>> getIndices() {
+    Map<String, Set<UUID>> getIndices() {
         lock.readLock().lock();
         try {
             checkOpen();
-            Map<String, Set<UUID>> index = new HashMap<String, Set<UUID>>();
+            Map<String, Set<UUID>> index = new HashMap<>();
             for (TarReader reader : readers) {
                 index.put(reader.getFile().getAbsolutePath(), reader.getUUIDs());
             }
@@ -581,7 +581,7 @@ class TarFiles implements Closeable {
         }
     }
 
-    public void traverseSegmentGraph(Set<UUID> roots, SegmentGraphVisitor visitor) throws IOException {
+    void traverseSegmentGraph(Set<UUID> roots, SegmentGraphVisitor visitor) throws IOException {
         lock.readLock().lock();
         try {
             checkOpen();
