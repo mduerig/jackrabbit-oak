@@ -53,7 +53,7 @@ class TarFiles implements Closeable {
 
         private long reclaimedSize;
 
-        private List<File> removeableFiles;
+        private List<File> removableFiles;
 
         private Set<UUID> reclaimedSegmentIds;
 
@@ -65,8 +65,8 @@ class TarFiles implements Closeable {
             return reclaimedSize;
         }
 
-        public List<File> getRemoveableFiles() {
-            return removeableFiles;
+        public List<File> getRemovableFiles() {
+            return removableFiles;
         }
 
         public Set<UUID> getReclaimedSegmentIds() {
@@ -340,7 +340,7 @@ class TarFiles implements Closeable {
 
     public CleanupResult cleanup(Set<UUID> references, Predicate<Integer> reclaimGeneration) throws IOException {
         CleanupResult result = new CleanupResult();
-        result.removeableFiles = new ArrayList<>();
+        result.removableFiles = new ArrayList<>();
         result.reclaimedSegmentIds = new HashSet<>();
 
         Map<TarReader, TarReader> cleaned = newLinkedHashMap();
@@ -412,7 +412,7 @@ class TarFiles implements Closeable {
             } catch (IOException e) {
                 log.error("Unable to close swept TAR reader", e);
             }
-            result.removeableFiles.add(oldReader.getFile());
+            result.removableFiles.add(oldReader.getFile());
         }
 
         return result;

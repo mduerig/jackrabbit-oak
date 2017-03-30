@@ -838,7 +838,7 @@ public class FileStore extends AbstractFileStore {
                 gcListener.info("TarMK GC #{}: cleanup interrupted", GC_COUNT);
             }
             tracker.clearSegmentIdTables(cleanupResult.getReclaimedSegmentIds(), compactionResult.gcInfo());
-            gcListener.info("TarMK GC #{}: cleanup marking files for deletion: {}", GC_COUNT, toFileNames(cleanupResult.getRemoveableFiles()));
+            gcListener.info("TarMK GC #{}: cleanup marking files for deletion: {}", GC_COUNT, toFileNames(cleanupResult.getRemovableFiles()));
 
             long finalSize = size();
             long reclaimedSize = cleanupResult.getReclaimedSize();
@@ -852,7 +852,7 @@ public class FileStore extends AbstractFileStore {
                     GC_COUNT, watch, watch.elapsed(MILLISECONDS),
                     humanReadableByteCount(finalSize), finalSize,
                     humanReadableByteCount(reclaimedSize), reclaimedSize);
-            return cleanupResult.getRemoveableFiles();
+            return cleanupResult.getRemovableFiles();
         }
 
         private String toFileNames(@Nonnull List<File> files) {
