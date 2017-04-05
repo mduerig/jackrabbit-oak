@@ -443,7 +443,7 @@ public class FileStoreBuilder {
 
     @Override
     public String toString() {
-        return "FileStoreBuilder{" +
+        return "FileStoreBuilder-OAK-3349-POC {" +
                 "directory=" + directory +
                 ", blobStore=" + blobStore +
                 ", maxFileSize=" + maxFileSize +
