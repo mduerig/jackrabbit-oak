@@ -424,7 +424,8 @@ public class FileStoreBuilder {
     @Override
     public String toString() {
         return "FileStoreBuilder{" +
-                "directory=" + directory +
+                "version=" + getClass().getPackage().getImplementationVersion() +
+                ", directory=" + directory +
                 ", blobStore=" + blobStore +
                 ", maxFileSize=" + maxFileSize +
                 ", segmentCacheSize=" + segmentCacheSize +
