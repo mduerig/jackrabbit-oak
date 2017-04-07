@@ -423,14 +423,14 @@ public class SegmentParser {
 
         Segment segment = nodeId.getSegment();
         String stableId = reader.readNode(nodeId).getStableId();
-        RecordId templateId = segment.readRecordId(nodeId.getRecordNumber(), 0, 1);
+        RecordId templateId = segment.readRecordId(nodeId.getRecordNumber(), 4, 1);
         onTemplate(nodeId, templateId);
 
         Template template = reader.readTemplate(templateId);
 
         // Recurses into child nodes in this segment
         if (template.getChildName() == MANY_CHILD_NODES) {
-            RecordId childMapId = segment.readRecordId(nodeId.getRecordNumber(), 0, 2);
+            RecordId childMapId = segment.readRecordId(nodeId.getRecordNumber(), 4, 2);
             MapRecord childMap = reader.readMap(childMapId);
             onMap(nodeId, childMapId, childMap);
             for (ChildNodeEntry childNodeEntry : childMap.getEntries()) {
@@ -442,7 +442,7 @@ public class SegmentParser {
                 }
             }
         } else if (template.getChildName() != ZERO_CHILD_NODES) {
-            RecordId childId = segment.readRecordId(nodeId.getRecordNumber(), 0, 2);
+            RecordId childId = segment.readRecordId(nodeId.getRecordNumber(), 4, 2);
             onNode(nodeId, childId);
             nodeCount++;
         }
@@ -454,7 +454,7 @@ public class SegmentParser {
         PropertyTemplate[] propertyTemplates = template.getPropertyTemplates();
         if (propertyTemplates.length > 0) {
             size += RECORD_ID_BYTES;
-            RecordId id = segment.readRecordId(nodeId.getRecordNumber(), 0, ids + 1);
+            RecordId id = segment.readRecordId(nodeId.getRecordNumber(), 4, ids + 1);
             ListRecord pIds = new ListRecord(id, propertyTemplates.length);
             for (int i = 0; i < propertyTemplates.length; i++) {
                 RecordId propertyId = pIds.getEntry(i);

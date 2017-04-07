@@ -940,8 +940,10 @@ public class SegmentWriter {
             SegmentNodeState before = null;
             Template beforeTemplate = null;
 
+            int nodeRev = 0;
             if (beforeId != null) {
                 before = reader.readNode(beforeId);
+                nodeRev = before.getRev() + 1;
                 beforeTemplate = before.getTemplate();
             }
 
@@ -1032,7 +1034,7 @@ public class SegmentWriter {
                 bid.get(id);
                 stableId = writeBlock(id, 0, id.length);
             }
-            return newNodeStateWriter(stableId, ids).write(writer, store);
+            return newNodeStateWriter(stableId, nodeRev, ids).write(writer, store);
         }
 
         /**

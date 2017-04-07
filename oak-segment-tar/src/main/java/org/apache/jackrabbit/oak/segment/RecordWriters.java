@@ -139,8 +139,8 @@ final class RecordWriters {
             childNameId, propNamesId);
     }
 
-    public static RecordWriter newNodeStateWriter(RecordId stableId, List<RecordId> ids) {
-        return new NodeStateWriter(stableId, ids);
+    public static RecordWriter newNodeStateWriter(RecordId stableId, int nodeRev, List<RecordId> ids) {
+        return new NodeStateWriter(stableId, nodeRev, ids);
     }
 
     /**
@@ -487,14 +487,17 @@ final class RecordWriters {
      */
     private static class NodeStateWriter extends RecordWriter {
         private final RecordId stableId;
+        private final int nodeRev;
 
-        private NodeStateWriter(RecordId stableId, List<RecordId> ids) {
-            super(NODE, RECORD_ID_BYTES, ids);
+        private NodeStateWriter(RecordId stableId, int nodeRev, List<RecordId> ids) {
+            super(NODE, RECORD_ID_BYTES + 4, ids);
             this.stableId = stableId;
+            this.nodeRev = nodeRev;
         }
 
         @Override
         protected RecordId writeRecordContent(RecordId id, SegmentBufferWriter writer) {
+            writer.writeInt(nodeRev);
 
             // Write the stable record ID. If no stable ID exists (in case of a
             // new node state), it is generated from the current record ID. In
