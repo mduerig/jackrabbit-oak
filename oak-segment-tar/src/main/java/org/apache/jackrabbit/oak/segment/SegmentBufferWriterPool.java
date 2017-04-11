@@ -24,7 +24,6 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
-import static java.lang.Thread.currentThread;
 
 import java.io.IOException;
 import java.util.List;
@@ -96,11 +95,12 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
     @Nonnull
     @Override
     public RecordId execute(@Nonnull WriteOperation writeOperation) throws IOException {
-        SegmentBufferWriter writer = borrowWriter(currentThread());
+        String key = "foo";
+        SegmentBufferWriter writer = borrowWriter(key);
         try {
             return writeOperation.execute(writer);
         } finally {
-            returnWriter(currentThread(), writer);
+            returnWriter(key, writer);
         }
     }
 
