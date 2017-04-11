@@ -290,7 +290,7 @@ public class SegmentWriter {
      */
     @Nonnull
     public SegmentNodeState writeNode(@Nonnull final NodeState state) throws IOException {
-        System.out.println("<<<<<");
+//        System.out.println("<<<<<");
         RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation() {
             @Nonnull
             @Override
@@ -298,7 +298,7 @@ public class SegmentWriter {
                 return with(writer).writeNode(state, "/");
             }
         });
-        System.out.println(">>>>>");
+//        System.out.println(">>>>>");
         return new SegmentNodeState(reader, this, nodeId);
     }
 
@@ -320,7 +320,7 @@ public class SegmentWriter {
     public SegmentNodeState writeNode(@Nonnull final NodeState state, @Nonnull Supplier<Boolean> cancel)
     throws IOException {
         try {
-            System.out.println("<<<<<");
+//            System.out.println("<<<<<");
             RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation(cancel) {
                 @Nonnull
                 @Override
@@ -328,7 +328,7 @@ public class SegmentWriter {
                     return with(writer, true).writeNode(state, "/");
                 }
             });
-            System.out.println(">>>>>");
+//            System.out.println(">>>>>");
             return new SegmentNodeState(reader, this, nodeId);
         } catch (SegmentWriteOperation.CancelledWriteException ignore) {
             return null;
@@ -947,7 +947,7 @@ public class SegmentWriter {
                     int rev = ((SegmentNodeState) baseState).getRev();
                     reWrite = rev % 10 == 0;
                     if (reWrite) {
-                        System.out.println("rewrite " + path + " @ " + rev);
+//                        System.out.println("rewrite " + path + " @ " + rev);
                     }
                 }
             }
