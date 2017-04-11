@@ -29,6 +29,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 
 import javax.annotation.Nonnull;
 
@@ -92,15 +93,23 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
         this.gcGeneration = checkNotNull(gcGeneration);
     }
 
+    Semaphore sem = new Semaphore(1);
+
     @Nonnull
     @Override
     public RecordId execute(@Nonnull WriteOperation writeOperation) throws IOException {
         String key = "foo";
+        try {
+            sem.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();  // michid implement catch e
+        }
         SegmentBufferWriter writer = borrowWriter(key);
         try {
             return writeOperation.execute(writer);
         } finally {
             returnWriter(key, writer);
+            sem.release();
         }
     }
 
