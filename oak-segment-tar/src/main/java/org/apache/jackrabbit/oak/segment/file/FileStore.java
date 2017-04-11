@@ -161,9 +161,7 @@ public class FileStore extends AbstractFileStore {
         public Set<UUID> get() {
             Set<UUID> references = newHashSet();
             for (SegmentId id : tracker.getReferencedSegmentIds()) {
-                if (id.isBulkSegmentId()) {
-                    references.add(id.asUUID());
-                }
+                references.add(id.asUUID());
             }
             return references;
         }

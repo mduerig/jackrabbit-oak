@@ -748,12 +748,12 @@ class TarReader implements Closeable {
      * A bulk segment is reclaimable if it is not in {@code bulkRefs} or if it is transitively
      * reachable through a non reclaimable data segment.
      *
-     * @param bulkRefs  bulk segment gc roots
+     * @param references  bulk segment gc roots
      * @param reclaim   reclaimable segments
      * @param reclaimGeneration  reclaim generation predicate for data segments
      * @throws IOException
      */
-    void mark(Set<UUID> bulkRefs, Set<UUID> reclaim, Predicate<Integer> reclaimGeneration)
+    void mark(Set<UUID> references, Set<UUID> reclaim, Predicate<Integer> reclaimGeneration)
     throws IOException {
         Map<UUID, List<UUID>> graph = getGraph(true);
         TarEntry[] entries = getEntries();
@@ -765,20 +765,12 @@ class TarReader implements Closeable {
             // CPU on subsequent look-ups.
             TarEntry entry = entries[i];
             UUID id = new UUID(entry.msb(), entry.lsb());
-            if ((!isDataSegmentId(entry.lsb()) && !bulkRefs.remove(id)) ||
-                (isDataSegmentId(entry.lsb()) && reclaimGeneration.apply(entry.generation()))) {
+            if (!references.remove(id)) {
                 // non referenced bulk segment or old data segment
                 reclaim.add(id);
             } else {
                 if (isDataSegmentId(entry.lsb())) {
-                    for (UUID refId : getReferences(entry, id, graph)) {
-                        if (!isDataSegmentId(refId.getLeastSignificantBits())) {
-                            // keep the extra check for bulk segments for the case where a
-                            // pre-compiled graph is not available (graph == null) and
-                            // getReferences also includes data references
-                            bulkRefs.add(refId);
-                        }
-                    }
+                    references.addAll(getReferences(entry, id, graph));
                 }
             }
         }
