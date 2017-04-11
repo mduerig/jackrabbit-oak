@@ -68,6 +68,7 @@ import com.google.common.io.Closeables;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.commons.PathUtils;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
 import org.apache.jackrabbit.oak.segment.file.GCNodeWriteMonitor;
@@ -289,13 +290,15 @@ public class SegmentWriter {
      */
     @Nonnull
     public SegmentNodeState writeNode(@Nonnull final NodeState state) throws IOException {
+        System.out.println("<<<<<");
         RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation() {
             @Nonnull
             @Override
             public RecordId execute(@Nonnull SegmentBufferWriter writer) throws IOException {
-                return with(writer).writeNode(state);
+                return with(writer).writeNode(state, "/");
             }
         });
+        System.out.println(">>>>>");
         return new SegmentNodeState(reader, this, nodeId);
     }
 
@@ -317,13 +320,15 @@ public class SegmentWriter {
     public SegmentNodeState writeNode(@Nonnull final NodeState state, @Nonnull Supplier<Boolean> cancel)
     throws IOException {
         try {
+            System.out.println("<<<<<");
             RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation(cancel) {
                 @Nonnull
                 @Override
                 public RecordId execute(@Nonnull SegmentBufferWriter writer) throws IOException {
-                    return with(writer, true).writeNode(state);
+                    return with(writer, true).writeNode(state, "/");
                 }
             });
+            System.out.println(">>>>>");
             return new SegmentNodeState(reader, this, nodeId);
         } catch (SegmentWriteOperation.CancelledWriteException ignore) {
             return null;
@@ -893,7 +898,7 @@ public class SegmentWriter {
             return tid;
         }
 
-        private RecordId writeNode(@Nonnull NodeState state) throws IOException {
+        private RecordId writeNode(@Nonnull NodeState state, String path) throws IOException {
             if (cancel.get()) {
                 // Poor man's Either Monad
                 throw new CancelledWriteException();
@@ -905,7 +910,7 @@ public class SegmentWriter {
                 return compactedId;
             }
 
-            RecordId recordId = writeNodeUncached(state);
+            RecordId recordId = writeNodeUncached(state, path);
             if (state instanceof SegmentNodeState) {
                 // This node state has been rewritten because it is from an older
                 // generation (e.g. due to compaction). Put it into the cache for
@@ -922,7 +927,7 @@ public class SegmentWriter {
             return (byte) (Byte.MIN_VALUE + 64 - numberOfLeadingZeros(childCount));
         }
 
-        private RecordId writeNodeUncached(@Nonnull NodeState state) throws IOException {
+        private RecordId writeNodeUncached(@Nonnull NodeState state, String path) throws IOException {
             ModifiedNodeState after = null;
 
             if (state instanceof ModifiedNodeState) {
@@ -931,16 +936,26 @@ public class SegmentWriter {
 
             RecordId beforeId = null;
 
+            boolean reWrite = false;
             if (after != null) {
                 // Pass null to indicate we don't want to update the node write statistics
                 // when deduplicating the base state
-                beforeId = deduplicateNode(after.getBaseState());
+                NodeState baseState = after.getBaseState();
+                beforeId = deduplicateNode(baseState);
+
+                if (baseState instanceof SegmentNodeState) {
+                    int rev = ((SegmentNodeState) baseState).getRev();
+                    reWrite = rev % 10 == 0;
+                    if (reWrite) {
+                        System.out.println("rewrite " + path + " @ " + rev);
+                    }
+                }
             }
 
             SegmentNodeState before = null;
             Template beforeTemplate = null;
 
-            int nodeRev = 0;
+            int nodeRev = 1;
             if (beforeId != null) {
                 before = reader.readNode(beforeId);
                 nodeRev = before.getRev() + 1;
@@ -949,7 +964,7 @@ public class SegmentWriter {
 
             List<RecordId> ids = newArrayList();
             Template template = new Template(reader, state);
-            if (template.equals(beforeTemplate)) {
+            if (template.equals(beforeTemplate) && !reWrite) {
                 ids.add(before.getTemplateId());
             } else {
                 ids.add(writeTemplate(template));
@@ -959,23 +974,23 @@ public class SegmentWriter {
             if (childName == Template.MANY_CHILD_NODES) {
                 MapRecord base;
                 Map<String, RecordId> childNodes;
-                if (before != null
+                if (before != null && !reWrite
                     && before.getChildNodeCount(2) > 1
                     && after.getChildNodeCount(2) > 1) {
                     base = before.getChildNodeMap();
-                    childNodes = new ChildNodeCollectorDiff().diff(before, after);
+                    childNodes = new ChildNodeCollectorDiff(path).diff(before, after);
                 } else {
                     base = null;
                     childNodes = newHashMap();
                     for (ChildNodeEntry entry : state.getChildNodeEntries()) {
                         childNodes.put(
                             entry.getName(),
-                            writeNode(entry.getNodeState()));
+                            writeNode(entry.getNodeState(), PathUtils.concat(path, entry.getName())));
                     }
                 }
                 ids.add(writeMap(base, childNodes));
             } else if (childName != Template.ZERO_CHILD_NODES) {
-                ids.add(writeNode(state.getChildNode(template.getChildName())));
+                ids.add(writeNode(state.getChildNode(template.getChildName()), PathUtils.concat(path, template.getChildName())));
             }
 
             List<RecordId> pIds = newArrayList();
@@ -984,7 +999,7 @@ public class SegmentWriter {
                 PropertyState property = state.getProperty(name);
                 assert property != null;
 
-                if (before != null) {
+                if (before != null && !reWrite) {
                     // If this property is already present in before (the base state)
                     // and it hasn't been modified use that one. This will result
                     // in an already compacted property to be reused given before
@@ -997,7 +1012,7 @@ public class SegmentWriter {
 
                 if (sameStore(property)) {
                     RecordId pid = ((Record) property).getRecordId();
-                    if (isOldGeneration(pid)) {
+                    if (isOldGeneration(pid) || reWrite) {
                         pIds.add(writeProperty(property));
                     } else {
                         pIds.add(pid);
@@ -1106,7 +1121,12 @@ public class SegmentWriter {
 
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
             private final Map<String, RecordId> childNodes = newHashMap();
+            private final String path;
             private IOException exception;
+
+            public ChildNodeCollectorDiff(String path) {
+                this.path = path;
+            }
 
             public Map<String, RecordId> diff(SegmentNodeState before, ModifiedNodeState after) throws IOException {
                 after.compareAgainstBaseState(before, this);
@@ -1120,7 +1140,7 @@ public class SegmentWriter {
             @Override
             public boolean childNodeAdded(String name, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    childNodes.put(name, writeNode(after, PathUtils.concat(path, name)));
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -1132,7 +1152,7 @@ public class SegmentWriter {
             public boolean childNodeChanged(
                 String name, NodeState before, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    childNodes.put(name, writeNode(after, PathUtils.concat(path, name)));
                 } catch (IOException e) {
                     exception = e;
                     return false;
