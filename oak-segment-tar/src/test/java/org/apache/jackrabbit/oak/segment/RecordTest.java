@@ -20,6 +20,7 @@ package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
+import static java.lang.Math.min;
 import static java.util.Collections.singletonList;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.fail;
@@ -30,7 +31,6 @@ import static org.apache.jackrabbit.oak.api.Type.STRINGS;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.segment.ListRecord.LEVEL_SIZE;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -59,6 +59,7 @@ import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -98,15 +99,15 @@ public class RecordTest {
         for (int n = 1; n < bytes.length; n++) {
             for (int i = 0; i + n <= bytes.length; i++) {
                 Arrays.fill(bytes, i, i + n, (byte) '.');
-                assertEquals(n, block.read(i, bytes, i, n));
-                assertEquals(HELLO_WORLD, new String(bytes, Charsets.UTF_8));
+                Assert.assertEquals(n, block.read(i, bytes, i, n));
+                Assert.assertEquals(HELLO_WORLD, new String(bytes, Charsets.UTF_8));
             }
         }
 
         // Check reading with a too long length
         byte[] large = new byte[bytes.length * 2];
-        assertEquals(bytes.length, block.read(0, large, 0, large.length));
-        assertEquals(HELLO_WORLD, new String(large, 0, bytes.length, Charsets.UTF_8));
+        Assert.assertEquals(bytes.length, block.read(0, large, 0, large.length));
+        Assert.assertEquals(HELLO_WORLD, new String(large, 0, bytes.length, Charsets.UTF_8));
     }
 
     @Test
@@ -119,28 +120,28 @@ public class RecordTest {
         ListRecord level2 = writeList(LEVEL_SIZE * LEVEL_SIZE, blockId);
         ListRecord level2p = writeList(LEVEL_SIZE * LEVEL_SIZE + 1, blockId);
 
-        assertEquals(1, one.size());
-        assertEquals(blockId, one.getEntry(0));
-        assertEquals(LEVEL_SIZE, level1.size());
-        assertEquals(blockId, level1.getEntry(0));
-        assertEquals(blockId, level1.getEntry(LEVEL_SIZE - 1));
-        assertEquals(LEVEL_SIZE + 1, level1p.size());
-        assertEquals(blockId, level1p.getEntry(0));
-        assertEquals(blockId, level1p.getEntry(LEVEL_SIZE));
-        assertEquals(LEVEL_SIZE * LEVEL_SIZE, level2.size());
-        assertEquals(blockId, level2.getEntry(0));
-        assertEquals(blockId, level2.getEntry(LEVEL_SIZE * LEVEL_SIZE - 1));
-        assertEquals(LEVEL_SIZE * LEVEL_SIZE + 1, level2p.size());
-        assertEquals(blockId, level2p.getEntry(0));
-        assertEquals(blockId, level2p.getEntry(LEVEL_SIZE * LEVEL_SIZE));
+        Assert.assertEquals(1, one.size());
+        Assert.assertEquals(blockId, one.getEntry(0));
+        Assert.assertEquals(LEVEL_SIZE, level1.size());
+        Assert.assertEquals(blockId, level1.getEntry(0));
+        Assert.assertEquals(blockId, level1.getEntry(LEVEL_SIZE - 1));
+        Assert.assertEquals(LEVEL_SIZE + 1, level1p.size());
+        Assert.assertEquals(blockId, level1p.getEntry(0));
+        Assert.assertEquals(blockId, level1p.getEntry(LEVEL_SIZE));
+        Assert.assertEquals(LEVEL_SIZE * LEVEL_SIZE, level2.size());
+        Assert.assertEquals(blockId, level2.getEntry(0));
+        Assert.assertEquals(blockId, level2.getEntry(LEVEL_SIZE * LEVEL_SIZE - 1));
+        Assert.assertEquals(LEVEL_SIZE * LEVEL_SIZE + 1, level2p.size());
+        Assert.assertEquals(blockId, level2p.getEntry(0));
+        Assert.assertEquals(blockId, level2p.getEntry(LEVEL_SIZE * LEVEL_SIZE));
 
         int count = 0;
         for (RecordId entry : level2p.getEntries()) {
-            assertEquals(blockId, entry);
-            assertEquals(blockId, level2p.getEntry(count));
+            Assert.assertEquals(blockId, entry);
+            Assert.assertEquals(blockId, level2p.getEntry(count));
             count++;
         }
-        assertEquals(LEVEL_SIZE * LEVEL_SIZE + 1, count);
+        Assert.assertEquals(LEVEL_SIZE * LEVEL_SIZE + 1, count);
     }
 
     private ListRecord writeList(int size, RecordId id) throws IOException {
@@ -179,19 +180,26 @@ public class RecordTest {
 
         Blob value = writer.writeStream(new ByteArrayInputStream(source));
         InputStream stream = value.getNewStream();
-        try {
+        assertEquals(source, value, 0);
+        assertEquals(source, value, 1);
+        assertEquals(source, value, 42);
+        assertEquals(source, value, 16387);
+        assertEquals(source, value, Integer.MAX_VALUE);
+    }
+
+    private static void assertEquals(byte[] expected, Blob actual, int skip) throws IOException {
+        try (InputStream stream = actual.getNewStream()) {
+            stream.skip(skip);
             byte[] b = new byte[349]; // prime number
-            int offset = 0;
+            int offset = min(skip, expected.length);
             for (int n = stream.read(b); n != -1; n = stream.read(b)) {
                 for (int i = 0; i < n; i++) {
-                    assertEquals(source[offset + i], b[i]);
+                    Assert.assertEquals(expected[offset + i], b[i]);
                 }
                 offset += n;
             }
-            assertEquals(offset, size);
-            assertEquals(-1, stream.read());
-        } finally {
-            stream.close();
+            Assert.assertEquals(offset, expected.length);
+            Assert.assertEquals(-1, stream.read());
         }
     }
 
@@ -209,10 +217,10 @@ public class RecordTest {
 
         Segment segment = large.getSegmentId().getSegment();
 
-        assertEquals("", store.getReader().readString(empty));
-        assertEquals(" ", store.getReader().readString(space));
-        assertEquals("Hello, World!", store.getReader().readString(hello));
-        assertEquals(builder.toString(), store.getReader().readString(large));
+        Assert.assertEquals("", store.getReader().readString(empty));
+        Assert.assertEquals(" ", store.getReader().readString(space));
+        Assert.assertEquals("Hello, World!", store.getReader().readString(hello));
+        Assert.assertEquals(builder.toString(), store.getReader().readString(large));
     }
 
     @Test
@@ -233,22 +241,22 @@ public class RecordTest {
 
         Iterator<MapEntry> iterator;
 
-        assertEquals(0, zero.size());
+        Assert.assertEquals(0, zero.size());
         assertNull(zero.getEntry("one"));
         iterator = zero.getEntries().iterator();
         assertFalse(iterator.hasNext());
 
-        assertEquals(1, one.size());
-        assertEquals(blockId, one.getEntry("one").getValue());
+        Assert.assertEquals(1, one.size());
+        Assert.assertEquals(blockId, one.getEntry("one").getValue());
         assertNull(one.getEntry("two"));
         iterator = one.getEntries().iterator();
         assertTrue(iterator.hasNext());
-        assertEquals("one", iterator.next().getName());
+        Assert.assertEquals("one", iterator.next().getName());
         assertFalse(iterator.hasNext());
 
-        assertEquals(2, two.size());
-        assertEquals(blockId, two.getEntry("one").getValue());
-        assertEquals(blockId, two.getEntry("two").getValue());
+        Assert.assertEquals(2, two.size());
+        Assert.assertEquals(blockId, two.getEntry("one").getValue());
+        Assert.assertEquals(blockId, two.getEntry("two").getValue());
         assertNull(two.getEntry("three"));
         iterator = two.getEntries().iterator();
         assertTrue(iterator.hasNext());
@@ -257,12 +265,12 @@ public class RecordTest {
         iterator.next();
         assertFalse(iterator.hasNext());
 
-        assertEquals(1000, many.size());
+        Assert.assertEquals(1000, many.size());
         iterator = many.getEntries().iterator();
         for (int i = 0; i < 1000; i++) {
             assertTrue(iterator.hasNext());
-            assertEquals(blockId, iterator.next().getValue());
-            assertEquals(blockId, many.getEntry("key" + i).getValue());
+            Assert.assertEquals(blockId, iterator.next().getValue());
+            Assert.assertEquals(blockId, many.getEntry("key" + i).getValue());
         }
         assertFalse(iterator.hasNext());
         assertNull(many.getEntry("foo"));
@@ -271,12 +279,12 @@ public class RecordTest {
         changes.put("key0", null);
         changes.put("key1000", blockId);
         MapRecord modified = writer.writeMap(many, changes);
-        assertEquals(1000, modified.size());
+        Assert.assertEquals(1000, modified.size());
         iterator = modified.getEntries().iterator();
         for (int i = 1; i <= 1000; i++) {
             assertTrue(iterator.hasNext());
-            assertEquals(blockId, iterator.next().getValue());
-            assertEquals(blockId, modified.getEntry("key" + i).getValue());
+            Assert.assertEquals(blockId, iterator.next().getValue());
+            Assert.assertEquals(blockId, modified.getEntry("key" + i).getValue());
         }
         assertFalse(iterator.hasNext());
         assertNull(many.getEntry("foo"));
@@ -289,7 +297,7 @@ public class RecordTest {
         Map<String, RecordId> changes = newHashMap();
         changes.put("one", null);
         MapRecord zero = writer.writeMap(null, changes);
-        assertEquals(0, zero.size());
+        Assert.assertEquals(0, zero.size());
     }
 
     @Test
@@ -305,11 +313,11 @@ public class RecordTest {
 
         MapRecord bad = writer.writeMap(null, map);
 
-        assertEquals(map.size(), bad.size());
+        Assert.assertEquals(map.size(), bad.size());
         Iterator<MapEntry> iterator = bad.getEntries().iterator();
         for (int i = 0; i < map.size(); i++) {
             assertTrue(iterator.hasNext());
-            assertEquals('\u1000', iterator.next().getName().hashCode());
+            Assert.assertEquals('\u1000', iterator.next().getName().hashCode());
         }
         assertFalse(iterator.hasNext());
     }
@@ -318,7 +326,7 @@ public class RecordTest {
     public void testEmptyNode() throws IOException {
         NodeState before = EMPTY_NODE;
         NodeState after = writer.writeNode(before);
-        assertEquals(before, after);
+        Assert.assertEquals(before, after);
     }
 
     @Test
@@ -329,7 +337,7 @@ public class RecordTest {
                 .setProperty("baz", Math.PI)
                 .getNodeState();
         NodeState after = writer.writeNode(before);
-        assertEquals(before, after);
+        Assert.assertEquals(before, after);
     }
 
     @Test
@@ -341,7 +349,7 @@ public class RecordTest {
         }
         NodeState before = builder.getNodeState();
         NodeState after = writer.writeNode(before);
-        assertEquals(before, after);
+        Assert.assertEquals(before, after);
     }
 
     @Test
@@ -351,14 +359,14 @@ public class RecordTest {
             builder.child("test" + i);
         }
         NodeState before = writer.writeNode(builder.getNodeState());
-        assertEquals(builder.getNodeState(), before);
+        Assert.assertEquals(builder.getNodeState(), before);
 
         builder = before.builder();
         for (int i = 0; i < 900; i++) {
             builder.getChildNode("test" + i).remove();
         }
         NodeState after = writer.writeNode(builder.getNodeState());
-        assertEquals(builder.getNodeState(), after);
+        Assert.assertEquals(builder.getNodeState(), after);
     }
 
     @Test
