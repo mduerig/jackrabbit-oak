@@ -45,6 +45,7 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.segment.MapEntry.newModifiedMapEntry;
 import static org.apache.jackrabbit.oak.segment.MapRecord.BUCKETS_PER_LEVEL;
 import static org.apache.jackrabbit.oak.segment.RecordWriters.newNodeStateWriter;
+import static org.apache.jackrabbit.oak.segment.SegmentNodeState.getStableId;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -61,8 +62,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.jcr.PropertyType;
 
-import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
 import com.google.common.io.Closeables;
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.api.PropertyState;
@@ -276,6 +275,19 @@ public class SegmentWriter {
     /**
      * Write a node state.
      * <p>
+     * Equivalent to {@code writeNode(state, null)}
+     *
+     * @see #writeNode(NodeState, ByteBuffer)
+     */
+    @Nonnull
+    public SegmentNodeState writeNode(@Nonnull NodeState state) throws IOException {
+        return writeNode(state, null);
+    }
+
+    /**
+     * michid doc stableIdBytes
+     * Write a node state.
+     * <p>
      * <em>Note:</em> the returned {@code SegmentNodeState} instance is bound to this
      * {@code SegmentWriter} instance. That is, future calls to {@code #builder()}
      * return a {@code NodeBuilder} that is also bound to the same {@code SegmentWriter}
@@ -287,46 +299,18 @@ public class SegmentWriter {
      * @throws IOException
      */
     @Nonnull
-    public SegmentNodeState writeNode(@Nonnull final NodeState state) throws IOException {
+    public SegmentNodeState writeNode(
+            @Nonnull final NodeState state,
+            @Nullable final ByteBuffer stableIdBytes)
+    throws IOException {
         RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation() {
             @Nonnull
             @Override
             public RecordId execute(@Nonnull SegmentBufferWriter writer) throws IOException {
-                return with(writer).writeNode(state);
+                return with(writer).writeNode(state, stableIdBytes);
             }
         });
         return new SegmentNodeState(reader, this, nodeId);
-    }
-
-    /**
-     * Write a node state, unless cancelled.
-     * <p>
-     * <em>Note:</em> the returned {@code SegmentNodeState} instance is bound to this
-     * {@code SegmentWriter} instance. That is, future calls to {@code #builder()}
-     * return a {@code NodeBuilder} that is also bound to the same {@code SegmentWriter}
-     * instance and uses it for writing any changes. This might not always be desired
-     * and callers of this method need to take care not to proliferate this writer
-     * through the returned node states beyond the intended bounds.
-     * @param state   node state to write
-     * @param cancel  supplier to signal cancellation of this write operation
-     * @return segment node state equal to {@code state} or {@code null} if cancelled.
-     * @throws IOException
-     */
-    @CheckForNull
-    public SegmentNodeState writeNode(@Nonnull final NodeState state, @Nonnull Supplier<Boolean> cancel)
-    throws IOException {
-        try {
-            RecordId nodeId = writeOperationHandler.execute(new SegmentWriteOperation(cancel) {
-                @Nonnull
-                @Override
-                public RecordId execute(@Nonnull SegmentBufferWriter writer) throws IOException {
-                    return with(writer).writeNode(state);
-                }
-            });
-            return new SegmentNodeState(reader, this, nodeId);
-        } catch (SegmentWriteOperation.CancelledWriteException ignore) {
-            return null;
-        }
     }
 
     /**
@@ -336,32 +320,10 @@ public class SegmentWriter {
      * <em>not thread safe</em>.
      */
     private abstract class SegmentWriteOperation implements WriteOperation {
-
-        /**
-         * This exception is used internally to signal cancellation of a (recursive)
-         * write node operation.
-         */
-        private class CancelledWriteException extends IOException {
-            public CancelledWriteException() {
-                super("Cancelled write operation");
-            }
-        }
-
-        @Nonnull
-        private final Supplier<Boolean> cancel;
-
         private SegmentBufferWriter writer;
         private Cache<String, RecordId> stringCache;
         private Cache<Template, RecordId> templateCache;
         private Cache<String, RecordId> nodeCache;
-
-        protected SegmentWriteOperation(@Nonnull Supplier<Boolean> cancel) {
-            this.cancel = cancel;
-        }
-
-        protected SegmentWriteOperation() {
-            this(Suppliers.ofInstance(false));
-        }
 
         @Nonnull
         @Override
@@ -887,36 +849,36 @@ public class SegmentWriter {
             return tid;
         }
 
-        private RecordId writeNode(@Nonnull NodeState state) throws IOException {
-            if (cancel.get()) {
-                // Poor man's Either Monad
-                throw new CancelledWriteException();
-            }
-
+        private RecordId writeNode(@Nonnull NodeState state, @Nullable ByteBuffer stableIdBytes)
+        throws IOException {
             RecordId compactedId = deduplicateNode(state);
 
             if (compactedId != null) {
                 return compactedId;
             }
 
-            RecordId recordId = writeNodeUncached(state);
-            if (state instanceof SegmentNodeState) {
+            if (state instanceof SegmentNodeState && stableIdBytes == null) {
+                stableIdBytes = ((SegmentNodeState) state).getStableIdBytes();
+            }
+            RecordId recordId = writeNodeUncached(state, stableIdBytes);
+
+            if (stableIdBytes != null) {
                 // This node state has been rewritten because it is from an older
                 // generation (e.g. due to compaction). Put it into the cache for
                 // deduplication of hard links to it (e.g. checkpoints).
-                SegmentNodeState sns = (SegmentNodeState) state;
-                nodeCache.put(sns.getStableId(), recordId, cost(sns));
+                nodeCache.put(getStableId(stableIdBytes), recordId, cost(state));
                 compactionMonitor.compacted();
             }
             return recordId;
         }
 
-        private byte cost(SegmentNodeState node) {
+        private byte cost(NodeState node) {
             long childCount = node.getChildNodeCount(Long.MAX_VALUE);
             return (byte) (Byte.MIN_VALUE + 64 - numberOfLeadingZeros(childCount));
         }
 
-        private RecordId writeNodeUncached(@Nonnull NodeState state) throws IOException {
+        private RecordId writeNodeUncached(@Nonnull NodeState state, @Nullable ByteBuffer stableIdBytes)
+        throws IOException {
             ModifiedNodeState after = null;
 
             if (state instanceof ModifiedNodeState) {
@@ -962,12 +924,12 @@ public class SegmentWriter {
                     for (ChildNodeEntry entry : state.getChildNodeEntries()) {
                         childNodes.put(
                             entry.getName(),
-                            writeNode(entry.getNodeState()));
+                            writeNode(entry.getNodeState(), null));
                     }
                 }
                 ids.add(writeMap(base, childNodes));
             } else if (childName != Template.ZERO_CHILD_NODES) {
-                ids.add(writeNode(state.getChildNode(template.getChildName())));
+                ids.add(writeNode(state.getChildNode(template.getChildName()), null));
             }
 
             List<RecordId> pIds = newArrayList();
@@ -1020,11 +982,11 @@ public class SegmentWriter {
             }
 
             RecordId stableId = null;
-            if (state instanceof SegmentNodeState) {
-                ByteBuffer bid = ((SegmentNodeState) state).getStableIdBytes();
-                byte[] id = new byte[RecordId.SERIALIZED_RECORD_ID_BYTES];
-                bid.get(id);
-                stableId = writeBlock(id, 0, id.length);
+            if (stableIdBytes != null) {
+                ByteBuffer buffer = stableIdBytes.duplicate();
+                byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                stableId = writeBlock(bytes, 0, bytes.length);
             }
             return newNodeStateWriter(stableId, ids).write(writer, store);
         }
@@ -1038,6 +1000,7 @@ public class SegmentWriter {
          * @param node The node states to de-duplicate.
          * @return the id of the de-duplicated node or {@code null} if none.
          */
+        @CheckForNull
         private RecordId deduplicateNode(@Nonnull NodeState node) {
             if (!(node instanceof SegmentNodeState)) {
                 // De-duplication only for persisted node states
@@ -1112,7 +1075,7 @@ public class SegmentWriter {
             @Override
             public boolean childNodeAdded(String name, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    childNodes.put(name, writeNode(after, null));
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -1124,7 +1087,7 @@ public class SegmentWriter {
             public boolean childNodeChanged(
                 String name, NodeState before, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after));
+                    childNodes.put(name, writeNode(after, null));
                 } catch (IOException e) {
                     exception = e;
                     return false;
