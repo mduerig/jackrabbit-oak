@@ -163,6 +163,8 @@ public class Segment {
      */
     private final SegmentReferences segmentReferences;
 
+    private volatile int accessed;
+
     /**
      * Align an {@code address} on the given {@code boundary}
      *
@@ -215,6 +217,15 @@ public class Segment {
         } finally {
             closeQuietly(out);
         }
+    }
+
+    void access() {
+        accessed++;  // michid deal with overflow
+    }
+
+    boolean accessed() {
+        accessed >>>= 1;
+        return accessed != 0;
     }
 
     /**

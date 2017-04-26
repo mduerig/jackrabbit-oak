@@ -19,19 +19,23 @@
 
 package org.apache.jackrabbit.oak.segment;
 
+import static com.google.common.collect.Queues.newConcurrentLinkedQueue;
+
+import java.util.Iterator;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.cache.Weigher;
+import org.apache.jackrabbit.oak.cache.AbstractCacheStats;
 import org.apache.jackrabbit.oak.cache.CacheStats;
 import org.apache.jackrabbit.oak.segment.CacheWeights.SegmentCacheWeigher;
-
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import com.google.common.cache.Weigher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A cache for {@link Segment} instances by their {@link SegmentId}.
@@ -47,17 +51,50 @@ import com.google.common.cache.Weigher;
  * which always reports a {@link CacheStats#getHitRate()} () miss rate} of 1.
  */
 public class SegmentCache {
+    private static final Logger LOG = LoggerFactory.getLogger(SegmentCache.class);
+
+    // michid remove? Configurable?, default?
+    private static final boolean INCLUDE_BULK = Boolean.getBoolean("segment-cache.include.bulk");
+
     public static final int DEFAULT_SEGMENT_CACHE_MB = 256;
 
+    @Nonnull
     private final Weigher<SegmentId, Segment> weigher = new SegmentCacheWeigher();
-
-    private final long maximumWeight;
 
     /**
      * Cache of recently accessed segments
      */
     @Nonnull
-    private final Cache<SegmentId, Segment> cache;
+    private final ConcurrentLinkedQueue<Segment> segments = newConcurrentLinkedQueue();
+
+    @Nonnull
+    private final AtomicLong currentWeight = new AtomicLong();
+
+    @Nonnull
+    private final AtomicInteger elementCount = new AtomicInteger();
+
+    @Nonnull
+    private final AtomicLong loadSuccessCount = new AtomicLong();
+
+    @Nonnull
+    private final AtomicInteger loadExceptionCount = new AtomicInteger();
+
+    @Nonnull
+    private final AtomicLong loadTime = new AtomicLong();
+
+    @Nonnull
+    private final AtomicLong evictionCount = new AtomicLong();
+
+    @Nonnull
+    private final AtomicLong missCount = new AtomicLong();
+
+    @Nonnull
+    static final AtomicLong hitCount = new AtomicLong();  // michid properly inject
+
+    @Nonnull
+    private final Stats stats = new Stats("Segment Cache");
+
+    private final long maximumWeight;
 
     /**
      * Create a new segment cache of the given size.
@@ -65,20 +102,41 @@ public class SegmentCache {
      */
     public SegmentCache(long cacheSizeMB) {
         this.maximumWeight = cacheSizeMB * 1024 * 1024;
-        this.cache = CacheBuilder.newBuilder()
-                .concurrencyLevel(16)
-                .recordStats()
-                .maximumWeight(maximumWeight)
-                .weigher(weigher)
-                .removalListener(new RemovalListener<SegmentId, Segment>() {
-                    @Override
-                    public void onRemoval(@Nonnull RemovalNotification<SegmentId, Segment> notification) {
-                        SegmentId id = notification.getKey();
-                        if (id != null) {
-                            id.unloaded();
-                        }
-                    }
-                }).build();
+    }
+
+    private void put(@Nonnull SegmentId id, @Nonnull Segment segment) {
+        if (!INCLUDE_BULK && id.isBulkSegmentId()) {
+            return;
+        }
+
+        long size = weigher.weigh(id, segment);
+        id.loaded(segment);
+        segments.add(segment);
+        currentWeight.addAndGet(size);
+        elementCount.incrementAndGet();
+        LOG.debug("Put segment {} into segment cache ({} bytes)", id, size);
+
+        int failedEvictions = 0;
+        while (currentWeight.get() > maximumWeight) {
+            Segment head = segments.poll();
+            if (head == null) {
+                return;
+            }
+            SegmentId headId = head.getSegmentId();
+            if (head.accessed()) {
+                failedEvictions++;
+                segments.add(head);
+                LOG.debug("Segment {} was recently used, keeping in segment cache", headId);
+            } else {
+                headId.unloaded();
+                long lastSize = weigher.weigh(headId, head);
+                currentWeight.addAndGet(-lastSize);
+                elementCount.decrementAndGet();
+                evictionCount.incrementAndGet();
+                LOG.debug("Evicted segment {} from segment cache ({} bytes) after {} eviction attempts",
+                        headId, lastSize, failedEvictions);
+            }
+        }
     }
 
     /**
@@ -92,11 +150,15 @@ public class SegmentCache {
     public Segment getSegment(@Nonnull final SegmentId id, @Nonnull final Callable<Segment> loader)
     throws ExecutionException {
         try {
+            missCount.incrementAndGet();
+            long t0 = System.nanoTime();
             Segment segment = loader.call();
-            cache.put(id, segment);
-            id.loaded(segment);
+            loadTime.addAndGet(System.nanoTime() - t0);
+            loadSuccessCount.incrementAndGet();
+            put(id, segment);
             return segment;
         } catch (Exception e) {
+            loadExceptionCount.incrementAndGet();
             throw new ExecutionException(e);
         }
     }
@@ -107,15 +169,21 @@ public class SegmentCache {
      */
     public void putSegment(@Nonnull Segment segment) {
         SegmentId segmentId = segment.getSegmentId();
-        cache.put(segmentId, segment);
-        segmentId.loaded(segment);
+        put(segmentId, segment);
     }
 
     /**
      * Clear all segment from the cache
      */
-    public void clear() {
-        cache.invalidateAll();
+    public synchronized void clear() {
+        for (Iterator<Segment> iterator = segments.iterator(); iterator.hasNext(); ) {
+            Segment segment = iterator.next();
+            SegmentId id = segment.getSegmentId();
+            id.unloaded();
+            iterator.remove();
+            currentWeight.addAndGet(weigher.weigh(id, segment));
+            elementCount.decrementAndGet();
+        }
     }
 
     /**
@@ -123,7 +191,39 @@ public class SegmentCache {
      * @return  statistics for this cache.
      */
     @Nonnull
-    public CacheStats getCacheStats() {
-        return new CacheStats(cache, "Segment Cache", weigher, maximumWeight);
+    public AbstractCacheStats getCacheStats() {
+        return stats;
+    }
+
+    private class Stats extends AbstractCacheStats {
+        protected Stats(@Nonnull String name) {
+            super(name);
+        }
+
+        @Override
+        protected com.google.common.cache.CacheStats getCurrentStats() {
+            return new com.google.common.cache.CacheStats(
+                    hitCount.get(),
+                    missCount.get(),
+                    loadSuccessCount.get(),
+                    loadExceptionCount.get(),
+                    loadTime.get(),
+                    evictionCount.get());
+        }
+
+        @Override
+        public long getElementCount() {
+            return elementCount.get();
+        }
+
+        @Override
+        public long getMaxTotalWeight() {
+            return maximumWeight;
+        }
+
+        @Override
+        public long estimateCurrentWeight() {
+            return currentWeight.get();
+        }
     }
 }
