@@ -129,8 +129,12 @@ public class SegmentId implements Comparable<SegmentId> {
                 if (segment == null) {
                     log.debug("Loading segment {}", this);
                     segment = store.readSegment(this);
+                } else {
+                    SegmentCache.hitCount.incrementAndGet();
                 }
             }
+        } else {
+            SegmentCache.hitCount.incrementAndGet();
         }
         return segment;
     }
