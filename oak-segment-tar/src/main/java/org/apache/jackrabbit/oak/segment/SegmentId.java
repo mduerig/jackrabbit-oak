@@ -122,21 +122,7 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     @Nonnull
     public Segment getSegment() {
-        Segment segment = this.segment;
-        if (segment == null) {
-            synchronized (this) {
-                segment = this.segment;
-                if (segment == null) {
-                    log.debug("Loading segment {}", this);
-                    segment = store.readSegment(this);
-                } else {
-                    SegmentCache.hitCount.incrementAndGet();
-                }
-            }
-        } else {
-            SegmentCache.hitCount.incrementAndGet();
-        }
-        return segment;
+        return store.readSegment(this);
     }
 
     /**
@@ -193,6 +179,11 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     void unloaded() {
         this.segment = null;
+    }
+
+    @CheckForNull
+    Segment getCachedSegment() {
+        return segment;
     }
 
     /**

@@ -57,9 +57,6 @@ public class SegmentCache {
     private final Cache<SegmentId, Segment> cache;
 
     @Nonnull
-    static final AtomicLong hitCount = new AtomicLong();   // michid properly inject
-
-    @Nonnull
     private final Stats stats = new Stats("Segment Cache");
 
     /**
@@ -119,6 +116,20 @@ public class SegmentCache {
     @Nonnull
     public Segment getSegment(@Nonnull final SegmentId id, @Nonnull final Callable<Segment> loader)
     throws ExecutionException {
+        Segment segment = id.getCachedSegment();
+        if (segment == null) {
+            synchronized (id) {
+                segment = id.getCachedSegment();
+                if (segment != null) {
+                    stats.hitCount.incrementAndGet();
+                    return segment;
+                }
+            }
+        } else {
+            stats.hitCount.incrementAndGet();
+            return segment;
+        }
+
         // Load bulk segment directly without putting it in cache
         try {
             if (id.isBulkSegmentId()) {
@@ -131,7 +142,7 @@ public class SegmentCache {
         // Load data segment and put it in the cache
         try {
             long t0 = System.nanoTime();
-            Segment segment = loader.call();
+            segment = loader.call();
             stats.loadSuccessCount.incrementAndGet();
             stats.loadTime.addAndGet(System.nanoTime() - t0);
             stats.missCount.incrementAndGet();
@@ -188,6 +199,9 @@ public class SegmentCache {
 
         @Nonnull
         final AtomicLong evictionCount = new AtomicLong();
+
+        @Nonnull
+        final AtomicLong hitCount = new AtomicLong();
 
         @Nonnull
         final AtomicLong missCount = new AtomicLong();
