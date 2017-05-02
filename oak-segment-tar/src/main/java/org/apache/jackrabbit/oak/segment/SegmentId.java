@@ -182,7 +182,7 @@ public class SegmentId implements Comparable<SegmentId> {
     }
 
     @CheckForNull
-    Segment getCachedSegment() {
+    public Segment getCachedSegment() {
         return segment;
     }
 

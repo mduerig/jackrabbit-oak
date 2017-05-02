@@ -110,7 +110,12 @@ public class MemoryStore implements SegmentStore {
 
     @Override @Nonnull
     public Segment readSegment(SegmentId id) {
-        Segment segment = segments.get(id);
+        Segment segment = id.getCachedSegment();
+        if (segment != null) {
+            return segment;
+        }
+
+        segment = segments.get(id);
         if (segment != null) {
             return segment;
         }
