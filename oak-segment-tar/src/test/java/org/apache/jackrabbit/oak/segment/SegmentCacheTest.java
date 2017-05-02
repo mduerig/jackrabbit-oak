@@ -18,55 +18,77 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
+import static org.apache.jackrabbit.oak.segment.SegmentStore.EMPTY_STORE;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.doReturn;
+import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.apache.jackrabbit.oak.cache.AbstractCacheStats;
-import org.junit.Ignore;
 import org.junit.Test;
 
 public class SegmentCacheTest {
-    @Test
-    public void putTest() {
-        SegmentId id = new SegmentId(mock(SegmentStore.class), -1, -1);
-        Segment segment = mock(Segment.class);
-        when(segment.getSegmentId()).thenReturn(id);
-        SegmentCache cache = new SegmentCache();
+    private final SegmentCache cache = new SegmentCache();
 
-        cache.putSegment(segment);
-        assertEquals(segment, id.getSegment());
+    private final SegmentId id1 = new SegmentId(EMPTY_STORE, -1, -1) {  // michid tlc
+        @Override
+        protected Segment getSegmentInternal() {
+            Segment segment = super.getSegmentInternal();
+            if (segment != null) {
+                cache.recordHit();
+            }
+            return segment;
+        }
+    };
+    private final Segment segment1 = mock(Segment.class);
+    private final SegmentId id2 = new SegmentId(EMPTY_STORE, -1, -2) {  // michid tlc
+        @Override
+        protected Segment getSegmentInternal() {
+            Segment segment = super.getSegmentInternal();
+            if (segment != null) {
+                cache.recordHit();
+            }
+            return segment;
+        }
+    };
+    private final Segment segment2 = mock(Segment.class);
+
+    {
+        when(segment1.getSegmentId()).thenReturn(id1);
+        when(segment2.getSegmentId()).thenReturn(id2);
     }
 
     @Test
-    public void invalidateTests() {
-        Segment segment1 = mock(Segment.class);
-        Segment segment2 = mock(Segment.class);
-        SegmentStore store = mock(SegmentStore.class);
-        SegmentId id = new SegmentId(store, -1, -1);
-        when(segment1.getSegmentId()).thenReturn(id);
-        SegmentCache cache = new SegmentCache();
-
+    public void putTest() throws ExecutionException {
         cache.putSegment(segment1);
-        assertEquals(segment1, id.getSegment());
+
+        // Segment should be cached with the segmentId and thus not trigger a call
+        // to the (empty) node store.
+        assertEquals(segment1, cache.getSegment(id1, id1::getSegment));
+    }
+
+    @Test
+    public void invalidateTests() throws ExecutionException {
+        cache.putSegment(segment1);
+        assertEquals(segment1, cache.getSegment(id1, id1::getSegment));
 
         // Clearing the cache should cause an eviction call back for id
         cache.clear();
 
-        // Check that this was the case by loading a different segment
-        when(store.readSegment(id)).thenReturn(segment2);
-        assertEquals(segment2, id.getSegment());
+        // Check that segment1 was evicted and needs reloading through the node store
+        AtomicBoolean cached = new AtomicBoolean(true);
+        assertEquals(segment1, cache.getSegment(id1, () -> {
+            cached.set(false);
+            return segment1;
+        }));
+        assertFalse(cached.get());
     }
 
     @Test
-    @Ignore // michid fix hit injection of hit counter
     public void statsTest() throws Exception {
-        SegmentId id = new SegmentId(mock(SegmentStore.class), -1, -1);
-        Segment segment = mock(Segment.class);
-        doReturn(id).when(segment).getSegmentId();
-
-        SegmentCache cache = new SegmentCache();
         AbstractCacheStats stats = cache.getCacheStats();
 
         // empty cache
@@ -77,7 +99,7 @@ public class SegmentCacheTest {
         assertEquals(0, stats.getRequestCount());
 
         // load
-        cache.getSegment(id, () -> segment);
+        cache.getSegment(id1, () -> segment1);
         assertEquals(1, stats.getElementCount());
         assertEquals(1, stats.getLoadCount());
         assertEquals(0, stats.getHitCount());
@@ -85,7 +107,7 @@ public class SegmentCacheTest {
         assertEquals(1, stats.getRequestCount());
 
         // cache hit
-        id.getSegment();
+        assertEquals(segment1, id1.getSegment());
         assertEquals(1, stats.getElementCount());
         assertEquals(1, stats.getLoadCount());
         assertEquals(1, stats.getHitCount());

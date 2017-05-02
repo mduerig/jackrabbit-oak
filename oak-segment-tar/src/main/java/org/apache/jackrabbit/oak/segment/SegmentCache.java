@@ -57,9 +57,6 @@ public class SegmentCache {
     private final Cache<SegmentId, Segment> cache;
 
     @Nonnull
-    static final AtomicLong hitCount = new AtomicLong();   // michid properly inject
-
-    @Nonnull
     private final Stats stats = new Stats("Segment Cache");
 
     /**
@@ -170,6 +167,10 @@ public class SegmentCache {
         return stats;
     }
 
+    public void recordHit() {
+        stats.hitCount.incrementAndGet();
+    }
+
     /** We cannot rely on the statistics of the underlying Guava cache as all cache hits
      * are taken by {@link SegmentId#getSegment()} and thus never seen by the cache.
      */
@@ -188,6 +189,9 @@ public class SegmentCache {
 
         @Nonnull
         final AtomicLong evictionCount = new AtomicLong();
+
+        @Nonnull
+        final AtomicLong hitCount = new AtomicLong();
 
         @Nonnull
         final AtomicLong missCount = new AtomicLong();

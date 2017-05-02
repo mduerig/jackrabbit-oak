@@ -122,21 +122,22 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     @Nonnull
     public Segment getSegment() {
-        Segment segment = this.segment;
+        Segment segment = getSegmentInternal();
         if (segment == null) {
             synchronized (this) {
-                segment = this.segment;
+                segment = getSegmentInternal();
                 if (segment == null) {
                     log.debug("Loading segment {}", this);
                     segment = store.readSegment(this);
-                } else {
-                    SegmentCache.hitCount.incrementAndGet();
                 }
             }
-        } else {
-            SegmentCache.hitCount.incrementAndGet();
         }
         return segment;
+    }
+
+    // michid doc, rename
+    protected Segment getSegmentInternal() {
+        return this.segment;
     }
 
     /**
