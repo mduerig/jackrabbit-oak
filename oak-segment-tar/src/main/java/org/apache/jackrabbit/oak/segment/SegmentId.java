@@ -63,6 +63,8 @@ public class SegmentId implements Comparable<SegmentId> {
 
     private final long creationTime;
 
+    private final Runnable onAccess;
+
     /**
      * The gc generation of this segment or -1 if unknown.
      */
@@ -80,11 +82,16 @@ public class SegmentId implements Comparable<SegmentId> {
      */
     private volatile Segment segment;
 
-    public SegmentId(@Nonnull SegmentStore store, long msb, long lsb) {
+    public SegmentId(@Nonnull SegmentStore store, long msb, long lsb, @Nonnull Runnable onAccess) {
         this.store = store;
         this.msb = msb;
         this.lsb = lsb;
+        this.onAccess = onAccess;
         this.creationTime = System.currentTimeMillis();
+    }
+
+    public SegmentId(@Nonnull SegmentStore store, long msb, long lsb) {
+        this(store, msb, lsb, () -> {});
     }
 
     /**
@@ -128,14 +135,11 @@ public class SegmentId implements Comparable<SegmentId> {
                 segment = this.segment;
                 if (segment == null) {
                     log.debug("Loading segment {}", this);
-                    segment = store.readSegment(this);
-                } else {
-                    SegmentCache.hitCount.incrementAndGet();
+                    return store.readSegment(this);
                 }
             }
-        } else {
-            SegmentCache.hitCount.incrementAndGet();
         }
+        onAccess.run();
         return segment;
     }
 
