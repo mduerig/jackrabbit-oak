@@ -21,76 +21,19 @@ import static com.google.common.base.Preconditions.checkElementIndex;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.jackrabbit.oak.segment.io.Constants.GENERATION_OFFSET;
+import static org.apache.jackrabbit.oak.segment.io.Constants.HEADER_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.Constants.MAX_SEGMENT_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.Constants.RECORDS_COUNT_OFFSET;
+import static org.apache.jackrabbit.oak.segment.io.Constants.RECORD_REFERENCE_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.Constants.SEGMENT_REFERENCES_COUNT_OFFSET;
+import static org.apache.jackrabbit.oak.segment.io.Constants.SEGMENT_REFERENCE_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.Constants.VERSION_OFFSET;
 
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
 public class SegmentReader {
-
-    /**
-     * Metadata about a record.
-     */
-    public static class Record {
-
-        private int number;
-
-        private int type;
-
-        private Record(int number, int type) {
-            this.number = number;
-            this.type = type;
-        }
-
-        /**
-         * Return the number of this record. The record number is the logical
-         * identifier of the record in a segment.
-         *
-         * @return a positive integer.
-         */
-        public int number() {
-            return number;
-        }
-
-        /**
-         * Return the type of this record. The type of the record is defined by
-         * the user.
-         *
-         * @return a positive integer.
-         */
-        public int type() {
-            return type;
-        }
-
-    }
-
-    private static final int HEADER_SIZE = 32;
-
-    private static final int VERSION_OFFSET = 3;
-
-    private static final int GENERATION_OFFSET = 10;
-
-    private static final int SEGMENT_REFERENCES_COUNT_OFFSET = 14;
-
-    private static final int RECORDS_COUNT_OFFSET = 18;
-
-    private static final int SEGMENT_REFERENCE_SIZE = 16;
-
-    private static final int RECORD_REFERENCE_SIZE = 9;
-
-    /**
-     * The number of bytes (or bits of address space) to use for the
-     * alignment boundary of segment records.
-     */
-    private static final int RECORD_ALIGN_BITS = 2;
-
-    /**
-     * Maximum segment size. Record identifiers are stored as three-byte
-     * sequences with the first byte indicating the segment and the next
-     * two the offset within that segment. Since all records are aligned
-     * at four-byte boundaries, the two bytes can address up to 256kB of
-     * record data.
-     */
-    private static final int MAX_SEGMENT_SIZE = 1 << (16 + RECORD_ALIGN_BITS);
 
     public static SegmentReader of(ByteBuffer buffer) {
         checkNotNull(buffer);
@@ -104,6 +47,10 @@ public class SegmentReader {
         }
 
         return new SegmentReader(buffer);
+    }
+
+    public static SegmentReader of(SegmentWriter writer) {
+        return SegmentReader.of(writer.writeTo(ByteBuffer.allocate(writer.size())));
     }
 
     private final ByteBuffer buffer;
@@ -150,8 +97,11 @@ public class SegmentReader {
         idx += Integer.BYTES;
 
         int type = buffer.get(idx);
+        idx += Byte.BYTES;
 
-        return new Record(number, type);
+        int offset = buffer.getInt(idx);
+
+        return new Record(number, type, offset);
     }
 
     public ByteBuffer recordValue(int number, int size) {
