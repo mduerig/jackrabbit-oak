@@ -33,7 +33,7 @@ import static org.apache.jackrabbit.oak.segment.io.Constants.VERSION_OFFSET;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-public class SegmentReader {
+public class SegmentReader implements SegmentAccess {
 
     public static SegmentReader of(ByteBuffer buffer) {
         checkNotNull(buffer);
@@ -59,20 +59,24 @@ public class SegmentReader {
         this.buffer = buffer;
     }
 
+    @Override
     public int version() {
         return buffer.get(VERSION_OFFSET);
     }
 
+    @Override
     public int generation() {
         return buffer.getInt(GENERATION_OFFSET);
     }
 
-    public int segmentReferencesCount() {
+    @Override
+    public int segmentReferenceCount() {
         return buffer.getInt(SEGMENT_REFERENCES_COUNT_OFFSET);
     }
 
+    @Override
     public UUID segmentReference(int i) {
-        checkElementIndex(i, segmentReferencesCount());
+        checkElementIndex(i, segmentReferenceCount());
 
         int idx = HEADER_SIZE + i * SEGMENT_REFERENCE_SIZE;
 
@@ -84,14 +88,16 @@ public class SegmentReader {
         return new UUID(msb, lsb);
     }
 
-    public int recordsCount() {
+    @Override
+    public int recordCount() {
         return buffer.getInt(RECORDS_COUNT_OFFSET);
     }
 
+    @Override
     public Record recordEntry(int i) {
-        checkElementIndex(i, recordsCount());
+        checkElementIndex(i, recordCount());
 
-        int idx = HEADER_SIZE + segmentReferencesCount() * SEGMENT_REFERENCE_SIZE + i * RECORD_REFERENCE_SIZE;
+        int idx = HEADER_SIZE + segmentReferenceCount() * SEGMENT_REFERENCE_SIZE + i * RECORD_REFERENCE_SIZE;
 
         int number = buffer.getInt(idx);
         idx += Integer.BYTES;
@@ -104,6 +110,7 @@ public class SegmentReader {
         return new Record(number, type, offset);
     }
 
+    @Override
     public ByteBuffer recordValue(int number, int size) {
         int base = offsetByNumber(number);
         if (base < 0) {
@@ -119,7 +126,7 @@ public class SegmentReader {
     }
 
     private int offsetByNumber(int number) {
-        int start = 0, end = recordsCount() - 1;
+        int start = 0, end = recordCount() - 1;
         while (start <= end) {
             int mid = (start + end) / 2;
             int midNumber = number(mid);
@@ -137,7 +144,7 @@ public class SegmentReader {
     private int number(int i) {
         int idx = buffer.position();
         idx += HEADER_SIZE;
-        idx += segmentReferencesCount() * SEGMENT_REFERENCE_SIZE;
+        idx += segmentReferenceCount() * SEGMENT_REFERENCE_SIZE;
         idx += i * RECORD_REFERENCE_SIZE;
         return buffer.getInt(idx);
     }
@@ -145,7 +152,7 @@ public class SegmentReader {
     private int offset(int i) {
         int idx = buffer.position();
         idx += HEADER_SIZE;
-        idx += segmentReferencesCount() * SEGMENT_REFERENCE_SIZE;
+        idx += segmentReferenceCount() * SEGMENT_REFERENCE_SIZE;
         idx += i * RECORD_REFERENCE_SIZE;
         idx += Integer.BYTES;
         idx += Byte.BYTES;

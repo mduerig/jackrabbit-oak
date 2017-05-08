@@ -77,7 +77,7 @@ public class SegmentReaderTest {
 
         // The reader should be able to correctly fetch the number of segment
         // references.
-        assertEquals(2, reader.segmentReferencesCount());
+        assertEquals(2, reader.segmentReferenceCount());
 
         // The segment references should be correct.
         Set<UUID> expectedReferences = newHashSet(
@@ -103,14 +103,14 @@ public class SegmentReaderTest {
         // segment. The following assertions takes in consideration the segment
         // info, that is automatically written as the first record in the
         // segment.
-        assertEquals(3, reader.recordsCount());
+        assertEquals(3, reader.recordCount());
 
         // Assuming that records are not empty, it should be possible to read
         // every one of them from the segment given their record number. We
         // can't assert more than this, because doing so would require this test
         // to either know the correct length of the record or to know how to
         // parse a record given its type.
-        for (int i = 0; i < reader.recordsCount(); i++) {
+        for (int i = 0; i < reader.recordCount(); i++) {
             assertNotNull(reader.recordValue(reader.recordEntry(i).number(), 1));
         }
     }

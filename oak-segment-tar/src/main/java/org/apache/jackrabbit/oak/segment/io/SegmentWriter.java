@@ -28,7 +28,9 @@ import static org.apache.jackrabbit.oak.segment.io.Constants.SEGMENT_REFERENCE_S
 import static org.apache.jackrabbit.oak.segment.io.Constants.VERSION_OFFSET;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -37,7 +39,7 @@ import java.util.UUID;
 /**
  * Builds a segment incrementally in memory and serializes it.
  */
-public class SegmentWriter {
+public class SegmentWriter implements SegmentAccess {
 
     /**
      * Create a new {@link SegmentWriter} for the given version and generation.
@@ -54,11 +56,17 @@ public class SegmentWriter {
 
     private final int generation;
 
+    private final Object lock = new Object();
+
     private final Set<UUID> references = new HashSet<>();
+
+    private final List<UUID> orderedReferences = new ArrayList<>();
 
     private final ByteBuffer values = ByteBuffer.allocate(MAX_SEGMENT_SIZE);
 
     private final Map<Integer, Record> entries = new TreeMap<>();
+
+    private final List<Record> orderedEntries = new ArrayList<>();
 
     private int size = HEADER_SIZE;
 
@@ -67,6 +75,58 @@ public class SegmentWriter {
     private SegmentWriter(int version, int generation) {
         this.version = version;
         this.generation = generation;
+    }
+
+    @Override
+    public int version() {
+        return version;
+    }
+
+    @Override
+    public int generation() {
+        return generation;
+    }
+
+    @Override
+    public int segmentReferenceCount() {
+        synchronized (lock) {
+            return orderedReferences.size();
+        }
+    }
+
+    @Override
+    public UUID segmentReference(int i) {
+        synchronized (lock) {
+            return orderedReferences.get(i);
+        }
+    }
+
+    @Override
+    public int recordCount() {
+        synchronized (lock) {
+            return orderedEntries.size();
+        }
+    }
+
+    @Override
+    public Record recordEntry(int i) {
+        synchronized (lock) {
+            return orderedEntries.get(i);
+        }
+    }
+
+    @Override
+    public ByteBuffer recordValue(int number, int size) {
+        synchronized (this) {
+            Record entry = entries.get(number);
+            if (entry == null) {
+                return null;
+            }
+            ByteBuffer slice = values.duplicate();
+            slice.position(entry.offset());
+            slice.limit(entry.offset() + size);
+            return slice.slice();
+        }
     }
 
     /**
@@ -87,27 +147,39 @@ public class SegmentWriter {
      *                                  already exists in this segment.
      */
     public boolean addRecord(int number, int type, ByteBuffer value, Set<UUID> rs) {
-        if (entries.containsKey(number)) {
-            throw new IllegalArgumentException("record number already exists");
-        }
+        synchronized (lock) {
+            if (entries.containsKey(number)) {
+                throw new IllegalArgumentException("record number already exists");
+            }
 
-        int recordSize = alignRecordSize(value.remaining());
-        int newSize = computeSize(recordSize, rs);
+            int recordSize = alignRecordSize(value.remaining());
+            int newSize = computeSize(recordSize, rs);
 
-        if (alignSegmentSize(newSize) > MAX_SEGMENT_SIZE) {
-            return false;
-        }
+            if (alignSegmentSize(newSize) > MAX_SEGMENT_SIZE) {
+                return false;
+            }
 
-        size = newSize;
-        offset += recordSize;
-        int pos = MAX_SEGMENT_SIZE - offset;
-        values.position(pos);
-        values.put(value.slice());
-        entries.put(number, new Record(number, type, pos));
-        if (rs != null) {
-            references.addAll(rs);
+            size = newSize;
+            offset += recordSize;
+
+            int pos = MAX_SEGMENT_SIZE - offset;
+            values.position(pos);
+            values.put(value.slice());
+
+            Record entry = new Record(number, type, pos);
+            entries.put(number, entry);
+            orderedEntries.add(entry);
+
+            if (rs != null) {
+                for (UUID r : rs) {
+                    if (references.add(r)) {
+                        orderedReferences.add(r);
+                    }
+                }
+            }
+
+            return true;
         }
-        return true;
     }
 
     /**
@@ -116,7 +188,9 @@ public class SegmentWriter {
      * @return A positive integer.
      */
     public int size() {
-        return alignSegmentSize(size);
+        synchronized (lock) {
+            return alignSegmentSize(size);
+        }
     }
 
     /**
@@ -127,45 +201,47 @@ public class SegmentWriter {
      * @return The same instance of {@link ByteBuffer} passed as input.
      */
     public ByteBuffer writeTo(ByteBuffer buffer) {
-        ByteBuffer out = buffer.slice();
+        synchronized (lock) {
+            ByteBuffer out = buffer.slice();
 
-        if (out.remaining() < size) {
-            throw new IllegalArgumentException("buffer too small");
+            if (out.remaining() < size) {
+                throw new IllegalArgumentException("buffer too small");
+            }
+
+            out.put((byte) '0');
+            out.put((byte) 'a');
+            out.put((byte) 'K');
+
+            out.put(VERSION_OFFSET, (byte) version);
+            out.putInt(GENERATION_OFFSET, generation);
+            out.putInt(SEGMENT_REFERENCES_COUNT_OFFSET, references.size());
+            out.putInt(RECORDS_COUNT_OFFSET, entries.size());
+
+            out.position(HEADER_SIZE);
+
+            for (UUID reference : references) {
+                out.putLong(reference.getMostSignificantBits());
+                out.putLong(reference.getLeastSignificantBits());
+            }
+
+            for (Record record : entries.values()) {
+                out.putInt(record.number());
+                out.put((byte) record.type());
+                out.putInt(record.offset());
+            }
+
+            // We have position the input buffer to the start of the record
+            // values for the copy to the output buffer to work properly. We
+            // have to explicitly position the output buffer because we have to
+            // take into account that between the end of the header and the
+            // beginning of the record values there might be padding bytes due
+            // to the segment alignment.
+            values.position(MAX_SEGMENT_SIZE - offset);
+            out.position(out.limit() - offset);
+            out.put(values);
+
+            return buffer;
         }
-
-        out.put((byte) '0');
-        out.put((byte) 'a');
-        out.put((byte) 'K');
-
-        out.put(VERSION_OFFSET, (byte) version);
-        out.putInt(GENERATION_OFFSET, generation);
-        out.putInt(SEGMENT_REFERENCES_COUNT_OFFSET, references.size());
-        out.putInt(RECORDS_COUNT_OFFSET, entries.size());
-
-        out.position(HEADER_SIZE);
-
-        for (UUID reference : references) {
-            out.putLong(reference.getMostSignificantBits());
-            out.putLong(reference.getLeastSignificantBits());
-        }
-
-        for (Record record : entries.values()) {
-            out.putInt(record.number());
-            out.put((byte) record.type());
-            out.putInt(record.offset());
-        }
-
-        // We have position the input buffer to the start of the record values
-        // for the copy to the output buffer to work properly. We have to
-        // explicitly position the output buffer because we have to take into
-        // account that between the end of the header and the beginning of the
-        // record values there might be padding bytes due to the segment
-        // alignment.
-        values.position(MAX_SEGMENT_SIZE - offset);
-        out.position(out.limit() - offset);
-        out.put(values);
-
-        return buffer;
     }
 
     private int computeSize(int recordSize, Set<UUID> uuids) {
