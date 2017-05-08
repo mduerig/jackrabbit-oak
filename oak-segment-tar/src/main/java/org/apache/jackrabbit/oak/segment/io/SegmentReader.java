@@ -33,8 +33,18 @@ import static org.apache.jackrabbit.oak.segment.io.Constants.VERSION_OFFSET;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+/**
+ * Enables read-only access to a segment.
+ */
 public class SegmentReader implements SegmentAccess {
 
+    /**
+     * Creates a {@link SegmentReader} for the provided underlying buffer.
+     *
+     * @param buffer An instance of {@link ByteBuffer} containing valid segment
+     *               data.
+     * @return An instance of {@link SegmentReader}.
+     */
     public static SegmentReader of(ByteBuffer buffer) {
         checkNotNull(buffer);
 
@@ -49,6 +59,13 @@ public class SegmentReader implements SegmentAccess {
         return new SegmentReader(buffer);
     }
 
+    /**
+     * Creates a {@link SegmentWriter} from the latest state of the provided
+     * {@link SegmentWriter}.
+     *
+     * @param writer An instance of {@link SegmentWriter}.
+     * @return An instance of {@link SegmentReader}.
+     */
     public static SegmentReader of(SegmentWriter writer) {
         return SegmentReader.of(writer.writeTo(ByteBuffer.allocate(writer.size())));
     }
