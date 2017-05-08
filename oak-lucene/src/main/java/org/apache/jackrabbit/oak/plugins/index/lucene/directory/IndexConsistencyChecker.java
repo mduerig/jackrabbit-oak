@@ -24,6 +24,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,6 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.jackrabbit.oak.commons.IOUtils.humanReadableByteCount;
 
 public class IndexConsistencyChecker {
     private final Logger log = LoggerFactory.getLogger(getClass());
@@ -97,6 +100,45 @@ public class IndexConsistencyChecker {
         public List<String> missingBlobIds = new ArrayList<>();
 
         public List<DirectoryStatus> dirStatus = new ArrayList<>();
+
+        private Stopwatch watch;
+
+        public void dump(PrintWriter pw){
+            if (clean) {
+                pw.printf("%s => VALID%n", indexPath);
+            } else {
+                pw.printf("%s => INVALID%n", indexPath);
+            }
+            pw.printf("\tSize : %s%n", humanReadableByteCount(binaryPropSize));
+
+            if (!missingBlobIds.isEmpty()){
+                pw.println("Missing blobs");
+                for (String id : missingBlobIds) {
+                    pw.println("\t - " + id);
+                }
+            }
+
+            if (!invalidBlobIds.isEmpty()){
+                pw.println("Invalid blobs");
+                for (FileSizeStatus status : invalidBlobIds) {
+                    pw.println("\t - " + status);
+                }
+            }
+
+            for (DirectoryStatus dirStatus : dirStatus) {
+                dirStatus.dump(pw);
+            }
+
+            pw.printf("Time taken : %s%n", watch);
+        }
+
+        @Override
+        public String toString(){
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            dump(pw);
+            return sw.toString();
+        }
     }
 
     public static class DirectoryStatus {
@@ -116,6 +158,30 @@ public class IndexConsistencyChecker {
 
         public DirectoryStatus(String dirName) {
             this.dirName = dirName;
+        }
+
+        public void dump(PrintWriter pw) {
+            pw.println("Directory : " +  dirName);
+            pw.printf("\tSize     : %s%n", humanReadableByteCount(size));
+            pw.printf("\tNum docs : %d%n", numDocs);
+
+            if (!missingFiles.isEmpty()){
+                pw.println("\tMissing Files");
+                for (String file : missingFiles) {
+                    pw.println("\t\t- " + file);
+                }
+            }
+
+            if (!filesWithSizeMismatch.isEmpty()){
+                pw.println("Invalid files");
+                for (FileSizeStatus status : filesWithSizeMismatch) {
+                    pw.println("\t - " + status);
+                }
+            }
+
+            if (status != null){
+                pw.printf("\tCheckIndex status : %s%n", status.clean);
+            }
         }
     }
 
@@ -155,12 +221,17 @@ public class IndexConsistencyChecker {
     }
 
     public Result check(Level level) throws IOException {
+        return check(level, true);
+    }
+
+    public Result check(Level level, boolean cleanWorkDir) throws IOException {
         Stopwatch watch = Stopwatch.createStarted();
         Result result = new Result();
         result.indexPath = indexPath;
         result.clean = true;
+        result.watch = watch;
 
-        log.debug("[{}] Starting check", indexPath);
+        log.info("[{}] Starting check", indexPath);
 
         checkBlobs(result);
         if (level == Level.FULL && result.clean){
@@ -168,14 +239,19 @@ public class IndexConsistencyChecker {
         }
 
         if (result.clean){
-            log.info("[] No problems were detected with this index. Time taken {}", indexPath, watch);
-            FileUtils.deleteQuietly(workDir);
+            log.info("[{}] No problems were detected with this index. Time taken {}", indexPath, watch);
+
         } else {
-            log.warn("[] Problems detected with this index. Time taken {}", indexPath, watch);
-            if (workDir != null) {
-                log.warn("[] Index files are copied to {}", indexPath, workDir.getAbsolutePath());
-            }
+            log.warn("[{}] Problems detected with this index. Time taken {}", indexPath, watch);
         }
+
+        if (cleanWorkDir){
+            FileUtils.deleteQuietly(workDir);
+        } else if (workDir != null){
+            log.info("[{}] Index files are copied to {}", indexPath, workDir.getAbsolutePath());
+        }
+
+        watch.stop();
         return result;
     }
 
@@ -189,7 +265,7 @@ public class IndexConsistencyChecker {
             if (NodeStateUtils.isHidden(dirName) && MultiplexersLucene.isIndexDirName(dirName)){
                 DirectoryStatus dirStatus = new DirectoryStatus(dirName);
                 result.dirStatus.add(dirStatus);
-                log.warn("[{}] Checking directory {}", indexPath, dirName);
+                log.debug("[{}] Checking directory {}", indexPath, dirName);
                 try {
                     checkIndexDirectory(dirStatus, idx, defn, workDir, dirName);
                 } catch (IOException e){

@@ -40,14 +40,17 @@ import org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreBlobStore;
 import org.apache.jackrabbit.oak.plugins.blob.datastore.DataStoreUtils;
 import org.apache.jackrabbit.oak.plugins.document.spi.JournalPropertyService;
 import org.apache.jackrabbit.oak.plugins.index.IndexEditorProvider;
+import org.apache.jackrabbit.oak.plugins.index.IndexPathService;
 import org.apache.jackrabbit.oak.plugins.index.fulltext.ExtractedText;
 import org.apache.jackrabbit.oak.plugins.index.fulltext.PreExtractedTextProvider;
 import org.apache.jackrabbit.oak.plugins.index.lucene.score.ScorerProviderFactory;
+import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeStore;
 import org.apache.jackrabbit.oak.spi.commit.BackgroundObserver;
 import org.apache.jackrabbit.oak.spi.commit.Observer;
 import org.apache.jackrabbit.oak.spi.mount.MountInfoProvider;
 import org.apache.jackrabbit.oak.spi.mount.Mounts;
 import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
+import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.InfoStream;
@@ -81,6 +84,8 @@ public class LuceneIndexProviderServiceTest {
         context.registerService(StatisticsProvider.class, StatisticsProvider.NOOP);
         context.registerService(ScorerProviderFactory.class, ScorerProviderFactory.DEFAULT);
         context.registerService(IndexAugmentorFactory.class, mock(IndexAugmentorFactory.class));
+        context.registerService(NodeStore.class, new MemoryNodeStore());
+        context.registerService(IndexPathService.class, mock(IndexPathService.class));
         MockOsgi.injectServices(service, context.bundleContext());
     }
 

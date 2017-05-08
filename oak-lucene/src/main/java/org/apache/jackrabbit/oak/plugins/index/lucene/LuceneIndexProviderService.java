@@ -52,6 +52,7 @@ import org.apache.jackrabbit.oak.commons.PropertiesUtil;
 import org.apache.jackrabbit.oak.osgi.OsgiWhiteboard;
 import org.apache.jackrabbit.oak.plugins.document.spi.JournalPropertyService;
 import org.apache.jackrabbit.oak.plugins.index.IndexEditorProvider;
+import org.apache.jackrabbit.oak.plugins.index.IndexPathService;
 import org.apache.jackrabbit.oak.plugins.index.aggregate.NodeAggregator;
 import org.apache.jackrabbit.oak.plugins.index.fulltext.PreExtractedTextProvider;
 import org.apache.jackrabbit.oak.plugins.index.lucene.hybrid.DocumentQueue;
@@ -68,6 +69,7 @@ import org.apache.jackrabbit.oak.spi.commit.Observer;
 import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
 import org.apache.jackrabbit.oak.spi.mount.MountInfoProvider;
 import org.apache.jackrabbit.oak.spi.query.QueryIndexProvider;
+import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.spi.whiteboard.Registration;
 import org.apache.jackrabbit.oak.spi.whiteboard.Whiteboard;
 import org.apache.jackrabbit.oak.stats.StatisticsProvider;
@@ -252,6 +254,12 @@ public class LuceneIndexProviderService {
     @Reference
     private MountInfoProvider mountInfoProvider;
 
+    @Reference
+    private NodeStore nodeStore;
+
+    @Reference
+    private IndexPathService indexPathService;
+
     @Reference(cardinality = ReferenceCardinality.OPTIONAL_UNARY,
         policyOption = ReferencePolicyOption.GREEDY,
         policy = ReferencePolicy.DYNAMIC
@@ -306,7 +314,7 @@ public class LuceneIndexProviderService {
 
         oakRegs.add(registerMBean(whiteboard,
                 LuceneIndexMBean.class,
-                new LuceneIndexMBeanImpl(indexProvider.getTracker()),
+                new LuceneIndexMBeanImpl(indexProvider.getTracker(), nodeStore, indexPathService, new File(indexDir, "indexCheckDir")),
                 LuceneIndexMBean.TYPE,
                 "Lucene Index statistics"));
         registerGCMonitor(whiteboard, indexProvider.getTracker());

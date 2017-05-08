@@ -250,6 +250,67 @@ public class IOUtilsTest extends TestCase {
         }
     }
 
+    public void testNextPowerOf2() {
+        assertEquals(1L, IOUtils.nextPowerOf2(0));
+        assertEquals(1L, IOUtils.nextPowerOf2(1));
+        assertEquals(2L, IOUtils.nextPowerOf2(2));
+        assertEquals(4L, IOUtils.nextPowerOf2(3));
+        assertEquals(4L, IOUtils.nextPowerOf2(4));
+        assertEquals(8L, IOUtils.nextPowerOf2(5));
+        assertEquals(8L, IOUtils.nextPowerOf2(7));
+        assertEquals(8L, IOUtils.nextPowerOf2(8));
+        assertEquals(16L, IOUtils.nextPowerOf2(12)); // it is powers of 2, not evens
+        assertEquals(32L, IOUtils.nextPowerOf2(21)); // random mid-range number
+
+        // Test values around the upper limit of powers of 2 in the signed int range
+        assertEquals(0x01L << (Integer.SIZE-2), IOUtils.nextPowerOf2(Integer.MAX_VALUE >> 1));
+        assertEquals(0x01L << (Integer.SIZE-2), IOUtils.nextPowerOf2((Integer.MAX_VALUE >> 1) + 1));
+        assertEquals( 0x01L << ((long)Integer.SIZE - 1L), IOUtils.nextPowerOf2((Integer.MAX_VALUE >> 1) + 2));
+        assertEquals(0x01L << ((long)Integer.SIZE - 1L), IOUtils.nextPowerOf2(Integer.MAX_VALUE));
+
+        // Negative values
+        assertEquals(1L, IOUtils.nextPowerOf2(-1));
+        assertEquals(1L, IOUtils.nextPowerOf2(-2));
+        assertEquals(1L, IOUtils.nextPowerOf2(Integer.MIN_VALUE));
+    }
+
+    public void testCopyStream() throws IOException {
+        final Random r = new Random(1);
+        for (int length : Lists.newArrayList(0, 1, 1000, 4096, 4097, 1024*1024)) {
+            byte[] inData = new byte[length];
+            r.nextBytes(inData);
+            ByteArrayInputStream in = new ByteArrayInputStream(inData);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            IOUtils.copy(in, out);
+            assertEquals(inData, out.toByteArray());
+        }
+    }
+
+    public void testHumanReadableByteCount() {
+        assertEquals("0 B", IOUtils.humanReadableByteCount(0L));
+        assertEquals("1 B", IOUtils.humanReadableByteCount(1L));
+        assertEquals("999 B", IOUtils.humanReadableByteCount(999L));
+        assertEquals("1.0 kB", IOUtils.humanReadableByteCount(1000L));
+        assertEquals("1.0 kB", IOUtils.humanReadableByteCount(1001L));
+        assertEquals("1.1 kB", IOUtils.humanReadableByteCount(1100L));
+        assertEquals("2.0 kB", IOUtils.humanReadableByteCount(2000L));
+        assertEquals("1000.0 kB", IOUtils.humanReadableByteCount(999999L));
+        assertEquals("1.0 MB", IOUtils.humanReadableByteCount(1000000L));
+        assertEquals("1.0 MB", IOUtils.humanReadableByteCount(1010000L));
+        assertEquals("1.1 MB", IOUtils.humanReadableByteCount(1100000L));
+        assertEquals("2.0 MB", IOUtils.humanReadableByteCount(2000000L));
+        assertEquals("2.1 GB", IOUtils.humanReadableByteCount(Integer.MAX_VALUE));
+        assertEquals("54.3 GB", IOUtils.humanReadableByteCount(54320000000L));
+        assertEquals("20.6 TB", IOUtils.humanReadableByteCount(20560000000000L));
+        assertEquals("377.5 PB", IOUtils.humanReadableByteCount(377500000000000000L));
+        assertEquals("1.0 EB", IOUtils.humanReadableByteCount(1000000000000000000L));
+        assertEquals("9.2 EB", IOUtils.humanReadableByteCount(Long.MAX_VALUE));
+        assertEquals("0 B", IOUtils.humanReadableByteCount(-0L));
+        assertEquals("0", IOUtils.humanReadableByteCount(-1L));
+        assertEquals("0", IOUtils.humanReadableByteCount(Integer.MIN_VALUE));
+        assertEquals("0", IOUtils.humanReadableByteCount(Long.MIN_VALUE));
+    }
+
     private static void testVarInt(int x, int expectedLen) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         IOUtils.writeVarInt(out, x);

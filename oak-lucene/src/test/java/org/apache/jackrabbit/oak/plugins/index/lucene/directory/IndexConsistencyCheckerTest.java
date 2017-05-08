@@ -23,6 +23,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -42,7 +44,6 @@ import org.apache.jackrabbit.oak.plugins.index.lucene.writer.MultiplexersLucene;
 import org.apache.jackrabbit.oak.plugins.memory.ArrayBasedBlob;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
-import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -63,6 +64,7 @@ public class IndexConsistencyCheckerTest {
 
     private NodeState rootState = InitialContent.INITIAL_CONTENT;
     private NodeBuilder idx = new IndexDefinitionBuilder().build().builder();
+
 
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder(new File("target"));
@@ -94,6 +96,8 @@ public class IndexConsistencyCheckerTest {
         assertTrue(result.missingBlobs);
         assertFalse(result.blobSizeMismatch);
         assertEquals(4, result.missingBlobIds.size());
+
+        dumpResult(result);
     }
 
     @Test
@@ -112,6 +116,8 @@ public class IndexConsistencyCheckerTest {
         assertFalse(result.missingBlobs);
         assertTrue(result.blobSizeMismatch);
         assertEquals(1, result.invalidBlobIds.size());
+
+        dumpResult(result);
     }
 
     @Test
@@ -135,6 +141,8 @@ public class IndexConsistencyCheckerTest {
         result = checker.check(Level.FULL);
         assertTrue(result.clean);
         assertEquals(2, result.dirStatus.size());
+
+        dumpResult(result);
     }
 
     @Test
@@ -150,13 +158,13 @@ public class IndexConsistencyCheckerTest {
         builder.setChildNode("fooIndex", idx.getNodeState());
         NodeState indexState = builder.getNodeState();
 
-        System.out.println(NodeStateUtils.toString(idx.getNodeState()));
-
         IndexConsistencyChecker checker = new IndexConsistencyChecker(indexState, "/fooIndex", temporaryFolder.getRoot());
         Result result = checker.check(Level.FULL);
         assertFalse(result.clean);
         assertEquals(1, result.dirStatus.get(0).missingFiles.size());
         assertNull(result.dirStatus.get(0).status);
+
+        dumpResult(result);
     }
 
     @Test
@@ -180,7 +188,6 @@ public class IndexConsistencyCheckerTest {
         builder.setChildNode("fooIndex", idx.getNodeState());
         NodeState indexState = builder.getNodeState();
 
-        System.out.println(NodeStateUtils.toString(idx.getNodeState()));
 
         IndexConsistencyChecker checker = new IndexConsistencyChecker(indexState, "/fooIndex", temporaryFolder.getRoot());
         Result result = checker.check(Level.FULL);
@@ -198,6 +205,10 @@ public class IndexConsistencyCheckerTest {
         }
         w.close();
         dir.close();
+    }
+
+    private static void dumpResult(Result result) {
+        System.out.println(result);
     }
 
     private static class FailingBlob extends ArrayBasedBlob {

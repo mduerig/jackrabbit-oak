@@ -19,12 +19,37 @@
 
 package org.apache.jackrabbit.oak.plugins.index;
 
+import javax.annotation.CheckForNull;
 
-public interface IndexPathService {
+import org.apache.jackrabbit.oak.spi.state.NodeState;
+
+public interface AsyncIndexInfoService {
 
     /**
-     * Returns all index definitions paths present in the repository
+     * Returns all the async indexing lanes which are active
+     * in the setup.
      */
-    Iterable<String> getIndexPaths();
+    Iterable<String> getAsyncLanes();
 
+    /**
+     * Returns all the async indexing lanes which are active
+     * in the setup based on given root NodeState
+     *
+     * @param root root NodeState from which async index state
+     *             is read
+     */
+    Iterable<String> getAsyncLanes(NodeState root);
+
+    /**
+     * Returns the info for async indexer with given name
+     */
+    @CheckForNull
+    AsyncIndexInfo getInfo(String name);
+
+    /**
+     * Returns the info for async indexer with given name
+     * and based on given root NodeState
+     */
+    @CheckForNull
+    AsyncIndexInfo getInfo(String name, NodeState root);
 }
