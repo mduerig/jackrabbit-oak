@@ -19,7 +19,6 @@ package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
-import static com.google.common.base.Preconditions.checkState;
 import static org.apache.jackrabbit.oak.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.MEDIUM_LIMIT;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_ID_BYTES;
@@ -39,10 +38,6 @@ import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
  */
 class RecordReader {
 
-    private static int asUnsigned(short value) {
-        return value & 0xffff;
-    }
-
     private final SegmentId id;
 
     private final ByteBuffer data;
@@ -61,44 +56,92 @@ class RecordReader {
         this.segmentReferences = segmentReferences;
     }
 
+    private ByteBuffer value(int recordNumber, int length) {
+        int offset = recordNumbers.getOffset(recordNumber);
+
+        if (offset == -1) {
+            throw new IllegalStateException("invalid record number");
+        }
+
+        checkPositionIndexes(offset, offset + length, MAX_SEGMENT_SIZE);
+        ByteBuffer slice = data.duplicate();
+        slice.position(slice.limit() - (MAX_SEGMENT_SIZE - offset));
+        slice.limit(slice.position() + length);
+        return slice.slice();
+    }
+
+    private ByteBuffer value(int recordNumber, int rawOffset, int recordIdOffset, int length) {
+        ByteBuffer value = value(recordNumber, length + rawOffset + recordIdOffset * RECORD_ID_BYTES);
+        value.position(rawOffset + recordIdOffset * RECORD_ID_BYTES);
+        return value.slice();
+    }
+
+    private ByteBuffer value(int recordNumber, int rawOffset, int length) {
+        ByteBuffer value = value(recordNumber, length + rawOffset);
+        value.position(rawOffset);
+        return value.slice();
+    }
+
     byte readByte(int recordNumber) {
-        return readByte(recordNumber, 0);
+        return value(recordNumber, Byte.BYTES).get();
     }
 
     byte readByte(int recordNumber, int offset) {
-        return data.get(pos(recordNumber, offset, 1));
+        return value(recordNumber, offset, Byte.BYTES).get();
     }
 
     short readShort(int recordNumber) {
-        return data.getShort(pos(recordNumber, 2));
+        return value(recordNumber, Short.BYTES).getShort();
     }
 
     int readInt(int recordNumber) {
-        return data.getInt(pos(recordNumber, 4));
+        return value(recordNumber, Integer.BYTES).getInt();
     }
 
     int readInt(int recordNumber, int offset) {
-        return data.getInt(pos(recordNumber, offset, 4));
+        return value(recordNumber, offset, Integer.BYTES).getInt();
     }
 
     long readLong(int recordNumber) {
-        return data.getLong(pos(recordNumber, 8));
+        return value(recordNumber, Long.BYTES).getLong();
     }
 
     void readBytes(int recordNumber, int position, byte[] buffer, int offset, int length) {
         checkNotNull(buffer);
         checkPositionIndexes(offset, offset + length, buffer.length);
-        ByteBuffer d = readBytes(recordNumber, position, length);
-        d.get(buffer, offset, length);
+        value(recordNumber, position, length).get(buffer, offset, length);
     }
 
     ByteBuffer readBytes(int recordNumber, int position, int length) {
-        int pos = pos(recordNumber, position, length);
-        return slice(pos, length);
+        return value(recordNumber, position, length);
+    }
+
+    private static class RawRecordId {
+
+        short segment;
+
+        int number;
+
+    }
+
+    private RawRecordId readRawRecordId(int recordNumber, int rawOffset, int recordIdOffset) {
+        ByteBuffer value = value(recordNumber, rawOffset, recordIdOffset, RECORD_ID_BYTES);
+        RawRecordId id = new RawRecordId();
+        id.segment = value.getShort();
+        id.number = value.getInt();
+        return id;
+    }
+
+    private RawRecordId readRawRecordId(int recordNumber, int rawOffset) {
+        return readRawRecordId(recordNumber, rawOffset, 0);
+    }
+
+    private RecordId readRecordId(RawRecordId raw) {
+        return new RecordId(dereferenceSegmentId(raw.segment), raw.number);
     }
 
     RecordId readRecordId(int recordNumber, int rawOffset, int recordIdOffset) {
-        return internalReadRecordId(pos(recordNumber, rawOffset, recordIdOffset, RECORD_ID_BYTES));
+        return readRecordId(readRawRecordId(recordNumber, rawOffset, recordIdOffset));
     }
 
     RecordId readRecordId(int recordNumber, int rawOffset) {
@@ -109,154 +152,184 @@ class RecordReader {
         return readRecordId(recordNumber, 0, 0);
     }
 
-    String readString(int offset) {
-        int pos = pos(offset, 1);
-        long length = internalReadLength(pos);
-        if (length < SMALL_LIMIT) {
-            return Charsets.UTF_8.decode(slice(pos + 1, (int) length)).toString();
-        } else if (length < MEDIUM_LIMIT) {
-            return Charsets.UTF_8.decode(slice(pos + 2, (int) length)).toString();
-        } else if (length < Integer.MAX_VALUE) {
-            int size = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-            ListRecord list = new ListRecord(internalReadRecordId(pos + 8), size);
-            try (SegmentStream stream = new SegmentStream(new RecordId(id, offset), list, length)) {
-                return stream.getString();
-            }
-        } else {
-            throw new IllegalStateException("String is too long: " + length);
+    private static final short MEDIUM_LENGTH_MASK = 0x3FFF;
+
+    private static final long LONG_LENGTH_MASK = 0x3FFFFFFFFFFFFFFFL;
+
+    long readLength(int recordNumber) {
+        byte marker = readByte(recordNumber);
+
+        if ((marker & 0x80) == 0) {
+            return marker;
+        }
+
+        if ((marker & 0x40) == 0) {
+            return (readShort(recordNumber) & MEDIUM_LENGTH_MASK) + SMALL_LIMIT;
+        }
+
+        return (readLong(recordNumber) & LONG_LENGTH_MASK) + MEDIUM_LIMIT;
+    }
+
+    private static final int SMALL_LENGTH_SIZE = Byte.BYTES;
+
+    private static final int MEDIUM_LENGTH_SIZE = Short.BYTES;
+
+    private static final int LONG_LENGTH_SIZE = Long.BYTES;
+
+    private static String decode(ByteBuffer buffer) {
+        return Charsets.UTF_8.decode(buffer).toString();
+    }
+
+    private String readSmallString(int recordNumber, int length) {
+        return decode(value(recordNumber, SMALL_LENGTH_SIZE, length));
+    }
+
+    private String readMediumString(int recordNumber, int length) {
+        return decode(value(recordNumber, MEDIUM_LENGTH_SIZE, length));
+    }
+
+    private String readLongString(int recordNumber, int length) {
+        int elements = (length + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        ListRecord list = new ListRecord(readRecordId(recordNumber, LONG_LENGTH_SIZE), elements);
+        try (SegmentStream stream = new SegmentStream(new RecordId(id, recordNumber), list, length)) {
+            return stream.getString();
         }
     }
 
-    Template readTemplate(int recordNumber) {
+    private String readString(int recordNumber, long length) {
+        if (length < SMALL_LIMIT) {
+            return readSmallString(recordNumber, (int) length);
+        }
+        if (length < MEDIUM_LIMIT) {
+            return readMediumString(recordNumber, (int) length);
+        }
+        if (length < Integer.MAX_VALUE) {
+            return readLongString(recordNumber, (int) length);
+        }
+        throw new IllegalStateException("String is too long: " + length);
+    }
+
+    String readString(int recordNumber) {
+        return readString(recordNumber, readLength(recordNumber));
+    }
+
+    private static class RawTemplate {
+
+        RawRecordId primaryType;
+
+        RawRecordId[] mixins;
+
+        boolean manyChildNodes;
+
+        boolean zeroChildNodes;
+
+        RawRecordId childNodeName;
+
+        RawRecordId propertyNames;
+
+        byte[] propertyTypes;
+
+    }
+
+    private RawTemplate readRawTemplate(int recordNumber) {
+        RawTemplate template = new RawTemplate();
+
+        // header [primaryType] [mixinType...] [childName] [propertyNameList [propertyType...]]
+
         int head = readInt(recordNumber);
         boolean hasPrimaryType = (head & (1 << 31)) != 0;
         boolean hasMixinTypes = (head & (1 << 30)) != 0;
-        boolean zeroChildNodes = (head & (1 << 29)) != 0;
-        boolean manyChildNodes = (head & (1 << 28)) != 0;
+        template.zeroChildNodes = (head & (1 << 29)) != 0;
+        template.manyChildNodes = (head & (1 << 28)) != 0;
         int mixinCount = (head >> 18) & ((1 << 10) - 1);
         int propertyCount = head & ((1 << 18) - 1);
 
-        int offset = 4;
+        int offset = Integer.BYTES;
 
-        PropertyState primaryType = null;
         if (hasPrimaryType) {
-            RecordId primaryId = readRecordId(recordNumber, offset);
-            primaryType = PropertyStates.createProperty(
-                    "jcr:primaryType", reader.readString(primaryId), Type.NAME);
+            template.primaryType = readRawRecordId(recordNumber, offset);
             offset += RECORD_ID_BYTES;
         }
 
-        PropertyState mixinTypes = null;
         if (hasMixinTypes) {
-            String[] mixins = new String[mixinCount];
-            for (int i = 0; i < mixins.length; i++) {
-                RecordId mixinId = readRecordId(recordNumber, offset);
-                mixins[i] = reader.readString(mixinId);
+            template.mixins = new RawRecordId[mixinCount];
+            for (int i = 0; i < mixinCount; i++) {
+                template.mixins[i] = readRawRecordId(recordNumber, offset);
                 offset += RECORD_ID_BYTES;
             }
-            mixinTypes = PropertyStates.createProperty(
-                    "jcr:mixinTypes", Arrays.asList(mixins), Type.NAMES);
         }
 
-        String childName = Template.ZERO_CHILD_NODES;
-        if (manyChildNodes) {
-            childName = Template.MANY_CHILD_NODES;
-        } else if (!zeroChildNodes) {
-            RecordId childNameId = readRecordId(recordNumber, offset);
-            childName = reader.readString(childNameId);
+        if (!template.zeroChildNodes && !template.manyChildNodes) {
+            template.childNodeName = readRawRecordId(recordNumber, offset);
             offset += RECORD_ID_BYTES;
         }
 
-        PropertyTemplate[] properties;
-        properties = readProps(propertyCount, recordNumber, offset);
-        return new Template(reader, primaryType, mixinTypes, properties, childName);
-    }
-
-    long readLength(int recordNumber) {
-        return internalReadLength(pos(recordNumber, 1));
-    }
-
-    private long internalReadLength(int pos) {
-        int length = data.get(pos++) & 0xff;
-        if ((length & 0x80) == 0) {
-            return length;
-        } else if ((length & 0x40) == 0) {
-            return ((length & 0x3f) << 8
-                    | data.get(pos) & 0xff)
-                    + SMALL_LIMIT;
-        } else {
-            return (((long) length & 0x3f) << 56
-                    | ((long) (data.get(pos++) & 0xff)) << 48
-                    | ((long) (data.get(pos++) & 0xff)) << 40
-                    | ((long) (data.get(pos++) & 0xff)) << 32
-                    | ((long) (data.get(pos++) & 0xff)) << 24
-                    | ((long) (data.get(pos++) & 0xff)) << 16
-                    | ((long) (data.get(pos++) & 0xff)) << 8
-                    | ((long) (data.get(pos) & 0xff)))
-                    + MEDIUM_LIMIT;
-        }
-    }
-
-    private PropertyTemplate[] readProps(int propertyCount, int recordNumber, int offset) {
-        PropertyTemplate[] properties = new PropertyTemplate[propertyCount];
         if (propertyCount > 0) {
-            RecordId id = readRecordId(recordNumber, offset);
-            ListRecord propertyNames = new ListRecord(id, properties.length);
+            template.propertyNames = readRawRecordId(recordNumber, offset);
             offset += RECORD_ID_BYTES;
+            template.propertyTypes = new byte[propertyCount];
             for (int i = 0; i < propertyCount; i++) {
-                byte type = readByte(recordNumber, offset++);
-                properties[i] = new PropertyTemplate(i,
-                        reader.readString(propertyNames.getEntry(i)), Type.fromTag(
-                        Math.abs(type), type < 0));
+                template.propertyTypes[i] = readByte(recordNumber, offset);
+                offset += Byte.BYTES;
             }
+        }
+
+        return template;
+    }
+
+    private PropertyState readTemplatePrimaryType(RawTemplate raw) {
+        if (raw.primaryType == null) {
+            return null;
+        }
+        String value = reader.readString(readRecordId(raw.primaryType));
+        return PropertyStates.createProperty("jcr:primaryType", value, Type.NAME);
+    }
+
+    private PropertyState readTemplateMixinTypes(RawTemplate raw) {
+        if (raw.mixins == null) {
+            return null;
+        }
+        String[] values = new String[raw.mixins.length];
+        for (int i = 0; i < raw.mixins.length; i++) {
+            values[i] = reader.readString(readRecordId(raw.mixins[i]));
+        }
+        return PropertyStates.createProperty("jcr:mixinTypes", Arrays.asList(values), Type.NAMES);
+    }
+
+    private String readTemplateChildName(RawTemplate raw) {
+        if (raw.zeroChildNodes) {
+            return Template.ZERO_CHILD_NODES;
+        }
+        if (raw.manyChildNodes) {
+            return Template.MANY_CHILD_NODES;
+        }
+        return reader.readString(readRecordId(raw.childNodeName));
+    }
+
+    private PropertyTemplate[] readTemplateProperties(RawTemplate raw) {
+        if (raw.propertyTypes == null) {
+            return null;
+        }
+        PropertyTemplate[] properties = new PropertyTemplate[raw.propertyTypes.length];
+        ListRecord names = new ListRecord(readRecordId(raw.propertyNames), raw.propertyTypes.length);
+        for (int i = 0; i < raw.propertyTypes.length; i++) {
+            String name = reader.readString(names.getEntry(i));
+            byte type = raw.propertyTypes[i];
+            properties[i] = new PropertyTemplate(i, name, Type.fromTag(Math.abs(type), type < 0));
         }
         return properties;
     }
 
-    private ByteBuffer slice(int pos, int length) {
-        ByteBuffer buffer = data.duplicate();
-        buffer.position(pos);
-        buffer.limit(pos + length);
-        return buffer.slice();
+    private Template readTemplate(RawTemplate raw) {
+        PropertyState primaryType = readTemplatePrimaryType(raw);
+        PropertyState mixinTypes = readTemplateMixinTypes(raw);
+        String childName = readTemplateChildName(raw);
+        PropertyTemplate[] properties = readTemplateProperties(raw);
+        return new Template(reader, primaryType, mixinTypes, properties, childName);
     }
 
-    private int pos(int recordNumber, int length) {
-        return pos(recordNumber, 0, 0, length);
-    }
-
-    private int pos(int recordNumber, int rawOffset, int length) {
-        return pos(recordNumber, rawOffset, 0, length);
-    }
-
-    /**
-     * Maps the given record number to the respective position within the
-     * internal {@link #data} array. The validity of a record with the given
-     * length at the given record number is also verified.
-     *
-     * @param recordNumber   record number
-     * @param rawOffset      offset to add to the base position of the record
-     * @param recordIdOffset offset to add to to the base position of the
-     *                       record, multiplied by the length of a record ID
-     * @param length         record length
-     * @return position within the data array
-     */
-    private int pos(int recordNumber, int rawOffset, int recordIdOffset, int length) {
-        int offset = recordNumbers.getOffset(recordNumber);
-
-        if (offset == -1) {
-            throw new IllegalStateException("invalid record number");
-        }
-
-        int base = offset + rawOffset + recordIdOffset * RECORD_ID_BYTES;
-        checkPositionIndexes(base, base + length, MAX_SEGMENT_SIZE);
-        int pos = data.limit() - MAX_SEGMENT_SIZE + base;
-        checkState(pos >= data.position());
-        return pos;
-    }
-
-    private RecordId internalReadRecordId(int pos) {
-        SegmentId segmentId = dereferenceSegmentId(asUnsigned(data.getShort(pos)));
-        return new RecordId(segmentId, data.getInt(pos + 2));
+    Template readTemplate(int recordNumber) {
+        return readTemplate(readRawTemplate(recordNumber));
     }
 
     private SegmentId dereferenceSegmentId(int reference) {
