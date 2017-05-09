@@ -61,7 +61,7 @@ import org.apache.jackrabbit.oak.plugins.document.util.CountingDiff;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeStore;
 import org.apache.jackrabbit.oak.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.segment.SegmentNodeStoreBuilders;
-import org.apache.jackrabbit.oak.segment.TestConstants;
+import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -924,7 +924,7 @@ public class FederatedNodeStoreTest {
     private ByteArrayInputStream createLargeBlob() {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        for (int i = 0; i <= TestConstants.MEDIUM_LIMIT; i++) {
+        for (int i = 0; i <= SegmentTestConstants.MEDIUM_LIMIT; i++) {
             out.write('a');
         }
 

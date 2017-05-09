@@ -31,7 +31,7 @@ import java.io.InputStream;
 
 import com.google.common.base.Strings;
 import org.apache.jackrabbit.oak.segment.SegmentBlob;
-import org.apache.jackrabbit.oak.segment.TestConstants;
+import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.junit.After;
 import org.junit.Before;
@@ -74,7 +74,7 @@ public class ExternalBlobReferenceTest {
      */
     @Test
     public void testShortBlobId() throws Exception {
-        testBlobIdWithLength(TestConstants.BLOB_ID_SMALL_LIMIT - 1);
+        testBlobIdWithLength(SegmentTestConstants.BLOB_ID_SMALL_LIMIT - 1);
     }
 
     /**
@@ -94,12 +94,12 @@ public class ExternalBlobReferenceTest {
      */
     @Test
     public void testLongBlobId() throws Exception {
-        testBlobIdWithLength(TestConstants.BLOB_ID_SMALL_LIMIT);
+        testBlobIdWithLength(SegmentTestConstants.BLOB_ID_SMALL_LIMIT);
     }
 
     private void testBlobIdWithLength(int blobIdLength) throws Exception {
         String blobId = Strings.repeat("x", blobIdLength);
-        long blobLength = TestConstants.MEDIUM_LIMIT;
+        long blobLength = SegmentTestConstants.MEDIUM_LIMIT;
 
         doReturn(blobId).when(blobStore).writeBlob(any(InputStream.class));
         doReturn(blobLength).when(blobStore).getBlobLength(blobId);

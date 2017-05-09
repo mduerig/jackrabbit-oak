@@ -58,7 +58,7 @@ import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
 import org.apache.jackrabbit.oak.segment.SegmentNodeStore;
 import org.apache.jackrabbit.oak.segment.SegmentNodeStoreBuilders;
-import org.apache.jackrabbit.oak.segment.TestConstants;
+import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
 import org.apache.jackrabbit.oak.spi.blob.MemoryBlobStore;
@@ -403,7 +403,7 @@ public class OakDirectoryTest {
 
         String indexPath = "/foo/bar";
 
-        int minFileSize = TestConstants.MEDIUM_LIMIT;
+        int minFileSize = SegmentTestConstants.MEDIUM_LIMIT;
         int blobSize = minFileSize + 1000;
 
         builder = nodeStore.getRoot().builder();

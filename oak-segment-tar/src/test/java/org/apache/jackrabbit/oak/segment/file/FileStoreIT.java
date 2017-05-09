@@ -35,7 +35,7 @@ import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentWriter;
-import org.apache.jackrabbit.oak.segment.TestConstants;
+import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -142,7 +142,7 @@ public class FileStoreIT {
                 // 1 byte per char, 2 byte to store the length and 3 bytes for the
                 // alignment to the integer boundary
                 writer.writeString(Strings.repeat("abcdefghijklmno".substring(k, k + 1),
-                        TestConstants.MEDIUM_LIMIT - 1));
+                        SegmentTestConstants.MEDIUM_LIMIT - 1));
             }
 
             // adding 14280 bytes. 1 byte per char, and 2 bytes to store the length
