@@ -240,7 +240,7 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         int generation = Segment.getGcGeneration(buffer, id);
         w.writeEntry(msb, lsb, data, 0, data.length, generation);
         if (SegmentId.isDataSegmentId(lsb)) {
-            Segment segment = new Segment(tracker, segmentReader, tracker.newSegmentId(msb, lsb), buffer);
+            Segment segment = Segment.newSegment(tracker, segmentReader, tracker.newSegmentId(msb, lsb), buffer);
             populateTarGraph(segment, w);
             populateTarBinaryReferences(segment, w);
         }
@@ -307,7 +307,7 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         if (buffer == null) {
             throw new SegmentNotFoundException(id);
         }
-        return new Segment(tracker, segmentReader, id, buffer);
+        return Segment.newSegment(tracker, segmentReader, id, buffer);
     }
 
 }

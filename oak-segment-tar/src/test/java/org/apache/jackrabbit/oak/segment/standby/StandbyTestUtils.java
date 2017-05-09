@@ -48,7 +48,7 @@ public class StandbyTestUtils {
         long lsb = uuid.getLeastSignificantBits();
         SegmentId id = new SegmentId(store, msb, lsb);
         ByteBuffer data = ByteBuffer.wrap(buffer);
-        return new Segment(idProvider, reader, id, data);
+        return Segment.newSegment(idProvider, reader, id, data);
     }
 
     public static long hash(byte[] data) {

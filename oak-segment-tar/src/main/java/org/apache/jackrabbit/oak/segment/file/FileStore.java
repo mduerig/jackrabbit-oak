@@ -491,7 +491,7 @@ public class FileStore extends AbstractFileStore {
                 data = ByteBuffer.wrap(buffer, offset, length);
             }
 
-            segment = new Segment(tracker, segmentReader, id, data);
+            segment = Segment.newSegment(tracker, segmentReader, id, data);
             generation = segment.getGcGeneration();
             references = readReferences(segment);
             binaryReferences = readBinaryReferences(segment);

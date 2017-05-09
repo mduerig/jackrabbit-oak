@@ -175,10 +175,11 @@ public class Segment {
         return (address + boundary - 1) & ~(boundary - 1);
     }
 
-    public Segment(@Nonnull SegmentIdProvider idProvider,
-                   @Nonnull SegmentReader reader,
-                   @Nonnull final SegmentId id,
-                   @Nonnull final ByteBuffer data) {
+    private Segment(@Nonnull SegmentIdProvider idProvider,
+            @Nonnull SegmentReader reader,
+            @Nonnull final SegmentId id,
+            @Nonnull final ByteBuffer data
+    ) {
         this.reader = checkNotNull(reader);
         this.id = checkNotNull(id);
         this.data = checkNotNull(data);
@@ -215,6 +216,15 @@ public class Segment {
         } finally {
             closeQuietly(out);
         }
+    }
+
+    public static Segment newSegment(
+            @Nonnull SegmentIdProvider idProvider,
+            @Nonnull SegmentReader reader,
+            @Nonnull final SegmentId id,
+            @Nonnull final ByteBuffer data
+    ) {
+        return new Segment(idProvider, reader, id, data);
     }
 
     /**

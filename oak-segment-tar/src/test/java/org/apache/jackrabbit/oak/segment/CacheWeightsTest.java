@@ -385,7 +385,7 @@ public class CacheWeightsTest {
 
         ByteBuffer data = ByteBuffer.wrap(buffer);
         SegmentId id = randomSegmentId(false);
-        Segment segment = new Segment(store.getSegmentIdProvider(), store.getReader(), id, data);
+        Segment segment = Segment.newSegment(store.getSegmentIdProvider(), store.getReader(), id, data);
 
         //
         // TODO check impact of MutableRecordNumbers overhead of 65k bytes
