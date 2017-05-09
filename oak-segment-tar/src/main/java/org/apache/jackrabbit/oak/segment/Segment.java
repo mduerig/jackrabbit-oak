@@ -133,9 +133,6 @@ public class Segment {
     static final int RECORD_NUMBER_COUNT_OFFSET = 18;
 
     @Nonnull
-    private final SegmentReader reader;
-
-    @Nonnull
     private final SegmentId id;
 
     @Nonnull
@@ -176,7 +173,6 @@ public class Segment {
             @Nonnull final SegmentId id,
             @Nonnull final ByteBuffer data
     ) {
-        this.reader = checkNotNull(reader);
         this.id = checkNotNull(id);
         this.data = checkNotNull(data);
         if (id.isDataSegmentId()) {
@@ -318,7 +314,6 @@ public class Segment {
             @Nonnull String info
     ) {
         this.id = checkNotNull(id);
-        this.reader = checkNotNull(reader);
         this.info = checkNotNull(info);
         this.data = ByteBuffer.wrap(checkNotNull(buffer));
         this.version = SegmentVersion.fromByte(buffer[3]);
