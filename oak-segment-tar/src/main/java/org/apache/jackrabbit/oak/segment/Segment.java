@@ -20,7 +20,6 @@ package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Arrays.fill;
 import static org.apache.jackrabbit.oak.commons.IOUtils.closeQuietly;
@@ -331,40 +330,6 @@ public class Segment {
 
     public SegmentVersion getSegmentVersion() {
         return version;
-    }
-
-    private int pos(int recordNumber, int length) {
-        return pos(recordNumber, 0, 0, length);
-    }
-
-    private int pos(int recordNumber, int rawOffset, int length) {
-        return pos(recordNumber, rawOffset, 0, length);
-    }
-
-    /**
-     * Maps the given record number to the respective position within the
-     * internal {@link #data} array. The validity of a record with the given
-     * length at the given record number is also verified.
-     *
-     * @param recordNumber   record number
-     * @param rawOffset      offset to add to the base position of the record
-     * @param recordIdOffset offset to add to to the base position of the
-     *                       record, multiplied by the length of a record ID
-     * @param length         record length
-     * @return position within the data array
-     */
-    private int pos(int recordNumber, int rawOffset, int recordIdOffset, int length) {
-        int offset = recordNumbers.getOffset(recordNumber);
-
-        if (offset == -1) {
-            throw new IllegalStateException("invalid record number");
-        }
-
-        int base = offset + rawOffset + recordIdOffset * RECORD_ID_BYTES;
-        checkPositionIndexes(base, base + length, MAX_SEGMENT_SIZE);
-        int pos = data.limit() - MAX_SEGMENT_SIZE + base;
-        checkState(pos >= data.position());
-        return pos;
     }
 
     public SegmentId getSegmentId() {
