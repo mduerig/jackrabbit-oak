@@ -60,7 +60,7 @@ class RecordReader {
         int offset = recordNumbers.getOffset(recordNumber);
 
         if (offset == -1) {
-            throw new IllegalStateException("invalid record number");
+            throw new IllegalStateException("invalid record number " + recordNumber);
         }
 
         checkPositionIndexes(offset, offset + length, MAX_SEGMENT_SIZE);
