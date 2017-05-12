@@ -32,7 +32,6 @@ import static org.apache.jackrabbit.oak.segment.Segment.HEADER_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.SEGMENT_REFERENCE_SIZE;
-import static org.apache.jackrabbit.oak.segment.Segment.align;
 import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
 
@@ -76,6 +75,18 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * @see #checkGCGeneration(SegmentId)
      */
     private static final boolean ENABLE_GENERATION_CHECK = Boolean.getBoolean("enable-generation-check");
+
+    /**
+     * Align an {@code address} on the given {@code boundary}
+     *
+     * @param address     address to align
+     * @param boundary    boundary to align to
+     * @return  {@code n = address + a} such that {@code n % boundary == 0} and
+     *          {@code 0 <= a < boundary}.
+     */
+    private static int align(int address, int boundary) {
+        return (address + boundary - 1) & ~(boundary - 1);
+    }
 
     private static final class Statistics {
 

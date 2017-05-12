@@ -156,18 +156,6 @@ public class Segment {
 
     private final RecordReader recordReader;
 
-    /**
-     * Align an {@code address} on the given {@code boundary}
-     *
-     * @param address     address to align
-     * @param boundary    boundary to align to
-     * @return  {@code n = address + a} such that {@code n % boundary == 0} and
-     *          {@code 0 <= a < boundary}.
-     */
-    static int align(int address, int boundary) {
-        return (address + boundary - 1) & ~(boundary - 1);
-    }
-
     private Segment(@Nonnull SegmentIdProvider idProvider,
             @Nonnull SegmentReader reader,
             @Nonnull final SegmentId id,
