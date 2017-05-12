@@ -423,14 +423,14 @@ public class SegmentParser {
 
         Segment segment = nodeId.getSegment();
         String stableId = reader.readNode(nodeId).getStableId();
-        RecordId templateId = segment.readRecordId(nodeId.getRecordNumber(), 0, 1);
+        RecordId templateId = segment.getRecordReader().readRecordId(nodeId.getRecordNumber(), 0, 1);
         onTemplate(nodeId, templateId);
 
         Template template = reader.readTemplate(templateId);
 
         // Recurses into child nodes in this segment
         if (template.getChildName() == MANY_CHILD_NODES) {
-            RecordId childMapId = segment.readRecordId(nodeId.getRecordNumber(), 0, 2);
+            RecordId childMapId = segment.getRecordReader().readRecordId(nodeId.getRecordNumber(), 0, 2);
             MapRecord childMap = reader.readMap(childMapId);
             onMap(nodeId, childMapId, childMap);
             for (ChildNodeEntry childNodeEntry : childMap.getEntries()) {
@@ -442,7 +442,7 @@ public class SegmentParser {
                 }
             }
         } else if (template.getChildName() != ZERO_CHILD_NODES) {
-            RecordId childId = segment.readRecordId(nodeId.getRecordNumber(), 0, 2);
+            RecordId childId = segment.getRecordReader().readRecordId(nodeId.getRecordNumber(), 0, 2);
             onNode(nodeId, childId);
             nodeCount++;
         }
@@ -454,7 +454,7 @@ public class SegmentParser {
         PropertyTemplate[] propertyTemplates = template.getPropertyTemplates();
         if (propertyTemplates.length > 0) {
             size += RECORD_ID_BYTES;
-            RecordId id = segment.readRecordId(nodeId.getRecordNumber(), 0, ids + 1);
+            RecordId id = segment.getRecordReader().readRecordId(nodeId.getRecordNumber(), 0, ids + 1);
             ListRecord pIds = new ListRecord(id, propertyTemplates.length);
             for (int i = 0; i < propertyTemplates.length; i++) {
                 RecordId propertyId = pIds.getEntry(i);
@@ -475,7 +475,7 @@ public class SegmentParser {
         int size = 0;
 
         Segment segment = templateId.getSegment();
-        int head = segment.readInt(templateId.getRecordNumber(), size);
+        int head = segment.getRecordReader().readInt(templateId.getRecordNumber(), size);
         boolean hasPrimaryType = (head & (1 << 31)) != 0;
         boolean hasMixinTypes = (head & (1 << 30)) != 0;
         boolean zeroChildNodes = (head & (1 << 29)) != 0;
@@ -485,27 +485,27 @@ public class SegmentParser {
         size += 4;
 
         if (hasPrimaryType) {
-            RecordId primaryId = segment.readRecordId(templateId.getRecordNumber(), size);
+            RecordId primaryId = segment.getRecordReader().readRecordId(templateId.getRecordNumber(), size);
             onString(templateId, primaryId);
             size += RECORD_ID_BYTES;
         }
 
         if (hasMixinTypes) {
             for (int i = 0; i < mixinCount; i++) {
-                RecordId mixinId = segment.readRecordId(templateId.getRecordNumber(), size);
+                RecordId mixinId = segment.getRecordReader().readRecordId(templateId.getRecordNumber(), size);
                 onString(templateId, mixinId);
                 size += RECORD_ID_BYTES;
             }
         }
 
         if (!zeroChildNodes && !manyChildNodes) {
-            RecordId childNameId = segment.readRecordId(templateId.getRecordNumber(), size);
+            RecordId childNameId = segment.getRecordReader().readRecordId(templateId.getRecordNumber(), size);
             onString(templateId, childNameId);
             size += RECORD_ID_BYTES;
         }
 
         if (propertyCount > 0) {
-            RecordId listId = segment.readRecordId(templateId.getRecordNumber(), size);
+            RecordId listId = segment.getRecordReader().readRecordId(templateId.getRecordNumber(), size);
             size += RECORD_ID_BYTES;
             ListRecord propertyNames = new ListRecord(listId, propertyCount);
             for (int i = 0; i < propertyCount; i++) {
@@ -552,7 +552,7 @@ public class SegmentParser {
         size += RECORD_ID_BYTES;                  // value
         size += RECORD_ID_BYTES;                  // base
 
-        RecordId baseId = mapId.getSegment().readRecordId(mapId.getRecordNumber(), 8, 2);
+        RecordId baseId = mapId.getSegment().getRecordReader().readRecordId(mapId.getRecordNumber(), 8, 2);
         onMap(mapId, baseId, reader.readMap(baseId));
 
         return new MapInfo(mapId, size);
@@ -610,11 +610,11 @@ public class SegmentParser {
         Type<?> type = template.getType();
 
         if (type.isArray()) {
-            count = segment.readInt(propertyId.getRecordNumber());
+            count = segment.getRecordReader().readInt(propertyId.getRecordNumber());
             size += 4;
 
             if (count > 0) {
-                RecordId listId = segment.readRecordId(propertyId.getRecordNumber(), 4);
+                RecordId listId = segment.getRecordReader().readRecordId(propertyId.getRecordNumber(), 4);
                 size += RECORD_ID_BYTES;
                 for (RecordId valueId : new ListRecord(listId, count).getEntries()) {
                     onValue(propertyId, valueId, type.getBaseType());
@@ -655,27 +655,27 @@ public class SegmentParser {
         BlobType blobType;
 
         Segment segment = blobId.getSegment();
-        byte head = segment.readByte(blobId.getRecordNumber());
+        byte head = segment.getRecordReader().readByte(blobId.getRecordNumber());
         if ((head & 0x80) == 0x00) {
             // 0xxx xxxx: small value
             size += (1 + head);
             blobType = BlobType.SMALL;
         } else if ((head & 0xc0) == 0x80) {
             // 10xx xxxx: medium value
-            int length = (segment.readShort(blobId.getRecordNumber()) & 0x3fff) + SMALL_LIMIT;
+            int length = (segment.getRecordReader().readShort(blobId.getRecordNumber()) & 0x3fff) + SMALL_LIMIT;
             size += (2 + length);
             blobType = BlobType.MEDIUM;
         } else if ((head & 0xe0) == 0xc0) {
             // 110x xxxx: long value
-            long length = (segment.readLong(blobId.getRecordNumber()) & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
+            long length = (segment.getRecordReader().readLong(blobId.getRecordNumber()) & 0x1fffffffffffffffL) + MEDIUM_LIMIT;
             int count = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-            RecordId listId = segment.readRecordId(blobId.getRecordNumber(), 8);
+            RecordId listId = segment.getRecordReader().readRecordId(blobId.getRecordNumber(), 8);
             onList(blobId, listId, count);
             size += (8 + RECORD_ID_BYTES + length);
             blobType = BlobType.LONG;
         } else if ((head & 0xf0) == 0xe0) {
             // 1110 xxxx: external value
-            int length = (head & 0x0f) << 8 | (segment.readByte(blobId.getRecordNumber(), 1) & 0xff);
+            int length = (head & 0x0f) << 8 | (segment.getRecordReader().readByte(blobId.getRecordNumber(), 1) & 0xff);
             size += (2 + length);
             blobType = BlobType.EXTERNAL;
         } else {
@@ -697,7 +697,7 @@ public class SegmentParser {
 
         Segment segment = stringId.getSegment();
 
-        long length = segment.readLength(stringId.getRecordNumber());
+        long length = segment.getRecordReader().readLength(stringId.getRecordNumber());
         if (length < Segment.SMALL_LIMIT) {
             size += (1 + length);
             blobType = BlobType.SMALL;
@@ -706,7 +706,7 @@ public class SegmentParser {
             blobType = BlobType.MEDIUM;
         } else if (length < Integer.MAX_VALUE) {
             int count = (int) ((length + BLOCK_SIZE - 1) / BLOCK_SIZE);
-            RecordId listId = segment.readRecordId(stringId.getRecordNumber(), 8);
+            RecordId listId = segment.getRecordReader().readRecordId(stringId.getRecordNumber(), 8);
             onList(stringId, listId, count);
             size += (8 + RECORD_ID_BYTES + length);
             blobType = BlobType.LONG;
@@ -755,7 +755,7 @@ public class SegmentParser {
         } else if (bucketSize == 1) {
             entries = newArrayListWithCapacity(count);
             for (int i = 0; i < count; i++) {
-                entries.add(segment.readRecordId(listId.getRecordNumber(), 0, index + i));
+                entries.add(segment.getRecordReader().readRecordId(listId.getRecordNumber(), 0, index + i));
             }
             return new ListBucketInfo(listId, true, entries, count * RECORD_ID_BYTES);
         } else {
@@ -763,7 +763,7 @@ public class SegmentParser {
             while (count > 0) {
                 int bucketIndex = index / bucketSize;
                 int bucketOffset = index % bucketSize;
-                RecordId bucketId = segment.readRecordId(listId.getRecordNumber(), 0, bucketIndex);
+                RecordId bucketId = segment.getRecordReader().readRecordId(listId.getRecordNumber(), 0, bucketIndex);
                 entries.add(bucketId);
                 int c = Math.min(bucketSize, capacity - bucketIndex * bucketSize);
                 int n = Math.min(c - bucketOffset, count);

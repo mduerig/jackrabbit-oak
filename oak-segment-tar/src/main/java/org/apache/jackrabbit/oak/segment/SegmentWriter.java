@@ -388,13 +388,13 @@ public class SegmentWriter {
                                   @Nonnull Map<String, RecordId> changes)
         throws IOException {
             if (base != null && base.isDiff()) {
-                Segment segment = base.getSegment();
-                RecordId key = segment.readRecordId(base.getRecordNumber(), 8);
+                RecordReader recordReader = base.getRecordReader();
+                RecordId key = recordReader.readRecordId(base.getRecordNumber(), 8);
                 String name = reader.readString(key);
                 if (!changes.containsKey(name)) {
-                    changes.put(name, segment.readRecordId(base.getRecordNumber(), 8, 1));
+                    changes.put(name, recordReader.readRecordId(base.getRecordNumber(), 8, 1));
                 }
-                base = new MapRecord(reader, segment.readRecordId(base.getRecordNumber(), 8, 2));
+                base = new MapRecord(reader, recordReader.readRecordId(base.getRecordNumber(), 8, 2));
             }
 
             if (base != null && changes.size() == 1) {

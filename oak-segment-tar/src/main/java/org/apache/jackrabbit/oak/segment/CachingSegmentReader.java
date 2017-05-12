@@ -91,7 +91,7 @@ public class CachingSegmentReader implements SegmentReader {
             @Nonnull
             @Override
             public String apply(Integer offset) {
-                return segmentId.getSegment().readString(offset);
+                return segmentId.getSegment().getRecordReader().readString(offset);
             }
         });
     }
@@ -115,7 +115,7 @@ public class CachingSegmentReader implements SegmentReader {
             @Nonnull
             @Override
             public Template apply(Integer offset) {
-                return segmentId.getSegment().readTemplate(offset);
+                return segmentId.getSegment().getRecordReader().readTemplate(offset);
             }
         });
     }

@@ -374,7 +374,7 @@ public class Segment {
     @CheckForNull
     String getSegmentInfo() {
         if (info == null && id.isDataSegmentId()) {
-            info = readString(recordNumbers.iterator().next().getRecordNumber());
+            info = getRecordReader().readString(recordNumbers.iterator().next().getRecordNumber());
         }
         return info;
     }
@@ -383,71 +383,8 @@ public class Segment {
         return data.remaining();
     }
 
-    private RecordReader getRecordReader() {
+    RecordReader getRecordReader() {
         return recordReader;
-    }
-
-    byte readByte(int recordNumber) {
-        return getRecordReader().readByte(recordNumber);
-    }
-
-    byte readByte(int recordNumber, int offset) {
-        return getRecordReader().readByte(recordNumber, offset);
-    }
-
-    short readShort(int recordNumber) {
-        return getRecordReader().readShort(recordNumber);
-    }
-
-    int readInt(int recordNumber) {
-        return getRecordReader().readInt(recordNumber);
-    }
-
-    int readInt(int recordNumber, int offset) {
-        return getRecordReader().readInt(recordNumber, offset);
-    }
-
-    long readLong(int recordNumber) {
-        return getRecordReader().readLong(recordNumber);
-    }
-
-    void readBytes(int recordNumber, int position, byte[] buffer, int offset, int length) {
-        getRecordReader().readBytes(recordNumber, position, buffer, offset, length);
-    }
-
-    ByteBuffer readBytes(int recordNumber, int position, int length) {
-        return getRecordReader().readBytes(recordNumber, position, length);
-    }
-
-    @Nonnull
-    RecordId readRecordId(int recordNumber, int rawOffset, int recordIdOffset) {
-        return getRecordReader().readRecordId(recordNumber, rawOffset, recordIdOffset);
-    }
-
-    RecordId readRecordId(int recordNumber, int rawOffset) {
-        return getRecordReader().readRecordId(recordNumber, rawOffset);
-    }
-
-    RecordId readRecordId(int recordNumber) {
-        return getRecordReader().readRecordId(recordNumber);
-    }
-
-    @Nonnull
-    String readString(int offset) {
-        return getRecordReader().readString(offset);
-    }
-
-    @Nonnull
-    Template readTemplate(int recordNumber) {
-        return getRecordReader().readTemplate(recordNumber);
-    }
-
-    static long readLength(RecordId id) {
-        return id.getSegment().readLength(id.getRecordNumber());
-    }
-
-    long readLength(int recordNumber) {
-        return getRecordReader().readLength(recordNumber);
     }
 
     //------------------------------------------------------------< Object >--

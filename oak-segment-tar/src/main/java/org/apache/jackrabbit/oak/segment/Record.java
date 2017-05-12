@@ -74,6 +74,10 @@ class Record {
         return recordNumber;
     }
 
+    RecordReader getRecordReader() {
+        return getSegment().getRecordReader();
+    }
+
     /**
      * Returns the identifier of this record.
      *
