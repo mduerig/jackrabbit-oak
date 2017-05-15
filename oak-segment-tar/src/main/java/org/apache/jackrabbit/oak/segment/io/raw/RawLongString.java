@@ -17,6 +17,8 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import java.util.Objects;
+
 public class RawLongString extends RawString {
 
     private final RawRecordId recordId;
@@ -34,6 +36,34 @@ public class RawLongString extends RawString {
 
     public int getLength() {
         return length;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        if (getClass() != o.getClass()) {
+            return false;
+        }
+        return equals((RawLongString) o);
+    }
+
+    private boolean equals(RawLongString that) {
+        return length == that.length && Objects.equals(recordId, that.recordId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(recordId, length);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("RawLongString{recordId=%s, length=%d}", recordId, length);
     }
 
 }

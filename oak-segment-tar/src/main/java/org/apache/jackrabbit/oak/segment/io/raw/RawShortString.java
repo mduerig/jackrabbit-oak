@@ -17,6 +17,8 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import java.util.Objects;
+
 public class RawShortString extends RawString {
 
     private String value;
@@ -27,6 +29,34 @@ public class RawShortString extends RawString {
 
     public String getValue() {
         return value;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        if (getClass() != o.getClass()) {
+            return false;
+        }
+        return equals((RawShortString) o);
+    }
+
+    private boolean equals(RawShortString that) {
+        return Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(value);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("RawShortString{value=%s}", value);
     }
 
 }
