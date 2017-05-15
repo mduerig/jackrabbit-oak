@@ -23,19 +23,32 @@ import com.google.common.base.Charsets;
 
 public abstract class RawRecordReader {
 
-    private static final short MEDIUM_LENGTH_MASK = 0x3FFF;
-
-    private static final long LONG_LENGTH_MASK = 0x3FFFFFFFFFFFFFFFL;
+    // These constants define the encoding of small lengths. If
+    // SMALL_LENGTH_MASK and SMALL_LENGTH_DELTA would be defined, they would
+    // have the values 0x7F and 0, respectively. Their usage is implicit in the
+    // code below.
 
     private static final int SMALL_LENGTH_SIZE = Byte.BYTES;
 
+    private static final int SMALL_LIMIT = 1 << 7;
+
+    // These constants define the encoding of medium lengths.
+
     private static final int MEDIUM_LENGTH_SIZE = Short.BYTES;
+
+    private static final short MEDIUM_LENGTH_MASK = 0x3FFF;
+
+    private static final int MEDIUM_LENGTH_DELTA = SMALL_LIMIT;
+
+    private static final int MEDIUM_LIMIT = (1 << (16 - 2)) + SMALL_LIMIT;
+
+    // These constants define the encoding of long lengths.
 
     private static final int LONG_LENGTH_SIZE = Long.BYTES;
 
-    private static final int SMALL_LIMIT = 1 << 7;
+    private static final long LONG_LENGTH_MASK = 0x3FFFFFFFFFFFFFFFL;
 
-    private static final int MEDIUM_LIMIT = (1 << (16 - 2)) + SMALL_LIMIT;
+    private static final int LONG_LENGTH_DELTA = MEDIUM_LIMIT;
 
     protected abstract ByteBuffer value(int recordNumber, int length);
 
@@ -84,15 +97,33 @@ public abstract class RawRecordReader {
         return readRecordId(value(recordNumber, offset, RawRecordId.BYTES));
     }
 
+    private static boolean isShortLength(byte marker) {
+        return (marker & 0x80) == 0;
+    }
+
+    private static boolean isMediumLength(byte marker) {
+        return ((byte) (marker & 0xC0)) == ((byte) 0x80);
+    }
+
+    private static boolean isLongLength(byte marker) {
+        return ((byte) (marker & 0xE0)) == ((byte) 0xC0);
+    }
+
     public long readLength(int recordNumber) {
         byte marker = readByte(recordNumber);
-        if ((marker & 0x80) == 0) {
+        if (isShortLength(marker)) {
+            // Small length, 1 byte, starting with 0xxx xxxx
             return marker;
         }
-        if ((marker & 0x40) == 0) {
-            return (readShort(recordNumber) & MEDIUM_LENGTH_MASK) + SMALL_LIMIT;
+        if (isMediumLength(marker)) {
+            // Medium length, 2 bytes, starting with 10xx xxxx
+            return (readShort(recordNumber) & MEDIUM_LENGTH_MASK) + MEDIUM_LENGTH_DELTA;
         }
-        return (readLong(recordNumber) & LONG_LENGTH_MASK) + MEDIUM_LIMIT;
+        if (isLongLength(marker)) {
+            // Long length, 8 bytes, starting 110x xxxx
+            return (readLong(recordNumber) & LONG_LENGTH_MASK) + LONG_LENGTH_DELTA;
+        }
+        throw new IllegalStateException("invalid length marker");
     }
 
     private static String decode(ByteBuffer buffer) {
