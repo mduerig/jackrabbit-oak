@@ -21,19 +21,13 @@ import static com.google.common.collect.Sets.newHashSet;
 import static java.util.UUID.randomUUID;
 import static org.junit.Assert.assertEquals;
 
-import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.base.Charsets;
 import org.junit.Test;
 
 public class SegmentReaderWriterTest {
-
-    private static ByteBuffer buffer(String s) {
-        return ByteBuffer.wrap(s.getBytes(Charsets.UTF_8));
-    }
 
     private static Set<Integer> recordNumbers(SegmentAccess s) {
         Set<Integer> numbers = new HashSet<>();
@@ -67,7 +61,7 @@ public class SegmentReaderWriterTest {
     @Test
     public void testSegmentReferencesCount() throws Exception {
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(1, 10, buffer("1"), newHashSet(randomUUID()));
+        writer.addRecord(1, 10, 1, newHashSet(randomUUID()));
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.segmentReferenceCount(), reader.segmentReferenceCount());
     }
@@ -76,7 +70,7 @@ public class SegmentReaderWriterTest {
     public void testSegmentReferences() throws Exception {
         UUID reference = randomUUID();
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(1, 10, buffer("1"), newHashSet(reference));
+        writer.addRecord(1, 10, 1, newHashSet(reference));
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.segmentReference(0), reader.segmentReference(0));
     }
@@ -91,7 +85,7 @@ public class SegmentReaderWriterTest {
     @Test
     public void testRecordsCount() throws Exception {
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(1, 10, buffer("1"), null);
+        writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordCount(), reader.recordCount());
     }
@@ -99,7 +93,7 @@ public class SegmentReaderWriterTest {
     @Test
     public void testRecordNumber() throws Exception {
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(1, 10, buffer("1"), null);
+        writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordEntry(0).number(), reader.recordEntry(0).number());
     }
@@ -107,7 +101,7 @@ public class SegmentReaderWriterTest {
     @Test
     public void testRecordType() throws Exception {
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(1, 10, buffer("1"), null);
+        writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordEntry(0).type(), reader.recordEntry(0).type());
     }
@@ -115,7 +109,7 @@ public class SegmentReaderWriterTest {
     @Test
     public void testRecordValue() throws Exception {
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(1, 10, buffer("1"), null);
+        writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordValue(1, 1), reader.recordValue(1, 1));
     }
@@ -123,9 +117,9 @@ public class SegmentReaderWriterTest {
     @Test
     public void testRecordOrder() throws Exception {
         SegmentWriter writer = SegmentWriter.of(1, 2);
-        writer.addRecord(3, 3, buffer("3"), null);
-        writer.addRecord(1, 1, buffer("1"), null);
-        writer.addRecord(2, 2, buffer("2"), null);
+        writer.addRecord(3, 3, 1, null);
+        writer.addRecord(1, 1, 1, null);
+        writer.addRecord(2, 2, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(recordNumbers(writer), recordNumbers(reader));
     }

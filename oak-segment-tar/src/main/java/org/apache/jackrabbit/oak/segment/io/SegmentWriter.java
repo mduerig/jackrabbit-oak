@@ -130,41 +130,39 @@ public class SegmentWriter implements SegmentAccess {
     }
 
     /**
-     * Add a record to this segment. The record might reference records from
-     * other segments. In this case, those references must be specified to this
-     * method.
+     * Make space for a record to this segment. The record might reference
+     * records from other segments. In this case, those references must be
+     * specified to this method.
      *
-     * @param number The record number of this record.
-     * @param type   The type of this record.
-     * @param value  The value of this record.
-     * @param rs     References to other segments from this record. It can be
-     *               {@code null} if the record doesn't reference any other
-     *               segment.
-     * @return {@code true} if the record is added to the segment, {@code false}
-     * otherwise. If this method returns {@code false}, the segment has reached
-     * its maximum size.
+     * @param number        The record number of this record.
+     * @param type          The type of this record.
+     * @param requestedSize The space needed this record.
+     * @param rs            References to other segments from this record. It
+     *                      can be {@code null} if the record doesn't reference
+     *                      any other segment.
+     * @return an instance of {@link ByteBuffer} if space for the record can be
+     * reserved in the segment, {@code null} otherwise. If this method returns
+     * {@code null}, the segment has reached its maximum size.
      * @throws IllegalArgumentException if a record with the given number
      *                                  already exists in this segment.
      */
-    public boolean addRecord(int number, int type, ByteBuffer value, Set<UUID> rs) {
+    public ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> rs) {
         synchronized (lock) {
             if (entries.containsKey(number)) {
                 throw new IllegalArgumentException("record number already exists");
             }
 
-            int recordSize = alignRecordSize(value.remaining());
+            int recordSize = alignRecordSize(requestedSize);
             int newSize = computeSize(recordSize, rs);
 
             if (alignSegmentSize(newSize) > MAX_SEGMENT_SIZE) {
-                return false;
+                return null;
             }
 
             size = newSize;
             offset += recordSize;
 
             int pos = MAX_SEGMENT_SIZE - offset;
-            values.position(pos);
-            values.put(value.slice());
 
             Record entry = new Record(number, type, pos);
             entries.put(number, entry);
@@ -178,7 +176,11 @@ public class SegmentWriter implements SegmentAccess {
                 }
             }
 
-            return true;
+            values.position(pos);
+
+            ByteBuffer value = values.slice();
+            value.limit(requestedSize);
+            return value.slice();
         }
     }
 
