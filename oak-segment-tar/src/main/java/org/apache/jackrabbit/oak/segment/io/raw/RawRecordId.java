@@ -17,6 +17,8 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import java.util.Objects;
+
 public class RawRecordId {
 
     public static final int BYTES = Short.BYTES + Integer.BYTES;
@@ -36,6 +38,34 @@ public class RawRecordId {
 
     public int getRecordNumber() {
         return recordNumber;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == this) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        if (getClass() != o.getClass()) {
+            return false;
+        }
+        return equals((RawRecordId) o);
+    }
+
+    private boolean equals(RawRecordId that) {
+        return segmentIndex == that.segmentIndex && recordNumber == that.recordNumber;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(segmentIndex, recordNumber);
+    }
+
+    @Override
+    public String toString() {
+        return String.format("RawRecordId{segmentIndex=%d, recordNumber=%d}", segmentIndex, recordNumber);
     }
 
 }
