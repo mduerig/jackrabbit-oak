@@ -23,10 +23,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
+import org.apache.jackrabbit.oak.json.JsopDiff;
 import org.apache.jackrabbit.oak.plugins.index.AsyncIndexInfo;
 import org.apache.jackrabbit.oak.plugins.index.AsyncIndexInfoService;
 import org.apache.jackrabbit.oak.plugins.index.IndexConstants;
@@ -35,17 +37,23 @@ import org.apache.jackrabbit.oak.plugins.index.IndexInfoProvider;
 import org.apache.jackrabbit.oak.plugins.index.lucene.directory.DirectoryUtils;
 import org.apache.jackrabbit.oak.plugins.index.lucene.directory.IndexConsistencyChecker;
 import org.apache.jackrabbit.oak.plugins.index.lucene.writer.MultiplexersLucene;
+import org.apache.jackrabbit.oak.spi.state.EqualsDiff;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStateUtils;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 import org.apache.jackrabbit.oak.spi.state.ReadOnlyBuilder;
+import org.apache.jackrabbit.util.ISO8601;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.jackrabbit.oak.plugins.index.lucene.IndexDefinition.INDEX_DEFINITION_NODE;
 
 public class LuceneIndexInfoProvider implements IndexInfoProvider {
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     private final NodeStore nodeStore;
 
@@ -86,6 +94,8 @@ public class LuceneIndexInfoProvider implements IndexInfoProvider {
 
         LuceneIndexInfo info = new LuceneIndexInfo(indexPath);
         computeSize(idxState, info);
+        computeIndexDefinitionChange(idxState, info);
+        computeLastUpdatedTime(idxState, info);
         computeAsyncIndexInfo(idxState, indexPath, info);
         return info;
     }
@@ -98,8 +108,10 @@ public class LuceneIndexInfoProvider implements IndexInfoProvider {
 
     private void computeAsyncIndexInfo(NodeState idxState, String indexPath, LuceneIndexInfo info) {
         String asyncName = getAsyncName(idxState, indexPath);
-        checkNotNull(asyncName, "No 'async' value for index definition " +
-                "at [%s]. Definition %s", indexPath, idxState);
+        if (asyncName == null) {
+            log.warn("No 'async' value for index definition at [{}]. Definition {}", indexPath, idxState);
+            return;
+        }
 
         AsyncIndexInfo asyncInfo = asyncInfoService.getInfo(asyncName);
         checkNotNull(asyncInfo, "No async info found for name [%s] " +
@@ -122,12 +134,36 @@ public class LuceneIndexInfoProvider implements IndexInfoProvider {
         }
     }
 
+    private static void computeLastUpdatedTime(NodeState idxState, LuceneIndexInfo info) {
+        NodeState status = idxState.getChildNode(IndexDefinition.STATUS_NODE);
+        if (status.exists()){
+            PropertyState updatedTime = status.getProperty(IndexDefinition.STATUS_LAST_UPDATED);
+            if (updatedTime != null) {
+                info.lastUpdatedTime = ISO8601.parse(updatedTime.getValue(Type.DATE)).getTimeInMillis();
+            }
+        }
+    }
+
+    private static void computeIndexDefinitionChange(NodeState idxState, LuceneIndexInfo info) {
+        NodeState storedDefn = idxState.getChildNode(INDEX_DEFINITION_NODE);
+        if (storedDefn.exists()) {
+            NodeState currentDefn = NodeStateCloner.cloneVisibleState(idxState);
+            if (!FilteringEqualsDiff.equals(storedDefn, currentDefn)){
+                info.indexDefinitionChanged = true;
+                info.indexDiff = JsopDiff.diffToJsop(storedDefn, currentDefn);
+            }
+        }
+    }
+
     private static class LuceneIndexInfo implements IndexInfo {
         String indexPath;
         String asyncName;
         long numEntries;
         long size;
         long indexedUptoTime;
+        long lastUpdatedTime;
+        boolean indexDefinitionChanged;
+        String indexDiff;
 
         public LuceneIndexInfo(String indexPath) {
             this.indexPath = indexPath;
@@ -150,7 +186,7 @@ public class LuceneIndexInfoProvider implements IndexInfoProvider {
 
         @Override
         public long getLastUpdatedTime() {
-            return 0; //TODO To be computed
+            return lastUpdatedTime;
         }
 
         @Override
@@ -170,7 +206,51 @@ public class LuceneIndexInfoProvider implements IndexInfoProvider {
 
         @Override
         public boolean hasIndexDefinitionChangedWithoutReindexing() {
-            return false; //TODO To be computed
+            return indexDefinitionChanged;
+        }
+
+        @Override
+        public String getIndexDefinitionDiff() {
+            return indexDiff;
+        }
+    }
+
+    static class FilteringEqualsDiff extends EqualsDiff {
+        private static final Set<String> IGNORED_PROP_NAMES = ImmutableSet.of(
+                IndexConstants.REINDEX_COUNT,
+                IndexConstants.REINDEX_PROPERTY_NAME
+        );
+        public static boolean equals(NodeState before, NodeState after) {
+            return before.exists() == after.exists()
+                    && after.compareAgainstBaseState(before, new FilteringEqualsDiff());
+        }
+
+        @Override
+        public boolean propertyChanged(PropertyState before, PropertyState after) {
+            if (ignoredProp(before.getName())){
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean propertyAdded(PropertyState after) {
+            if (ignoredProp(after.getName())){
+                return true;
+            }
+            return super.propertyAdded(after);
+        }
+
+        @Override
+        public boolean propertyDeleted(PropertyState before) {
+            if (ignoredProp(before.getName())){
+                return true;
+            }
+            return super.propertyDeleted(before);
+        }
+
+        private boolean ignoredProp(String name) {
+            return IGNORED_PROP_NAMES.contains(name) || NodeStateUtils.isHidden(name);
         }
     }
 }
