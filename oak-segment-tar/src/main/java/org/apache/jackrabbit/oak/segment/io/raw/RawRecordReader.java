@@ -160,7 +160,33 @@ public abstract class RawRecordReader {
     }
 
     public RawTemplate readTemplate(int recordNumber) {
-        // header primaryType? mixinType{0,n} childName? (propertyNameList propertyType{1,n})?
+
+        // The template is a variable-length record composed of the following
+        // fields:
+        //
+        //     header primaryType? mixinType{0,n} childName? (propertyNameList propertyType{1,n})?
+        //
+        // where `header` is a mandatory 32bit integer and determines the
+        // presence and the amount of the subsequent fields; `primaryType` is a
+        // record ID pointing to a string that represents the primary type of
+        // the node; `mixinType` is a list of record IDs, each of them pointing
+        // to a string that represents a mixin type; `childName` is a record ID
+        // pointing to a string that represents the name of the only child of
+        // this node; `propertyNameList` is a record ID pointing to a list
+        // record containing the name of the properties of this node;
+        // `propertyType` is a list of 8bit integers, each of them representing
+        // the type of a property of this node.
+        //
+        // The header is composed of the following flags and fields.
+        //
+        //     ABCD EEEE  EEEE EEFF  FFFF FFFF  FFFF FFFF
+        //
+        // where `A` is `1` iff the template has a `primaryType` field; `B` is
+        // `1` iff the template has a non-empty `mixinType` field; `C` is `1`
+        // iff the node doesn't have a child node; `D` is `1` iff the node has
+        // more than one child node; `E` is a 10bit integer that represents the
+        // number of mixins in the node; `F` is a 18bit integer that represents
+        // the number of property in the node.
 
         int header = readInt(recordNumber);
         boolean hasPrimaryType = (header & (1L << 31)) != 0;
