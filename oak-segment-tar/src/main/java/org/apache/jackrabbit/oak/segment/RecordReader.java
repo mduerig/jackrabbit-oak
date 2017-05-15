@@ -181,7 +181,7 @@ class RecordReader {
     }
 
     private String readTemplateChildName(RawTemplate raw) {
-        if (raw.hasZeroChildNodes()) {
+        if (raw.hasNoChildNodes()) {
             return Template.ZERO_CHILD_NODES;
         }
         if (raw.hasManyChildNodes()) {

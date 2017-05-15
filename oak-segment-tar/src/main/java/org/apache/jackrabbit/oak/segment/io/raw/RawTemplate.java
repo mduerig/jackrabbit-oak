@@ -17,7 +17,84 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+
+import java.util.Arrays;
+import java.util.Objects;
+
 public class RawTemplate {
+
+    static Builder builder() {
+        return new Builder();
+    }
+
+    static class Builder {
+
+        private RawRecordId primaryType;
+
+        private RawRecordId[] mixins;
+
+        private boolean manyChildNodes;
+
+        private boolean noChildNodes;
+
+        private RawRecordId childNodeName;
+
+        private RawRecordId propertyNames;
+
+        private byte[] propertyTypes;
+
+        private Builder() {
+            // Prevent external instantiation.
+        }
+
+        Builder withPrimaryType(RawRecordId primaryType) {
+            this.primaryType = checkNotNull(primaryType);
+            return this;
+        }
+
+        Builder withMixins(RawRecordId[] mixins) {
+            this.mixins = checkNotNull(mixins);
+            return this;
+        }
+
+        Builder withManyChildNodes() {
+            this.manyChildNodes = true;
+            this.noChildNodes = false;
+            return this;
+        }
+
+        Builder withNoChildNodes() {
+            this.noChildNodes = true;
+            this.manyChildNodes = false;
+            return this;
+        }
+
+        Builder withChildNodeName(RawRecordId childNodeName) {
+            this.childNodeName = checkNotNull(childNodeName);
+            return this;
+        }
+
+        Builder withPropertyNames(RawRecordId propertyNames) {
+            this.propertyNames = checkNotNull(propertyNames);
+            return this;
+        }
+
+        Builder withPropertyTypes(byte[] propertyTypes) {
+            this.propertyTypes = checkNotNull(propertyTypes);
+            return this;
+        }
+
+        RawTemplate build() {
+            if (childNodeName != null) {
+                checkState(!noChildNodes, "no child nodes and child name provided");
+                checkState(!manyChildNodes, "many child nodes and child name provided");
+            }
+            return new RawTemplate(this);
+        }
+
+    }
 
     private final RawRecordId primaryType;
 
@@ -25,7 +102,7 @@ public class RawTemplate {
 
     private final boolean manyChildNodes;
 
-    private final boolean zeroChildNodes;
+    private final boolean noChildNodes;
 
     private final RawRecordId childNodeName;
 
@@ -33,14 +110,14 @@ public class RawTemplate {
 
     private final byte[] propertyTypes;
 
-    RawTemplate(RawRecordId primaryType, RawRecordId[] mixins, boolean manyChildNodes, boolean zeroChildNodes, RawRecordId childNodeName, RawRecordId propertyNames, byte[] propertyTypes) {
-        this.primaryType = primaryType;
-        this.mixins = mixins;
-        this.manyChildNodes = manyChildNodes;
-        this.zeroChildNodes = zeroChildNodes;
-        this.childNodeName = childNodeName;
-        this.propertyNames = propertyNames;
-        this.propertyTypes = propertyTypes;
+    private RawTemplate(Builder builder) {
+        this.primaryType = builder.primaryType;
+        this.mixins = builder.mixins;
+        this.manyChildNodes = builder.manyChildNodes;
+        this.noChildNodes = builder.noChildNodes;
+        this.childNodeName = builder.childNodeName;
+        this.propertyNames = builder.propertyNames;
+        this.propertyTypes = builder.propertyTypes;
     }
 
     public RawRecordId getPrimaryType() {
@@ -55,8 +132,8 @@ public class RawTemplate {
         return manyChildNodes;
     }
 
-    public boolean hasZeroChildNodes() {
-        return zeroChildNodes;
+    public boolean hasNoChildNodes() {
+        return noChildNodes;
     }
 
     public RawRecordId getChildNodeName() {
@@ -71,4 +148,46 @@ public class RawTemplate {
         return propertyTypes;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null) {
+            return false;
+        }
+        if (getClass() != o.getClass()) {
+            return false;
+        }
+        return equals((RawTemplate) o);
+    }
+
+    private boolean equals(RawTemplate that) {
+        return manyChildNodes == that.manyChildNodes &&
+                noChildNodes == that.noChildNodes &&
+                Objects.equals(primaryType, that.primaryType) &&
+                Arrays.equals(mixins, that.mixins) &&
+                Objects.equals(childNodeName, that.childNodeName) &&
+                Objects.equals(propertyNames, that.propertyNames) &&
+                Arrays.equals(propertyTypes, that.propertyTypes);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(primaryType, mixins, manyChildNodes, noChildNodes, childNodeName, propertyNames, propertyTypes);
+    }
+
+    @Override
+    public String toString() {
+        return String.format(
+                "RawTemplate{primaryType=%s, mixins=%s, manyChildNodes=%s, zeroChildNodes=%s, childNodeName=%s, propertyNames=%s, propertyTypes=%s}",
+                primaryType,
+                Arrays.toString(mixins),
+                manyChildNodes,
+                noChildNodes,
+                childNodeName,
+                propertyNames,
+                Arrays.toString(propertyTypes)
+        );
+    }
 }

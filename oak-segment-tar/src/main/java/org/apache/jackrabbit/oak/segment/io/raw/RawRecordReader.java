@@ -20,6 +20,7 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 import java.nio.ByteBuffer;
 
 import com.google.common.base.Charsets;
+import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate.Builder;
 
 public abstract class RawRecordReader {
 
@@ -160,6 +161,7 @@ public abstract class RawRecordReader {
     }
 
     public RawTemplate readTemplate(int recordNumber) {
+        Builder builder = RawTemplate.builder();
 
         // The template is a variable-length record composed of the following
         // fields:
@@ -183,63 +185,60 @@ public abstract class RawRecordReader {
         //
         // where `A` is `1` iff the template has a `primaryType` field; `B` is
         // `1` iff the template has a non-empty `mixinType` field; `C` is `1`
-        // iff the node doesn't have a child node; `D` is `1` iff the node has
-        // more than one child node; `E` is a 10bit integer that represents the
-        // number of mixins in the node; `F` is a 18bit integer that represents
-        // the number of property in the node.
+        // iff the node doesn't have any child nodes; `D` is `1` iff the node
+        // has more than one child node; `E` is a 10bit integer that represents
+        // the number of mixins in the node; `F` is a 18bit integer that
+        // represents the number of property in the node.
 
         int header = readInt(recordNumber);
         boolean hasPrimaryType = (header & (1L << 31)) != 0;
         boolean hasMixinTypes = (header & (1 << 30)) != 0;
-        boolean zeroChildNodes = (header & (1 << 29)) != 0;
+        boolean noChildNodes = (header & (1 << 29)) != 0;
         boolean manyChildNodes = (header & (1 << 28)) != 0;
         int mixinCount = (header >> 18) & ((1 << 10) - 1);
         int propertyCount = header & ((1 << 18) - 1);
 
+        if (noChildNodes) {
+            builder.withNoChildNodes();
+        }
+
+        if (manyChildNodes) {
+            builder.withManyChildNodes();
+        }
+
         int offset = Integer.BYTES;
 
-        RawRecordId primaryType = null;
         if (hasPrimaryType) {
-            primaryType = readRecordId(recordNumber, offset);
+            builder.withPrimaryType(readRecordId(recordNumber, offset));
             offset += RawRecordId.BYTES;
         }
 
-        RawRecordId[] mixins = null;
         if (hasMixinTypes) {
-            mixins = new RawRecordId[mixinCount];
+            RawRecordId[] mixins = new RawRecordId[mixinCount];
             for (int i = 0; i < mixinCount; i++) {
                 mixins[i] = readRecordId(recordNumber, offset);
                 offset += RawRecordId.BYTES;
             }
+            builder.withMixins(mixins);
         }
 
-        RawRecordId childNodeName = null;
-        if (!zeroChildNodes && !manyChildNodes) {
-            childNodeName = readRecordId(recordNumber, offset);
+        if (!noChildNodes && !manyChildNodes) {
+            builder.withChildNodeName(readRecordId(recordNumber, offset));
             offset += RawRecordId.BYTES;
         }
 
-        RawRecordId propertyNames = null;
-        byte[] propertyTypes = null;
         if (propertyCount > 0) {
-            propertyNames = readRecordId(recordNumber, offset);
+            builder.withPropertyNames(readRecordId(recordNumber, offset));
             offset += RawRecordId.BYTES;
-            propertyTypes = new byte[propertyCount];
+            byte[] propertyTypes = new byte[propertyCount];
             for (int i = 0; i < propertyCount; i++) {
                 propertyTypes[i] = readByte(recordNumber, offset);
                 offset += Byte.BYTES;
             }
+            builder.withPropertyTypes(propertyTypes);
         }
 
-        return new RawTemplate(
-                primaryType,
-                mixins,
-                manyChildNodes,
-                zeroChildNodes,
-                childNodeName,
-                propertyNames,
-                propertyTypes
-        );
+        return builder.build();
     }
 
 }
