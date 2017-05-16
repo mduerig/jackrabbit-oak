@@ -1175,6 +1175,7 @@ public class FileStore extends AbstractFileStore {
          */
         synchronized void collectBlobReferences(ReferenceCollector collector) throws IOException {
             segmentWriter.flush();
+
             List<TarReader> tarReaders = newArrayList();
             fileStoreLock.writeLock().lock();
             try {
@@ -1184,9 +1185,10 @@ public class FileStore extends AbstractFileStore {
                 fileStoreLock.writeLock().unlock();
             }
 
-            int minGeneration = getGcGeneration() - gcOptions.getRetainedGenerations() + 1;
+            // michid incorrect for reclaim > 2
+            int oldGeneration = getGcGeneration() - gcOptions.getRetainedGenerations();
             for (TarReader tarReader : tarReaders) {
-                tarReader.collectBlobReferences(collector, minGeneration);
+                tarReader.collectBlobReferences(collector, CompactionResult.newOldReclaimer(oldGeneration));
             }
         }
 
