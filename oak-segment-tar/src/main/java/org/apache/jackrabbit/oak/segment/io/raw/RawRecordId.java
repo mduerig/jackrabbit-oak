@@ -20,6 +20,12 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * An identifier of a record. The identifier may point to a record from a
+ * different segment, in which case {@link #getSegmentId()} returns a non-{@code
+ * null} value, or to a record from the same segment, in which case {@link
+ * #getSegmentId()} returns {@code null}.
+ */
 public class RawRecordId {
 
     public static final int BYTES = Short.BYTES + Integer.BYTES;
@@ -33,10 +39,21 @@ public class RawRecordId {
         this.recordNumber = recordNumber;
     }
 
+    /**
+     * The identifier of the segment containing the record. It can be {@code
+     * null} if the record is contained in the same segment as this record ID.
+     *
+     * @return An instance of {@link UUID}. It can be {@code null}.
+     */
     public UUID getSegmentId() {
         return segmentId;
     }
 
+    /**
+     * The record number of the referenced record.
+     *
+     * @return A positive integer.
+     */
     public int getRecordNumber() {
         return recordNumber;
     }

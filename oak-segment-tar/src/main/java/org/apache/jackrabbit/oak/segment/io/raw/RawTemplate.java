@@ -23,6 +23,10 @@ import static com.google.common.base.Preconditions.checkState;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * A node template record. This record contains information of a node that don't
+ * change frequently.
+ */
 public class RawTemplate {
 
     static Builder builder() {
@@ -120,30 +124,73 @@ public class RawTemplate {
         this.propertyTypes = builder.propertyTypes;
     }
 
+    /**
+     * Return a pointer to a string record that stores the node's primary type.
+     *
+     * @return An instance of {@link RawRecordId}. It can be {@code null}.
+     */
     public RawRecordId getPrimaryType() {
         return primaryType;
     }
 
+    /**
+     * Return an array of pointers to string records, each of them storing the
+     * node's mixin types.
+     *
+     * @return An array of {@link RawRecordId}. It can be {@code null}.
+     */
     public RawRecordId[] getMixins() {
         return mixins;
     }
 
+    /**
+     * Return {@code true} if this node has more than one child node.
+     *
+     * @return a boolean.
+     */
     public boolean hasManyChildNodes() {
         return manyChildNodes;
     }
 
+    /**
+     * Return {@code true} if this node has no child nodes.
+     *
+     * @return a boolean.
+     */
     public boolean hasNoChildNodes() {
         return noChildNodes;
     }
 
+    /**
+     * Return a pointer to a string representing the name of the only child of
+     * the node. This method returns a non-{@code null} value iff both {@link
+     * #hasManyChildNodes()} and {@link #hasNoChildNodes()} return {@code
+     * false}.
+     *
+     * @return an instance of {@link RawRecordId}. It can be {@code null}.
+     */
     public RawRecordId getChildNodeName() {
         return childNodeName;
     }
 
+    /**
+     * Return a pointer to a list record containing the names of the properties
+     * of the node. The number of elements in the list record is given by the
+     * length of the array returned by {@link #getPropertyTypes()}. If the node
+     * has no properties, this method returns {@code null}.
+     *
+     * @return an instance of {@link RawRecordId}. It can be {@code null}.
+     */
     public RawRecordId getPropertyNames() {
         return propertyNames;
     }
 
+    /**
+     * Return an array of property types, one for each proeprty of the node.
+     * This method returns {@code null} if the node has no properties.
+     *
+     * @return an array of bytes. It can be {@code null}.
+     */
     public byte[] getPropertyTypes() {
         return propertyTypes;
     }

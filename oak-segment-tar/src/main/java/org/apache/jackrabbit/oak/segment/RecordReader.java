@@ -55,8 +55,8 @@ class RecordReader {
     private final RawRecordReader raw = new RawRecordReader() {
 
         @Override
-        protected ByteBuffer value(int recordNumber, int length) {
-            return RecordReader.this.value(recordNumber, length);
+        protected ByteBuffer value(int recordNumber, int size) {
+            return RecordReader.this.value(recordNumber, size);
         }
 
         @Override

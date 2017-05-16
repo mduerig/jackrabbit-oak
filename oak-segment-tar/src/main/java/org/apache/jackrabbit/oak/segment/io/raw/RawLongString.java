@@ -19,6 +19,11 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 
 import java.util.Objects;
 
+/**
+ * A long string record. A string is serialized as a long string when it can't
+ * be comfortably stored in a segment. In this case, a pointer to the value of
+ * the string is returned.
+ */
 public class RawLongString extends RawString {
 
     private final RawRecordId recordId;
@@ -30,10 +35,20 @@ public class RawLongString extends RawString {
         this.length = length;
     }
 
+    /**
+     * Return the pointer to the string data.
+     *
+     * @return An instance of {@link RawRecordId}.
+     */
     public RawRecordId getRecordId() {
         return recordId;
     }
 
+    /**
+     * Return the length of the string.
+     *
+     * @return A positive integer.
+     */
     public int getLength() {
         return length;
     }

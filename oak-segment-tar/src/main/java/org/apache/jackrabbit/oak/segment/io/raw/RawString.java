@@ -17,6 +17,9 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+/**
+ * A marker class representing a string record.
+ */
 public class RawString {
 
     RawString() {

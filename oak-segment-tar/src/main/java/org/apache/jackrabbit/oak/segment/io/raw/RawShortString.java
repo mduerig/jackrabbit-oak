@@ -19,6 +19,10 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 
 import java.util.Objects;
 
+/**
+ * A short string record. A string is serialized as a short string record when
+ * it can be comfortably stored in a segment.
+ */
 public class RawShortString extends RawString {
 
     private String value;
@@ -27,6 +31,11 @@ public class RawShortString extends RawString {
         this.value = value;
     }
 
+    /**
+     * Return the value of this string.
+     *
+     * @return An instance of {@link String}.
+     */
     public String getValue() {
         return value;
     }

@@ -32,7 +32,7 @@ public class RawRecordReaderTest {
         return new RawRecordReader() {
 
             @Override
-            protected ByteBuffer value(int recordNumber, int length) {
+            protected ByteBuffer value(int recordNumber, int size) {
                 return value.duplicate();
             }
 
