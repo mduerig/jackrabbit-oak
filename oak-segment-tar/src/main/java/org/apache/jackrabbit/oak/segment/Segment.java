@@ -184,7 +184,7 @@ public class Segment {
             this.recordNumbers = new IdentityRecordNumbers();
             this.segmentReferences = new IllegalSegmentReferences();
         }
-        this.recordReader = new RecordReader(id, data, reader, recordNumbers, segmentReferences);
+        this.recordReader = new RecordReader(id, data, reader, recordNumbers, segmentReferences, idProvider);
     }
 
     private static String toHex(byte[] bytes) {
@@ -299,7 +299,8 @@ public class Segment {
             @Nonnull byte[] buffer,
             @Nonnull RecordNumbers recordNumbers,
             @Nonnull SegmentReferences segmentReferences,
-            @Nonnull String info
+            @Nonnull String info,
+            @Nonnull SegmentIdProvider segmentIdProvider
     ) {
         this.id = checkNotNull(id);
         this.info = checkNotNull(info);
@@ -307,7 +308,7 @@ public class Segment {
         this.version = SegmentVersion.fromByte(buffer[3]);
         this.recordNumbers = recordNumbers;
         this.segmentReferences = segmentReferences;
-        this.recordReader = new RecordReader(id, data, reader, recordNumbers, segmentReferences);
+        this.recordReader = new RecordReader(id, data, reader, recordNumbers, segmentReferences, segmentIdProvider);
         id.loaded(this);
     }
 

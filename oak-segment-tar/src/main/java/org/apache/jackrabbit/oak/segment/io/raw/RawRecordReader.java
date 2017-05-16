@@ -18,6 +18,7 @@
 package org.apache.jackrabbit.oak.segment.io.raw;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate.Builder;
@@ -52,6 +53,8 @@ public abstract class RawRecordReader {
     private static final int LONG_LENGTH_DELTA = MEDIUM_LIMIT;
 
     protected abstract ByteBuffer value(int recordNumber, int length);
+
+    protected abstract UUID segmentId(int segmentReference);
 
     private ByteBuffer value(int recordNumber, int offset, int length) {
         ByteBuffer value = value(recordNumber, length + offset);
@@ -89,9 +92,9 @@ public abstract class RawRecordReader {
     }
 
     private RawRecordId readRecordId(ByteBuffer value) {
-        int segmentIndex = value.getShort() & 0xffff;
+        int segmentReference = value.getShort() & 0xffff;
         int recordNumber = value.getInt();
-        return new RawRecordId(segmentIndex, recordNumber);
+        return new RawRecordId(segmentId(segmentReference), recordNumber);
     }
 
     public RawRecordId readRecordId(int recordNumber, int offset) {

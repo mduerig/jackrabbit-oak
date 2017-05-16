@@ -23,6 +23,7 @@ import static org.apache.jackrabbit.oak.segment.SegmentWriter.BLOCK_SIZE;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.UUID;
 
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
@@ -49,6 +50,8 @@ class RecordReader {
 
     private final SegmentReferences segmentReferences;
 
+    private final SegmentIdProvider segmentIdProvider;
+
     private final RawRecordReader raw = new RawRecordReader() {
 
         @Override
@@ -56,14 +59,27 @@ class RecordReader {
             return RecordReader.this.value(recordNumber, length);
         }
 
+        @Override
+        protected UUID segmentId(int segmentReference) {
+            if (segmentReference == 0) {
+                return null;
+            }
+            SegmentId segmentId = segmentReferences.getSegmentId(segmentReference);
+            if (segmentId == null) {
+                throw new IllegalStateException("invalid segment reference");
+            }
+            return segmentId.asUUID();
+        }
+
     };
 
-    RecordReader(SegmentId id, ByteBuffer data, SegmentReader reader, RecordNumbers recordNumbers, SegmentReferences segmentReferences) {
+    RecordReader(SegmentId id, ByteBuffer data, SegmentReader reader, RecordNumbers recordNumbers, SegmentReferences segmentReferences, SegmentIdProvider segmentIdProvider) {
         this.id = id;
         this.data = data;
         this.reader = reader;
         this.recordNumbers = recordNumbers;
         this.segmentReferences = segmentReferences;
+        this.segmentIdProvider = segmentIdProvider;
     }
 
     private ByteBuffer value(int recordNumber, int length) {
@@ -117,7 +133,7 @@ class RecordReader {
     }
 
     private RecordId readRecordId(RawRecordId raw) {
-        return new RecordId(dereferenceSegmentId(raw.getSegmentIndex()), raw.getRecordNumber());
+        return new RecordId(dereferenceSegmentId(raw.getSegmentId()), raw.getRecordNumber());
     }
 
     RecordId readRecordId(int recordNumber, int rawOffset, int recordIdOffset) {
@@ -217,18 +233,13 @@ class RecordReader {
         return readTemplate(readRawTemplate(recordNumber));
     }
 
-    private SegmentId dereferenceSegmentId(int reference) {
-        if (reference == 0) {
+    private SegmentId dereferenceSegmentId(UUID segmentId) {
+        if (segmentId == null) {
             return id;
         }
-
-        SegmentId id = segmentReferences.getSegmentId(reference);
-
-        if (id == null) {
-            throw new IllegalStateException("Referenced segment not found");
-        }
-
-        return id;
+        long msb = segmentId.getMostSignificantBits();
+        long lsb = segmentId.getLeastSignificantBits();
+        return segmentIdProvider.newSegmentId(msb, lsb);
     }
 
 }

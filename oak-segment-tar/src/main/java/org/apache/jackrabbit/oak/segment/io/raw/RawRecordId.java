@@ -18,22 +18,23 @@
 package org.apache.jackrabbit.oak.segment.io.raw;
 
 import java.util.Objects;
+import java.util.UUID;
 
 public class RawRecordId {
 
     public static final int BYTES = Short.BYTES + Integer.BYTES;
 
-    private final int segmentIndex;
+    private final UUID segmentId;
 
     private final int recordNumber;
 
-    RawRecordId(int segmentIndex, int recordNumber) {
-        this.segmentIndex = segmentIndex;
+    RawRecordId(UUID segmentId, int recordNumber) {
+        this.segmentId = segmentId;
         this.recordNumber = recordNumber;
     }
 
-    public int getSegmentIndex() {
-        return segmentIndex;
+    public UUID getSegmentId() {
+        return segmentId;
     }
 
     public int getRecordNumber() {
@@ -55,17 +56,17 @@ public class RawRecordId {
     }
 
     private boolean equals(RawRecordId that) {
-        return segmentIndex == that.segmentIndex && recordNumber == that.recordNumber;
+        return segmentId == that.segmentId && recordNumber == that.recordNumber;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(segmentIndex, recordNumber);
+        return Objects.hash(segmentId, recordNumber);
     }
 
     @Override
     public String toString() {
-        return String.format("RawRecordId{segmentIndex=%d, recordNumber=%d}", segmentIndex, recordNumber);
+        return String.format("RawRecordId{segmentId=%d, recordNumber=%d}", segmentId, recordNumber);
     }
 
 }
