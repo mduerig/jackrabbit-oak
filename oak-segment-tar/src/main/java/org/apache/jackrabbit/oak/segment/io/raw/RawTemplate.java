@@ -91,9 +91,10 @@ public class RawTemplate {
         }
 
         RawTemplate build() {
+            checkState(!noChildNodes || !manyChildNodes, "the template is configured with incompatible children cardinality");
             if (childNodeName != null) {
-                checkState(!noChildNodes, "no child nodes and child name provided");
-                checkState(!manyChildNodes, "many child nodes and child name provided");
+                checkState(!noChildNodes, "the template has a name for a single child, but the node is supposed to have no children");
+                checkState(!manyChildNodes, "the template has a name for a single child, but the node is supposed to have many children");
             }
             return new RawTemplate(this);
         }
