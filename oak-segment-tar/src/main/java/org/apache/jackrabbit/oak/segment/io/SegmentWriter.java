@@ -29,6 +29,7 @@ import static org.apache.jackrabbit.oak.segment.io.Constants.VERSION_OFFSET;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,8 @@ public class SegmentWriter implements SegmentAccess {
     private final Set<UUID> references = new HashSet<>();
 
     private final List<UUID> orderedReferences = new ArrayList<>();
+
+    private final Map<UUID, Integer> referenceIndexes = new HashMap<>();
 
     private final ByteBuffer values = ByteBuffer.allocate(MAX_SEGMENT_SIZE);
 
@@ -98,6 +101,19 @@ public class SegmentWriter implements SegmentAccess {
     public UUID segmentReference(int i) {
         synchronized (lock) {
             return orderedReferences.get(i);
+        }
+    }
+
+    /**
+     * Return the index of a segment reference in this segment.
+     *
+     * @param id The ID of the referenced segment.
+     * @return A positive integer representing the index of the segment
+     * reference if the segment reference was found, {@code -1} otherwise.
+     */
+    public int segmentReferenceIndex(UUID id) {
+        synchronized (lock) {
+            return referenceIndexes.getOrDefault(id, -1);
         }
     }
 
@@ -171,6 +187,7 @@ public class SegmentWriter implements SegmentAccess {
             if (rs != null) {
                 for (UUID r : rs) {
                     if (references.add(r)) {
+                        referenceIndexes.put(r, orderedReferences.size());
                         orderedReferences.add(r);
                     }
                 }

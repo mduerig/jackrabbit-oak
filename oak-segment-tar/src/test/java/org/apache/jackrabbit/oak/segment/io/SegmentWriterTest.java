@@ -124,4 +124,18 @@ public class SegmentWriterTest {
         writer.addRecord(1, 2, 1, newHashSet(randomUUID()));
     }
 
+    @Test
+    public void testSegmentReferenceIndex() throws Exception {
+        SegmentWriter writer = SegmentWriter.of(1, 2);
+        UUID s = randomUUID();
+        writer.addRecord(1, 1, 1, newHashSet(s));
+        assertEquals(0, writer.segmentReferenceIndex(s));
+    }
+
+    @Test
+    public void testSegmentReferenceIndexNotFound() throws Exception {
+        SegmentWriter writer = SegmentWriter.of(1, 2);
+        assertEquals(-1, writer.segmentReferenceIndex(randomUUID()));
+    }
+
 }
