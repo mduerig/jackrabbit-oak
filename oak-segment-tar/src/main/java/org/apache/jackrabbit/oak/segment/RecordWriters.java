@@ -51,18 +51,18 @@ final class RecordWriters {
         protected final int size;
         protected final Collection<RecordId> ids;
 
-        protected RecordWriter(RecordType type, int size,
+        RecordWriter(RecordType type, int size,
                 Collection<RecordId> ids) {
             this.type = type;
             this.size = size;
             this.ids = ids;
         }
 
-        protected RecordWriter(RecordType type, int size, RecordId id) {
+        RecordWriter(RecordType type, int size, RecordId id) {
             this(type, size, singleton(id));
         }
 
-        protected RecordWriter(RecordType type, int size) {
+        RecordWriter(RecordType type, int size) {
             this(type, size, Collections.<RecordId> emptyList());
         }
 
@@ -75,43 +75,43 @@ final class RecordWriters {
                 SegmentBufferWriter writer);
     }
 
-    public static RecordWriter newMapLeafWriter(int level, Collection<MapEntry> entries) {
+    static RecordWriter newMapLeafWriter(int level, Collection<MapEntry> entries) {
         return new MapLeafWriter(level, entries);
     }
 
-    public static RecordWriter newMapLeafWriter() {
+    static RecordWriter newMapLeafWriter() {
         return new MapLeafWriter();
     }
 
-    public static RecordWriter newMapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
+    static RecordWriter newMapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
         return new MapBranchWriter(level, entryCount, bitmap, ids);
     }
 
-    public static RecordWriter newMapBranchWriter(int bitmap, List<RecordId> ids) {
+    static RecordWriter newMapBranchWriter(int bitmap, List<RecordId> ids) {
         return new MapBranchWriter(bitmap, ids);
     }
 
-    public static RecordWriter newListWriter(int count, RecordId lid) {
+    static RecordWriter newListWriter(int count, RecordId lid) {
         return new ListWriter(count, lid);
     }
 
-    public static RecordWriter newListWriter() {
+    static RecordWriter newListWriter() {
         return new ListWriter();
     }
 
-    public static RecordWriter newListBucketWriter(List<RecordId> ids) {
+    static RecordWriter newListBucketWriter(List<RecordId> ids) {
         return new ListBucketWriter(ids);
     }
 
-    public static RecordWriter newBlockWriter(byte[] bytes, int offset, int length) {
+    static RecordWriter newBlockWriter(byte[] bytes, int offset, int length) {
         return new BlockWriter(bytes, offset, length);
     }
 
-    public static RecordWriter newValueWriter(RecordId rid, long len) {
+    static RecordWriter newValueWriter(RecordId rid, long len) {
         return new SingleValueWriter(rid, len);
     }
 
-    public static RecordWriter newValueWriter(int length, byte[] data) {
+    static RecordWriter newValueWriter(int length, byte[] data) {
         return new ArrayValueWriter(length, data);
     }
 
@@ -120,7 +120,7 @@ final class RecordWriters {
      * binary representation is equal to or greater than {@code
      * Segment.BLOB_ID_SMALL_LIMIT}.
      */
-    public static RecordWriter newBlobIdWriter(RecordId rid) {
+    static RecordWriter newBlobIdWriter(RecordId rid) {
         return new LargeBlobIdWriter(rid);
     }
 
@@ -128,18 +128,33 @@ final class RecordWriters {
      * Write a small blob ID. A blob ID is considered small if the length of its
      * binary representation is less than {@code Segment.BLOB_ID_SMALL_LIMIT}.
      */
-    public static RecordWriter newBlobIdWriter(byte[] blobId) {
+    static RecordWriter newBlobIdWriter(byte[] blobId) {
         return new SmallBlobIdWriter(blobId);
     }
 
-    public static RecordWriter newTemplateWriter(Collection<RecordId> ids,
-            RecordId[] propertyNames, byte[] propertyTypes, int head, RecordId primaryId,
-            List<RecordId> mixinIds, RecordId childNameId, RecordId propNamesId) {
-        return new TemplateWriter(ids, propertyNames, propertyTypes, head, primaryId, mixinIds,
-            childNameId, propNamesId);
+    static RecordWriter newTemplateWriter(
+            Collection<RecordId> ids,
+            RecordId[] propertyNames,
+            byte[] propertyTypes,
+            int head,
+            RecordId primaryId,
+            List<RecordId> mixinIds,
+            RecordId childNameId,
+            RecordId propNamesId
+    ) {
+        return new TemplateWriter(
+                ids,
+                propertyNames,
+                propertyTypes,
+                head,
+                primaryId,
+                mixinIds,
+                childNameId,
+                propNamesId
+        );
     }
 
-    public static RecordWriter newNodeStateWriter(RecordId stableId, List<RecordId> ids) {
+    static RecordWriter newNodeStateWriter(RecordId stableId, List<RecordId> ids) {
         return new NodeStateWriter(stableId, ids);
     }
 
