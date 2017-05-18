@@ -29,8 +29,6 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.UUID;
 
-import com.google.common.base.Charsets;
-
 public abstract class RawRecordWriter {
 
     protected abstract ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> references);
@@ -55,17 +53,13 @@ public abstract class RawRecordWriter {
         throw new IllegalArgumentException("invalid length: " + length);
     }
 
-    private boolean write(int number, int type, byte[] data) {
+    public boolean writeValue(int number, int type, byte[] data) {
         ByteBuffer buffer = addRecord(number, type, data.length + lengthSize(data.length), null);
         if (buffer == null) {
             return false;
         }
         writeLength(buffer, data.length).put(data);
         return true;
-    }
-
-    public boolean write(int number, int type, String s) {
-        return write(number, type, s.getBytes(Charsets.UTF_8));
     }
 
 }

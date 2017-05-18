@@ -132,7 +132,7 @@ public class RawRecordReaderTest {
         ByteBuffer buffer = ByteBuffer.allocate(Byte.BYTES + encoded.length);
         buffer.duplicate().put((byte) (encoded.length & 0x7f)).put(encoded);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawShortString(value), reader.readString(1));
+        assertEquals(new RawShortValue(encoded), reader.readValue(1));
     }
 
     @Test
@@ -142,7 +142,7 @@ public class RawRecordReaderTest {
         ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES + encoded.length);
         buffer.duplicate().putShort((short) (((encoded.length - 0x80) & 0x3fff) | 0x8000)).put(encoded);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawShortString(value), reader.readString(1));
+        assertEquals(new RawShortValue(encoded), reader.readValue(1));
     }
 
     @Test
@@ -151,7 +151,7 @@ public class RawRecordReaderTest {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putLong(((length - 0x80 - 0x4000) & 0x3fffffffffffffffL) | 0xc000000000000000L).putShort((short) 0).putInt(2);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawLongString(new RawRecordId(null, 2), (int) length), reader.readString(1));
+        assertEquals(new RawLongValue(new RawRecordId(null, 2), (int) length), reader.readValue(1));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -160,7 +160,7 @@ public class RawRecordReaderTest {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putLong(((length - 0x80 - 0x4000) & 0x3fffffffffffffffL) | 0xc000000000000000L).putShort((short) 0).putInt(2);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawLongString(new RawRecordId(null, 2), (int) length), reader.readString(1));
+        assertEquals(new RawLongValue(new RawRecordId(null, 2), (int) length), reader.readValue(1));
     }
 
     @Test

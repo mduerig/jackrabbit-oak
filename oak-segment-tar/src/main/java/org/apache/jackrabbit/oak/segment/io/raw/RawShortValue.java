@@ -17,40 +17,27 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
-import java.util.Objects;
+import java.util.Arrays;
 
 /**
- * A long string record. A string is serialized as a long string when it can't
- * be comfortably stored in a segment. In this case, a pointer to the value of
- * the string is returned.
+ * A short value record. A value is serialized as a short value record when it
+ * can be comfortably stored in a segment.
  */
-public class RawLongString extends RawString {
+public class RawShortValue extends RawValue {
 
-    private final RawRecordId recordId;
+    private byte[] value;
 
-    private final int length;
-
-    RawLongString(RawRecordId recordId, int length) {
-        this.recordId = recordId;
-        this.length = length;
+    RawShortValue(byte[] value) {
+        this.value = value;
     }
 
     /**
-     * Return the pointer to the string data.
+     * Return the value of this string.
      *
-     * @return An instance of {@link RawRecordId}.
+     * @return An array of bytes.
      */
-    public RawRecordId getRecordId() {
-        return recordId;
-    }
-
-    /**
-     * Return the length of the string.
-     *
-     * @return A positive integer.
-     */
-    public int getLength() {
-        return length;
+    public byte[] getValue() {
+        return value;
     }
 
     @Override
@@ -64,21 +51,21 @@ public class RawLongString extends RawString {
         if (getClass() != o.getClass()) {
             return false;
         }
-        return equals((RawLongString) o);
+        return equals((RawShortValue) o);
     }
 
-    private boolean equals(RawLongString that) {
-        return length == that.length && Objects.equals(recordId, that.recordId);
+    private boolean equals(RawShortValue that) {
+        return Arrays.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(recordId, length);
+        return Arrays.hashCode(value);
     }
 
     @Override
     public String toString() {
-        return String.format("RawLongString{recordId=%s, length=%d}", recordId, length);
+        return String.format("RawShortValue{value=%s}", Arrays.toString(value));
     }
 
 }

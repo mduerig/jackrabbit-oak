@@ -25,14 +25,15 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.UUID;
 
+import com.google.common.base.Charsets;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
-import org.apache.jackrabbit.oak.segment.io.raw.RawLongString;
+import org.apache.jackrabbit.oak.segment.io.raw.RawLongValue;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordReader;
-import org.apache.jackrabbit.oak.segment.io.raw.RawShortString;
-import org.apache.jackrabbit.oak.segment.io.raw.RawString;
+import org.apache.jackrabbit.oak.segment.io.raw.RawShortValue;
+import org.apache.jackrabbit.oak.segment.io.raw.RawValue;
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
 
 /**
@@ -152,7 +153,7 @@ class RecordReader {
         return raw.readLength(recordNumber);
     }
 
-    private String readLongString(int recordNumber, RawLongString s) {
+    private String readLongString(int recordNumber, RawLongValue s) {
         int elements = (s.getLength() + BLOCK_SIZE - 1) / BLOCK_SIZE;
         ListRecord list = new ListRecord(readRecordId(s.getRecordId()), elements);
         try (SegmentStream stream = new SegmentStream(new RecordId(id, recordNumber), list, s.getLength())) {
@@ -161,12 +162,12 @@ class RecordReader {
     }
 
     String readString(int recordNumber) {
-        RawString s = raw.readString(recordNumber);
-        if (s instanceof RawShortString) {
-            return ((RawShortString) s).getValue();
+        RawValue s = raw.readValue(recordNumber);
+        if (s instanceof RawShortValue) {
+            return new String(((RawShortValue) s).getValue(), Charsets.UTF_8);
         }
-        if (s instanceof RawLongString) {
-            return readLongString(recordNumber, (RawLongString) s);
+        if (s instanceof RawLongValue) {
+            return readLongString(recordNumber, (RawLongValue) s);
         }
         throw new IllegalStateException("invalid record value");
     }

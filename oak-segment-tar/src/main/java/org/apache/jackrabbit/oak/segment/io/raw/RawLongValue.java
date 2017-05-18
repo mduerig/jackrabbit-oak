@@ -20,24 +20,37 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 import java.util.Objects;
 
 /**
- * A short string record. A string is serialized as a short string record when
- * it can be comfortably stored in a segment.
+ * A long value record. A value is serialized as a long value when it can't be
+ * comfortably stored in a segment. In this case, the value is stored somewhere
+ * else and a pointer to it is returned.
  */
-public class RawShortString extends RawString {
+public class RawLongValue extends RawValue {
 
-    private String value;
+    private final RawRecordId recordId;
 
-    RawShortString(String value) {
-        this.value = value;
+    private final int length;
+
+    RawLongValue(RawRecordId recordId, int length) {
+        this.recordId = recordId;
+        this.length = length;
     }
 
     /**
-     * Return the value of this string.
+     * Return the pointer to the value.
      *
-     * @return An instance of {@link String}.
+     * @return An instance of {@link RawRecordId}.
      */
-    public String getValue() {
-        return value;
+    public RawRecordId getRecordId() {
+        return recordId;
+    }
+
+    /**
+     * Return the length of the value.
+     *
+     * @return A positive integer.
+     */
+    public int getLength() {
+        return length;
     }
 
     @Override
@@ -51,21 +64,21 @@ public class RawShortString extends RawString {
         if (getClass() != o.getClass()) {
             return false;
         }
-        return equals((RawShortString) o);
+        return equals((RawLongValue) o);
     }
 
-    private boolean equals(RawShortString that) {
-        return Objects.equals(value, that.value);
+    private boolean equals(RawLongValue that) {
+        return length == that.length && Objects.equals(recordId, that.recordId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value);
+        return Objects.hash(recordId, length);
     }
 
     @Override
     public String toString() {
-        return String.format("RawShortString{value=%s}", value);
+        return String.format("RawLongValue{recordId=%s, length=%d}", recordId, length);
     }
 
 }

@@ -36,7 +36,6 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import com.google.common.base.Charsets;
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate.Builder;
 
 /**
@@ -193,43 +192,45 @@ public abstract class RawRecordReader {
         throw new IllegalStateException("invalid length marker");
     }
 
-    private static String decode(ByteBuffer buffer) {
-        return Charsets.UTF_8.decode(buffer).toString();
+    private static byte[] decode(ByteBuffer buffer) {
+        byte[] data = new byte[buffer.remaining()];
+        buffer.get(data);
+        return data;
     }
 
-    private RawShortString readSmallString(int recordNumber, int length) {
-        return new RawShortString(decode(value(recordNumber, SMALL_LENGTH_SIZE, length)));
+    private RawShortValue readSmallValue(int recordNumber, int length) {
+        return new RawShortValue(decode(value(recordNumber, SMALL_LENGTH_SIZE, length)));
     }
 
-    private RawShortString readMediumString(int recordNumber, int length) {
-        return new RawShortString(decode(value(recordNumber, MEDIUM_LENGTH_SIZE, length)));
+    private RawShortValue readMediumValue(int recordNumber, int length) {
+        return new RawShortValue(decode(value(recordNumber, MEDIUM_LENGTH_SIZE, length)));
     }
 
-    private RawLongString readLongString(int recordNumber, int length) {
-        return new RawLongString(readRecordId(recordNumber, LONG_LENGTH_SIZE), length);
+    private RawLongValue readLongValue(int recordNumber, int length) {
+        return new RawLongValue(readRecordId(recordNumber, LONG_LENGTH_SIZE), length);
     }
 
-    private RawString readString(int recordNumber, long length) {
+    private RawValue readValue(int recordNumber, long length) {
         if (length < SMALL_LIMIT) {
-            return readSmallString(recordNumber, (int) length);
+            return readSmallValue(recordNumber, (int) length);
         }
         if (length < MEDIUM_LIMIT) {
-            return readMediumString(recordNumber, (int) length);
+            return readMediumValue(recordNumber, (int) length);
         }
         if (length < Integer.MAX_VALUE) {
-            return readLongString(recordNumber, (int) length);
+            return readLongValue(recordNumber, (int) length);
         }
         throw new IllegalStateException("String is too long: " + length);
     }
 
     /**
-     * Read a string record.
+     * Read a value record.
      *
      * @param recordNumber The record number.
-     * @return An instance of {@link RawString}.
+     * @return An instance of {@link RawValue}.
      */
-    public RawString readString(int recordNumber) {
-        return readString(recordNumber, readLength(recordNumber));
+    public RawValue readValue(int recordNumber) {
+        return readValue(recordNumber, readLength(recordNumber));
     }
 
     /**

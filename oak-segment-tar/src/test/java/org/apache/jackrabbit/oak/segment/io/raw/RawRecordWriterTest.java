@@ -45,7 +45,7 @@ public class RawRecordWriterTest {
         String value = Strings.repeat("x", RawRecordConstants.SMALL_LIMIT - 1);
         byte[] data = value.getBytes(Charsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(RawRecordConstants.SMALL_LENGTH_SIZE + data.length);
-        writerReturning(buffer).write(1, 1, value);
+        writerReturning(buffer).writeValue(1, 1, data);
         ByteBuffer expected = ByteBuffer.allocate(RawRecordConstants.SMALL_LENGTH_SIZE + data.length);
         expected.duplicate().put((byte) 0x7f).put(data);
         assertEquals(expected, buffer);

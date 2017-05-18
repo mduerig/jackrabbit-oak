@@ -18,11 +18,11 @@
 package org.apache.jackrabbit.oak.segment.io.raw;
 
 /**
- * A marker class representing a string record.
+ * A marker class representing a value record.
  */
-public class RawString {
+public class RawValue {
 
-    RawString() {
+    RawValue() {
         // Prevent instantiation outside of this package.
     }
 
