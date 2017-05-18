@@ -17,6 +17,22 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_DELTA;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LIMIT;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
+
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
@@ -27,33 +43,6 @@ import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate.Builder;
  * Read raw records from the underlying storage format.
  */
 public abstract class RawRecordReader {
-
-    // These constants define the encoding of small lengths. If
-    // SMALL_LENGTH_MASK and SMALL_LENGTH_DELTA would be defined, they would
-    // have the values 0x7F and 0, respectively. Their usage is implicit in the
-    // code below.
-
-    private static final int SMALL_LENGTH_SIZE = Byte.BYTES;
-
-    private static final int SMALL_LIMIT = 1 << 7;
-
-    // These constants define the encoding of medium lengths.
-
-    private static final int MEDIUM_LENGTH_SIZE = Short.BYTES;
-
-    private static final short MEDIUM_LENGTH_MASK = 0x3FFF;
-
-    private static final int MEDIUM_LENGTH_DELTA = SMALL_LIMIT;
-
-    private static final int MEDIUM_LIMIT = (1 << (16 - 2)) + SMALL_LIMIT;
-
-    // These constants define the encoding of long lengths.
-
-    private static final int LONG_LENGTH_SIZE = Long.BYTES;
-
-    private static final long LONG_LENGTH_MASK = 0x3FFFFFFFFFFFFFFFL;
-
-    private static final int LONG_LENGTH_DELTA = MEDIUM_LIMIT;
 
     /**
      * Return the record data for a given record number.
@@ -168,15 +157,15 @@ public abstract class RawRecordReader {
     }
 
     private static boolean isShortLength(byte marker) {
-        return (marker & 0x80) == 0;
+        return (marker & SMALL_LENGTH_MARKER_MASK) == SMALL_LENGTH_MARKER;
     }
 
     private static boolean isMediumLength(byte marker) {
-        return ((byte) (marker & 0xC0)) == ((byte) 0x80);
+        return ((byte) (marker & MEDIUM_LENGTH_MARKER_MASK)) == ((byte) MEDIUM_LENGTH_MARKER);
     }
 
     private static boolean isLongLength(byte marker) {
-        return ((byte) (marker & 0xE0)) == ((byte) 0xC0);
+        return ((byte) (marker & LONG_LENGTH_MARKER_MASK)) == ((byte) LONG_LENGTH_MARKER);
     }
 
     /**
