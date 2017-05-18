@@ -21,16 +21,17 @@ class RawRecordConstants {
 
     // These constants define the encoding of small lengths. If
     // SMALL_LENGTH_MASK and SMALL_LENGTH_DELTA would be defined, they would
-    // have the values 0x7F and 0, respectively. Their usage is implicit in the
-    // code below.
+    // have the values 0x7F and 0, respectively. Their usage is implicit when a
+    // short length (which needs to be strictly smaller than 0x80) is casted to
+    // a byte.
 
     static final int SMALL_LENGTH_SIZE = Byte.BYTES;
 
     static final int SMALL_LIMIT = 1 << 7;
 
-    static final int SMALL_LENGTH_MARKER_MASK = 0x80;
+    static final int SMALL_LENGTH_MARKER_BYTE_MASK = 0x80;
 
-    static final int SMALL_LENGTH_MARKER = 0x00;
+    static final int SMALL_LENGTH_MARKER_BYTE = 0x00;
 
     // These constants define the encoding of medium lengths.
 
@@ -42,9 +43,11 @@ class RawRecordConstants {
 
     static final short MEDIUM_LENGTH_MASK = 0x3FFF;
 
-    static final int MEDIUM_LENGTH_MARKER_MASK = 0xC0;
+    static final short MEDIUM_LENGTH_MARKER = (short) 0x8000;
 
-    static final int MEDIUM_LENGTH_MARKER = 0x80;
+    static final byte MEDIUM_LENGTH_MARKER_BYTE_MASK = (byte) 0xC0;
+
+    static final byte MEDIUM_LENGTH_MARKER_BYTE = (byte) 0x80;
 
     // These constants define the encoding of long lengths.
 
@@ -52,11 +55,13 @@ class RawRecordConstants {
 
     static final int LONG_LENGTH_SIZE = Long.BYTES;
 
-    static final long LONG_LENGTH_MASK = 0x3FFFFFFFFFFFFFFFL;
+    static final long LONG_LENGTH_MASK = 0x1FFFFFFFFFFFFFFFL;
 
-    static final int LONG_LENGTH_MARKER_MASK = 0xE0;
+    static final long LONG_LENGTH_MARKER = 0xE000000000000000L;
 
-    static final int LONG_LENGTH_MARKER = 0xC0;
+    static final byte LONG_LENGTH_MARKER_BYTE_MASK = (byte) 0xE0;
+
+    static final byte LONG_LENGTH_MARKER_BYTE = (byte) 0xC0;
 
     RawRecordConstants() {
         // Prevent instantiation

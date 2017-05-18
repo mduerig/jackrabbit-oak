@@ -17,11 +17,11 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LIMIT;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
 
@@ -45,10 +45,10 @@ public abstract class RawRecordWriter {
 
     private static ByteBuffer writeLength(ByteBuffer buffer, int length) {
         if (length < SMALL_LIMIT) {
-            return buffer.put((byte) (length & ~SMALL_LENGTH_MARKER_MASK));
+            return buffer.put((byte) length);
         }
         if (length < MEDIUM_LIMIT) {
-            return buffer.putShort((short) ((length & ~MEDIUM_LENGTH_MARKER_MASK) | MEDIUM_LENGTH_MARKER));
+            return buffer.putShort((short) (((length - MEDIUM_LENGTH_DELTA) & MEDIUM_LENGTH_MASK) | MEDIUM_LENGTH_MARKER));
         }
         throw new IllegalArgumentException("invalid length: " + length);
     }

@@ -18,18 +18,18 @@
 package org.apache.jackrabbit.oak.segment.io.raw;
 
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_DELTA;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER_BYTE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER_BYTE_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER_BYTE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER_BYTE_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LIMIT;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER_BYTE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_MARKER_BYTE_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
 
@@ -156,15 +156,15 @@ public abstract class RawRecordReader {
     }
 
     private static boolean isShortLength(byte marker) {
-        return (marker & SMALL_LENGTH_MARKER_MASK) == SMALL_LENGTH_MARKER;
+        return (marker & SMALL_LENGTH_MARKER_BYTE_MASK) == SMALL_LENGTH_MARKER_BYTE;
     }
 
     private static boolean isMediumLength(byte marker) {
-        return ((byte) (marker & MEDIUM_LENGTH_MARKER_MASK)) == ((byte) MEDIUM_LENGTH_MARKER);
+        return ((byte) (marker & MEDIUM_LENGTH_MARKER_BYTE_MASK)) == MEDIUM_LENGTH_MARKER_BYTE;
     }
 
     private static boolean isLongLength(byte marker) {
-        return ((byte) (marker & LONG_LENGTH_MARKER_MASK)) == ((byte) LONG_LENGTH_MARKER);
+        return ((byte) (marker & LONG_LENGTH_MARKER_BYTE_MASK)) == LONG_LENGTH_MARKER_BYTE;
     }
 
     /**
