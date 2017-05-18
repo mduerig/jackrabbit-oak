@@ -25,6 +25,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Dictionary;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.annotation.CheckForNull;
@@ -68,7 +69,9 @@ public class BlobStoreFixtureProvider {
             SharedS3DataStore s3ds = new SharedS3DataStore();
             Properties props = loadAndTransformProps(bsopts.getS3ConfigPath());
             s3ds.setProperties(props);
-            s3ds.init(null);
+            File homeDir =  Files.createTempDir();
+            closer.register(asCloseable(homeDir));
+            s3ds.init(homeDir.getAbsolutePath());
             delegate = s3ds;
         } else if(bsType == Type.AZURE){
             AzureDataStore azureds = new AzureDataStore();
@@ -87,7 +90,7 @@ public class BlobStoreFixtureProvider {
             } else {
                 String cfgPath = bsopts.getFDSConfigPath();
                 Properties props = loadAndTransformProps(cfgPath);
-                populate(delegate, Maps.fromProperties(props), true);
+                populate(delegate, asMap(props), true);
             }
             delegate.init(null);
         }
@@ -138,5 +141,13 @@ public class BlobStoreFixtureProvider {
                 FileUtils.deleteDirectory(dir);
             }
         };
+    }
+
+    private static Map<String, ?> asMap(Properties props) {
+        Map<String, Object> map = Maps.newHashMap();
+        for (Object key : props.keySet()) {
+            map.put((String)key, props.get(key));
+        }
+        return map;
     }
 }

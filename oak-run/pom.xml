@@ -237,7 +237,7 @@
     <dependency>
       <groupId>net.sf.jopt-simple</groupId>
       <artifactId>jopt-simple</artifactId>
-      <version>4.6</version>
+      <version>5.0.3</version>
     </dependency>
     <dependency>
       <groupId>org.codehaus.groovy</groupId>
@@ -319,7 +319,27 @@
       <artifactId>junit</artifactId>
       <scope>test</scope>
     </dependency>
-
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-blob-plugins</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-blob-cloud</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.jackrabbit</groupId>
+      <artifactId>oak-blob-cloud-azure</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <profiles>
