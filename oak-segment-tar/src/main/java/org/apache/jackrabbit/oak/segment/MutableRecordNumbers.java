@@ -28,10 +28,14 @@ import com.google.common.collect.AbstractIterator;
  * A thread-safe, mutable record table.
  */
 class MutableRecordNumbers implements RecordNumbers {
+
     private int[] recordEntries;
+
+    private int next;
+
     private int size;
 
-    public MutableRecordNumbers() {
+    MutableRecordNumbers() {
         recordEntries = new int[16384];
         fill(recordEntries, -1);
     }
@@ -50,23 +54,28 @@ class MutableRecordNumbers implements RecordNumbers {
 
     private static int getRecordEntry(int[] entries, int index) {
         return index * 2 >= entries.length
-            ? -1
-            : entries[index * 2];
+                ? -1
+                : entries[index * 2];
     }
 
     @Override
     public synchronized Iterator<Entry> iterator() {
         return new AbstractIterator<Entry>() {
-            final int[] entries = copyOf(recordEntries, size * 2);
+
+            final int[] entries = copyOf(recordEntries, next * 2);
+
             int index = 0;
 
             @Override
             protected Entry computeNext() {
-                if (index < entries.length) {
+                while (index < entries.length) {
+                    final int recordNumber = index / 2;
+                    final int offset = entries[index++];
+                    final int type = entries[index++];
+                    if (offset == -1) {
+                        continue;
+                    }
                     return new Entry() {
-                        final int recordNumber = index/2;
-                        final int offset = entries[index++];
-                        final RecordType type = RecordType.values()[entries[index++]];
 
                         @Override
                         public int getRecordNumber() {
@@ -80,13 +89,14 @@ class MutableRecordNumbers implements RecordNumbers {
 
                         @Override
                         public RecordType getType() {
-                            return type;
+                            return RecordType.values()[type];
                         }
+
                     };
-                } else {
-                    return endOfData();
                 }
+                return endOfData();
             }
+
         };
     }
 
@@ -107,13 +117,36 @@ class MutableRecordNumbers implements RecordNumbers {
      * @return the record number associated to the offset.
      */
     synchronized int addRecord(RecordType type, int offset) {
-        if (recordEntries.length <= size * 2) {
+        return internalAddRecord(next, type.ordinal(), offset);
+    }
+
+    /**
+     * Add an entry to this table for a specific record number.
+     *
+     * @param number The record number.
+     * @param type   The type of the record.
+     * @param offset The offset of the record.
+     * @throws IllegalArgumentException if the provided record number already
+     *                               exists in this table.
+     */
+    synchronized void addRecord(int number, int type, int offset) {
+        internalAddRecord(number, type, offset);
+    }
+
+    private int internalAddRecord(int recordId, int type, int offset) {
+        int index = 2 * recordId;
+        while (index >= recordEntries.length) {
             recordEntries = copyOf(recordEntries, recordEntries.length * 2);
-            fill(recordEntries, recordEntries.length/2, recordEntries.length, -1);
+            fill(recordEntries, recordEntries.length / 2, recordEntries.length, -1);
         }
-        recordEntries[2 * size] = offset;
-        recordEntries[2 * size + 1] = type.ordinal();
-        return size++;
+        if (recordEntries[index] != -1) {
+            throw new IllegalArgumentException("record number already assigned: " + recordId);
+        }
+        recordEntries[index] = offset;
+        recordEntries[index + 1] = type;
+        next = recordId >= next ? recordId + 1 : next;
+        size++;
+        return recordId;
     }
 
 }
