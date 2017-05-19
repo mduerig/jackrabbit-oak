@@ -23,19 +23,26 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import com.google.common.io.Closer;
 import joptsimple.OptionParser;
 import org.apache.felix.inventory.Format;
+import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.console.NodeStoreFixture;
+import org.apache.jackrabbit.oak.run.cli.CommonOptions;
 import org.apache.jackrabbit.oak.run.cli.NodeStoreFixtureProvider;
 import org.apache.jackrabbit.oak.run.cli.Options;
 import org.apache.jackrabbit.oak.run.commons.Command;
+import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
 
 public class IndexCommand implements Command {
-
+    public static final String NAME = "index";
     public static final String INDEX_DEFINITIONS_JSON = "index-definitions.json";
     public static final String INDEX_INFO_TXT = "index-info.txt";
     public static final String INDEX_CONSISTENCY_CHECK_TXT = "index-consistency-check-report.txt";
+
+    private final String summary = "Provides index management related operations";
+
     private File info;
     private File definitions;
     private File consistencyCheckReport;
@@ -45,14 +52,19 @@ public class IndexCommand implements Command {
         OptionParser parser = new OptionParser();
 
         Options opts = new Options();
+        opts.setCommandName(NAME);
+        opts.setSummary(summary);
+        opts.setConnectionString(CommonOptions.DEFAULT_CONNECTION_STRING);
         opts.registerOptionsFactory(IndexOptions.FACTORY);
-
         opts.parseAndConfigure(parser, args);
 
         IndexOptions indexOpts = opts.getOptionBean(IndexOptions.class);
 
-        try (NodeStoreFixture fixture = NodeStoreFixtureProvider.create(opts)) {
-            execute(fixture.getStore(), indexOpts);
+        NodeStoreFixture fixture = NodeStoreFixtureProvider.create(opts);
+        try (Closer closer = Closer.create()) {
+            closer.register(fixture);
+
+            execute(fixture.getStore(), fixture.getBlobStore(), indexOpts, closer);
             tellReportPaths();
         }
     }
@@ -71,14 +83,24 @@ public class IndexCommand implements Command {
         }
     }
 
-    private void execute(NodeStore store, IndexOptions indexOpts) throws IOException {
-        IndexHelper indexHelper = new IndexHelper(store, indexOpts.getOutDir(),
+    private void execute(NodeStore store, BlobStore blobStore, IndexOptions indexOpts, Closer closer) throws IOException, CommitFailedException {
+        IndexHelper indexHelper = new IndexHelper(store, blobStore, indexOpts.getOutDir(),
                 indexOpts.getWorkDir(), indexOpts.getIndexPaths());
+
+        closer.register(indexHelper);
 
         dumpIndexStats(indexOpts, indexHelper);
         dumpIndexDefinitions(indexOpts, indexHelper);
         performConsistencyCheck(indexOpts, indexHelper);
         dumpIndexContents(indexOpts, indexHelper);
+        reindexIndex(indexOpts, indexHelper);
+    }
+
+    private void reindexIndex(IndexOptions indexOpts, IndexHelper indexHelper) throws IOException, CommitFailedException {
+        if (!indexOpts.isReindex()){
+            return;
+        }
+        new ReIndexer(indexHelper).reindex();
     }
 
     private void dumpIndexContents(IndexOptions indexOpts, IndexHelper indexHelper) throws IOException {

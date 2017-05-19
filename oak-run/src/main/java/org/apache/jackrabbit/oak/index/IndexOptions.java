@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -50,10 +51,12 @@ public class IndexOptions implements OptionsBean {
     private final OptionSpec<Void> stats;
     private final OptionSpec<Void> definitions;
     private final OptionSpec<Void> dumpIndex;
+    private final OptionSpec<Void> reindex;
     private final OptionSpec<Integer> consistencyCheck;
     private OptionSet options;
     private final Set<OptionSpec> actionOpts;
     private final OptionSpec<String> indexPaths;
+    private final Set<String> operationNames;
 
 
     public IndexOptions(OptionParser parser){
@@ -73,14 +76,39 @@ public class IndexOptions implements OptionsBean {
                 .withOptionalArg().ofType(Integer.class).defaultsTo(1);
 
         dumpIndex = parser.accepts("index-dump", "Dumps index content");
+        reindex = parser.accepts("reindex", "Reindex the indexes").availableIf("index-paths");
 
         //Set of options which define action
-        actionOpts = ImmutableSet.of(stats, definitions, consistencyCheck, dumpIndex);
+        actionOpts = ImmutableSet.of(stats, definitions, consistencyCheck, dumpIndex, reindex);
+        operationNames = collectionOperationNames(actionOpts);
     }
 
     @Override
     public void configure(OptionSet options) {
         this.options = options;
+    }
+
+    @Override
+    public String title() {
+        return "";
+    }
+
+    @Override
+    public String description() {
+        return "Index command supports following operations. Most operations are read only. For performing them " +
+                "BloStore related options must be provided as they would access the binaries stored there. \n" +
+                "By default it performs --index-info and --index-definitions operation if no explicit operation is selected. \n" +
+                "Use --index-paths to restrict the set of indexes on which the operation needs to be performed";
+    }
+
+    @Override
+    public int order() {
+        return 50;
+    }
+
+    @Override
+    public Set<String> operationNames() {
+        return operationNames;
     }
 
     public File getWorkDir() throws IOException {
@@ -113,6 +141,10 @@ public class IndexOptions implements OptionsBean {
         return consistencyCheck.value(options);
     }
 
+    public boolean isReindex() {
+        return options.has(reindex);
+    }
+
     public List<String> getIndexPaths(){
         return options.has(indexPaths) ? trim(indexPaths.values(options)) : Collections.emptyList();
     }
@@ -135,5 +167,13 @@ public class IndexOptions implements OptionsBean {
             }
         }
         return new ArrayList<>(paths);
+    }
+
+    private static Set<String> collectionOperationNames(Set<OptionSpec> actionOpts){
+        Set<String> result = new HashSet<>();
+        for (OptionSpec spec : actionOpts){
+            result.addAll(spec.options());
+        }
+        return result;
     }
 }
