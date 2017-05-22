@@ -59,7 +59,7 @@ class RawRecordConstants {
 
     static final long LONG_LENGTH_MASK = 0x1FFFFFFFFFFFFFFFL;
 
-    static final long LONG_LENGTH_MARKER = 0xE000000000000000L;
+    static final long LONG_LENGTH_MARKER = 0xC000000000000000L;
 
     static final byte LONG_LENGTH_MARKER_BYTE_MASK = (byte) 0xE0;
 
