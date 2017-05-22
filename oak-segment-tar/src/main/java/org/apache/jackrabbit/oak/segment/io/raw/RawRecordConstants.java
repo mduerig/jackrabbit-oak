@@ -51,6 +51,8 @@ class RawRecordConstants {
 
     // These constants define the encoding of long lengths.
 
+    static final long LONG_LENGTH_LIMIT = (1L << (Long.SIZE - 3)) + MEDIUM_LIMIT;
+
     static final int LONG_LENGTH_DELTA = MEDIUM_LIMIT;
 
     static final int LONG_LENGTH_SIZE = Long.BYTES;
