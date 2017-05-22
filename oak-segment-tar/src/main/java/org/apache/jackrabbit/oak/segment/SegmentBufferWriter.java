@@ -29,15 +29,16 @@ import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
 import static org.apache.jackrabbit.oak.segment.Segment.GC_GENERATION_OFFSET;
 import static org.apache.jackrabbit.oak.segment.Segment.HEADER_SIZE;
-import static org.apache.jackrabbit.oak.segment.Segment.RECORD_ID_BYTES;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.SEGMENT_REFERENCE_SIZE;
 import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -156,6 +157,8 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      */
     private boolean dirty;
 
+    private int nextRecordNumber;
+
     public SegmentBufferWriter(@Nonnull SegmentIdProvider idProvider,
                                @Nonnull SegmentReader reader,
                                @CheckForNull String wid,
@@ -214,6 +217,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
             ",\"sno\":" + idProvider.getSegmentIdCount() +
             ",\"t\":" + currentTimeMillis() + "}";
         segment = new Segment(idProvider.newDataSegmentId(), reader, buffer, recordNumbers, segmentReferences, metaInfo, idProvider);
+        nextRecordNumber = 0;
 
         statistics = new Statistics();
         statistics.id = segment.getSegmentId();
@@ -384,6 +388,17 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         }
     }
 
+    private static Set<UUID> segmentReferences(Collection<RecordId> rids) {
+        Set<UUID> references = null;
+        for (RecordId rid : rids) {
+            if (references == null) {
+                references = newHashSet();
+            }
+            references.add(rid.asUUID());
+        }
+        return references;
+    }
+
     /**
      * Before writing a record (which are written backwards, from the end of the
      * file to the beginning), this method is called, to ensure there is enough
@@ -403,23 +418,45 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * @return a new record id
      */
     public RecordId prepare(RecordType type, int size, Collection<RecordId> ids, SegmentStore store) throws IOException {
-        checkArgument(size >= 0);
-        checkNotNull(ids);
+        Set<UUID> references = segmentReferences(ids);
+        int recordSize = size + ids.size() * RECORD_SIZE;
 
         if (segment == null) {
-            // Create a segment first if this is the first time this segment buffer writer is used.
             newSegment(store);
         }
 
-        int idCount = ids.size();
-        int recordSize = align(size + idCount * RECORD_ID_BYTES, 1 << Segment.RECORD_ALIGN_BITS);
+        int number;
+
+        number = nextRecordNumber++;
+        if (addRecord(number, type.ordinal(), recordSize, references) != null) {
+            return new RecordId(segment.getSegmentId(), number);
+        }
+
+        flush(store);
+
+        number = nextRecordNumber++;
+        if (addRecord(number, type.ordinal(), recordSize, references) != null) {
+            return new RecordId(segment.getSegmentId(), number);
+        }
+
+        throw new IllegalArgumentException("the record is too big");
+    }
+
+    private ByteBuffer addRecord(int number, int type, int size, Set<UUID> references) {
+        checkArgument(size > 0);
+
+        if (segment == null) {
+            return null;
+        }
+
+        int recordSize = align(size, 1 << Segment.RECORD_ALIGN_BITS);
 
         // First compute the header and segment sizes based on the assumption
         // that *all* identifiers stored in this record point to previously
         // unreferenced segments.
 
         int recordNumbersCount = recordNumbers.size() + 1;
-        int referencedIdCount = segmentReferences.size() + ids.size();
+        int referencedIdCount = segmentReferences.size() + (references != null ? references.size() : 0);
         int headerSize = HEADER_SIZE + referencedIdCount * SEGMENT_REFERENCE_SIZE + recordNumbersCount * RECORD_SIZE;
         int segmentSize = align(headerSize + recordSize + length, 16);
 
@@ -430,23 +467,32 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         if (segmentSize > buffer.length) {
 
             // Collect the newly referenced segment ids
-            Set<SegmentId> segmentIds = newHashSet();
-            for (RecordId recordId : ids) {
-                SegmentId segmentId = recordId.getSegmentId();
-                if (!segmentReferences.contains(segmentId)) {
+
+            Set<SegmentId> segmentIds = null;
+            if (references != null) {
+                for (UUID reference : references) {
+                    long msb = reference.getMostSignificantBits();
+                    long lsb = reference.getLeastSignificantBits();
+                    SegmentId segmentId = this.idProvider.newSegmentId(msb, lsb);
+                    if (segmentReferences.contains(segmentId)) {
+                        continue;
+                    }
+                    if (segmentIds == null) {
+                        segmentIds = newHashSet();
+                    }
                     segmentIds.add(segmentId);
                 }
             }
 
             // Adjust the estimation of the new referenced segment ID count.
-            referencedIdCount =  segmentReferences.size() + segmentIds.size();
 
+            referencedIdCount = segmentReferences.size() + (segmentIds != null ? segmentIds.size() : 0);
             headerSize = HEADER_SIZE + referencedIdCount * SEGMENT_REFERENCE_SIZE + recordNumbersCount * RECORD_SIZE;
             segmentSize = align(headerSize + recordSize + length, 16);
         }
 
         if (segmentSize > buffer.length) {
-            flush(store);
+            return null;
         }
 
         statistics.recordCount++;
@@ -454,9 +500,17 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         length += recordSize;
         position = buffer.length - length;
         checkState(position >= 0);
+        recordNumbers.addRecord(number, type, position);
+        ByteBuffer data = ByteBuffer.wrap(buffer, position, length);
 
-        int recordNumber = recordNumbers.addRecord(type, position);
-        return new RecordId(segment.getSegmentId(), recordNumber);
+        // At this point we have to mark the buffer as dirty, because we have to
+        // assume that the caller of this method will use the returned
+        // ByteBuffer to actually write data into the buffer owned by this
+        // instance.
+
+        dirty = true;
+
+        return data;
     }
 
 }
