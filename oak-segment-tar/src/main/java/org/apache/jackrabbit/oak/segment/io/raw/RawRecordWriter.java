@@ -18,6 +18,11 @@
 package org.apache.jackrabbit.oak.segment.io.raw;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.singleton;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_DELTA;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
@@ -38,8 +43,14 @@ public final class RawRecordWriter {
 
     }
 
-    public static RawRecordWriter of(RecordAdder recordAdder) {
-        return new RawRecordWriter(checkNotNull(recordAdder));
+    public interface SegmentReferenceReader {
+
+        int readSegmentReference(UUID segmentId);
+
+    }
+
+    public static RawRecordWriter of(SegmentReferenceReader segmentReferenceReader, RecordAdder recordAdder) {
+        return new RawRecordWriter(checkNotNull(segmentReferenceReader), checkNotNull(recordAdder));
     }
 
     private static int lengthSize(int length) {
@@ -62,14 +73,29 @@ public final class RawRecordWriter {
         throw new IllegalArgumentException("invalid length: " + length);
     }
 
+    private static ByteBuffer writeLength(ByteBuffer buffer, long length) {
+        return buffer.putLong((((length - LONG_LENGTH_DELTA) & LONG_LENGTH_MASK) | LONG_LENGTH_MARKER));
+    }
+
+    private static ByteBuffer writeRecordId(ByteBuffer buffer, int segmentReference, int recordNumber) {
+        return buffer.putShort((short) segmentReference).putInt(recordNumber);
+    }
+
+    private final SegmentReferenceReader segmentReferenceReader;
+
     private final RecordAdder recordAdder;
 
-    private RawRecordWriter(RecordAdder recordAdder) {
+    private RawRecordWriter(SegmentReferenceReader segmentReferenceReader, RecordAdder recordAdder) {
+        this.segmentReferenceReader = segmentReferenceReader;
         this.recordAdder = recordAdder;
     }
 
     private ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> references) {
         return recordAdder.addRecord(number, type, requestedSize, references);
+    }
+
+    private int readSegmentReference(UUID segmentId) {
+        return segmentReferenceReader.readSegmentReference(segmentId);
     }
 
     public boolean writeValue(int number, int type, byte[] data) {
@@ -78,6 +104,15 @@ public final class RawRecordWriter {
             return false;
         }
         writeLength(buffer, data.length).put(data);
+        return true;
+    }
+
+    public boolean writeValue(int number, int type, UUID segmentId, int recordNumber, long length) {
+        ByteBuffer buffer = addRecord(number, type, LONG_LENGTH_SIZE + RawRecordId.BYTES, singleton(segmentId));
+        if (buffer == null) {
+            return false;
+        }
+        writeRecordId(writeLength(buffer, length), readSegmentReference(segmentId), recordNumber);
         return true;
     }
 
