@@ -419,7 +419,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * @param store the {@code SegmentStore} instance to write full segments to
      * @return a new record id
      */
-    public RecordId prepare(RecordType type, int size, Collection<RecordId> ids, SegmentStore store) throws IOException {
+    RecordId prepare(RecordType type, int size, Collection<RecordId> ids, SegmentStore store) throws IOException {
         Set<UUID> references = segmentReferences(ids);
         int recordSize = size + ids.size() * RECORD_SIZE;
 
