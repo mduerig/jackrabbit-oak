@@ -44,6 +44,8 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.segment.RecordNumbers.Entry;
+import org.apache.jackrabbit.oak.segment.RecordWriters.RecordWriter;
+import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

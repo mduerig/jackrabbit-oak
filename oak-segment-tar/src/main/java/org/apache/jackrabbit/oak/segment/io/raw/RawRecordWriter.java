@@ -17,6 +17,7 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
@@ -29,9 +30,17 @@ import java.nio.ByteBuffer;
 import java.util.Set;
 import java.util.UUID;
 
-public abstract class RawRecordWriter {
+public final class RawRecordWriter {
 
-    protected abstract ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> references);
+    public interface RecordAdder {
+
+        ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> references);
+
+    }
+
+    public static RawRecordWriter of(RecordAdder recordAdder) {
+        return new RawRecordWriter(checkNotNull(recordAdder));
+    }
 
     private static int lengthSize(int length) {
         if (length < SMALL_LIMIT) {
@@ -51,6 +60,16 @@ public abstract class RawRecordWriter {
             return buffer.putShort((short) (((length - MEDIUM_LENGTH_DELTA) & MEDIUM_LENGTH_MASK) | MEDIUM_LENGTH_MARKER));
         }
         throw new IllegalArgumentException("invalid length: " + length);
+    }
+
+    private final RecordAdder recordAdder;
+
+    private RawRecordWriter(RecordAdder recordAdder) {
+        this.recordAdder = recordAdder;
+    }
+
+    private ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> references) {
+        return recordAdder.addRecord(number, type, requestedSize, references);
     }
 
     public boolean writeValue(int number, int type, byte[] data) {

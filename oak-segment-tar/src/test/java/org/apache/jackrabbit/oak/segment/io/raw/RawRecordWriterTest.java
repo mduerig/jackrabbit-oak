@@ -20,8 +20,6 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
-import java.util.Set;
-import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
@@ -30,14 +28,7 @@ import org.junit.Test;
 public class RawRecordWriterTest {
 
     private static RawRecordWriter writerReturning(ByteBuffer buffer) {
-        return new RawRecordWriter() {
-
-            @Override
-            protected ByteBuffer addRecord(int number, int type, int requestedSize, Set<UUID> references) {
-                return buffer.duplicate();
-            }
-
-        };
+        return RawRecordWriter.of((n, t, s, r) -> buffer.duplicate());
     }
 
     @Test

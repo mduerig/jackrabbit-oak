@@ -17,6 +17,7 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER_BYTE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER_BYTE_MASK;
@@ -41,29 +42,58 @@ import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate.Builder;
 /**
  * Read raw records from the underlying storage format.
  */
-public abstract class RawRecordReader {
+public final class RawRecordReader {
 
-    /**
-     * Return the record data for a given record number.
-     *
-     * @param recordNumber The record number.
-     * @param size         The size of the record.
-     * @return An instance of {@link ByteBuffer}.
-     * @throws IllegalStateException if the record number is invalid.
-     */
-    protected abstract ByteBuffer value(int recordNumber, int size);
+    public interface SegmentIdReader {
 
-    /**
-     * Return the segment ID for a given segment reference.
-     *
-     * @param segmentReference The segment reference.
-     * @return An instance of {@link UUID}, or {@code null}
-     * @throws IllegalStateException if the segment reference is invalid.
-     */
-    protected abstract UUID segmentId(int segmentReference);
+        /**
+         * Return the segment ID for a given segment reference.
+         *
+         * @param segmentReference The segment reference.
+         * @return An instance of {@link UUID}, or {@code null}
+         * @throws IllegalStateException if the segment reference is invalid.
+         */
+        UUID readSegmentId(int segmentReference);
 
-    private ByteBuffer value(int recordNumber, int offset, int length) {
-        ByteBuffer value = value(recordNumber, length + offset);
+    }
+
+    public interface ValueReader {
+
+        /**
+         * Return the record data for a given record number.
+         *
+         * @param recordNumber The record number.
+         * @param size         The size of the record.
+         * @return An instance of {@link ByteBuffer}.
+         * @throws IllegalStateException if the record number is invalid.
+         */
+        ByteBuffer readValue(int recordNumber, int size);
+
+    }
+
+    public static RawRecordReader of(SegmentIdReader segmentIdReader, ValueReader valueReader) {
+        return new RawRecordReader(checkNotNull(segmentIdReader), checkNotNull(valueReader));
+    }
+
+    private final SegmentIdReader segmentIdReader;
+
+    private final ValueReader valueReader;
+
+    private RawRecordReader(SegmentIdReader segmentIdReader, ValueReader valueReader) {
+        this.segmentIdReader = segmentIdReader;
+        this.valueReader = valueReader;
+    }
+
+    private ByteBuffer readValue(int recordNumber, int size) {
+        return valueReader.readValue(recordNumber, size);
+    }
+
+    private UUID readSegmentId(int segmentReference) {
+        return segmentIdReader.readSegmentId(segmentReference);
+    }
+
+    private ByteBuffer readValue(int recordNumber, int offset, int length) {
+        ByteBuffer value = readValue(recordNumber, length + offset);
         value.position(offset);
         value.limit(offset + length);
         return value.slice();
@@ -76,7 +106,7 @@ public abstract class RawRecordReader {
      * @return The first byte of the record.
      */
     public byte readByte(int recordNumber) {
-        return value(recordNumber, Byte.BYTES).get();
+        return readValue(recordNumber, Byte.BYTES).get();
     }
 
     /**
@@ -87,7 +117,7 @@ public abstract class RawRecordReader {
      * @return The byte at the specified offset.
      */
     public byte readByte(int recordNumber, int offset) {
-        return value(recordNumber, offset, Byte.BYTES).get();
+        return readValue(recordNumber, offset, Byte.BYTES).get();
     }
 
     /**
@@ -97,7 +127,7 @@ public abstract class RawRecordReader {
      * @return The first short integer of the record.
      */
     public short readShort(int recordNumber) {
-        return value(recordNumber, Short.BYTES).getShort();
+        return readValue(recordNumber, Short.BYTES).getShort();
     }
 
     /**
@@ -107,7 +137,7 @@ public abstract class RawRecordReader {
      * @return The first integer of a record.
      */
     public int readInt(int recordNumber) {
-        return value(recordNumber, Integer.BYTES).getInt();
+        return readValue(recordNumber, Integer.BYTES).getInt();
     }
 
     /**
@@ -118,11 +148,11 @@ public abstract class RawRecordReader {
      * @return The integer from the record at the specified offset.
      */
     public int readInt(int recordNumber, int offset) {
-        return value(recordNumber, offset, Integer.BYTES).getInt();
+        return readValue(recordNumber, offset, Integer.BYTES).getInt();
     }
 
     private long readLong(int recordNumber) {
-        return value(recordNumber, Long.BYTES).getLong();
+        return readValue(recordNumber, Long.BYTES).getLong();
     }
 
     /**
@@ -135,13 +165,13 @@ public abstract class RawRecordReader {
      * @return An instance of {@link ByteBuffer}.
      */
     public ByteBuffer readBytes(int recordNumber, int position, int length) {
-        return value(recordNumber, position, length);
+        return readValue(recordNumber, position, length);
     }
 
     private RawRecordId readRecordId(ByteBuffer value) {
         int segmentReference = value.getShort() & 0xffff;
         int recordNumber = value.getInt();
-        return new RawRecordId(segmentId(segmentReference), recordNumber);
+        return new RawRecordId(readSegmentId(segmentReference), recordNumber);
     }
 
     /**
@@ -152,7 +182,7 @@ public abstract class RawRecordReader {
      * @return An instance of {@link RawRecordId}.
      */
     public RawRecordId readRecordId(int recordNumber, int offset) {
-        return readRecordId(value(recordNumber, offset, RawRecordId.BYTES));
+        return readRecordId(readValue(recordNumber, offset, RawRecordId.BYTES));
     }
 
     private static boolean isShortLength(byte marker) {
@@ -199,11 +229,11 @@ public abstract class RawRecordReader {
     }
 
     private RawShortValue readSmallValue(int recordNumber, int length) {
-        return new RawShortValue(decode(value(recordNumber, SMALL_LENGTH_SIZE, length)));
+        return new RawShortValue(decode(readValue(recordNumber, SMALL_LENGTH_SIZE, length)));
     }
 
     private RawShortValue readMediumValue(int recordNumber, int length) {
-        return new RawShortValue(decode(value(recordNumber, MEDIUM_LENGTH_SIZE, length)));
+        return new RawShortValue(decode(readValue(recordNumber, MEDIUM_LENGTH_SIZE, length)));
     }
 
     private RawLongValue readLongValue(int recordNumber, int length) {

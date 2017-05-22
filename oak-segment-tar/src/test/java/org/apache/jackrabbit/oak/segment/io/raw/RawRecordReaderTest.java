@@ -20,7 +20,6 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
@@ -29,19 +28,7 @@ import org.junit.Test;
 public class RawRecordReaderTest {
 
     private static RawRecordReader readerReturning(ByteBuffer value) {
-        return new RawRecordReader() {
-
-            @Override
-            protected ByteBuffer value(int recordNumber, int size) {
-                return value.duplicate();
-            }
-
-            @Override
-            protected UUID segmentId(int segmentReference) {
-                return null;
-            }
-
-        };
+        return RawRecordReader.of(s -> null, (n, s) -> value.duplicate());
     }
 
     @Test

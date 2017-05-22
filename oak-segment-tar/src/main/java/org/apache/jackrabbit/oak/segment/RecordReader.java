@@ -33,8 +33,8 @@ import org.apache.jackrabbit.oak.segment.io.raw.RawLongValue;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordReader;
 import org.apache.jackrabbit.oak.segment.io.raw.RawShortValue;
-import org.apache.jackrabbit.oak.segment.io.raw.RawValue;
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
+import org.apache.jackrabbit.oak.segment.io.raw.RawValue;
 
 /**
  * Implements logic for reading records from a segment.
@@ -53,26 +53,10 @@ class RecordReader {
 
     private final SegmentIdProvider segmentIdProvider;
 
-    private final RawRecordReader raw = new RawRecordReader() {
-
-        @Override
-        protected ByteBuffer value(int recordNumber, int size) {
-            return RecordReader.this.value(recordNumber, size);
-        }
-
-        @Override
-        protected UUID segmentId(int segmentReference) {
-            if (segmentReference == 0) {
-                return null;
-            }
-            SegmentId segmentId = segmentReferences.getSegmentId(segmentReference);
-            if (segmentId == null) {
-                throw new IllegalStateException("invalid segment reference");
-            }
-            return segmentId.asUUID();
-        }
-
-    };
+    private final RawRecordReader raw = RawRecordReader.of(
+            RecordReader.this::readSegmentId,
+            RecordReader.this::readValue
+    );
 
     RecordReader(SegmentId id, ByteBuffer data, SegmentReader reader, RecordNumbers recordNumbers, SegmentReferences segmentReferences, SegmentIdProvider segmentIdProvider) {
         this.id = id;
@@ -83,7 +67,18 @@ class RecordReader {
         this.segmentIdProvider = segmentIdProvider;
     }
 
-    private ByteBuffer value(int recordNumber, int length) {
+    private UUID readSegmentId(int segmentReference) {
+        if (segmentReference == 0) {
+            return null;
+        }
+        SegmentId segmentId = segmentReferences.getSegmentId(segmentReference);
+        if (segmentId == null) {
+            throw new IllegalStateException("invalid segment reference");
+        }
+        return segmentId.asUUID();
+    }
+
+    private ByteBuffer readValue(int recordNumber, int length) {
         int offset = recordNumbers.getOffset(recordNumber);
 
         if (offset == -1) {
@@ -118,7 +113,7 @@ class RecordReader {
     }
 
     long readLong(int recordNumber) {
-        return value(recordNumber, Long.BYTES).getLong();
+        return readValue(recordNumber, Long.BYTES).getLong();
     }
 
     void readBytes(int recordNumber, int position, byte[] buffer, int offset, int length) {
