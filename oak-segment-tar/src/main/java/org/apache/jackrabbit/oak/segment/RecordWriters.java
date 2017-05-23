@@ -31,9 +31,7 @@ import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
 import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
 import static org.apache.jackrabbit.oak.segment.RecordType.NODE;
 import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
-import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_ID_BYTES;
-import static org.apache.jackrabbit.oak.segment.Segment.SMALL_LIMIT;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -117,14 +115,6 @@ final class RecordWriters {
 
     static RecordWriter newBlockWriter(byte[] bytes, int offset, int length) {
         return new BlockWriter(bytes, offset, length);
-    }
-
-    static RecordWriter newValueWriter(RecordId rid, long len) {
-        return new SingleValueWriter(rid, len);
-    }
-
-    static RecordWriter newValueWriter(int length, byte[] data) {
-        return new ArrayValueWriter(length, data);
     }
 
     /**
@@ -335,70 +325,6 @@ final class RecordWriters {
         protected RecordId writeRecordContent(RecordId id,
                 SegmentBufferWriter writer) {
             writer.writeBytes(bytes, offset, size);
-            return id;
-        }
-    }
-
-    /**
-     * Single RecordId record writer.
-     * @see RecordType#VALUE
-     */
-    private static class SingleValueWriter extends DefaultRecordWriter {
-        private final RecordId rid;
-        private final long len;
-
-        private SingleValueWriter(RecordId rid, long len) {
-            super(VALUE, 8, rid);
-            this.rid = rid;
-            this.len = len;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            writer.writeLong(len);
-            writer.writeRecordId(rid);
-            return id;
-        }
-    }
-
-    /**
-     * Bye array record writer. Used as a special case for short binaries (up to
-     * about {@code Segment#MEDIUM_LIMIT}): store them directly as small or
-     * medium-sized value records.
-     * @see Segment#MEDIUM_LIMIT
-     * @see RecordType#VALUE
-     */
-    private static class ArrayValueWriter extends DefaultRecordWriter {
-        private final int length;
-        private final byte[] data;
-
-        private ArrayValueWriter(int length, byte[] data) {
-            super(VALUE, length + getSizeDelta(length));
-            this.length = length;
-            this.data = data;
-        }
-
-        private static boolean isSmallSize(int length) {
-            return length < SMALL_LIMIT;
-        }
-
-        private static int getSizeDelta(int length) {
-            if (isSmallSize(length)) {
-                return 1;
-            } else {
-                return 2;
-            }
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id, SegmentBufferWriter writer) {
-            if (isSmallSize(length)) {
-                writer.writeByte((byte) length);
-            } else {
-                writer.writeShort((short) ((length - SMALL_LIMIT) | 0x8000));
-            }
-            writer.writeBytes(data, 0, length);
             return id;
         }
     }
