@@ -20,19 +20,11 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Charsets.UTF_8;
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Sets.newHashSet;
-import static java.lang.System.arraycopy;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
-import static org.apache.jackrabbit.oak.segment.Segment.GC_GENERATION_OFFSET;
-import static org.apache.jackrabbit.oak.segment.Segment.HEADER_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
-import static org.apache.jackrabbit.oak.segment.Segment.SEGMENT_REFERENCE_SIZE;
-import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
-import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -43,17 +35,14 @@ import java.util.UUID;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
-import org.apache.jackrabbit.oak.segment.RecordNumbers.Entry;
-import org.apache.jackrabbit.oak.segment.RecordWriters.RecordWriter;
-import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * This class encapsulates the state of a segment being written. It provides methods
- * for writing primitive data types and for pre-allocating buffer space in the current
- * segment. Should the current segment not have enough space left the current segment
- * is flushed and a fresh one is allocated.
+ * This class encapsulates the state of a segment being written. It provides
+ * methods for writing primitive data types and for pre-allocating buffer space
+ * in the current segment. Should the current segment not have enough space left
+ * the current segment is flushed and a fresh one is allocated.
  * <p>
  * The common usage pattern is:
  * <pre>
@@ -64,8 +53,8 @@ import org.slf4j.LoggerFactory;
  * The behaviour of this class is undefined should the pre-allocated buffer be
  * overrun be calling any of the write methods.
  * <p>
- * Instances of this class are <em>not thread safe</em>. See also the class comment of
- * {@link SegmentWriter}.
+ * Instances of this class are <em>not thread safe</em>. See also the class
+ * comment of {@link SegmentWriter}.
  */
 public class SegmentBufferWriter implements WriteOperationHandler {
 
@@ -74,48 +63,8 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     /**
      * Enable an extra check logging warnings should this writer create segments
      * referencing segments from an older generation.
-     *
-     * @see #checkGCGeneration(SegmentId)
      */
     private static final boolean ENABLE_GENERATION_CHECK = Boolean.getBoolean("enable-generation-check");
-
-    /**
-     * Align an {@code address} on the given {@code boundary}
-     *
-     * @param address     address to align
-     * @param boundary    boundary to align to
-     * @return  {@code n = address + a} such that {@code n % boundary == 0} and
-     *          {@code 0 <= a < boundary}.
-     */
-    private static int align(int address, int boundary) {
-        return (address + boundary - 1) & ~(boundary - 1);
-    }
-
-    private static final class Statistics {
-
-        int segmentIdCount;
-
-        int recordIdCount;
-
-        int recordCount;
-
-        int size;
-
-        SegmentId id;
-
-        @Override
-        public String toString() {
-            return "id=" + id +
-                    ",size=" + size +
-                    ",segmentIdCount=" + segmentIdCount +
-                    ",recordIdCount=" + recordIdCount +
-                    ",recordCount=" + recordCount;
-        }
-    }
-
-    private MutableRecordNumbers recordNumbers = new MutableRecordNumbers();
-
-    private MutableSegmentReferences segmentReferences = new MutableSegmentReferences();
 
     @Nonnull
     private final SegmentIdProvider idProvider;
@@ -131,47 +80,26 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private final int generation;
 
-    /**
-     * The segment write buffer, filled from the end to the beginning
-     * (see OAK-629).
-     */
-    private byte[] buffer;
-
     private Segment segment;
-
-    /**
-     * The number of bytes already written (or allocated). Counted from
-     * the <em>end</em> of the buffer.
-     */
-    private int length;
-
-    /**
-     * Current write position within the buffer. Grows up when raw data
-     * is written, but shifted downwards by the prepare methods.
-     */
-    private int position;
-
-    private Statistics statistics;
-
-    /**
-     * Mark this buffer as dirty. A dirty buffer needs to be flushed to disk
-     * regularly to avoid data loss.
-     */
-    private boolean dirty;
 
     private int nextRecordNumber;
 
-    public SegmentBufferWriter(@Nonnull SegmentIdProvider idProvider,
-                               @Nonnull SegmentReader reader,
-                               @CheckForNull String wid,
-                               int generation) {
+    private SingleSegmentBufferWriter singleSegmentBufferWriter;
+
+    public SegmentBufferWriter(
+            @Nonnull SegmentIdProvider idProvider,
+            @Nonnull SegmentReader reader,
+            @CheckForNull String wid,
+            int generation
+    ) {
         this.idProvider = checkNotNull(idProvider);
         this.reader = checkNotNull(reader);
-        this.wid = (wid == null
-                ? "w-" + identityHashCode(this)
-                : wid);
-
         this.generation = generation;
+        if (wid == null) {
+            this.wid = "w-" + identityHashCode(this);
+        } else {
+            this.wid = wid;
+        }
     }
 
     @Nonnull
@@ -185,69 +113,41 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     /**
-     * Allocate a new segment and write the segment meta data.
-     * The segment meta data is a string of the format {@code "{wid=W,sno=S,t=T}"}
-     * where:
-     * <ul>
-     * <li>{@code W} is the writer id {@code wid}, </li>
-     * <li>{@code S} is a unique, increasing sequence number corresponding to the allocation order
-     * of the segments in this store, </li>
-     * <li>{@code T} is a time stamp according to {@link System#currentTimeMillis()}.</li>
-     * </ul>
-     * The segment meta data is guaranteed to be the first string record in a segment.
+     * Allocate a new segment and write the segment meta data. The segment meta
+     * data is a string of the format {@code "{wid=W,sno=S,t=T}"} where: <ul>
+     * <li>{@code W} is the writer id {@code wid}, </li> <li>{@code S} is a
+     * unique, increasing sequence number corresponding to the allocation order
+     * of the segments in this store, </li> <li>{@code T} is a time stamp
+     * according to {@link System#currentTimeMillis()}.</li> </ul> The segment
+     * meta data is guaranteed to be the first string record in a segment.
      */
     private void newSegment(SegmentStore store) throws IOException {
-        buffer = new byte[Segment.MAX_SEGMENT_SIZE];
-        buffer[0] = '0';
-        buffer[1] = 'a';
-        buffer[2] = 'K';
-        buffer[3] = SegmentVersion.asByte(LATEST_VERSION);
-        buffer[4] = 0; // reserved
-        buffer[5] = 0; // refcount
+        SegmentId segmentId = idProvider.newDataSegmentId();
 
-        buffer[GC_GENERATION_OFFSET] = (byte) (generation >> 24);
-        buffer[GC_GENERATION_OFFSET + 1] = (byte) (generation >> 16);
-        buffer[GC_GENERATION_OFFSET + 2] = (byte) (generation >> 8);
-        buffer[GC_GENERATION_OFFSET + 3] = (byte) generation;
-        length = 0;
-        position = buffer.length;
-        recordNumbers = new MutableRecordNumbers();
-        segmentReferences = new MutableSegmentReferences();
-
-        String metaInfo =
-            "{\"wid\":\"" + wid + '"' +
-            ",\"sno\":" + idProvider.getSegmentIdCount() +
-            ",\"t\":" + currentTimeMillis() + "}";
-        segment = new Segment(idProvider.newDataSegmentId(), reader, buffer, recordNumbers, segmentReferences, metaInfo, idProvider);
         nextRecordNumber = 0;
 
-        statistics = new Statistics();
-        statistics.id = segment.getSegmentId();
+        singleSegmentBufferWriter = new SingleSegmentBufferWriter(generation, idProvider, segmentId, ENABLE_GENERATION_CHECK);
+        String metaInfo = String.format("{\"wid\":\"%s\",\"sno\":%d,\"t\":%d}", wid, idProvider.getSegmentIdCount(), currentTimeMillis());
+        segment = singleSegmentBufferWriter.newSegment(reader, metaInfo);
 
         byte[] data = metaInfo.getBytes(UTF_8);
         RecordWriters.newValueWriter(data.length, data).write(this, store);
-
-        dirty = false;
     }
 
     public void writeByte(byte value) {
-        position = BinaryUtils.writeByte(buffer, position, value);
-        dirty = true;
+        singleSegmentBufferWriter.writeByte(value);
     }
 
     public void writeShort(short value) {
-        position = BinaryUtils.writeShort(buffer, position, value);
-        dirty = true;
+        singleSegmentBufferWriter.writeShort(value);
     }
 
     public void writeInt(int value) {
-        position = BinaryUtils.writeInt(buffer, position, value);
-        dirty = true;
+        singleSegmentBufferWriter.writeInt(value);
     }
 
     public void writeLong(long value) {
-        position = BinaryUtils.writeLong(buffer, position, value);
-        dirty = true;
+        singleSegmentBufferWriter.writeLong(value);
     }
 
     /**
@@ -257,7 +157,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * @param recordId the record id
      */
     public void writeRecordId(RecordId recordId) {
-        writeRecordId(recordId, true);
+        singleSegmentBufferWriter.writeRecordId(recordId);
     }
 
     /**
@@ -270,66 +170,11 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      *                  false} otherwise.
      */
     public void writeRecordId(RecordId recordId, boolean reference) {
-        checkNotNull(recordId);
-        checkState(segmentReferences.size() + 1 < 0xffff,
-                "Segment cannot have more than 0xffff references");
-        checkGCGeneration(recordId.getSegmentId());
-
-        writeShort(toShort(writeSegmentIdReference(recordId.getSegmentId())));
-        writeInt(recordId.getRecordNumber());
-
-        statistics.recordIdCount++;
-
-        dirty = true;
-    }
-
-    private static short toShort(int value) {
-        return (short) value;
-    }
-
-    private int writeSegmentIdReference(SegmentId id) {
-        if (id.equals(segment.getSegmentId())) {
-            return 0;
-        }
-
-        return segmentReferences.addOrReference(id);
-    }
-
-    /**
-     * Check that the generation of a segment matches the generation of this writer and logs
-     * a warning otherwise.
-     * This check is skipped if the {@link #ENABLE_GENERATION_CHECK} is not set.
-     *
-     * @param id  id of the segment to check
-     */
-    private void checkGCGeneration(SegmentId id) {
-        if (ENABLE_GENERATION_CHECK) {
-            try {
-                if (isDataSegmentId(id.getLeastSignificantBits())) {
-                    if (id.getGcGeneration() < generation) {
-                        LOG.warn("Detected reference from {} to segment {} from a previous gc generation.",
-                                info(this.segment), info(id.getSegment()), new Exception());
-                    }
-                }
-            } catch (SegmentNotFoundException snfe) {
-                LOG.warn("Detected reference from {} to non existing segment {}",
-                        info(this.segment), id, snfe);
-            }
-        }
-    }
-
-    private static String info(Segment segment) {
-        String info = segment.getSegmentId().toString();
-        if (isDataSegmentId(segment.getSegmentId().getLeastSignificantBits())) {
-            info += (" " + segment.getSegmentInfo());
-        }
-        return info;
+        singleSegmentBufferWriter.writeRecordId(recordId, reference);
     }
 
     public void writeBytes(byte[] data, int offset, int length) {
-        arraycopy(data, offset, buffer, position, length);
-        position += length;
-        dirty = true;
+        singleSegmentBufferWriter.writeBytes(data, offset, length);
     }
 
     /**
@@ -339,53 +184,10 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      */
     @Override
     public void flush(@Nonnull SegmentStore store) throws IOException {
-        if (dirty) {
-            int referencedSegmentIdCount = segmentReferences.size();
-            BinaryUtils.writeInt(buffer, Segment.REFERENCED_SEGMENT_ID_COUNT_OFFSET, referencedSegmentIdCount);
-
-            statistics.segmentIdCount = referencedSegmentIdCount;
-
-            int recordNumberCount = recordNumbers.size();
-            BinaryUtils.writeInt(buffer, Segment.RECORD_NUMBER_COUNT_OFFSET, recordNumberCount);
-
-            int totalLength = align(HEADER_SIZE + referencedSegmentIdCount * SEGMENT_REFERENCE_SIZE + recordNumberCount * RECORD_SIZE + length, 16);
-
-            if (totalLength > buffer.length) {
-                throw new IllegalStateException("too much data for a segment");
-            }
-
-            statistics.size = length = totalLength;
-
-            int pos = HEADER_SIZE;
-            if (pos + length <= buffer.length) {
-                // the whole segment fits to the space *after* the referenced
-                // segment identifiers we've already written, so we can safely
-                // copy those bits ahead even if concurrent code is still
-                // reading from that part of the buffer
-                arraycopy(buffer, 0, buffer, buffer.length - length, pos);
-                pos += buffer.length - length;
-            } else {
-                // this might leave some empty space between the header and
-                // the record data, but this case only occurs when the
-                // segment is >252kB in size and the maximum overhead is <<4kB,
-                // which is acceptable
-                length = buffer.length;
-            }
-
-            for (SegmentId segmentId : segmentReferences) {
-                pos = BinaryUtils.writeLong(buffer, pos, segmentId.getMostSignificantBits());
-                pos = BinaryUtils.writeLong(buffer, pos, segmentId.getLeastSignificantBits());
-            }
-
-            for (Entry entry : recordNumbers) {
-                pos = BinaryUtils.writeInt(buffer, pos, entry.getRecordNumber());
-                pos = BinaryUtils.writeByte(buffer, pos, (byte) entry.getType().ordinal());
-                pos = BinaryUtils.writeInt(buffer, pos, entry.getOffset());
-            }
-
-            SegmentId segmentId = segment.getSegmentId();
-            LOG.debug("Writing data segment: {} ", statistics);
-            store.writeSegment(segmentId, buffer, buffer.length - length, length);
+        if (singleSegmentBufferWriter == null) {
+            return;
+        }
+        if (singleSegmentBufferWriter.flush(store)) {
             newSegment(store);
         }
     }
@@ -445,74 +247,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     private ByteBuffer addRecord(int number, int type, int size, Set<UUID> references) {
-        checkArgument(size > 0);
-
-        if (segment == null) {
-            return null;
-        }
-
-        int recordSize = align(size, 1 << Segment.RECORD_ALIGN_BITS);
-
-        // First compute the header and segment sizes based on the assumption
-        // that *all* identifiers stored in this record point to previously
-        // unreferenced segments.
-
-        int recordNumbersCount = recordNumbers.size() + 1;
-        int referencedIdCount = segmentReferences.size() + (references != null ? references.size() : 0);
-        int headerSize = HEADER_SIZE + referencedIdCount * SEGMENT_REFERENCE_SIZE + recordNumbersCount * RECORD_SIZE;
-        int segmentSize = align(headerSize + recordSize + length, 16);
-
-        // If the size estimate looks too big, recompute it with a more
-        // accurate refCount value. We skip doing this when possible to
-        // avoid the somewhat expensive list and set traversals.
-
-        if (segmentSize > buffer.length) {
-
-            // Collect the newly referenced segment ids
-
-            Set<SegmentId> segmentIds = null;
-            if (references != null) {
-                for (UUID reference : references) {
-                    long msb = reference.getMostSignificantBits();
-                    long lsb = reference.getLeastSignificantBits();
-                    SegmentId segmentId = this.idProvider.newSegmentId(msb, lsb);
-                    if (segmentReferences.contains(segmentId)) {
-                        continue;
-                    }
-                    if (segmentIds == null) {
-                        segmentIds = newHashSet();
-                    }
-                    segmentIds.add(segmentId);
-                }
-            }
-
-            // Adjust the estimation of the new referenced segment ID count.
-
-            referencedIdCount = segmentReferences.size() + (segmentIds != null ? segmentIds.size() : 0);
-            headerSize = HEADER_SIZE + referencedIdCount * SEGMENT_REFERENCE_SIZE + recordNumbersCount * RECORD_SIZE;
-            segmentSize = align(headerSize + recordSize + length, 16);
-        }
-
-        if (segmentSize > buffer.length) {
-            return null;
-        }
-
-        statistics.recordCount++;
-
-        length += recordSize;
-        position = buffer.length - length;
-        checkState(position >= 0);
-        recordNumbers.addRecord(number, type, position);
-        ByteBuffer data = ByteBuffer.wrap(buffer, position, length);
-
-        // At this point we have to mark the buffer as dirty, because we have to
-        // assume that the caller of this method will use the returned
-        // ByteBuffer to actually write data into the buffer owned by this
-        // instance.
-
-        dirty = true;
-
-        return data;
+        return singleSegmentBufferWriter.addRecord(number, type, size, references);
     }
 
 }
