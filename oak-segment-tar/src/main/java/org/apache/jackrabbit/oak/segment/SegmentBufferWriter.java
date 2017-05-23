@@ -136,7 +136,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         segment = singleSegmentBufferWriter.newSegment(reader, metaInfo);
 
         byte[] data = metaInfo.getBytes(Charsets.UTF_8);
-        RecordWriters.newValueWriter(data.length, data).write(this);
+        writeValue(data.length, data);
     }
 
     public void writeByte(byte value) {
