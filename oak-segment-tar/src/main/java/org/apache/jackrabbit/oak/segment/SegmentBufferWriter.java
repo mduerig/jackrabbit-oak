@@ -36,9 +36,6 @@ import java.util.UUID;
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * This class encapsulates the state of a segment being written. It provides
  * methods for writing primitive data types and for pre-allocating buffer space
@@ -58,8 +55,6 @@ import org.slf4j.LoggerFactory;
  * comment of {@link SegmentWriter}.
  */
 public class SegmentBufferWriter implements WriteOperationHandler {
-
-    private static final Logger LOG = LoggerFactory.getLogger(SegmentBufferWriter.class);
 
     /**
      * Enable an extra check logging warnings should this writer create segments
