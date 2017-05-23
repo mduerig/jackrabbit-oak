@@ -82,6 +82,8 @@ class SingleSegmentBufferWriter {
 
     private final SegmentIdProvider segmentIdProvider;
 
+    private final SegmentStore segmentStore;
+
     private final Statistics statistics;
 
     private final SegmentId segmentId;
@@ -110,7 +112,8 @@ class SingleSegmentBufferWriter {
      */
     private boolean dirty;
 
-    SingleSegmentBufferWriter(int generation, SegmentIdProvider segmentIdProvider, SegmentId segmentId, boolean enableGenerationCheck) {
+    SingleSegmentBufferWriter(SegmentStore segmentStore, int generation, SegmentIdProvider segmentIdProvider, SegmentId segmentId, boolean enableGenerationCheck) {
+        this.segmentStore = segmentStore;
         this.segmentId = segmentId;
         this.segmentIdProvider = segmentIdProvider;
         this.enableGenerationCheck = enableGenerationCheck;
@@ -201,7 +204,7 @@ class SingleSegmentBufferWriter {
         return ByteBuffer.wrap(buffer, position, length);
     }
 
-    boolean flush(SegmentStore store) throws IOException {
+    boolean flush() throws IOException {
         if (!dirty) {
             return false;
         }
@@ -250,7 +253,7 @@ class SingleSegmentBufferWriter {
         }
 
         log.debug("Writing data segment: {} ", statistics);
-        store.writeSegment(segmentId, buffer, buffer.length - length, length);
+        segmentStore.writeSegment(segmentId, buffer, buffer.length - length, length);
         return true;
     }
 

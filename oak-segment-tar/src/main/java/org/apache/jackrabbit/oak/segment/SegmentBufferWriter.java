@@ -66,6 +66,8 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      */
     private static final boolean ENABLE_GENERATION_CHECK = Boolean.getBoolean("enable-generation-check");
 
+    private final SegmentStore segmentStore;
+
     @Nonnull
     private final SegmentIdProvider idProvider;
 
@@ -87,11 +89,13 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     private SingleSegmentBufferWriter singleSegmentBufferWriter;
 
     public SegmentBufferWriter(
+            SegmentStore segmentStore,
             @Nonnull SegmentIdProvider idProvider,
             @Nonnull SegmentReader reader,
             @CheckForNull String wid,
             int generation
     ) {
+        this.segmentStore = segmentStore;
         this.idProvider = checkNotNull(idProvider);
         this.reader = checkNotNull(reader);
         this.generation = generation;
@@ -121,17 +125,17 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * according to {@link System#currentTimeMillis()}.</li> </ul> The segment
      * meta data is guaranteed to be the first string record in a segment.
      */
-    private void newSegment(SegmentStore store) throws IOException {
+    private void newSegment() throws IOException {
         SegmentId segmentId = idProvider.newDataSegmentId();
 
         nextRecordNumber = 0;
 
-        singleSegmentBufferWriter = new SingleSegmentBufferWriter(generation, idProvider, segmentId, ENABLE_GENERATION_CHECK);
+        singleSegmentBufferWriter = new SingleSegmentBufferWriter(segmentStore, generation, idProvider, segmentId, ENABLE_GENERATION_CHECK);
         String metaInfo = String.format("{\"wid\":\"%s\",\"sno\":%d,\"t\":%d}", wid, idProvider.getSegmentIdCount(), currentTimeMillis());
         segment = singleSegmentBufferWriter.newSegment(reader, metaInfo);
 
         byte[] data = metaInfo.getBytes(UTF_8);
-        RecordWriters.newValueWriter(data.length, data).write(this, store);
+        RecordWriters.newValueWriter(data.length, data).write(this);
     }
 
     public void writeByte(byte value) {
@@ -183,12 +187,12 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * enough space for a record. It can also be called explicitly.
      */
     @Override
-    public void flush(@Nonnull SegmentStore store) throws IOException {
+    public void flush() throws IOException {
         if (singleSegmentBufferWriter == null) {
             return;
         }
-        if (singleSegmentBufferWriter.flush(store)) {
-            newSegment(store);
+        if (singleSegmentBufferWriter.flush()) {
+            newSegment();
         }
     }
 
@@ -218,15 +222,14 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      * @param size  the size of the record, excluding the size used for the
      *              record ids
      * @param ids   the record ids
-     * @param store the {@code SegmentStore} instance to write full segments to
      * @return a new record id
      */
-    RecordId prepare(RecordType type, int size, Collection<RecordId> ids, SegmentStore store) throws IOException {
+    RecordId prepare(RecordType type, int size, Collection<RecordId> ids) throws IOException {
         Set<UUID> references = segmentReferences(ids);
         int recordSize = size + ids.size() * RECORD_SIZE;
 
         if (segment == null) {
-            newSegment(store);
+            newSegment();
         }
 
         int number;
@@ -236,7 +239,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
             return new RecordId(segment.getSegmentId(), number);
         }
 
-        flush(store);
+        flush();
 
         number = nextRecordNumber++;
         if (addRecord(number, type.ordinal(), recordSize, references) != null) {

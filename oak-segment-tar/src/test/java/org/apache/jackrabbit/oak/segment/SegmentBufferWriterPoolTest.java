@@ -51,6 +51,7 @@ public class SegmentBufferWriterPoolTest {
     private final RecordId rootId = store.getRevisions().getHead();
 
     private final SegmentBufferWriterPool pool = new SegmentBufferWriterPool(
+            store,
             store.getSegmentIdProvider(),
             store.getReader(),
             "",
@@ -133,7 +134,7 @@ public class SegmentBufferWriterPoolTest {
         assertEquals(rootId, res3.get());
         assertEquals(3, map1.size());
 
-        pool.flush(store);
+        pool.flush();
 
         ConcurrentMap<String, SegmentBufferWriter> map2 = newConcurrentMap();
         Future<RecordId> res4 = execute(createOp("a", map2), 0);
@@ -163,7 +164,7 @@ public class SegmentBufferWriterPoolTest {
                     executors[1].submit(new Callable<Void>() {
                         @Override
                         public Void call() throws Exception {
-                            pool.flush(store);
+                            pool.flush();
                             return null;
                         }
                     }).get(100, MILLISECONDS);

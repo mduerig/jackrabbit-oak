@@ -38,11 +38,12 @@ import com.google.common.util.concurrent.Monitor;
 import com.google.common.util.concurrent.Monitor.Guard;
 
 /**
- * This {@link WriteOperationHandler} uses a pool of {@link SegmentBufferWriter}s,
- * which it passes to its {@link #execute(WriteOperation) execute} method.
+ * This {@link WriteOperationHandler} uses a pool of {@link
+ * SegmentBufferWriter}s, which it passes to its {@link #execute(WriteOperation)
+ * execute} method.
  * <p>
- * Instances of this class are thread safe. See also the class comment of
- * {@link SegmentWriter}.
+ * Instances of this class are thread safe. See also the class comment of {@link
+ * SegmentWriter}.
  */
 public class SegmentBufferWriterPool implements WriteOperationHandler {
 
@@ -68,6 +69,8 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
      */
     private final Set<SegmentBufferWriter> disposed = newHashSet();
 
+    private final SegmentStore segmentStore;
+
     @Nonnull
     private final SegmentIdProvider idProvider;
 
@@ -83,10 +86,13 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
     private short writerId = -1;
 
     public SegmentBufferWriterPool(
+            SegmentStore segmentStore,
             @Nonnull SegmentIdProvider idProvider,
             @Nonnull SegmentReader reader,
             @Nonnull String wid,
-            @Nonnull Supplier<Integer> gcGeneration) {
+            @Nonnull Supplier<Integer> gcGeneration
+    ) {
+        this.segmentStore = segmentStore;
         this.idProvider = checkNotNull(idProvider);
         this.reader = checkNotNull(reader);
         this.wid = checkNotNull(wid);
@@ -105,7 +111,7 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
     }
 
     @Override
-    public void flush(@Nonnull SegmentStore store) throws IOException {
+    public void flush() throws IOException {
         List<SegmentBufferWriter> toFlush = newArrayList();
         List<SegmentBufferWriter> toReturn = newArrayList();
 
@@ -140,7 +146,7 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
         // Call flush from outside the pool monitor to avoid potential
         // deadlocks of that method calling SegmentStore.writeSegment
         for (SegmentBufferWriter writer : toFlush) {
-            writer.flush(store);
+            writer.flush();
         }
     }
 
@@ -186,6 +192,7 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
             SegmentBufferWriter writer = writers.remove(key);
             if (writer == null) {
                 writer = new SegmentBufferWriter(
+                        segmentStore,
                         idProvider,
                         reader,
                         getWriterId(wid),
@@ -194,6 +201,7 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
             } else if (writer.getGeneration() != gcGeneration.get()) {
                 disposed.add(writer);
                 writer = new SegmentBufferWriter(
+                        segmentStore,
                         idProvider,
                         reader,
                         getWriterId(wid),

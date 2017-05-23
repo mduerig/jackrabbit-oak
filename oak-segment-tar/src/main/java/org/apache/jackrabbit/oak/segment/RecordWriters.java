@@ -48,7 +48,7 @@ final class RecordWriters {
 
     interface RecordWriter {
 
-        RecordId write(SegmentBufferWriter writer, SegmentStore store) throws IOException;
+        RecordId write(SegmentBufferWriter writer) throws IOException;
 
     }
 
@@ -78,8 +78,8 @@ final class RecordWriters {
         }
 
         @Override
-        public final RecordId write(SegmentBufferWriter writer, SegmentStore store) throws IOException {
-            RecordId id = writer.prepare(type, size, ids, store);
+        public final RecordId write(SegmentBufferWriter writer) throws IOException {
+            RecordId id = writer.prepare(type, size, ids);
             return writeRecordContent(id, writer);
         }
 

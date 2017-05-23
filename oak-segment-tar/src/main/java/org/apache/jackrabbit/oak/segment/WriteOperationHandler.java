@@ -58,8 +58,7 @@ interface WriteOperationHandler {
 
     /**
      * Flush any pending changes on any {@link SegmentBufferWriter} managed by this instance.
-     * @param store  the {@code SegmentStore} instance to write the {@code Segment} to
      * @throws IOException
      */
-    void flush(@Nonnull SegmentStore store) throws IOException;
+    void flush() throws IOException;
 }
