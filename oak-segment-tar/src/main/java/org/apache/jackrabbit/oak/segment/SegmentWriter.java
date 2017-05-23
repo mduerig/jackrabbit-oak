@@ -595,8 +595,7 @@ public class SegmentWriter {
         }
 
         private RecordId writeValueRecord(long length, RecordId blocks) throws IOException {
-            long len = (length - Segment.MEDIUM_LIMIT) | (0x3L << 62);
-            return writer.writeValue(blocks, len);
+            return writer.writeValue(blocks, length);
         }
 
         private RecordId writeValueRecord(int length, byte... data) throws IOException {

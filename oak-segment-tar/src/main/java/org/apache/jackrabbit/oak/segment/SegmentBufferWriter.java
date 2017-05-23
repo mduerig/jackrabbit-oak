@@ -286,8 +286,12 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return RecordWriters.newBlockWriter(bytes, offset, length).write(this);
     }
 
-    RecordId writeValue(RecordId rid, long len) throws IOException {
-        return RecordWriters.newValueWriter(rid, len).write(this);
+    RecordId writeValue(RecordId rid, long length) throws IOException {
+        return writeValue(RecordType.VALUE.ordinal(), rid.asUUID(), rid.getRecordNumber(), length);
+    }
+
+    private RecordId writeValue(int type, UUID segmentId, int recordNumber, long length) throws IOException {
+        return writeRecord(n -> raw.writeValue(n, type, segmentId, recordNumber, length));
     }
 
     RecordId writeValue(int length, byte[] data) throws IOException {
