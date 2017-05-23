@@ -30,7 +30,6 @@ import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
-import org.apache.commons.io.HexDump;
 import org.junit.Test;
 
 public class RawRecordWriterTest {
@@ -48,7 +47,7 @@ public class RawRecordWriterTest {
         String value = Strings.repeat("x", SMALL_LIMIT - 1);
         byte[] data = value.getBytes(Charsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(SMALL_LENGTH_SIZE + data.length);
-        writerReturning(buffer).writeValue(1, 1, data);
+        writerReturning(buffer).writeValue(1, 1, data, 0, data.length);
         ByteBuffer expected = ByteBuffer.allocate(SMALL_LENGTH_SIZE + data.length);
         expected.duplicate().put((byte) 0x7f).put(data);
         assertEquals(expected, buffer);
@@ -59,7 +58,7 @@ public class RawRecordWriterTest {
         String value = Strings.repeat("x", MEDIUM_LIMIT - 1);
         byte[] data = value.getBytes(Charsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(MEDIUM_LENGTH_SIZE + data.length);
-        writerReturning(buffer).writeValue(1, 1, data);
+        writerReturning(buffer).writeValue(1, 1, data, 0, data.length);
         ByteBuffer expected = ByteBuffer.allocate(MEDIUM_LENGTH_SIZE + data.length);
         expected.duplicate().putShort((short) 0xbfff).put(data);
         assertEquals(expected, buffer);

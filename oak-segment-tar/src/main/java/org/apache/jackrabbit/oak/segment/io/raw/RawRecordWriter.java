@@ -98,12 +98,12 @@ public final class RawRecordWriter {
         return segmentReferenceReader.readSegmentReference(segmentId);
     }
 
-    public boolean writeValue(int number, int type, byte[] data) {
-        ByteBuffer buffer = addRecord(number, type, data.length + lengthSize(data.length), null);
+    public boolean writeValue(int number, int type, byte[] data, int offset, int length) {
+        ByteBuffer buffer = addRecord(number, type, length + lengthSize(length), null);
         if (buffer == null) {
             return false;
         }
-        writeLength(buffer, data.length).put(data);
+        writeLength(buffer, length).put(data, offset, length);
         return true;
     }
 

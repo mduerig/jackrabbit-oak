@@ -19,7 +19,6 @@
 
 package org.apache.jackrabbit.oak.segment;
 
-import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.currentTimeMillis;
@@ -35,6 +34,9 @@ import java.util.UUID;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Charsets;
+import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
 
 /**
  * This class encapsulates the state of a segment being written. It provides
@@ -84,6 +86,8 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private SingleSegmentBufferWriter singleSegmentBufferWriter;
 
+    private RawRecordWriter raw;
+
     public SegmentBufferWriter(
             SegmentStore segmentStore,
             @Nonnull SegmentIdProvider idProvider,
@@ -127,10 +131,11 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         nextRecordNumber = 0;
 
         singleSegmentBufferWriter = new SingleSegmentBufferWriter(segmentStore, generation, idProvider, segmentId, ENABLE_GENERATION_CHECK);
+        raw = RawRecordWriter.of(singleSegmentBufferWriter::readSegmentReference, singleSegmentBufferWriter::addRecord);
         String metaInfo = String.format("{\"wid\":\"%s\",\"sno\":%d,\"t\":%d}", wid, idProvider.getSegmentIdCount(), currentTimeMillis());
         segment = singleSegmentBufferWriter.newSegment(reader, metaInfo);
 
-        byte[] data = metaInfo.getBytes(UTF_8);
+        byte[] data = metaInfo.getBytes(Charsets.UTF_8);
         RecordWriters.newValueWriter(data.length, data).write(this);
     }
 
@@ -286,7 +291,11 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     RecordId writeValue(int length, byte[] data) throws IOException {
-        return RecordWriters.newValueWriter(length, data).write(this);
+        return writeValue(RecordType.VALUE.ordinal(), data, 0, length);
+    }
+
+    private RecordId writeValue(int type, byte[] data, int offset, int length) throws IOException {
+        return writeRecord(n -> raw.writeValue(n, type, data, offset, length));
     }
 
     RecordId writeBlobId(RecordId rid) throws IOException {
@@ -319,5 +328,32 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         ).write(this);
     }
 
+    private interface RecordContentWriter {
+
+        boolean writeRecordContent(int number);
+
+    }
+
+    private RecordId writeRecord(RecordContentWriter writer) throws IOException {
+        int number;
+
+        if (raw == null) {
+            newSegment();
+        }
+
+        number = nextRecordNumber++;
+        if (writer.writeRecordContent(number)) {
+            return new RecordId(segment.getSegmentId(), number);
+        }
+
+        flush();
+
+        number = nextRecordNumber++;
+        if (writer.writeRecordContent(number)) {
+            return new RecordId(segment.getSegmentId(), number);
+        }
+
+        throw new IllegalStateException("unable to write record");
+    }
 
 }

@@ -146,6 +146,13 @@ class SingleSegmentBufferWriter {
         return new Segment(segmentId, reader, buffer, recordNumbers, segmentReferences, metaInfo, segmentIdProvider);
     }
 
+    int readSegmentReference(UUID id) {
+        long msb = id.getMostSignificantBits();
+        long lsb = id.getLeastSignificantBits();
+        SegmentId sid = segmentIdProvider.newSegmentId(msb, lsb);
+        return writeSegmentIdReference(sid);
+    }
+
     ByteBuffer addRecord(int number, int type, int size, Set<UUID> references) {
         checkArgument(size > 0);
 
@@ -201,7 +208,9 @@ class SingleSegmentBufferWriter {
         position = buffer.length - length;
         checkState(position >= 0);
         recordNumbers.addRecord(number, type, position);
-        return ByteBuffer.wrap(buffer, position, length);
+        ByteBuffer buffer = ByteBuffer.wrap(this.buffer, position, length);
+        dirty = true;
+        return buffer;
     }
 
     boolean flush() throws IOException {
@@ -259,28 +268,23 @@ class SingleSegmentBufferWriter {
 
     void writeByte(byte value) {
         position = BinaryUtils.writeByte(buffer, position, value);
-        dirty = true;
     }
 
     void writeShort(short value) {
         position = BinaryUtils.writeShort(buffer, position, value);
-        dirty = true;
     }
 
     public void writeInt(int value) {
         position = BinaryUtils.writeInt(buffer, position, value);
-        dirty = true;
     }
 
     public void writeLong(long value) {
         position = BinaryUtils.writeLong(buffer, position, value);
-        dirty = true;
     }
 
     public void writeBytes(byte[] data, int offset, int length) {
         arraycopy(data, offset, buffer, position, length);
         position += length;
-        dirty = true;
     }
 
     void writeRecordId(RecordId recordId) {
@@ -296,8 +300,6 @@ class SingleSegmentBufferWriter {
         writeInt(recordId.getRecordNumber());
 
         statistics.recordIdCount++;
-
-        dirty = true;
     }
 
     private static short toShort(int value) {
