@@ -29,6 +29,7 @@ import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -252,5 +253,76 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     private ByteBuffer addRecord(int number, int type, int size, Set<UUID> references) {
         return singleSegmentBufferWriter.addRecord(number, type, size, references);
     }
+
+    RecordId writeMapLeaf(int level, Collection<MapEntry> entries) throws IOException {
+        return RecordWriters.newMapLeafWriter(level, entries).write(this);
+    }
+
+    RecordId writeMapLeaf() throws IOException {
+        return RecordWriters.newMapLeafWriter().write(this);
+    }
+
+    RecordId writeMapBranch(int level, int entryCount, int bitmap, List<RecordId> ids) throws IOException {
+        return RecordWriters.newMapBranchWriter(level, entryCount, bitmap, ids).write(this);
+    }
+
+    RecordId writeMapBranch(int bitmap, List<RecordId> ids) throws IOException {
+        return RecordWriters.newMapBranchWriter(bitmap, ids).write(this);
+    }
+
+    RecordId writeList(int count, RecordId lid) throws IOException {
+        return RecordWriters.newListWriter(count, lid).write(this);
+    }
+
+    RecordId writeList() throws IOException {
+        return RecordWriters.newListWriter().write(this);
+    }
+
+    RecordId writeListBucket(List<RecordId> ids) throws IOException {
+        return RecordWriters.newListBucketWriter(ids).write(this);
+    }
+
+    RecordId writeBlock(byte[] bytes, int offset, int length) throws IOException {
+        return RecordWriters.newBlockWriter(bytes, offset, length).write(this);
+    }
+
+    RecordId writeValue(RecordId rid, long len) throws IOException {
+        return RecordWriters.newValueWriter(rid, len).write(this);
+    }
+
+    RecordId writeValue(int length, byte[] data) throws IOException {
+        return RecordWriters.newValueWriter(length, data).write(this);
+    }
+
+    RecordId writeBlobId(RecordId rid) throws IOException {
+        return RecordWriters.newBlobIdWriter(rid).write(this);
+    }
+
+    RecordId writeBlobId(byte[] blobId) throws IOException {
+        return RecordWriters.newBlobIdWriter(blobId).write(this);
+    }
+
+    RecordId writeTemplate(
+            Collection<RecordId> ids,
+            RecordId[] propertyNames,
+            byte[] propertyTypes,
+            int head,
+            RecordId primaryId,
+            List<RecordId> mixinIds,
+            RecordId childNameId,
+            RecordId propNamesId
+    ) throws IOException {
+        return RecordWriters.newTemplateWriter(
+                ids,
+                propertyNames,
+                propertyTypes,
+                head,
+                primaryId,
+                mixinIds,
+                childNameId,
+                propNamesId
+        ).write(this);
+    }
+
 
 }
