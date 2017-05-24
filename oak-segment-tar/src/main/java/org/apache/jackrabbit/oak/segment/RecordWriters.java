@@ -117,23 +117,6 @@ final class RecordWriters {
         return new BlockWriter(bytes, offset, length);
     }
 
-    /**
-     * Write a large blob ID. A blob ID is considered large if the length of its
-     * binary representation is equal to or greater than {@code
-     * Segment.BLOB_ID_SMALL_LIMIT}.
-     */
-    static RecordWriter newBlobIdWriter(RecordId rid) {
-        return new LargeBlobIdWriter(rid);
-    }
-
-    /**
-     * Write a small blob ID. A blob ID is considered small if the length of its
-     * binary representation is less than {@code Segment.BLOB_ID_SMALL_LIMIT}.
-     */
-    static RecordWriter newBlobIdWriter(byte[] blobId) {
-        return new SmallBlobIdWriter(blobId);
-    }
-
     static RecordWriter newTemplateWriter(
             Collection<RecordId> ids,
             RecordId[] propertyNames,
@@ -328,61 +311,7 @@ final class RecordWriters {
             return id;
         }
     }
-
-    /**
-     * Large Blob record writer. A blob ID is considered large if the length of
-     * its binary representation is equal to or greater than
-     * {@code Segment#BLOB_ID_SMALL_LIMIT}.
-     *
-     * @see Segment#BLOB_ID_SMALL_LIMIT
-     * @see RecordType#BLOB_ID
-     */
-    private static class LargeBlobIdWriter extends DefaultRecordWriter {
-        private final RecordId stringRecord;
-
-        private LargeBlobIdWriter(RecordId stringRecord) {
-            super(BLOB_ID, 1, stringRecord);
-            this.stringRecord = stringRecord;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            // The length uses a fake "length" field that is always equal to
-            // 0xF0.
-            // This allows the code to take apart small from a large blob IDs.
-            writer.writeByte((byte) 0xF0);
-            writer.writeRecordId(stringRecord);
-            return id;
-        }
-    }
-
-    /**
-     * Small Blob record writer. A blob ID is considered small if the length of
-     * its binary representation is less than {@code Segment#BLOB_ID_SMALL_LIMIT}.
-
-     * @see Segment#BLOB_ID_SMALL_LIMIT
-     * @see RecordType#BLOB_ID
-     */
-    private static class SmallBlobIdWriter extends DefaultRecordWriter {
-        private final byte[] blobId;
-
-        private SmallBlobIdWriter(byte[] blobId) {
-            super(BLOB_ID, 2 + blobId.length);
-            checkArgument(blobId.length < Segment.BLOB_ID_SMALL_LIMIT);
-            this.blobId = blobId;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            int length = blobId.length;
-            writer.writeShort((short) (length | 0xE000));
-            writer.writeBytes(blobId, 0, length);
-            return id;
-        }
-    }
-
+    
     /**
      * Template record writer.
      * @see RecordType#TEMPLATE

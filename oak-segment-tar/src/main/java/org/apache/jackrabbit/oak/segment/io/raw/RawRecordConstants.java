@@ -65,6 +65,20 @@ class RawRecordConstants {
 
     static final byte LONG_LENGTH_MARKER_BYTE = (byte) 0xC0;
 
+    // These constants define the encoding of small blob IDs.
+
+    static final int SMALL_BLOB_ID_LENGTH_SIZE = Short.BYTES;
+
+    static final int SMALL_BLOB_ID_LENGTH_MASK = 0x1FFF;
+
+    static final int SMALL_BLOB_ID_LENGTH_MARKER = 0xE000;
+
+    // These constants define the encoding of large blob IDs.
+
+    static final int LONG_BLOB_ID_LENGTH_SIZE = Byte.BYTES;
+
+    static final byte LONG_BLOB_ID_LENGTH = (byte) 0xF0;
+
     RawRecordConstants() {
         // Prevent instantiation
     }

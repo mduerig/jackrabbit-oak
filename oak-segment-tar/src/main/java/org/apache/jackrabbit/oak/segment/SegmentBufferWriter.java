@@ -316,12 +316,20 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return writeRecord(n -> raw.writeValue(n, type, data, offset, length));
     }
 
-    RecordId writeBlobId(RecordId rid) throws IOException {
-        return RecordWriters.newBlobIdWriter(rid).write(this);
+    RecordId writeBlobId(RecordId id) throws IOException {
+        return writeBlobId(RecordType.BLOB_ID.ordinal(), asRawRecordId(id));
     }
 
-    RecordId writeBlobId(byte[] blobId) throws IOException {
-        return RecordWriters.newBlobIdWriter(blobId).write(this);
+    private RecordId writeBlobId(int type, RawRecordId id) throws IOException {
+        return writeRecord(n -> raw.writeBlobId(n, type, id));
+    }
+
+    RecordId writeBlobId(byte[] id) throws IOException {
+        return writeBlobId(RecordType.BLOB_ID.ordinal(), id);
+    }
+
+    private RecordId writeBlobId(int type, byte[] data) throws IOException {
+        return writeRecord(n -> raw.writeBlobId(n, type, data));
     }
 
     RecordId writeTemplate(

@@ -21,6 +21,7 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_L
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LIMIT;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_BLOB_ID_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
 import static org.junit.Assert.assertEquals;
@@ -42,7 +43,7 @@ public class RawRecordWriterTest {
     }
 
     @Test
-    public void testWriteSmallString() throws Exception {
+    public void testWriteSmallValue() throws Exception {
         String value = Strings.repeat("x", SMALL_LIMIT - 1);
         byte[] data = value.getBytes(Charsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(SMALL_LENGTH_SIZE + data.length);
@@ -53,7 +54,7 @@ public class RawRecordWriterTest {
     }
 
     @Test
-    public void testWriteMediumString() throws Exception {
+    public void testWriteMediumValue() throws Exception {
         String value = Strings.repeat("x", MEDIUM_LIMIT - 1);
         byte[] data = value.getBytes(Charsets.UTF_8);
         ByteBuffer buffer = ByteBuffer.allocate(MEDIUM_LENGTH_SIZE + data.length);
@@ -72,4 +73,23 @@ public class RawRecordWriterTest {
         assertEquals(expected, buffer);
     }
 
+    @Test
+    public void testWriteSmallBlobId() throws Exception {
+        String value = Strings.repeat("x", 16);
+        byte[] data = value.getBytes(Charsets.UTF_8);
+        ByteBuffer buffer = ByteBuffer.allocate(SMALL_BLOB_ID_LENGTH_SIZE + data.length);
+        writerReturning(buffer).writeBlobId(1, 2, data);
+        ByteBuffer expected = ByteBuffer.allocate(SMALL_BLOB_ID_LENGTH_SIZE + data.length);
+        expected.duplicate().putShort((short) 0xE010).put(data);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteLongBlobId() throws Exception {
+        ByteBuffer buffer = ByteBuffer.allocate(SMALL_BLOB_ID_LENGTH_SIZE + RawRecordId.BYTES);
+        writerReturning(1, buffer).writeBlobId(2, 3, RawRecordId.of(null, 4));
+        ByteBuffer expected = ByteBuffer.allocate(SMALL_BLOB_ID_LENGTH_SIZE + RawRecordId.BYTES);
+        expected.duplicate().put((byte) 0xF0).putShort((short) 1).putInt(4);
+        assertEquals(expected, buffer);
+    }
 }

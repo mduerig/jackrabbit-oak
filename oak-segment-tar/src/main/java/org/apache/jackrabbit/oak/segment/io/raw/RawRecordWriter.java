@@ -19,6 +19,8 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static java.util.Collections.singleton;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_BLOB_ID_LENGTH;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_BLOB_ID_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
@@ -28,6 +30,9 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LIMIT;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_BLOB_ID_LENGTH_MARKER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_BLOB_ID_LENGTH_MASK;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_BLOB_ID_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
 
@@ -53,34 +58,6 @@ public final class RawRecordWriter {
         return new RawRecordWriter(checkNotNull(segmentReferenceReader), checkNotNull(recordAdder));
     }
 
-    private static int lengthSize(int length) {
-        if (length < SMALL_LIMIT) {
-            return SMALL_LENGTH_SIZE;
-        }
-        if (length < MEDIUM_LIMIT) {
-            return MEDIUM_LENGTH_SIZE;
-        }
-        throw new IllegalArgumentException("invalid length: " + length);
-    }
-
-    private static ByteBuffer writeLength(ByteBuffer buffer, int length) {
-        if (length < SMALL_LIMIT) {
-            return buffer.put((byte) length);
-        }
-        if (length < MEDIUM_LIMIT) {
-            return buffer.putShort((short) (((length - MEDIUM_LENGTH_DELTA) & MEDIUM_LENGTH_MASK) | MEDIUM_LENGTH_MARKER));
-        }
-        throw new IllegalArgumentException("invalid length: " + length);
-    }
-
-    private static ByteBuffer writeLength(ByteBuffer buffer, long length) {
-        return buffer.putLong((((length - LONG_LENGTH_DELTA) & LONG_LENGTH_MASK) | LONG_LENGTH_MARKER));
-    }
-
-    private static ByteBuffer writeRecordId(ByteBuffer buffer, int segmentReference, int recordNumber) {
-        return buffer.putShort((short) segmentReference).putInt(recordNumber);
-    }
-
     private final SegmentReferenceReader segmentReferenceReader;
 
     private final RecordAdder recordAdder;
@@ -94,25 +71,78 @@ public final class RawRecordWriter {
         return recordAdder.addRecord(number, type, requestedSize, references);
     }
 
-    private int readSegmentReference(UUID segmentId) {
-        return segmentReferenceReader.readSegmentReference(segmentId);
+    private short segmentReference(UUID segmentId) {
+        return (short) segmentReferenceReader.readSegmentReference(segmentId);
     }
 
     public boolean writeValue(int number, int type, byte[] data, int offset, int length) {
-        ByteBuffer buffer = addRecord(number, type, length + lengthSize(length), null);
+        if (length < SMALL_LIMIT) {
+            return writeSmallValue(number, type, data, offset, length);
+        }
+        if (length < MEDIUM_LIMIT) {
+            return writeMediumValue(number, type, data, offset, length);
+        }
+        throw new IllegalArgumentException("invalid length: " + length);
+    }
+
+    private boolean writeSmallValue(int number, int type, byte[] data, int offset, int length) {
+        ByteBuffer buffer = addRecord(number, type, length + SMALL_LENGTH_SIZE, null);
         if (buffer == null) {
             return false;
         }
-        writeLength(buffer, length).put(data, offset, length);
+        buffer.put((byte) length).put(data, offset, length);
         return true;
     }
 
-    public boolean writeValue(int number, int type, RawRecordId recordId, long length) {
-        ByteBuffer buffer = addRecord(number, type, LONG_LENGTH_SIZE + RawRecordId.BYTES, singleton(recordId.getSegmentId()));
+    private boolean writeMediumValue(int number, int type, byte[] data, int offset, int length) {
+        ByteBuffer buffer = addRecord(number, type, length + MEDIUM_LENGTH_SIZE, null);
         if (buffer == null) {
             return false;
         }
-        writeRecordId(writeLength(buffer, length), readSegmentReference(recordId.getSegmentId()), recordId.getRecordNumber());
+        buffer.putShort(mediumLength(length)).put(data, offset, length);
+        return true;
+    }
+
+    private static short mediumLength(int length) {
+        return (short) (((length - MEDIUM_LENGTH_DELTA) & MEDIUM_LENGTH_MASK) | MEDIUM_LENGTH_MARKER);
+    }
+
+    public boolean writeValue(int number, int type, RawRecordId id, long length) {
+        ByteBuffer buffer = addRecord(number, type, LONG_LENGTH_SIZE + RawRecordId.BYTES, singleton(id.getSegmentId()));
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putLong(longLength(length))
+                .putShort(segmentReference(id.getSegmentId()))
+                .putInt(id.getRecordNumber());
+        return true;
+    }
+
+    private static long longLength(long length) {
+        return ((length - LONG_LENGTH_DELTA) & LONG_LENGTH_MASK) | LONG_LENGTH_MARKER;
+    }
+
+    public boolean writeBlobId(int number, int type, byte[] blobId) {
+        ByteBuffer buffer = addRecord(number, type, SMALL_BLOB_ID_LENGTH_SIZE + blobId.length, null);
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putShort(smallBlobIdLength(blobId.length)).put(blobId);
+        return true;
+    }
+
+    private static short smallBlobIdLength(int length) {
+        return (short) ((length & SMALL_BLOB_ID_LENGTH_MASK) | SMALL_BLOB_ID_LENGTH_MARKER);
+    }
+
+    public boolean writeBlobId(int number, int type, RawRecordId id) {
+        ByteBuffer buffer = addRecord(number, type, LONG_BLOB_ID_LENGTH_SIZE + RawRecordId.BYTES, null);
+        if (buffer == null) {
+            return false;
+        }
+        buffer.put(LONG_BLOB_ID_LENGTH)
+                .putShort(segmentReference(id.getSegmentId()))
+                .putInt(id.getRecordNumber());
         return true;
     }
 
