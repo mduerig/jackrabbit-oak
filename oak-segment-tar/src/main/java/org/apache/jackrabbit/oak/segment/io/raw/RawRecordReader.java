@@ -171,7 +171,7 @@ public final class RawRecordReader {
     private RawRecordId readRecordId(ByteBuffer value) {
         int segmentReference = value.getShort() & 0xffff;
         int recordNumber = value.getInt();
-        return new RawRecordId(readSegmentId(segmentReference), recordNumber);
+        return RawRecordId.of(readSegmentId(segmentReference), recordNumber);
     }
 
     /**

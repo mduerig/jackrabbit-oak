@@ -36,6 +36,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Charsets;
+import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
 
 /**
@@ -299,12 +300,12 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return RecordWriters.newBlockWriter(bytes, offset, length).write(this);
     }
 
-    RecordId writeValue(RecordId rid, long length) throws IOException {
-        return writeValue(RecordType.VALUE.ordinal(), rid.asUUID(), rid.getRecordNumber(), length);
+    RecordId writeValue(RecordId id, long length) throws IOException {
+        return writeValue(RecordType.VALUE.ordinal(), asRawRecordId(id), length);
     }
 
-    private RecordId writeValue(int type, UUID segmentId, int recordNumber, long length) throws IOException {
-        return writeRecord(n -> raw.writeValue(n, type, segmentId, recordNumber, length));
+    private RecordId writeValue(int type, RawRecordId recordId, long length) throws IOException {
+        return writeRecord(n -> raw.writeValue(n, type, recordId, length));
     }
 
     RecordId writeValue(int length, byte[] data) throws IOException {
@@ -343,6 +344,17 @@ public class SegmentBufferWriter implements WriteOperationHandler {
                 childNameId,
                 propNamesId
         ).write(this);
+    }
+
+    private RawRecordId asRawRecordId(RecordId id) {
+        return RawRecordId.of(asRawSegmentId(id.getSegmentId()), id.getRecordNumber());
+    }
+
+    private UUID asRawSegmentId(SegmentId id) {
+        if (segment.getSegmentId().equals(id)) {
+            return null;
+        }
+        return id.asUUID();
     }
 
     private interface RecordContentWriter {

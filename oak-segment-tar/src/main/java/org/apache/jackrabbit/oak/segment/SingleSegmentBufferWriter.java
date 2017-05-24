@@ -140,6 +140,9 @@ class SingleSegmentBufferWriter {
     }
 
     int readSegmentReference(UUID id) {
+        if (id == null) {
+            return 0;
+        }
         long msb = id.getMostSignificantBits();
         long lsb = id.getLeastSignificantBits();
         SegmentId sid = segmentIdProvider.newSegmentId(msb, lsb);

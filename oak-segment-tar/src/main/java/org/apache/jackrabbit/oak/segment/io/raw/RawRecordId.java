@@ -30,11 +30,22 @@ public class RawRecordId {
 
     public static final int BYTES = Short.BYTES + Integer.BYTES;
 
+    /**
+     * Create a new instance of {@link RawRecordId}.
+     *
+     * @param segmentId    The segment ID.
+     * @param recordNumber The record number.
+     * @return An instance of {@link RawRecordId}.
+     */
+    public static RawRecordId of(UUID segmentId, int recordNumber) {
+        return new RawRecordId(segmentId, recordNumber);
+    }
+
     private final UUID segmentId;
 
     private final int recordNumber;
 
-    RawRecordId(UUID segmentId, int recordNumber) {
+    private RawRecordId(UUID segmentId, int recordNumber) {
         this.segmentId = segmentId;
         this.recordNumber = recordNumber;
     }

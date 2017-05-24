@@ -85,7 +85,7 @@ public class RawRecordReaderTest {
         duplicate.position(3);
         duplicate.putShort((short) 0).putInt(2);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawRecordId(null, 2), reader.readRecordId(1, 3));
+        assertEquals(RawRecordId.of(null, 2), reader.readRecordId(1, 3));
     }
 
     @Test
@@ -138,7 +138,7 @@ public class RawRecordReaderTest {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putLong(((length - 0x80 - 0x4000) & 0x3fffffffffffffffL) | 0xc000000000000000L).putShort((short) 0).putInt(2);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawLongValue(new RawRecordId(null, 2), (int) length), reader.readValue(1));
+        assertEquals(new RawLongValue(RawRecordId.of(null, 2), (int) length), reader.readValue(1));
     }
 
     @Test(expected = IllegalStateException.class)
@@ -147,7 +147,7 @@ public class RawRecordReaderTest {
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putLong(((length - 0x80 - 0x4000) & 0x3fffffffffffffffL) | 0xc000000000000000L).putShort((short) 0).putInt(2);
         RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawLongValue(new RawRecordId(null, 2), (int) length), reader.readValue(1));
+        assertEquals(new RawLongValue(RawRecordId.of(null, 2), (int) length), reader.readValue(1));
     }
 
     @Test
@@ -179,7 +179,7 @@ public class RawRecordReaderTest {
         RawRecordReader reader = readerReturning(buffer);
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
-                .withPrimaryType(new RawRecordId(null, 2))
+                .withPrimaryType(RawRecordId.of(null, 2))
                 .build();
         assertEquals(template, reader.readTemplate(1));
     }
@@ -196,9 +196,9 @@ public class RawRecordReaderTest {
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
                 .withMixins(new RawRecordId[] {
-                        new RawRecordId(null, 2),
-                        new RawRecordId(null, 4),
-                        new RawRecordId(null, 6),
+                        RawRecordId.of(null, 2),
+                        RawRecordId.of(null, 4),
+                        RawRecordId.of(null, 6),
                 })
                 .build();
         assertEquals(template, reader.readTemplate(1));
@@ -212,7 +212,7 @@ public class RawRecordReaderTest {
                 .putShort((short) 0).putInt(2);
         RawRecordReader reader = readerReturning(buffer);
         RawTemplate template = RawTemplate.builder()
-                .withChildNodeName(new RawRecordId(null, 2))
+                .withChildNodeName(RawRecordId.of(null, 2))
                 .build();
         assertEquals(template, reader.readTemplate(1));
     }
@@ -227,7 +227,7 @@ public class RawRecordReaderTest {
         RawRecordReader reader = readerReturning(buffer);
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
-                .withPropertyNames(new RawRecordId(null, 2))
+                .withPropertyNames(RawRecordId.of(null, 2))
                 .withPropertyTypes(new byte[] {3, 4, 5})
                 .build();
         assertEquals(template, reader.readTemplate(1));

@@ -26,7 +26,6 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
-import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
@@ -67,7 +66,7 @@ public class RawRecordWriterTest {
     @Test
     public void testWriteLongValue() throws Exception {
         ByteBuffer buffer = ByteBuffer.allocate(LONG_LENGTH_SIZE + RawRecordId.BYTES);
-        writerReturning(1, buffer).writeValue(2, 3, UUID.randomUUID(), 4, LONG_LENGTH_LIMIT - 1);
+        writerReturning(1, buffer).writeValue(2, 3, RawRecordId.of(null, 4), LONG_LENGTH_LIMIT - 1);
         ByteBuffer expected = ByteBuffer.allocate(LONG_LENGTH_SIZE + RawRecordId.BYTES);
         expected.duplicate().putLong(0xDFFFFFFFFFFFFFFFL).putShort((short) 1).putInt(4);
         assertEquals(expected, buffer);

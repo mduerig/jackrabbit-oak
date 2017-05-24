@@ -107,12 +107,12 @@ public final class RawRecordWriter {
         return true;
     }
 
-    public boolean writeValue(int number, int type, UUID segmentId, int recordNumber, long length) {
-        ByteBuffer buffer = addRecord(number, type, LONG_LENGTH_SIZE + RawRecordId.BYTES, singleton(segmentId));
+    public boolean writeValue(int number, int type, RawRecordId recordId, long length) {
+        ByteBuffer buffer = addRecord(number, type, LONG_LENGTH_SIZE + RawRecordId.BYTES, singleton(recordId.getSegmentId()));
         if (buffer == null) {
             return false;
         }
-        writeRecordId(writeLength(buffer, length), readSegmentReference(segmentId), recordNumber);
+        writeRecordId(writeLength(buffer, length), readSegmentReference(recordId.getSegmentId()), recordId.getRecordNumber());
         return true;
     }
 
