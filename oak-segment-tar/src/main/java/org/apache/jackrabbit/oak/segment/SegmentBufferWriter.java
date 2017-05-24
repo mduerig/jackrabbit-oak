@@ -88,6 +88,12 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private RawRecordWriter raw;
 
+    /**
+     * Mark this buffer as dirty. A dirty buffer needs to be flushed to disk
+     * regularly to avoid data loss.
+     */
+    private boolean dirty;
+
     public SegmentBufferWriter(
             SegmentStore segmentStore,
             @Nonnull SegmentIdProvider idProvider,
@@ -137,6 +143,12 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
         byte[] data = metaInfo.getBytes(Charsets.UTF_8);
         writeValue(data.length, data);
+
+        // Trick: writeValue() sets the dirty flag to true, but since we don't
+        // want to flush a segment containing only the meta-info and no other
+        // record, we set the dirty flag back to false.
+
+        dirty = false;
     }
 
     public void writeByte(byte value) {
@@ -189,12 +201,11 @@ public class SegmentBufferWriter implements WriteOperationHandler {
      */
     @Override
     public void flush() throws IOException {
-        if (singleSegmentBufferWriter == null) {
+        if (singleSegmentBufferWriter == null || !dirty) {
             return;
         }
-        if (singleSegmentBufferWriter.flush()) {
-            newSegment();
-        }
+        singleSegmentBufferWriter.flush();
+        newSegment();
     }
 
     private static Set<UUID> segmentReferences(Collection<RecordId> rids) {
@@ -237,6 +248,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
         number = nextRecordNumber++;
         if (addRecord(number, type.ordinal(), recordSize, references) != null) {
+            dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
 
@@ -244,6 +256,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
         number = nextRecordNumber++;
         if (addRecord(number, type.ordinal(), recordSize, references) != null) {
+            dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
 
@@ -347,6 +360,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
         number = nextRecordNumber++;
         if (writer.writeRecordContent(number)) {
+            dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
 
@@ -354,6 +368,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
         number = nextRecordNumber++;
         if (writer.writeRecordContent(number)) {
+            dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
 

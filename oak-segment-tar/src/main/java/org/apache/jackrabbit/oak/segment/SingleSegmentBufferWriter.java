@@ -106,12 +106,6 @@ class SingleSegmentBufferWriter {
      */
     private int position;
 
-    /**
-     * Mark this buffer as dirty. A dirty buffer needs to be flushed to disk
-     * regularly to avoid data loss.
-     */
-    private boolean dirty;
-
     SingleSegmentBufferWriter(SegmentStore segmentStore, int generation, SegmentIdProvider segmentIdProvider, SegmentId segmentId, boolean enableGenerationCheck) {
         this.segmentStore = segmentStore;
         this.segmentId = segmentId;
@@ -135,7 +129,6 @@ class SingleSegmentBufferWriter {
         buffer[GC_GENERATION_OFFSET + 3] = (byte) generation;
         length = 0;
         position = buffer.length;
-        dirty = false;
     }
 
     Segment newSegment(SegmentReader reader, String metaInfo) {
@@ -209,15 +202,10 @@ class SingleSegmentBufferWriter {
         checkState(position >= 0);
         recordNumbers.addRecord(number, type, position);
         ByteBuffer buffer = ByteBuffer.wrap(this.buffer, position, length);
-        dirty = true;
         return buffer;
     }
 
-    boolean flush() throws IOException {
-        if (!dirty) {
-            return false;
-        }
-
+    void flush() throws IOException {
         int referencedSegmentIdCount = segmentReferences.size();
         BinaryUtils.writeInt(buffer, Segment.REFERENCED_SEGMENT_ID_COUNT_OFFSET, referencedSegmentIdCount);
 
@@ -263,7 +251,6 @@ class SingleSegmentBufferWriter {
 
         log.debug("Writing data segment: {} ", statistics);
         segmentStore.writeSegment(segmentId, buffer, buffer.length - length, length);
-        return true;
     }
 
     void writeByte(byte value) {
