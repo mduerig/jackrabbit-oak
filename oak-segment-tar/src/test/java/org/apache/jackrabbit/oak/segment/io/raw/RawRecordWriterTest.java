@@ -92,4 +92,14 @@ public class RawRecordWriterTest {
         expected.duplicate().put((byte) 0xF0).putShort((short) 1).putInt(4);
         assertEquals(expected, buffer);
     }
+
+    @Test
+    public void testWriteBlock() throws Exception {
+        String value = Strings.repeat("x", 1024);
+        byte[] data = value.getBytes(Charsets.UTF_8);
+        ByteBuffer buffer = ByteBuffer.allocate(data.length);
+        writerReturning(buffer).writeBlock(1, 2, data, 0, data.length);
+        assertEquals(ByteBuffer.wrap(data), buffer);
+    }
+    
 }
