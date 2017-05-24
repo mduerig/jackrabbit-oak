@@ -146,4 +146,13 @@ public final class RawRecordWriter {
         return true;
     }
 
+    public boolean writeBlock(int number, int type, byte[] data, int offset, int length) {
+        ByteBuffer buffer = addRecord(number, type, length, null);
+        if (buffer == null) {
+            return false;
+        }
+        buffer.put(data, offset, length);
+        return true;
+    }
+
 }

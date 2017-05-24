@@ -18,13 +18,10 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static java.util.Arrays.sort;
 import static java.util.Collections.singleton;
 import static org.apache.jackrabbit.oak.segment.MapRecord.SIZE_BITS;
-import static org.apache.jackrabbit.oak.segment.RecordType.BLOB_ID;
-import static org.apache.jackrabbit.oak.segment.RecordType.BLOCK;
 import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
 import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
 import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
@@ -111,10 +108,6 @@ final class RecordWriters {
 
     static RecordWriter newListBucketWriter(List<RecordId> ids) {
         return new ListBucketWriter(ids);
-    }
-
-    static RecordWriter newBlockWriter(byte[] bytes, int offset, int length) {
-        return new BlockWriter(bytes, offset, length);
     }
 
     static RecordWriter newTemplateWriter(
@@ -289,29 +282,6 @@ final class RecordWriters {
         }
     }
 
-    /**
-     * Block record writer.
-     * @see SegmentWriter#writeBlock
-     * @see RecordType#BLOCK
-     */
-    private static class BlockWriter extends DefaultRecordWriter {
-        private final byte[] bytes;
-        private final int offset;
-
-        private BlockWriter(byte[] bytes, int offset, int length) {
-            super(BLOCK, length);
-            this.bytes = bytes;
-            this.offset = offset;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            writer.writeBytes(bytes, offset, size);
-            return id;
-        }
-    }
-    
     /**
      * Template record writer.
      * @see RecordType#TEMPLATE

@@ -23,6 +23,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
+import static org.apache.jackrabbit.oak.segment.RecordType.BLOB_ID;
+import static org.apache.jackrabbit.oak.segment.RecordType.BLOCK;
+import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 
 import java.io.IOException;
@@ -297,39 +300,31 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     RecordId writeBlock(byte[] bytes, int offset, int length) throws IOException {
-        return RecordWriters.newBlockWriter(bytes, offset, length).write(this);
+        return writeRecord(BLOCK, (n, t) -> raw.writeBlock(n, t, bytes, offset, length));
     }
 
     RecordId writeValue(RecordId id, long length) throws IOException {
-        return writeValue(RecordType.VALUE.ordinal(), asRawRecordId(id), length);
+        return writeValue(asRawRecordId(id), length);
     }
 
-    private RecordId writeValue(int type, RawRecordId recordId, long length) throws IOException {
-        return writeRecord(n -> raw.writeValue(n, type, recordId, length));
+    private RecordId writeValue(RawRecordId id, long length) throws IOException {
+        return writeRecord(VALUE, (n, t) -> raw.writeValue(n, t, id, length));
     }
 
     RecordId writeValue(int length, byte[] data) throws IOException {
-        return writeValue(RecordType.VALUE.ordinal(), data, 0, length);
-    }
-
-    private RecordId writeValue(int type, byte[] data, int offset, int length) throws IOException {
-        return writeRecord(n -> raw.writeValue(n, type, data, offset, length));
+        return writeRecord(VALUE, (n, t) -> raw.writeValue(n, t, data, 0, length));
     }
 
     RecordId writeBlobId(RecordId id) throws IOException {
-        return writeBlobId(RecordType.BLOB_ID.ordinal(), asRawRecordId(id));
+        return writeBlobId(asRawRecordId(id));
     }
 
-    private RecordId writeBlobId(int type, RawRecordId id) throws IOException {
-        return writeRecord(n -> raw.writeBlobId(n, type, id));
+    private RecordId writeBlobId(RawRecordId id) throws IOException {
+        return writeRecord(BLOB_ID, (n, t) -> raw.writeBlobId(n, t, id));
     }
 
     RecordId writeBlobId(byte[] id) throws IOException {
-        return writeBlobId(RecordType.BLOB_ID.ordinal(), id);
-    }
-
-    private RecordId writeBlobId(int type, byte[] data) throws IOException {
-        return writeRecord(n -> raw.writeBlobId(n, type, data));
+        return writeRecord(BLOB_ID, (n, t) -> raw.writeBlobId(n, t, id));
     }
 
     RecordId writeTemplate(
@@ -367,11 +362,11 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private interface RecordContentWriter {
 
-        boolean writeRecordContent(int number);
+        boolean writeRecordContent(int number, int type);
 
     }
 
-    private RecordId writeRecord(RecordContentWriter writer) throws IOException {
+    private RecordId writeRecord(RecordType type, RecordContentWriter writer) throws IOException {
         int number;
 
         if (raw == null) {
@@ -379,7 +374,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         }
 
         number = nextRecordNumber++;
-        if (writer.writeRecordContent(number)) {
+        if (writer.writeRecordContent(number, type.ordinal())) {
             dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
@@ -387,7 +382,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         flush();
 
         number = nextRecordNumber++;
-        if (writer.writeRecordContent(number)) {
+        if (writer.writeRecordContent(number, type.ordinal())) {
             dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
