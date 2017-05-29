@@ -17,15 +17,21 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static java.util.UUID.randomUUID;
 import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
 import org.junit.Test;
 
 public class RawRecordReaderTest {
+
+    private static RawRecordReader readerReturning(int reference, UUID segmentId, ByteBuffer value) {
+        return RawRecordReader.of((n) -> n == reference ? segmentId : null, (n, s) -> value.duplicate());
+    }
 
     private static RawRecordReader readerReturning(ByteBuffer value) {
         return RawRecordReader.of(s -> null, (n, s) -> value.duplicate());
@@ -80,12 +86,13 @@ public class RawRecordReaderTest {
 
     @Test
     public void readRecordId() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(RawRecordId.BYTES + 3);
         ByteBuffer duplicate = buffer.duplicate();
         duplicate.position(3);
         duplicate.putShort((short) 0).putInt(2);
-        RawRecordReader reader = readerReturning(buffer);
-        assertEquals(RawRecordId.of(null, 2), reader.readRecordId(1, 3));
+        RawRecordReader reader = readerReturning(0, sid, buffer);
+        assertEquals(RawRecordId.of(sid, 2), reader.readRecordId(1, 3));
     }
 
     @Test
@@ -134,20 +141,22 @@ public class RawRecordReaderTest {
 
     @Test
     public void readLongString() throws Exception {
+        UUID sid = randomUUID();
         long length = 0x80 + 0x4000;
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putLong(((length - 0x80 - 0x4000) & 0x3fffffffffffffffL) | 0xc000000000000000L).putShort((short) 0).putInt(2);
-        RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawLongValue(RawRecordId.of(null, 2), (int) length), reader.readValue(1));
+        RawRecordReader reader = readerReturning(0, sid, buffer);
+        assertEquals(new RawLongValue(RawRecordId.of(sid, 2), (int) length), reader.readValue(1));
     }
 
     @Test(expected = IllegalStateException.class)
     public void readTooLongString() throws Exception {
+        UUID sid = randomUUID();
         long length = Long.MAX_VALUE;
         ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putLong(((length - 0x80 - 0x4000) & 0x3fffffffffffffffL) | 0xc000000000000000L).putShort((short) 0).putInt(2);
-        RawRecordReader reader = readerReturning(buffer);
-        assertEquals(new RawLongValue(RawRecordId.of(null, 2), (int) length), reader.readValue(1));
+        RawRecordReader reader = readerReturning(0, sid, buffer);
+        assertEquals(new RawLongValue(RawRecordId.of(sid, 2), (int) length), reader.readValue(1));
     }
 
     @Test
@@ -174,31 +183,33 @@ public class RawRecordReaderTest {
 
     @Test
     public void readTemplateWithPrimaryType() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + RawRecordId.BYTES);
         buffer.duplicate().putInt(0xa0000000).putShort((short) 0).putInt(2);
-        RawRecordReader reader = readerReturning(buffer);
+        RawRecordReader reader = readerReturning(0, sid, buffer);
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
-                .withPrimaryType(RawRecordId.of(null, 2))
+                .withPrimaryType(RawRecordId.of(sid, 2))
                 .build();
         assertEquals(template, reader.readTemplate(1));
     }
 
     @Test
     public void readTemplateWithMixinTypes() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + RawRecordId.BYTES * 3);
         buffer.duplicate()
                 .putInt(0x600c0000)
                 .putShort((short) 0).putInt(2)
                 .putShort((short) 0).putInt(4)
                 .putShort((short) 0).putInt(6);
-        RawRecordReader reader = readerReturning(buffer);
+        RawRecordReader reader = readerReturning(0, sid, buffer);
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
                 .withMixins(new RawRecordId[] {
-                        RawRecordId.of(null, 2),
-                        RawRecordId.of(null, 4),
-                        RawRecordId.of(null, 6),
+                        RawRecordId.of(sid, 2),
+                        RawRecordId.of(sid, 4),
+                        RawRecordId.of(sid, 6),
                 })
                 .build();
         assertEquals(template, reader.readTemplate(1));
@@ -206,28 +217,30 @@ public class RawRecordReaderTest {
 
     @Test
     public void readTemplateWithChildNodeName() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + RawRecordId.BYTES);
         buffer.duplicate()
                 .putInt(0)
                 .putShort((short) 0).putInt(2);
-        RawRecordReader reader = readerReturning(buffer);
+        RawRecordReader reader = readerReturning(0, sid, buffer);
         RawTemplate template = RawTemplate.builder()
-                .withChildNodeName(RawRecordId.of(null, 2))
+                .withChildNodeName(RawRecordId.of(sid, 2))
                 .build();
         assertEquals(template, reader.readTemplate(1));
     }
 
     @Test
     public void readTemplateWithProperties() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES + RawRecordId.BYTES + Byte.BYTES * 3);
         buffer.duplicate()
                 .putInt(0x20000003)
                 .putShort((short) 0).putInt(2)
                 .put(new byte[] {3, 4, 5});
-        RawRecordReader reader = readerReturning(buffer);
+        RawRecordReader reader = readerReturning(0, sid, buffer);
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
-                .withPropertyNames(RawRecordId.of(null, 2))
+                .withPropertyNames(RawRecordId.of(sid, 2))
                 .withPropertyTypes(new byte[] {3, 4, 5})
                 .build();
         assertEquals(template, reader.readTemplate(1));

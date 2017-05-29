@@ -39,28 +39,28 @@ public class SegmentReaderWriterTest {
 
     @Test
     public void testVersion() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(reader.version(), writer.version());
     }
 
     @Test
     public void testGeneration() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.generation(), reader.generation());
     }
 
     @Test
     public void testInitialSegmentReferencesCount() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.segmentReferenceCount(), reader.segmentReferenceCount());
     }
 
     @Test
     public void testSegmentReferencesCount() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(1, 10, 1, newHashSet(randomUUID()));
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.segmentReferenceCount(), reader.segmentReferenceCount());
@@ -69,7 +69,7 @@ public class SegmentReaderWriterTest {
     @Test
     public void testSegmentReferences() throws Exception {
         UUID reference = randomUUID();
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(1, 10, 1, newHashSet(reference));
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.segmentReference(0), reader.segmentReference(0));
@@ -77,14 +77,14 @@ public class SegmentReaderWriterTest {
 
     @Test
     public void testInitialRecordsCount() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordCount(), reader.recordCount());
     }
 
     @Test
     public void testRecordsCount() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordCount(), reader.recordCount());
@@ -92,7 +92,7 @@ public class SegmentReaderWriterTest {
 
     @Test
     public void testRecordNumber() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordEntry(0).number(), reader.recordEntry(0).number());
@@ -100,7 +100,7 @@ public class SegmentReaderWriterTest {
 
     @Test
     public void testRecordType() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordEntry(0).type(), reader.recordEntry(0).type());
@@ -108,7 +108,7 @@ public class SegmentReaderWriterTest {
 
     @Test
     public void testRecordValue() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(1, 10, 1, null);
         SegmentReader reader = SegmentReader.of(writer);
         assertEquals(writer.recordValue(1, 1), reader.recordValue(1, 1));
@@ -116,7 +116,7 @@ public class SegmentReaderWriterTest {
 
     @Test
     public void testRecordOrder() throws Exception {
-        SegmentWriter writer = SegmentWriter.of(1, 2);
+        SegmentWriter writer = SegmentWriter.of(randomUUID(), 1, 2);
         writer.addRecord(3, 3, 1, null);
         writer.addRecord(1, 1, 1, null);
         writer.addRecord(2, 2, 1, null);

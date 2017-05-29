@@ -73,7 +73,7 @@ public class SegmentReaderTest {
         assertNotEquals(two.getSegmentId(), lst.getSegmentId());
         assertNotEquals(lst.getSegmentId(), one.getSegmentId());
 
-        SegmentReader reader = SegmentReader.of(readSegment(lst.getSegmentId()));
+        SegmentReader reader = SegmentReader.of(lst.getSegmentId().asUUID(), readSegment(lst.getSegmentId()));
 
         // The reader should be able to correctly fetch the number of segment
         // references.
@@ -97,7 +97,7 @@ public class SegmentReaderTest {
         RecordId two = writer.writeString("two");
         writer.flush();
 
-        SegmentReader reader = SegmentReader.of(readSegment(one.getSegmentId()));
+        SegmentReader reader = SegmentReader.of(one.getSegmentId().asUUID(), readSegment(one.getSegmentId()));
 
         // The reader should report the correct number of record entries in the
         // segment. The following assertions takes in consideration the segment

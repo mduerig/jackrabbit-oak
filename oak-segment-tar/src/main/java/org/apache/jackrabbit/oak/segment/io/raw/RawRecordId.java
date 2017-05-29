@@ -17,6 +17,8 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import java.util.Objects;
 import java.util.UUID;
 
@@ -38,7 +40,7 @@ public class RawRecordId {
      * @return An instance of {@link RawRecordId}.
      */
     public static RawRecordId of(UUID segmentId, int recordNumber) {
-        return new RawRecordId(segmentId, recordNumber);
+        return new RawRecordId(checkNotNull(segmentId), recordNumber);
     }
 
     private final UUID segmentId;

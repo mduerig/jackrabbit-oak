@@ -17,6 +17,7 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static java.util.UUID.randomUUID;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_LIMIT;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
@@ -27,6 +28,7 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
@@ -35,11 +37,11 @@ import org.junit.Test;
 public class RawRecordWriterTest {
 
     private static RawRecordWriter writerReturning(ByteBuffer buffer) {
-        return writerReturning(-1, buffer);
+        return RawRecordWriter.of(s -> -1, (n, t, s, r) -> buffer.duplicate());
     }
 
-    private static RawRecordWriter writerReturning(int segmentReference, ByteBuffer buffer) {
-        return RawRecordWriter.of(s -> segmentReference, (n, t, s, r) -> buffer.duplicate());
+    private static RawRecordWriter writerReturning(UUID sid, int reference, ByteBuffer buffer) {
+        return RawRecordWriter.of(s -> s == sid ? reference : -1, (n, t, s, r) -> buffer.duplicate());
     }
 
     @Test
@@ -66,8 +68,9 @@ public class RawRecordWriterTest {
 
     @Test
     public void testWriteLongValue() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(LONG_LENGTH_SIZE + RawRecordId.BYTES);
-        writerReturning(1, buffer).writeValue(2, 3, RawRecordId.of(null, 4), LONG_LENGTH_LIMIT - 1);
+        writerReturning(sid, 1, buffer).writeValue(2, 3, RawRecordId.of(sid, 4), LONG_LENGTH_LIMIT - 1);
         ByteBuffer expected = ByteBuffer.allocate(LONG_LENGTH_SIZE + RawRecordId.BYTES);
         expected.duplicate().putLong(0xDFFFFFFFFFFFFFFFL).putShort((short) 1).putInt(4);
         assertEquals(expected, buffer);
@@ -86,8 +89,9 @@ public class RawRecordWriterTest {
 
     @Test
     public void testWriteLongBlobId() throws Exception {
+        UUID sid = randomUUID();
         ByteBuffer buffer = ByteBuffer.allocate(SMALL_BLOB_ID_LENGTH_SIZE + RawRecordId.BYTES);
-        writerReturning(1, buffer).writeBlobId(2, 3, RawRecordId.of(null, 4));
+        writerReturning(sid, 1, buffer).writeBlobId(2, 3, RawRecordId.of(sid, 4));
         ByteBuffer expected = ByteBuffer.allocate(SMALL_BLOB_ID_LENGTH_SIZE + RawRecordId.BYTES);
         expected.duplicate().put((byte) 0xF0).putShort((short) 1).putInt(4);
         assertEquals(expected, buffer);

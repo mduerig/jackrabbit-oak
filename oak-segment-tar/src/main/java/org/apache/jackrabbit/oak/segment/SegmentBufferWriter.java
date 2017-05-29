@@ -350,14 +350,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     private RawRecordId asRawRecordId(RecordId id) {
-        return RawRecordId.of(asRawSegmentId(id.getSegmentId()), id.getRecordNumber());
-    }
-
-    private UUID asRawSegmentId(SegmentId id) {
-        if (segment.getSegmentId().equals(id)) {
-            return null;
-        }
-        return id.asUUID();
+        return RawRecordId.of(id.getSegmentId().asUUID(), id.getRecordNumber());
     }
 
     private interface RecordContentWriter {
@@ -367,6 +360,10 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     private RecordId writeRecord(RecordType type, RecordContentWriter writer) throws IOException {
+        return writeRecord(type.ordinal(), writer);
+    }
+
+    private RecordId writeRecord(int type, RecordContentWriter writer) throws IOException {
         int number;
 
         if (raw == null) {
@@ -374,7 +371,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         }
 
         number = nextRecordNumber++;
-        if (writer.writeRecordContent(number, type.ordinal())) {
+        if (writer.writeRecordContent(number, type)) {
             dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }
@@ -382,7 +379,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         flush();
 
         number = nextRecordNumber++;
-        if (writer.writeRecordContent(number, type.ordinal())) {
+        if (writer.writeRecordContent(number, type)) {
             dirty = true;
             return new RecordId(segment.getSegmentId(), number);
         }

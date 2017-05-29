@@ -45,13 +45,16 @@ public class SegmentWriter implements SegmentAccess {
     /**
      * Create a new {@link SegmentWriter} for the given version and generation.
      *
+     * @param id         Identifier of this segment.
      * @param version    Version of the segment.
      * @param generation Generation of the segment.
      * @return An instance of {@link SegmentWriter}.
      */
-    public static SegmentWriter of(int version, int generation) {
-        return new SegmentWriter(version, generation);
+    public static SegmentWriter of(UUID id, int version, int generation) {
+        return new SegmentWriter(id, version, generation);
     }
+
+    private final UUID id;
 
     private final int version;
 
@@ -75,9 +78,15 @@ public class SegmentWriter implements SegmentAccess {
 
     private int offset;
 
-    private SegmentWriter(int version, int generation) {
+    private SegmentWriter(UUID id, int version, int generation) {
+        this.id = id;
         this.version = version;
         this.generation = generation;
+    }
+
+    @Override
+    public UUID id() {
+        return id;
     }
 
     @Override

@@ -140,13 +140,13 @@ class SingleSegmentBufferWriter {
     }
 
     int readSegmentReference(UUID id) {
-        if (id == null) {
+        if (id.equals(segmentId.asUUID())) {
             return 0;
         }
         long msb = id.getMostSignificantBits();
         long lsb = id.getLeastSignificantBits();
         SegmentId sid = segmentIdProvider.newSegmentId(msb, lsb);
-        return writeSegmentIdReference(sid);
+        return segmentReferences.addOrReference(sid);
     }
 
     ByteBuffer addRecord(int number, int type, int size, Set<UUID> references) {
@@ -286,21 +286,15 @@ class SingleSegmentBufferWriter {
         checkState(segmentReferences.size() + 1 < 0xffff, "Segment cannot have more than 0xffff references");
         checkGCGeneration(recordId.getSegmentId());
 
-        writeShort(toShort(writeSegmentIdReference(recordId.getSegmentId())));
+        if (recordId.getSegmentId().equals(segmentId)) {
+            writeShort((short) 0);
+        } else {
+            writeShort((short) segmentReferences.addOrReference(recordId.getSegmentId()));
+        }
+
         writeInt(recordId.getRecordNumber());
 
         statistics.recordIdCount++;
-    }
-
-    private static short toShort(int value) {
-        return (short) value;
-    }
-
-    private int writeSegmentIdReference(SegmentId id) {
-        if (id.equals(segmentId)) {
-            return 0;
-        }
-        return segmentReferences.addOrReference(id);
     }
 
     private void checkGCGeneration(SegmentId id) {

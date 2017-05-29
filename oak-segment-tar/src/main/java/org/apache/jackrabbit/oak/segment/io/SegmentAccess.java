@@ -26,6 +26,13 @@ import java.util.UUID;
 public interface SegmentAccess {
 
     /**
+     * The identifier of this segment.
+     *
+     * @return An instance of {@link UUID}.
+     */
+    UUID id();
+
+    /**
      * Returns the version of this segment.
      *
      * @return A positive integer.

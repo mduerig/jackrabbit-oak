@@ -50,7 +50,7 @@ public final class RawRecordReader {
          * Return the segment ID for a given segment reference.
          *
          * @param segmentReference The segment reference.
-         * @return An instance of {@link UUID}, or {@code null}
+         * @return An instance of {@link UUID}.
          * @throws IllegalStateException if the segment reference is invalid.
          */
         UUID readSegmentId(int segmentReference);

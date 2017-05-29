@@ -41,11 +41,13 @@ public class SegmentReader implements SegmentAccess {
     /**
      * Creates a {@link SegmentReader} for the provided underlying buffer.
      *
+     * @param id     The identifier of this segment.
      * @param buffer An instance of {@link ByteBuffer} containing valid segment
      *               data.
      * @return An instance of {@link SegmentReader}.
      */
-    public static SegmentReader of(ByteBuffer buffer) {
+    public static SegmentReader of(UUID id, ByteBuffer buffer) {
+        checkNotNull(id);
         checkNotNull(buffer);
 
         if (buffer.limit() < HEADER_SIZE) {
@@ -56,7 +58,7 @@ public class SegmentReader implements SegmentAccess {
             throw new IllegalArgumentException("Invalid magic number");
         }
 
-        return new SegmentReader(buffer);
+        return new SegmentReader(id, buffer);
     }
 
     /**
@@ -67,13 +69,21 @@ public class SegmentReader implements SegmentAccess {
      * @return An instance of {@link SegmentReader}.
      */
     public static SegmentReader of(SegmentWriter writer) {
-        return SegmentReader.of(writer.writeTo(ByteBuffer.allocate(writer.size())));
+        return SegmentReader.of(writer.id(), writer.writeTo(ByteBuffer.allocate(writer.size())));
     }
+
+    private final UUID id;
 
     private final ByteBuffer buffer;
 
-    private SegmentReader(ByteBuffer buffer) {
+    private SegmentReader(UUID id, ByteBuffer buffer) {
+        this.id = id;
         this.buffer = buffer;
+    }
+
+    @Override
+    public UUID id() {
+        return id;
     }
 
     @Override

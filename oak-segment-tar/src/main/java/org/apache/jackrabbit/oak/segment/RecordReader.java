@@ -69,7 +69,7 @@ class RecordReader {
 
     private UUID readSegmentId(int segmentReference) {
         if (segmentReference == 0) {
-            return null;
+            return id.asUUID();
         }
         SegmentId segmentId = segmentReferences.getSegmentId(segmentReference);
         if (segmentId == null) {
