@@ -94,7 +94,7 @@ public class RawRecordId {
 
     @Override
     public String toString() {
-        return String.format("RawRecordId{segmentId=%d, recordNumber=%d}", segmentId, recordNumber);
+        return String.format("RawRecordId{segmentId=%s, recordNumber=%d}", segmentId, recordNumber);
     }
 
 }
