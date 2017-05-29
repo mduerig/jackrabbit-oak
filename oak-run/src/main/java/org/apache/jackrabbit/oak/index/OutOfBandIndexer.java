@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 
+import com.codahale.metrics.MetricRegistry;
 import com.google.common.base.Stopwatch;
 import com.google.common.io.Closer;
 import org.apache.commons.io.FileUtils;
@@ -40,12 +41,15 @@ import org.apache.jackrabbit.oak.plugins.index.IndexEditorProvider;
 import org.apache.jackrabbit.oak.plugins.index.IndexUpdate;
 import org.apache.jackrabbit.oak.plugins.index.IndexUpdateCallback;
 import org.apache.jackrabbit.oak.plugins.index.NodeTraversalCallback;
+import org.apache.jackrabbit.oak.plugins.index.counter.jmx.NodeCounter;
 import org.apache.jackrabbit.oak.plugins.index.lucene.directory.DirectoryFactory;
 import org.apache.jackrabbit.oak.plugins.index.lucene.directory.FSDirectoryFactory;
+import org.apache.jackrabbit.oak.plugins.index.progress.MetricRateEstimator;
+import org.apache.jackrabbit.oak.plugins.index.progress.NodeCounterMBeanEstimator;
 import org.apache.jackrabbit.oak.plugins.index.property.PropertyIndexEditorProvider;
-import org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState;
 import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeStore;
 import org.apache.jackrabbit.oak.plugins.memory.PropertyStates;
+import org.apache.jackrabbit.oak.plugins.metric.MetricStatisticsProvider;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EditorDiff;
 import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
@@ -53,6 +57,7 @@ import org.apache.jackrabbit.oak.spi.commit.VisibleEditor;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
+import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,7 +155,7 @@ public class OutOfBandIndexer implements Closeable, IndexUpdateCallback, NodeTra
     }
 
     @Override
-    public void traversedNode() throws CommitFailedException {
+    public void traversedNode(PathSource pathSource) throws CommitFailedException {
 
     }
 
@@ -167,6 +172,8 @@ public class OutOfBandIndexer implements Closeable, IndexUpdateCallback, NodeTra
                 CommitInfo.EMPTY,
                 CorruptIndexHandler.NOOP
         );
+
+        configureEstimators(indexUpdate);
 
         //Do not use EmptyState as before otherwise the IndexUpdate would
         //unnecessary traverse the whole repo post reindexing. With use of baseState
@@ -260,4 +267,14 @@ public class OutOfBandIndexer implements Closeable, IndexUpdateCallback, NodeTra
         FileUtils.moveDirectoryToDirectory(getLocalIndexDir(), indexHelper.getOutputDir(), true);
     }
 
+    private void configureEstimators(IndexUpdate indexUpdate) {
+        StatisticsProvider statsProvider = indexHelper.getStatisticsProvider();
+        if (statsProvider instanceof MetricStatisticsProvider) {
+            MetricRegistry registry = ((MetricStatisticsProvider) statsProvider).getRegistry();
+            indexUpdate.setTraversalRateEstimator(new MetricRateEstimator(REINDEX_LANE, registry));
+        }
+
+        NodeCounterMBeanEstimator estimator = new NodeCounterMBeanEstimator(indexHelper.getNodeStore());
+        indexUpdate.setNodeCountEstimator(estimator);
+    }
 }

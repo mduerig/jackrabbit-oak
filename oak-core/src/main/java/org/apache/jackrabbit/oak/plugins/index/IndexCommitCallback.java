@@ -19,22 +19,19 @@
 
 package org.apache.jackrabbit.oak.plugins.index;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
-
 /**
- * Callback which invoked for any changed node read by IndexUpdate
- * as part of diff traversal
+ * Implementations of this interface can be notified of progress of
+ * commit that would update the index. e.g. {@link AsyncIndexUpdate}
+ * notifies {@link IndexUpdate} about how commit progresses, which,
+ * in turn notifies registered callbacks (via
+ * {@link IndexingContext#registerIndexCommitCallback}).
  */
-public interface NodeTraversalCallback{
-    /**
-     * Provides a way to lazily construct the path
-     * and provides access to the current path
-     */
-    interface PathSource {
-        String getPath();
+public interface IndexCommitCallback {
+    void commitProgress(IndexProgress indexProgress);
+
+    enum IndexProgress {
+        COMMIT_SUCCEDED,
+        COMMIT_FAILED,
+        ABORT_REQUESTED
     }
-
-    NodeTraversalCallback NOOP = pathSource -> {};
-
-    void traversedNode(PathSource pathSource) throws CommitFailedException;
 }

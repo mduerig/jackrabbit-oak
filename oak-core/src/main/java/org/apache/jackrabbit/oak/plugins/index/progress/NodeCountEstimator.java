@@ -17,24 +17,17 @@
  * under the License.
  */
 
-package org.apache.jackrabbit.oak.plugins.index;
+package org.apache.jackrabbit.oak.plugins.index.progress;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
+import java.util.Set;
 
-/**
- * Callback which invoked for any changed node read by IndexUpdate
- * as part of diff traversal
- */
-public interface NodeTraversalCallback{
+public interface NodeCountEstimator {
+    NodeCountEstimator NOOP = (basePath, indexPaths) -> -1;
+
     /**
-     * Provides a way to lazily construct the path
-     * and provides access to the current path
+     * Provides an estimate of the sub tree node count at given path
+     * @param path path under which count is requested
+     * @return estimated count or -1 if unknown
      */
-    interface PathSource {
-        String getPath();
-    }
-
-    NodeTraversalCallback NOOP = pathSource -> {};
-
-    void traversedNode(PathSource pathSource) throws CommitFailedException;
+    long getEstimatedNodeCount(String basePath, Set<String> indexPaths);
 }

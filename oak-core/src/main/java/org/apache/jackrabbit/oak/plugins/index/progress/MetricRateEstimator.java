@@ -17,24 +17,25 @@
  * under the License.
  */
 
-package org.apache.jackrabbit.oak.plugins.index;
+package org.apache.jackrabbit.oak.plugins.index.progress;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 
-/**
- * Callback which invoked for any changed node read by IndexUpdate
- * as part of diff traversal
- */
-public interface NodeTraversalCallback{
-    /**
-     * Provides a way to lazily construct the path
-     * and provides access to the current path
-     */
-    interface PathSource {
-        String getPath();
+public class MetricRateEstimator implements TraversalRateEstimator {
+    private final Meter meter;
+
+    public MetricRateEstimator(String name, MetricRegistry registry) {
+        this.meter = registry.meter("indexer-" + name);
     }
 
-    NodeTraversalCallback NOOP = pathSource -> {};
+    @Override
+    public void traversedNode() {
+        meter.mark();
+    }
 
-    void traversedNode(PathSource pathSource) throws CommitFailedException;
+    @Override
+    public double getNodesTraversedPerSecond() {
+        return meter.getFiveMinuteRate();
+    }
 }

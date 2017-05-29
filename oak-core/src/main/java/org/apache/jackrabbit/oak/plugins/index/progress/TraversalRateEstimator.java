@@ -17,24 +17,12 @@
  * under the License.
  */
 
-package org.apache.jackrabbit.oak.plugins.index;
+package org.apache.jackrabbit.oak.plugins.index.progress;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
+public interface TraversalRateEstimator {
 
-/**
- * Callback which invoked for any changed node read by IndexUpdate
- * as part of diff traversal
- */
-public interface NodeTraversalCallback{
-    /**
-     * Provides a way to lazily construct the path
-     * and provides access to the current path
-     */
-    interface PathSource {
-        String getPath();
-    }
+    void traversedNode();
 
-    NodeTraversalCallback NOOP = pathSource -> {};
+    double getNodesTraversedPerSecond();
 
-    void traversedNode(PathSource pathSource) throws CommitFailedException;
 }

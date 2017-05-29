@@ -17,24 +17,23 @@
  * under the License.
  */
 
-package org.apache.jackrabbit.oak.plugins.index;
+package org.apache.jackrabbit.oak.plugins.index.progress;
 
-import org.apache.jackrabbit.oak.api.CommitFailedException;
+import java.util.concurrent.TimeUnit;
 
-/**
- * Callback which invoked for any changed node read by IndexUpdate
- * as part of diff traversal
- */
-public interface NodeTraversalCallback{
-    /**
-     * Provides a way to lazily construct the path
-     * and provides access to the current path
-     */
-    interface PathSource {
-        String getPath();
+import com.google.common.base.Stopwatch;
+
+public class SimpleRateEstimator implements TraversalRateEstimator {
+    private final Stopwatch w = Stopwatch.createStarted();
+    private long count;
+
+    @Override
+    public void traversedNode() {
+        count++;
     }
 
-    NodeTraversalCallback NOOP = pathSource -> {};
-
-    void traversedNode(PathSource pathSource) throws CommitFailedException;
+    @Override
+    public double getNodesTraversedPerSecond() {
+        return (double) count / w.elapsed(TimeUnit.SECONDS);
+    }
 }
