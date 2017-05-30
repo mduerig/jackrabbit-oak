@@ -26,9 +26,9 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_L
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_BRANCH_BITMAP_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_HEADER_SIZE_BITS;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_EMPTY_HEADER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_HASH_SIZE;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_HEADER_SIZE_BITS;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
@@ -42,6 +42,7 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 
 import java.nio.ByteBuffer;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -224,6 +225,29 @@ public final class RawRecordWriter {
                 refs = new HashSet<>();
             }
             refs.add(reference.getSegmentId());
+        }
+        return refs;
+    }
+
+    public boolean writeListBucket(int number, int type, List<RawRecordId> list) {
+        ByteBuffer buffer = addRecord(number, type, RawRecordId.BYTES * list.size(), listBucketReferences(list));
+        if (buffer == null) {
+            return false;
+        }
+        for (RawRecordId id : list) {
+            buffer.putShort(segmentReference(id.getSegmentId()));
+            buffer.putInt(id.getRecordNumber());
+        }
+        return true;
+    }
+
+    private static Set<UUID> listBucketReferences(List<RawRecordId> list) {
+        Set<UUID> refs = null;
+        for (RawRecordId id : list) {
+            if (refs == null) {
+                refs = new HashSet<>();
+            }
+            refs.add(id.getSegmentId());
         }
         return refs;
     }

@@ -19,7 +19,6 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static java.util.Collections.singleton;
-import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
 import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
 import static org.apache.jackrabbit.oak.segment.RecordType.NODE;
 import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
@@ -85,10 +84,6 @@ final class RecordWriters {
         return new ListWriter();
     }
 
-    static RecordWriter newListBucketWriter(List<RecordId> ids) {
-        return new ListBucketWriter(ids);
-    }
-
     static RecordWriter newTemplateWriter(
             Collection<RecordId> ids,
             RecordId[] propertyNames,
@@ -141,27 +136,6 @@ final class RecordWriters {
             writer.writeInt(count);
             if (lid != null) {
                 writer.writeRecordId(lid);
-            }
-            return id;
-        }
-    }
-
-    /**
-     * List Bucket record writer.
-     *
-     * @see RecordType#BUCKET
-     */
-    private static class ListBucketWriter extends DefaultRecordWriter {
-
-        private ListBucketWriter(List<RecordId> ids) {
-            super(BUCKET, 0, ids);
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            for (RecordId bucketId : ids) {
-                writer.writeRecordId(bucketId);
             }
             return id;
         }

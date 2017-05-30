@@ -27,6 +27,7 @@ import static java.util.Arrays.sort;
 import static org.apache.jackrabbit.oak.segment.RecordType.BLOB_ID;
 import static org.apache.jackrabbit.oak.segment.RecordType.BLOCK;
 import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
+import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
 import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
 import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
@@ -323,7 +324,11 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     RecordId writeListBucket(List<RecordId> ids) throws IOException {
-        return RecordWriters.newListBucketWriter(ids).write(this);
+        return writeRawListBucket(asRawRecordIdList(ids));
+    }
+
+    private RecordId writeRawListBucket(List<RawRecordId> ids) throws IOException {
+        return writeRecord(BUCKET, (n, t) -> raw.writeListBucket(n, t, ids));
     }
 
     RecordId writeBlock(byte[] bytes, int offset, int length) throws IOException {

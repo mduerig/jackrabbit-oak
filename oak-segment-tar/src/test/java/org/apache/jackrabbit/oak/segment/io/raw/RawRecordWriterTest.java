@@ -33,6 +33,7 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import static org.junit.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.UUID;
 
 import com.google.common.base.Charsets;
@@ -149,7 +150,7 @@ public class RawRecordWriterTest {
                 RawRecordId.of(sid, 1),
                 RawRecordId.of(sid, 2)
         ));
-        int size = RawRecordConstants.MAP_HEADER_SIZE + MAP_BRANCH_BITMAP_SIZE + RawRecordId.BYTES * branch.getReferences().size();
+        int size = MAP_HEADER_SIZE + MAP_BRANCH_BITMAP_SIZE + RawRecordId.BYTES * branch.getReferences().size();
         ByteBuffer buffer = ByteBuffer.allocate(size);
         writerReturning(sid, 0, buffer).writeMapBranch(1, 2, branch);
         ByteBuffer expected = ByteBuffer.allocate(size);
@@ -158,6 +159,23 @@ public class RawRecordWriterTest {
                 .putInt(3)
                 .putShort((short) 0).putInt(1)
                 .putShort((short) 0).putInt(2);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteListBucket() throws Exception {
+        UUID sid = randomUUID();
+        List<RawRecordId> bucket = asList(
+                RawRecordId.of(sid, 1),
+                RawRecordId.of(sid, 2)
+        );
+        int size = RawRecordId.BYTES * bucket.size();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 3, buffer).writeListBucket(4, 5, bucket);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putShort((short) 3).putInt(1)
+                .putShort((short) 3).putInt(2);
         assertEquals(expected, buffer);
     }
 
