@@ -19,7 +19,6 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static java.util.Collections.singleton;
-import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
 import static org.apache.jackrabbit.oak.segment.RecordType.NODE;
 import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_ID_BYTES;
@@ -76,14 +75,6 @@ final class RecordWriters {
 
     }
 
-    static RecordWriter newListWriter(int count, RecordId lid) {
-        return new ListWriter(count, lid);
-    }
-
-    static RecordWriter newListWriter() {
-        return new ListWriter();
-    }
-
     static RecordWriter newTemplateWriter(
             Collection<RecordId> ids,
             RecordId[] propertyNames,
@@ -108,37 +99,6 @@ final class RecordWriters {
 
     static RecordWriter newNodeStateWriter(RecordId stableId, List<RecordId> ids) {
         return new NodeStateWriter(stableId, ids);
-    }
-
-    /**
-     * List record writer.
-     * @see RecordType#LIST
-     */
-    private static class ListWriter extends DefaultRecordWriter {
-        private final int count;
-        private final RecordId lid;
-
-        private ListWriter() {
-            super(LIST, 4);
-            count = 0;
-            lid = null;
-        }
-
-        private ListWriter(int count, RecordId lid) {
-            super(LIST, 4, lid);
-            this.count = count;
-            this.lid = lid;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            writer.writeInt(count);
-            if (lid != null) {
-                writer.writeRecordId(lid);
-            }
-            return id;
-        }
     }
 
     /**

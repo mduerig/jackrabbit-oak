@@ -29,6 +29,7 @@ import static org.apache.jackrabbit.oak.segment.RecordType.BLOCK;
 import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
 import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
 import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
+import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
 import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 
@@ -44,6 +45,7 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Charsets;
+import org.apache.jackrabbit.oak.segment.io.raw.RawList;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapBranch;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapEntry;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapLeaf;
@@ -315,12 +317,16 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return writeRecord(BRANCH, (n, t) -> raw.writeMapBranch(n, t, branch));
     }
 
-    RecordId writeList(int count, RecordId lid) throws IOException {
-        return RecordWriters.newListWriter(count, lid).write(this);
+    RecordId writeList() throws IOException {
+        return writeList(RawList.empty());
     }
 
-    RecordId writeList() throws IOException {
-        return RecordWriters.newListWriter().write(this);
+    RecordId writeList(int count, RecordId lid) throws IOException {
+        return writeList(RawList.of(count, asRawRecordId(lid)));
+    }
+
+    private RecordId writeList(RawList list) throws IOException {
+        return writeRecord(LIST, (n, t) -> raw.writeList(n, t, list));
     }
 
     RecordId writeListBucket(List<RecordId> ids) throws IOException {

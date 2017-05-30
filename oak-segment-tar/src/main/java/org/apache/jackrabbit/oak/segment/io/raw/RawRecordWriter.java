@@ -252,4 +252,32 @@ public final class RawRecordWriter {
         return refs;
     }
 
+    public boolean writeList(int number, int type, RawList list) {
+        ByteBuffer buffer = addRecord(number, type, listSize(list), listReferences(list));
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putInt(list.getSize());
+        if (list.getBucket() != null) {
+            buffer.putShort(segmentReference(list.getBucket().getSegmentId()));
+            buffer.putInt(list.getBucket().getRecordNumber());
+        }
+        return true;
+    }
+
+    private static int listSize(RawList list) {
+        int size = Integer.BYTES;
+        if (list.getBucket() != null) {
+            size += RawRecordId.BYTES;
+        }
+        return size;
+    }
+
+    private static Set<UUID> listReferences(RawList list) {
+        if (list.getBucket() == null) {
+            return null;
+        }
+        return singleton(list.getBucket().getSegmentId());
+    }
+
 }

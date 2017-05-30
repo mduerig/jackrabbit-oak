@@ -179,4 +179,29 @@ public class RawRecordWriterTest {
         assertEquals(expected, buffer);
     }
 
+    @Test
+    public void testWriteList() throws Exception {
+        UUID sid = randomUUID();
+        RawList list = RawList.of(10, RawRecordId.of(sid, 1));
+        int size = Integer.BYTES + RawRecordId.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 2, buffer).writeList(4, 5, list);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putInt(10)
+                .putShort((short) 2)
+                .putInt(1);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteEmptyList() throws Exception {
+        int size = Integer.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(buffer).writeList(1, 2, RawList.empty());
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate().putInt(0);
+        assertEquals(expected, buffer);
+    }
+
 }
