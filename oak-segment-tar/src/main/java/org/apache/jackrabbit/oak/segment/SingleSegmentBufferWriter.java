@@ -174,16 +174,19 @@ class SingleSegmentBufferWriter {
             Set<SegmentId> segmentIds = null;
             if (references != null) {
                 for (UUID reference : references) {
+                    if (reference.equals(segmentId.asUUID())) {
+                        continue;
+                    }
                     long msb = reference.getMostSignificantBits();
                     long lsb = reference.getLeastSignificantBits();
-                    SegmentId segmentId = segmentIdProvider.newSegmentId(msb, lsb);
-                    if (segmentReferences.contains(segmentId)) {
+                    SegmentId sid = segmentIdProvider.newSegmentId(msb, lsb);
+                    if (segmentReferences.contains(sid)) {
                         continue;
                     }
                     if (segmentIds == null) {
                         segmentIds = newHashSet();
                     }
-                    segmentIds.add(segmentId);
+                    segmentIds.add(sid);
                 }
             }
 
@@ -204,8 +207,7 @@ class SingleSegmentBufferWriter {
         position = buffer.length - length;
         checkState(position >= 0);
         recordNumbers.addRecord(number, type, position);
-        ByteBuffer buffer = ByteBuffer.wrap(this.buffer, position, length);
-        return buffer;
+        return ByteBuffer.wrap(this.buffer, position, length);
     }
 
     void flush() throws IOException {
