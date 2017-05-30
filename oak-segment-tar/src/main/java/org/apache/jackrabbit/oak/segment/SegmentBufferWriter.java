@@ -23,13 +23,17 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
+import static java.util.Arrays.sort;
 import static org.apache.jackrabbit.oak.segment.RecordType.BLOB_ID;
 import static org.apache.jackrabbit.oak.segment.RecordType.BLOCK;
+import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
+import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
 import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -39,6 +43,9 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Charsets;
+import org.apache.jackrabbit.oak.segment.io.raw.RawMapBranch;
+import org.apache.jackrabbit.oak.segment.io.raw.RawMapEntry;
+import org.apache.jackrabbit.oak.segment.io.raw.RawMapLeaf;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
 
@@ -90,7 +97,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private SingleSegmentBufferWriter singleSegmentBufferWriter;
 
-    private RawRecordWriter raw;
+    private volatile RawRecordWriter raw;
 
     /**
      * Mark this buffer as dirty. A dirty buffer needs to be flushed to disk
@@ -272,19 +279,39 @@ public class SegmentBufferWriter implements WriteOperationHandler {
     }
 
     RecordId writeMapLeaf(int level, Collection<MapEntry> entries) throws IOException {
-        return RecordWriters.newMapLeafWriter(level, entries).write(this);
+        MapEntry[] sorted = entries.toArray(new MapEntry[entries.size()]);
+        sort(sorted);
+
+        List<RawMapEntry> rawEntries = new ArrayList<>(sorted.length);
+        for (MapEntry entry : sorted) {
+            rawEntries.add(RawMapEntry.of(
+                    entry.getHash(),
+                    asRawRecordId(entry.getKey()),
+                    asRawRecordId(entry.getValue())
+            ));
+        }
+
+        return writeMapLeaf(RawMapLeaf.of(level, rawEntries));
+    }
+
+    private RecordId writeMapLeaf(RawMapLeaf leaf) throws IOException {
+        return writeRecord(LEAF, (n, t) -> raw.writeMapLeaf(n, t, leaf));
     }
 
     RecordId writeMapLeaf() throws IOException {
-        return RecordWriters.newMapLeafWriter().write(this);
+        return writeRecord(LEAF, (n, t) -> raw.writeMapLeaf(n, t));
     }
 
     RecordId writeMapBranch(int level, int entryCount, int bitmap, List<RecordId> ids) throws IOException {
-        return RecordWriters.newMapBranchWriter(level, entryCount, bitmap, ids).write(this);
+        return writeMapBranch(RawMapBranch.of(level, entryCount, bitmap, asRawRecordIdList(ids)));
     }
 
     RecordId writeMapBranch(int bitmap, List<RecordId> ids) throws IOException {
-        return RecordWriters.newMapBranchWriter(bitmap, ids).write(this);
+        return writeMapBranch(RawMapBranch.of(0, -1, bitmap, asRawRecordIdList(ids)));
+    }
+
+    private RecordId writeMapBranch(RawMapBranch branch) throws IOException {
+        return writeRecord(BRANCH, (n, t) -> raw.writeMapBranch(n, t, branch));
     }
 
     RecordId writeList(int count, RecordId lid) throws IOException {
@@ -351,6 +378,14 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     private RawRecordId asRawRecordId(RecordId id) {
         return RawRecordId.of(id.getSegmentId().asUUID(), id.getRecordNumber());
+    }
+
+    private List<RawRecordId> asRawRecordIdList(List<RecordId> ids) {
+        List<RawRecordId> rids = new ArrayList<>(ids.size());
+        for (RecordId id : ids) {
+            rids.add(asRawRecordId(id));
+        }
+        return rids;
     }
 
     private interface RecordContentWriter {

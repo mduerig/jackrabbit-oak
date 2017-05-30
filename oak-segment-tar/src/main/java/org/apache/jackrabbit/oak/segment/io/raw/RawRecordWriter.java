@@ -25,6 +25,10 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_L
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_BRANCH_BITMAP_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_EMPTY_HEADER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_HASH_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_HEADER_SIZE_BITS;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
@@ -37,6 +41,7 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -72,7 +77,7 @@ public final class RawRecordWriter {
     }
 
     private short segmentReference(UUID segmentId) {
-        return (short) segmentReferenceReader.readSegmentReference(segmentId);
+        return (short) (segmentReferenceReader.readSegmentReference(segmentId) & 0xffff);
     }
 
     public boolean writeValue(int number, int type, byte[] data, int offset, int length) {
@@ -153,6 +158,74 @@ public final class RawRecordWriter {
         }
         buffer.put(data, offset, length);
         return true;
+    }
+
+    public boolean writeMapLeaf(int number, int type) {
+        ByteBuffer buffer = addRecord(number, type, RawRecordConstants.MAP_HEADER_SIZE, null);
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putInt(MAP_LEAF_EMPTY_HEADER);
+        return true;
+    }
+
+    public boolean writeMapLeaf(int number, int type, RawMapLeaf leaf) {
+        ByteBuffer buffer = addRecord(number, type, RawRecordConstants.MAP_HEADER_SIZE + leaf.getEntries().size() * (MAP_LEAF_HASH_SIZE + 2 * RawRecordId.BYTES), mapLeafReferences(leaf));
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putInt(mapHeader(leaf.getLevel(), leaf.getEntries().size()));
+        for (RawMapEntry entry : leaf.getEntries()) {
+            buffer.putInt(entry.getHash());
+        }
+        for (RawMapEntry entry : leaf.getEntries()) {
+            buffer.putShort(segmentReference(entry.getKey().getSegmentId()));
+            buffer.putInt(entry.getKey().getRecordNumber());
+            buffer.putShort(segmentReference(entry.getValue().getSegmentId()));
+            buffer.putInt(entry.getValue().getRecordNumber());
+        }
+        return true;
+    }
+
+    private static Set<UUID> mapLeafReferences(RawMapLeaf leaf) {
+        Set<UUID> refs = null;
+        for (RawMapEntry entry : leaf.getEntries()) {
+            if (refs == null) {
+                refs = new HashSet<>();
+            }
+            refs.add(entry.getKey().getSegmentId());
+            refs.add(entry.getValue().getSegmentId());
+        }
+        return refs;
+    }
+
+    private static int mapHeader(int level, int size) {
+        return (level << MAP_HEADER_SIZE_BITS) | size;
+    }
+
+    public boolean writeMapBranch(int number, int type, RawMapBranch branch) {
+        ByteBuffer buffer = addRecord(number, type, MAP_BRANCH_BITMAP_SIZE + RawRecordConstants.MAP_HEADER_SIZE + branch.getReferences().size() * RawRecordId.BYTES, mapBranchReferences(branch));
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putInt(mapHeader(branch.getLevel(), branch.getCount()));
+        buffer.putInt(branch.getBitmap());
+        for (RawRecordId reference : branch.getReferences()) {
+            buffer.putShort(segmentReference(reference.getSegmentId()));
+            buffer.putInt(reference.getRecordNumber());
+        }
+        return true;
+    }
+
+    private static Set<UUID> mapBranchReferences(RawMapBranch branch) {
+        Set<UUID> refs = null;
+        for (RawRecordId reference : branch.getReferences()) {
+            if (refs == null) {
+                refs = new HashSet<>();
+            }
+            refs.add(reference.getSegmentId());
+        }
+        return refs;
     }
 
 }

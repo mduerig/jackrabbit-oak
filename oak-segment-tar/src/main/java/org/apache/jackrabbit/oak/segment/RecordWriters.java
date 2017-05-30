@@ -18,13 +18,8 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
-import static com.google.common.collect.Lists.newArrayListWithCapacity;
-import static java.util.Arrays.sort;
 import static java.util.Collections.singleton;
-import static org.apache.jackrabbit.oak.segment.MapRecord.SIZE_BITS;
-import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
 import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
-import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
 import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
 import static org.apache.jackrabbit.oak.segment.RecordType.NODE;
 import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
@@ -82,22 +77,6 @@ final class RecordWriters {
 
     }
 
-    static RecordWriter newMapLeafWriter(int level, Collection<MapEntry> entries) {
-        return new MapLeafWriter(level, entries);
-    }
-
-    static RecordWriter newMapLeafWriter() {
-        return new MapLeafWriter();
-    }
-
-    static RecordWriter newMapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
-        return new MapBranchWriter(level, entryCount, bitmap, ids);
-    }
-
-    static RecordWriter newMapBranchWriter(int bitmap, List<RecordId> ids) {
-        return new MapBranchWriter(bitmap, ids);
-    }
-
     static RecordWriter newListWriter(int count, RecordId lid) {
         return new ListWriter(count, lid);
     }
@@ -134,100 +113,6 @@ final class RecordWriters {
 
     static RecordWriter newNodeStateWriter(RecordId stableId, List<RecordId> ids) {
         return new NodeStateWriter(stableId, ids);
-    }
-
-    /**
-     * Map Leaf record writer.
-     * @see RecordType#LEAF
-     */
-    private static class MapLeafWriter extends DefaultRecordWriter {
-        private final int level;
-        private final Collection<MapEntry> entries;
-
-        private MapLeafWriter() {
-            super(LEAF, 4);
-            this.level = -1;
-            this.entries = null;
-        }
-
-        private MapLeafWriter(int level, Collection<MapEntry> entries) {
-            super(LEAF, 4 + entries.size() * 4, extractIds(entries));
-            this.level = level;
-            this.entries = entries;
-        }
-
-        private static List<RecordId> extractIds(Collection<MapEntry> entries) {
-            List<RecordId> ids = newArrayListWithCapacity(2 * entries.size());
-            for (MapEntry entry : entries) {
-                ids.add(entry.getKey());
-                ids.add(entry.getValue());
-            }
-            return ids;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            if (entries != null) {
-                int size = entries.size();
-                writer.writeInt((level << SIZE_BITS) | size);
-
-                // copy the entries to an array so we can sort them before
-                // writing
-                MapEntry[] array = entries.toArray(new MapEntry[size]);
-                sort(array);
-
-                for (MapEntry entry : array) {
-                    writer.writeInt(entry.getHash());
-                }
-                for (MapEntry entry : array) {
-                    writer.writeRecordId(entry.getKey());
-                    writer.writeRecordId(entry.getValue());
-                }
-            } else {
-                writer.writeInt(0);
-            }
-            return id;
-        }
-    }
-
-    /**
-     * Map Branch record writer.
-     * @see RecordType#BRANCH
-     */
-    private static class MapBranchWriter extends DefaultRecordWriter {
-        private final int level;
-        private final int entryCount;
-        private final int bitmap;
-
-        /*
-         * Write a regular map branch
-         */
-        private MapBranchWriter(int level, int entryCount, int bitmap, List<RecordId> ids) {
-            super(BRANCH, 8, ids);
-            this.level = level;
-            this.entryCount = entryCount;
-            this.bitmap = bitmap;
-        }
-
-        /*
-         * Write a diff map
-         */
-        private MapBranchWriter(int bitmap, List<RecordId> ids) {
-            // level = 0 and and entryCount = -1 -> this is a map diff
-            this(0, -1, bitmap, ids);
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id, SegmentBufferWriter writer) {
-            // -1 to encode a map diff (if level == 0 and entryCount == -1)
-            writer.writeInt((level << SIZE_BITS) | entryCount);
-            writer.writeInt(bitmap);
-            for (RecordId mapId : ids) {
-                writer.writeRecordId(mapId);
-            }
-            return id;
-        }
     }
 
     /**

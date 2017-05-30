@@ -17,9 +17,14 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static java.util.Arrays.asList;
 import static java.util.UUID.randomUUID;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_LIMIT;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_BRANCH_BITMAP_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_HEADER_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_EMPTY_HEADER;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_HASH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LIMIT;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_BLOB_ID_LENGTH_SIZE;
@@ -105,5 +110,55 @@ public class RawRecordWriterTest {
         writerReturning(buffer).writeBlock(1, 2, data, 0, data.length);
         assertEquals(ByteBuffer.wrap(data), buffer);
     }
-    
+
+    @Test
+    public void testWriteEmptyMapLeaf() throws Exception {
+        ByteBuffer buffer = ByteBuffer.allocate(MAP_HEADER_SIZE);
+        writerReturning(buffer).writeMapLeaf(1, 2);
+        ByteBuffer expected = ByteBuffer.allocate(MAP_HEADER_SIZE);
+        expected.duplicate().putInt(MAP_LEAF_EMPTY_HEADER);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteMapLeaf() throws Exception {
+        UUID sid = randomUUID();
+        RawMapLeaf leaf = RawMapLeaf.of(1, asList(
+                RawMapEntry.of(10, RawRecordId.of(sid, 11), RawRecordId.of(sid, 12)),
+                RawMapEntry.of(20, RawRecordId.of(sid, 21), RawRecordId.of(sid, 22))
+        ));
+        int size = MAP_HEADER_SIZE + (MAP_LEAF_HASH_SIZE + 2 * RawRecordId.BYTES) * leaf.getEntries().size();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 0, buffer).writeMapLeaf(1, 2, leaf);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putInt(0x10000002)
+                .putInt(10)
+                .putInt(20)
+                .putShort((short) 0).putInt(11)
+                .putShort((short) 0).putInt(12)
+                .putShort((short) 0).putInt(21)
+                .putShort((short) 0).putInt(22);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteMapBranch() throws Exception {
+        UUID sid = randomUUID();
+        RawMapBranch branch = RawMapBranch.of(1, 2, 3, asList(
+                RawRecordId.of(sid, 1),
+                RawRecordId.of(sid, 2)
+        ));
+        int size = RawRecordConstants.MAP_HEADER_SIZE + MAP_BRANCH_BITMAP_SIZE + RawRecordId.BYTES * branch.getReferences().size();
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 0, buffer).writeMapBranch(1, 2, branch);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putInt(0x10000002)
+                .putInt(3)
+                .putShort((short) 0).putInt(1)
+                .putShort((short) 0).putInt(2);
+        assertEquals(expected, buffer);
+    }
+
 }

@@ -79,6 +79,22 @@ class RawRecordConstants {
 
     static final byte LONG_BLOB_ID_LENGTH = (byte) 0xF0;
 
+    // These constants define the encoding of both map branches and leaves.
+
+    static final int MAP_HEADER_SIZE = Integer.BYTES;
+
+    static final int MAP_HEADER_SIZE_BITS = 28;
+
+    // These constants define the encoding of map leaves.
+
+    static final int MAP_LEAF_HASH_SIZE = Integer.BYTES;
+
+    static final int MAP_LEAF_EMPTY_HEADER = 0;
+
+    // These constants define the encoding of map branches.
+
+    static final int MAP_BRANCH_BITMAP_SIZE = Integer.BYTES;
+
     RawRecordConstants() {
         // Prevent instantiation
     }
