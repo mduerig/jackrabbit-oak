@@ -230,9 +230,6 @@ class RecordReader {
     }
 
     private SegmentId dereferenceSegmentId(UUID segmentId) {
-        if (segmentId == null) {
-            return id;
-        }
         long msb = segmentId.getMostSignificantBits();
         long lsb = segmentId.getLeastSignificantBits();
         return segmentIdProvider.newSegmentId(msb, lsb);
