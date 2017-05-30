@@ -95,6 +95,10 @@ class RawRecordConstants {
 
     static final int MAP_BRANCH_BITMAP_SIZE = Integer.BYTES;
 
+    // These constants define the encoding of templates.
+
+    static final int TEMPLATE_HEADER_SIZE = Integer.BYTES;
+
     RawRecordConstants() {
         // Prevent instantiation
     }

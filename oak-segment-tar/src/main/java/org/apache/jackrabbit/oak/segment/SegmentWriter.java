@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -71,6 +72,8 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
 import org.apache.jackrabbit.oak.segment.file.GCNodeWriteMonitor;
+import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
+import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.DefaultNodeStateDiff;
@@ -818,83 +821,81 @@ public class SegmentWriter {
             }
         }
 
+        private RawRecordId asRawRecordId(RecordId id) {
+            return RawRecordId.of(id.asUUID(), id.getRecordNumber());
+        }
+
+        private List<RawRecordId> asRawRecordIds(Collection<RecordId> ids) {
+            List<RawRecordId> rids = new ArrayList<>(ids.size());
+            for (RecordId id : ids) {
+                rids.add(asRawRecordId(id));
+            }
+            return rids;
+        }
+
         private RecordId writeTemplate(Template template) throws IOException {
             checkNotNull(template);
 
             RecordId id = templateCache.get(template);
+
             if (id != null) {
                 return id; // shortcut if the same template was recently stored
             }
 
-            Collection<RecordId> ids = newArrayList();
-            int head = 0;
+            RawTemplate.Builder builder = RawTemplate.builder();
 
-            RecordId primaryId = null;
-            PropertyState primaryType = template.getPrimaryType();
-            if (primaryType != null) {
-                head |= 1 << 31;
-                primaryId = writeString(primaryType.getValue(NAME));
-                ids.add(primaryId);
+            if (template.getPrimaryType() != null) {
+                builder.withPrimaryType(asRawRecordId(writeString(template.getPrimaryType().getValue(NAME))));
             }
 
-            List<RecordId> mixinIds = null;
-            PropertyState mixinTypes = template.getMixinTypes();
-            if (mixinTypes != null) {
-                head |= 1 << 30;
-                mixinIds = newArrayList();
-                for (String mixin : mixinTypes.getValue(NAMES)) {
+            if (template.getMixinTypes() != null) {
+                List<RecordId> mixinIds = newArrayList();
+                for (String mixin : template.getMixinTypes().getValue(NAMES)) {
                     mixinIds.add(writeString(mixin));
                 }
-                ids.addAll(mixinIds);
-                checkState(mixinIds.size() < (1 << 10));
-                head |= mixinIds.size() << 18;
+                builder.withMixins(asRawRecordIds(mixinIds));
             }
 
-            RecordId childNameId = null;
-            String childName = template.getChildName();
-            if (childName == Template.ZERO_CHILD_NODES) {
-                head |= 1 << 29;
-            } else if (childName == Template.MANY_CHILD_NODES) {
-                head |= 1 << 28;
+            if (template.getChildName() == Template.ZERO_CHILD_NODES) {
+                builder.withNoChildNodes();
+            } else if (template.getChildName() == Template.MANY_CHILD_NODES) {
+                builder.withManyChildNodes();
             } else {
-                childNameId = writeString(childName);
-                ids.add(childNameId);
+                builder.withChildNodeName(asRawRecordId(writeString(template.getChildName())));
             }
 
-            PropertyTemplate[] properties = template.getPropertyTemplates();
-            RecordId[] propertyNames = new RecordId[properties.length];
-            byte[] propertyTypes = new byte[properties.length];
-            for (int i = 0; i < properties.length; i++) {
-                // Note: if the property names are stored in more than 255 separate
-                // segments, this will not work.
-                propertyNames[i] = writeString(properties[i].getName());
-                Type<?> type = properties[i].getType();
+            List<RecordId> propertyNames = null;
+            List<Byte> propertyTypes = null;
+
+            for (PropertyTemplate pt : template.getPropertyTemplates()) {
+                if (propertyNames == null) {
+                    propertyNames = new ArrayList<>();
+                }
+
+                propertyNames.add(writeString(pt.getName()));
+
+                if (propertyTypes == null) {
+                    propertyTypes = new ArrayList<>();
+                }
+
+                Type<?> type = pt.getType();
+
                 if (type.isArray()) {
-                    propertyTypes[i] = (byte) -type.tag();
+                    propertyTypes.add((byte) -type.tag());
                 } else {
-                    propertyTypes[i] = (byte) type.tag();
+                    propertyTypes.add((byte) type.tag());
                 }
             }
 
-            RecordId propNamesId = null;
-            if (propertyNames.length > 0) {
-                propNamesId = writeList(asList(propertyNames));
-                ids.add(propNamesId);
+            if (propertyNames != null) {
+                builder.withPropertyNames(asRawRecordId(writeList(propertyNames)));
             }
 
-            checkState(propertyNames.length < (1 << 18));
-            head |= propertyNames.length;
+            if (propertyTypes != null) {
+                builder.withPropertyTypes(propertyTypes);
+            }
 
-            RecordId tid = writer.writeTemplate(
-                    ids,
-                    propertyNames,
-                    propertyTypes,
-                    head,
-                    primaryId,
-                    mixinIds,
-                    childNameId,
-                    propNamesId
-            );
+            RecordId tid = writer.writeTemplate(builder.build());
             templateCache.put(template, tid);
             return tid;
         }

@@ -20,7 +20,7 @@ package org.apache.jackrabbit.oak.segment.io.raw;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
-import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -29,15 +29,15 @@ import java.util.Objects;
  */
 public class RawTemplate {
 
-    static Builder builder() {
+    public static Builder builder() {
         return new Builder();
     }
 
-    static class Builder {
+    public static class Builder {
 
         private RawRecordId primaryType;
 
-        private RawRecordId[] mixins;
+        private List<RawRecordId> mixins;
 
         private boolean manyChildNodes;
 
@@ -47,50 +47,50 @@ public class RawTemplate {
 
         private RawRecordId propertyNames;
 
-        private byte[] propertyTypes;
+        private List<Byte> propertyTypes;
 
         private Builder() {
             // Prevent external instantiation.
         }
 
-        Builder withPrimaryType(RawRecordId primaryType) {
+        public Builder withPrimaryType(RawRecordId primaryType) {
             this.primaryType = checkNotNull(primaryType);
             return this;
         }
 
-        Builder withMixins(RawRecordId[] mixins) {
+        public Builder withMixins(List<RawRecordId> mixins) {
             this.mixins = checkNotNull(mixins);
             return this;
         }
 
-        Builder withManyChildNodes() {
+        public Builder withManyChildNodes() {
             this.manyChildNodes = true;
             this.noChildNodes = false;
             return this;
         }
 
-        Builder withNoChildNodes() {
+        public Builder withNoChildNodes() {
             this.noChildNodes = true;
             this.manyChildNodes = false;
             return this;
         }
 
-        Builder withChildNodeName(RawRecordId childNodeName) {
+        public Builder withChildNodeName(RawRecordId childNodeName) {
             this.childNodeName = checkNotNull(childNodeName);
             return this;
         }
 
-        Builder withPropertyNames(RawRecordId propertyNames) {
+        public Builder withPropertyNames(RawRecordId propertyNames) {
             this.propertyNames = checkNotNull(propertyNames);
             return this;
         }
 
-        Builder withPropertyTypes(byte[] propertyTypes) {
+        public Builder withPropertyTypes(List<Byte> propertyTypes) {
             this.propertyTypes = checkNotNull(propertyTypes);
             return this;
         }
 
-        RawTemplate build() {
+        public RawTemplate build() {
             checkState(!noChildNodes || !manyChildNodes, "the template is configured with incompatible children cardinality");
             if (childNodeName != null) {
                 checkState(!noChildNodes, "the template has a name for a single child, but the node is supposed to have no children");
@@ -103,7 +103,7 @@ public class RawTemplate {
 
     private final RawRecordId primaryType;
 
-    private final RawRecordId[] mixins;
+    private final List<RawRecordId> mixins;
 
     private final boolean manyChildNodes;
 
@@ -113,7 +113,7 @@ public class RawTemplate {
 
     private final RawRecordId propertyNames;
 
-    private final byte[] propertyTypes;
+    private final List<Byte> propertyTypes;
 
     private RawTemplate(Builder builder) {
         this.primaryType = builder.primaryType;
@@ -140,7 +140,7 @@ public class RawTemplate {
      *
      * @return An array of {@link RawRecordId}. It can be {@code null}.
      */
-    public RawRecordId[] getMixins() {
+    public List<RawRecordId> getMixins() {
         return mixins;
     }
 
@@ -192,7 +192,7 @@ public class RawTemplate {
      *
      * @return an array of bytes. It can be {@code null}.
      */
-    public byte[] getPropertyTypes() {
+    public List<Byte> getPropertyTypes() {
         return propertyTypes;
     }
 
@@ -214,10 +214,10 @@ public class RawTemplate {
         return manyChildNodes == that.manyChildNodes &&
                 noChildNodes == that.noChildNodes &&
                 Objects.equals(primaryType, that.primaryType) &&
-                Arrays.equals(mixins, that.mixins) &&
                 Objects.equals(childNodeName, that.childNodeName) &&
                 Objects.equals(propertyNames, that.propertyNames) &&
-                Arrays.equals(propertyTypes, that.propertyTypes);
+                Objects.equals(mixins, that.mixins) &&
+                Objects.equals(propertyTypes, that.propertyTypes);
     }
 
     @Override
@@ -230,12 +230,13 @@ public class RawTemplate {
         return String.format(
                 "RawTemplate{primaryType=%s, mixins=%s, manyChildNodes=%s, zeroChildNodes=%s, childNodeName=%s, propertyNames=%s, propertyTypes=%s}",
                 primaryType,
-                Arrays.toString(mixins),
+                mixins,
                 manyChildNodes,
                 noChildNodes,
                 childNodeName,
                 propertyNames,
-                Arrays.toString(propertyTypes)
+                propertyTypes
         );
     }
+
 }

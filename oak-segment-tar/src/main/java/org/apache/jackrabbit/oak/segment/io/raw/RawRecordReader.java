@@ -35,6 +35,8 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate.Builder;
@@ -323,9 +325,9 @@ public final class RawRecordReader {
         }
 
         if (hasMixinTypes) {
-            RawRecordId[] mixins = new RawRecordId[mixinCount];
+            List<RawRecordId> mixins = new ArrayList<>(mixinCount);
             for (int i = 0; i < mixinCount; i++) {
-                mixins[i] = readRecordId(recordNumber, offset);
+                mixins.add(readRecordId(recordNumber, offset));
                 offset += RawRecordId.BYTES;
             }
             builder.withMixins(mixins);
@@ -339,9 +341,9 @@ public final class RawRecordReader {
         if (propertyCount > 0) {
             builder.withPropertyNames(readRecordId(recordNumber, offset));
             offset += RawRecordId.BYTES;
-            byte[] propertyTypes = new byte[propertyCount];
+            List<Byte> propertyTypes = new ArrayList<>(propertyCount);
             for (int i = 0; i < propertyCount; i++) {
-                propertyTypes[i] = readByte(recordNumber, offset);
+                propertyTypes.add(readByte(recordNumber, offset));
                 offset += Byte.BYTES;
             }
             builder.withPropertyTypes(propertyTypes);

@@ -39,6 +39,7 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_BLOB_ID_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LENGTH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.SMALL_LIMIT;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.TEMPLATE_HEADER_SIZE;
 
 import java.nio.ByteBuffer;
 import java.util.HashSet;
@@ -81,6 +82,10 @@ public final class RawRecordWriter {
         return (short) (segmentReferenceReader.readSegmentReference(segmentId) & 0xffff);
     }
 
+    private void putRecordId(ByteBuffer buffer, RawRecordId id) {
+        buffer.putShort(segmentReference(id.getSegmentId())).putInt(id.getRecordNumber());
+    }
+
     public boolean writeValue(int number, int type, byte[] data, int offset, int length) {
         if (length < SMALL_LIMIT) {
             return writeSmallValue(number, type, data, offset, length);
@@ -118,9 +123,8 @@ public final class RawRecordWriter {
         if (buffer == null) {
             return false;
         }
-        buffer.putLong(longLength(length))
-                .putShort(segmentReference(id.getSegmentId()))
-                .putInt(id.getRecordNumber());
+        buffer.putLong(longLength(length));
+        putRecordId(buffer, id);
         return true;
     }
 
@@ -146,9 +150,8 @@ public final class RawRecordWriter {
         if (buffer == null) {
             return false;
         }
-        buffer.put(LONG_BLOB_ID_LENGTH)
-                .putShort(segmentReference(id.getSegmentId()))
-                .putInt(id.getRecordNumber());
+        buffer.put(LONG_BLOB_ID_LENGTH);
+        putRecordId(buffer, id);
         return true;
     }
 
@@ -180,10 +183,8 @@ public final class RawRecordWriter {
             buffer.putInt(entry.getHash());
         }
         for (RawMapEntry entry : leaf.getEntries()) {
-            buffer.putShort(segmentReference(entry.getKey().getSegmentId()));
-            buffer.putInt(entry.getKey().getRecordNumber());
-            buffer.putShort(segmentReference(entry.getValue().getSegmentId()));
-            buffer.putInt(entry.getValue().getRecordNumber());
+            putRecordId(buffer, entry.getKey());
+            putRecordId(buffer, entry.getValue());
         }
         return true;
     }
@@ -191,11 +192,8 @@ public final class RawRecordWriter {
     private static Set<UUID> mapLeafReferences(RawMapLeaf leaf) {
         Set<UUID> refs = null;
         for (RawMapEntry entry : leaf.getEntries()) {
-            if (refs == null) {
-                refs = new HashSet<>();
-            }
-            refs.add(entry.getKey().getSegmentId());
-            refs.add(entry.getValue().getSegmentId());
+            refs = maybeAdd(refs, entry.getKey());
+            refs = maybeAdd(refs, entry.getValue());
         }
         return refs;
     }
@@ -212,8 +210,7 @@ public final class RawRecordWriter {
         buffer.putInt(mapHeader(branch.getLevel(), branch.getCount()));
         buffer.putInt(branch.getBitmap());
         for (RawRecordId reference : branch.getReferences()) {
-            buffer.putShort(segmentReference(reference.getSegmentId()));
-            buffer.putInt(reference.getRecordNumber());
+            putRecordId(buffer, reference);
         }
         return true;
     }
@@ -221,10 +218,7 @@ public final class RawRecordWriter {
     private static Set<UUID> mapBranchReferences(RawMapBranch branch) {
         Set<UUID> refs = null;
         for (RawRecordId reference : branch.getReferences()) {
-            if (refs == null) {
-                refs = new HashSet<>();
-            }
-            refs.add(reference.getSegmentId());
+            refs = maybeAdd(refs, reference);
         }
         return refs;
     }
@@ -235,8 +229,7 @@ public final class RawRecordWriter {
             return false;
         }
         for (RawRecordId id : list) {
-            buffer.putShort(segmentReference(id.getSegmentId()));
-            buffer.putInt(id.getRecordNumber());
+            putRecordId(buffer, id);
         }
         return true;
     }
@@ -244,10 +237,7 @@ public final class RawRecordWriter {
     private static Set<UUID> listBucketReferences(List<RawRecordId> list) {
         Set<UUID> refs = null;
         for (RawRecordId id : list) {
-            if (refs == null) {
-                refs = new HashSet<>();
-            }
-            refs.add(id.getSegmentId());
+            refs = maybeAdd(refs, id);
         }
         return refs;
     }
@@ -259,8 +249,7 @@ public final class RawRecordWriter {
         }
         buffer.putInt(list.getSize());
         if (list.getBucket() != null) {
-            buffer.putShort(segmentReference(list.getBucket().getSegmentId()));
-            buffer.putInt(list.getBucket().getRecordNumber());
+            putRecordId(buffer, list.getBucket());
         }
         return true;
     }
@@ -278,6 +267,100 @@ public final class RawRecordWriter {
             return null;
         }
         return singleton(list.getBucket().getSegmentId());
+    }
+
+    public boolean writeTemplate(int number, int type, RawTemplate template) {
+        ByteBuffer buffer = addRecord(number, type, templateSize(template), templateReferences(template));
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putInt(templateHeader(template));
+        if (template.getPrimaryType() != null) {
+            putRecordId(buffer, template.getPrimaryType());
+        }
+        if (template.getMixins() != null) {
+            for (RawRecordId id : template.getMixins()) {
+                putRecordId(buffer, id);
+            }
+        }
+        if (template.getChildNodeName() != null) {
+            putRecordId(buffer, template.getChildNodeName());
+        }
+        if (template.getPropertyNames() != null) {
+            putRecordId(buffer, template.getPropertyNames());
+        }
+        if (template.getPropertyTypes() != null) {
+            for (byte propertyType : template.getPropertyTypes()) {
+                buffer.put(propertyType);
+            }
+
+        }
+        return true;
+    }
+
+    private static int templateSize(RawTemplate template) {
+        int size = TEMPLATE_HEADER_SIZE;
+        if (template.getPrimaryType() != null) {
+            size += RawRecordId.BYTES;
+        }
+        if (template.getMixins() != null) {
+            size += RawRecordId.BYTES * template.getMixins().size();
+        }
+        if (template.getChildNodeName() != null) {
+            size += RawRecordId.BYTES;
+        }
+        if (template.getPropertyNames() != null) {
+            size += RawRecordId.BYTES;
+        }
+        if (template.getPropertyTypes() != null) {
+            size += Byte.BYTES * template.getPropertyTypes().size();
+        }
+        return size;
+    }
+
+    private static Set<UUID> templateReferences(RawTemplate template) {
+        Set<UUID> refs;
+        refs = maybeAdd(null, template.getPrimaryType());
+        refs = maybeAdd(refs, template.getChildNodeName());
+        refs = maybeAdd(refs, template.getPropertyNames());
+        if (template.getMixins() != null) {
+            for (RawRecordId id : template.getMixins()) {
+                refs = maybeAdd(refs, id);
+            }
+        }
+        return refs;
+    }
+
+    private static Set<UUID> maybeAdd(Set<UUID> references, RawRecordId id) {
+        if (id == null) {
+            return references;
+        }
+        if (references == null) {
+            references = new HashSet<>();
+        }
+        references.add(id.getSegmentId());
+        return references;
+    }
+
+    private static int templateHeader(RawTemplate template) {
+        long header = 0;
+        if (template.getPrimaryType() != null) {
+            header |= 1L << 31;
+        }
+        if (template.getMixins() != null && !template.getMixins().isEmpty()) {
+            header |= 1L << 30;
+            header |= (template.getMixins().size() & 0x3ff) << 18;
+        }
+        if (template.hasNoChildNodes()) {
+            header |= 1L << 29;
+        }
+        if (template.hasManyChildNodes()) {
+            header |= 1L << 28;
+        }
+        if (template.getPropertyTypes() != null && !template.getPropertyTypes().isEmpty()) {
+            header |= template.getPropertyTypes().size() & 0x3ffff;
+        }
+        return (int) header;
     }
 
 }

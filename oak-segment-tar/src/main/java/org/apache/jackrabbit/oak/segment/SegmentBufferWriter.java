@@ -30,6 +30,7 @@ import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
 import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
 import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
 import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
+import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
 import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 
@@ -51,6 +52,7 @@ import org.apache.jackrabbit.oak.segment.io.raw.RawMapEntry;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapLeaf;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
+import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
 
 /**
  * This class encapsulates the state of a segment being written. It provides
@@ -365,26 +367,8 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return writeRecord(BLOB_ID, (n, t) -> raw.writeBlobId(n, t, id));
     }
 
-    RecordId writeTemplate(
-            Collection<RecordId> ids,
-            RecordId[] propertyNames,
-            byte[] propertyTypes,
-            int head,
-            RecordId primaryId,
-            List<RecordId> mixinIds,
-            RecordId childNameId,
-            RecordId propNamesId
-    ) throws IOException {
-        return RecordWriters.newTemplateWriter(
-                ids,
-                propertyNames,
-                propertyTypes,
-                head,
-                primaryId,
-                mixinIds,
-                childNameId,
-                propNamesId
-        ).write(this);
+    RecordId writeTemplate(RawTemplate template) throws IOException {
+        return writeRecord(TEMPLATE, (n, t) -> raw.writeTemplate(n, t, template));
     }
 
     private RawRecordId asRawRecordId(RecordId id) {

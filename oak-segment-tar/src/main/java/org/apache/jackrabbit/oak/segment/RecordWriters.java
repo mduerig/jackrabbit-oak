@@ -18,14 +18,11 @@
  */
 package org.apache.jackrabbit.oak.segment;
 
-import static java.util.Collections.singleton;
 import static org.apache.jackrabbit.oak.segment.RecordType.NODE;
-import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_ID_BYTES;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 final class RecordWriters {
@@ -57,14 +54,6 @@ final class RecordWriters {
             this.ids = ids;
         }
 
-        DefaultRecordWriter(RecordType type, int size, RecordId id) {
-            this(type, size, singleton(id));
-        }
-
-        DefaultRecordWriter(RecordType type, int size) {
-            this(type, size, Collections.<RecordId> emptyList());
-        }
-
         @Override
         public final RecordId write(SegmentBufferWriter writer) throws IOException {
             RecordId id = writer.prepare(type, size, ids);
@@ -75,81 +64,8 @@ final class RecordWriters {
 
     }
 
-    static RecordWriter newTemplateWriter(
-            Collection<RecordId> ids,
-            RecordId[] propertyNames,
-            byte[] propertyTypes,
-            int head,
-            RecordId primaryId,
-            List<RecordId> mixinIds,
-            RecordId childNameId,
-            RecordId propNamesId
-    ) {
-        return new TemplateWriter(
-                ids,
-                propertyNames,
-                propertyTypes,
-                head,
-                primaryId,
-                mixinIds,
-                childNameId,
-                propNamesId
-        );
-    }
-
     static RecordWriter newNodeStateWriter(RecordId stableId, List<RecordId> ids) {
         return new NodeStateWriter(stableId, ids);
-    }
-
-    /**
-     * Template record writer.
-     * @see RecordType#TEMPLATE
-     */
-    private static class TemplateWriter extends DefaultRecordWriter {
-        private final RecordId[] propertyNames;
-        private final byte[] propertyTypes;
-        private final int head;
-        private final RecordId primaryId;
-        private final List<RecordId> mixinIds;
-        private final RecordId childNameId;
-        private final RecordId propNamesId;
-
-        private TemplateWriter(Collection<RecordId> ids, RecordId[] propertyNames,
-                byte[] propertyTypes, int head, RecordId primaryId, List<RecordId> mixinIds,
-                RecordId childNameId, RecordId propNamesId) {
-            super(TEMPLATE, 4 + propertyTypes.length, ids);
-            this.propertyNames = propertyNames;
-            this.propertyTypes = propertyTypes;
-            this.head = head;
-            this.primaryId = primaryId;
-            this.mixinIds = mixinIds;
-            this.childNameId = childNameId;
-            this.propNamesId = propNamesId;
-        }
-
-        @Override
-        protected RecordId writeRecordContent(RecordId id,
-                SegmentBufferWriter writer) {
-            writer.writeInt(head);
-            if (primaryId != null) {
-                writer.writeRecordId(primaryId);
-            }
-            if (mixinIds != null) {
-                for (RecordId mixinId : mixinIds) {
-                    writer.writeRecordId(mixinId);
-                }
-            }
-            if (childNameId != null) {
-                writer.writeRecordId(childNameId);
-            }
-            if (propNamesId != null) {
-                writer.writeRecordId(propNamesId);
-            }
-            for (int i = 0; i < propertyNames.length; i++) {
-                writer.writeByte(propertyTypes[i]);
-            }
-            return id;
-        }
     }
 
     /**

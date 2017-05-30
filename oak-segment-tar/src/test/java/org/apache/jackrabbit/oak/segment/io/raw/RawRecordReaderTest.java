@@ -17,6 +17,7 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static java.util.Arrays.asList;
 import static java.util.UUID.randomUUID;
 import static org.junit.Assert.assertEquals;
 
@@ -206,11 +207,11 @@ public class RawRecordReaderTest {
         RawRecordReader reader = readerReturning(0, sid, buffer);
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
-                .withMixins(new RawRecordId[] {
+                .withMixins(asList(
                         RawRecordId.of(sid, 2),
                         RawRecordId.of(sid, 4),
-                        RawRecordId.of(sid, 6),
-                })
+                        RawRecordId.of(sid, 6)
+                ))
                 .build();
         assertEquals(template, reader.readTemplate(1));
     }
@@ -241,7 +242,7 @@ public class RawRecordReaderTest {
         RawTemplate template = RawTemplate.builder()
                 .withNoChildNodes()
                 .withPropertyNames(RawRecordId.of(sid, 2))
-                .withPropertyTypes(new byte[] {3, 4, 5})
+                .withPropertyTypes(asList((byte) 3, (byte) 4, (byte) 5))
                 .build();
         assertEquals(template, reader.readTemplate(1));
     }

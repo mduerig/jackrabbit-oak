@@ -22,7 +22,8 @@ import static org.apache.jackrabbit.oak.segment.Segment.MAX_SEGMENT_SIZE;
 import static org.apache.jackrabbit.oak.segment.SegmentWriter.BLOCK_SIZE;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.google.common.base.Charsets;
@@ -181,15 +182,15 @@ class RecordReader {
     }
 
     private PropertyState readTemplateMixinTypes(RawTemplate raw) {
-        RawRecordId[] mixins = raw.getMixins();
+        List<RawRecordId> mixins = raw.getMixins();
         if (mixins == null) {
             return null;
         }
-        String[] values = new String[mixins.length];
-        for (int i = 0; i < mixins.length; i++) {
-            values[i] = reader.readString(readRecordId(mixins[i]));
+        List<String> values = new ArrayList<>(mixins.size());
+        for (RawRecordId mixin : mixins) {
+            values.add(reader.readString(readRecordId(mixin)));
         }
-        return PropertyStates.createProperty("jcr:mixinTypes", Arrays.asList(values), Type.NAMES);
+        return PropertyStates.createProperty("jcr:mixinTypes", values, Type.NAMES);
     }
 
     private String readTemplateChildName(RawTemplate raw) {
@@ -203,15 +204,15 @@ class RecordReader {
     }
 
     private PropertyTemplate[] readTemplateProperties(RawTemplate raw) {
-        byte[] propertyTypes = raw.getPropertyTypes();
+        List<Byte> propertyTypes = raw.getPropertyTypes();
         if (propertyTypes == null) {
             return null;
         }
-        PropertyTemplate[] properties = new PropertyTemplate[propertyTypes.length];
-        ListRecord names = new ListRecord(readRecordId(raw.getPropertyNames()), propertyTypes.length);
-        for (int i = 0; i < propertyTypes.length; i++) {
+        PropertyTemplate[] properties = new PropertyTemplate[propertyTypes.size()];
+        ListRecord names = new ListRecord(readRecordId(raw.getPropertyNames()), propertyTypes.size());
+        for (int i = 0; i < propertyTypes.size(); i++) {
             String name = reader.readString(names.getEntry(i));
-            byte type = propertyTypes[i];
+            byte type = propertyTypes.get(i);
             properties[i] = new PropertyTemplate(i, name, Type.fromTag(Math.abs(type), type < 0));
         }
         return properties;
