@@ -204,4 +204,95 @@ public class RawRecordWriterTest {
         assertEquals(expected, buffer);
     }
 
+    @Test
+    public void testWriteNode() throws Exception {
+        UUID sid = randomUUID();
+        RawNode node = RawNode.builder()
+                .withTemplate(RawRecordId.of(sid, 10))
+                .build();
+        int size = 2 * RawRecordId.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 1, buffer).writeNode(2, 3, node);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putShort((short) 0).putInt(2)
+                .putShort((short) 1).putInt(10);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteNodeWithStableId() throws Exception {
+        UUID sid = randomUUID();
+        RawNode node = RawNode.builder()
+                .withTemplate(RawRecordId.of(sid, 10))
+                .withStableId(RawRecordId.of(sid, 20))
+                .build();
+        int size = 2 * RawRecordId.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 1, buffer).writeNode(2, 3, node);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putShort((short) 1).putInt(20)
+                .putShort((short) 1).putInt(10);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteNodeWithPropertiesList() throws Exception {
+        UUID sid = randomUUID();
+        RawNode node = RawNode.builder()
+                .withTemplate(RawRecordId.of(sid, 10))
+                .withPropertiesList(RawRecordId.of(sid, 20))
+                .build();
+        int size = 3 * RawRecordId.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 1, buffer).writeNode(2, 3, node);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putShort((short) 0).putInt(2)
+                .putShort((short) 1).putInt(10)
+                .putShort((short) 1).putInt(20);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteNodeWithChild() throws Exception {
+        UUID sid = randomUUID();
+        RawNode node = RawNode.builder()
+                .withTemplate(RawRecordId.of(sid, 10))
+                .withChild(RawRecordId.of(sid, 20))
+                .withPropertiesList(RawRecordId.of(sid, 30))
+                .build();
+        int size = 4 * RawRecordId.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 1, buffer).writeNode(2, 3, node);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putShort((short) 0).putInt(2)
+                .putShort((short) 1).putInt(10)
+                .putShort((short) 1).putInt(20)
+                .putShort((short) 1).putInt(30);
+        assertEquals(expected, buffer);
+    }
+
+    @Test
+    public void testWriteNodeWithChildrenMap() throws Exception {
+        UUID sid = randomUUID();
+        RawNode node = RawNode.builder()
+                .withTemplate(RawRecordId.of(sid, 10))
+                .withChildrenMap(RawRecordId.of(sid, 20))
+                .withPropertiesList(RawRecordId.of(sid, 30))
+                .build();
+        int size = 4 * RawRecordId.BYTES;
+        ByteBuffer buffer = ByteBuffer.allocate(size);
+        writerReturning(sid, 1, buffer).writeNode(2, 3, node);
+        ByteBuffer expected = ByteBuffer.allocate(size);
+        expected.duplicate()
+                .putShort((short) 0).putInt(2)
+                .putShort((short) 1).putInt(10)
+                .putShort((short) 1).putInt(20)
+                .putShort((short) 1).putInt(30);
+        assertEquals(expected, buffer);
+    }
+
 }

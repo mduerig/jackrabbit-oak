@@ -44,7 +44,6 @@ import static org.apache.jackrabbit.oak.api.Type.NAMES;
 import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.segment.MapEntry.newModifiedMapEntry;
 import static org.apache.jackrabbit.oak.segment.MapRecord.BUCKETS_PER_LEVEL;
-import static org.apache.jackrabbit.oak.segment.RecordWriters.newNodeStateWriter;
 import static org.apache.jackrabbit.oak.segment.WriterCacheManager.Operation.COMPACT;
 
 import java.io.ByteArrayInputStream;
@@ -72,6 +71,7 @@ import org.apache.jackrabbit.oak.api.Type;
 import org.apache.jackrabbit.oak.plugins.memory.ModifiedNodeState;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
 import org.apache.jackrabbit.oak.segment.file.GCNodeWriteMonitor;
+import org.apache.jackrabbit.oak.segment.io.raw.RawNode;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
@@ -952,12 +952,13 @@ public class SegmentWriter {
                 beforeTemplate = before.getTemplate();
             }
 
-            List<RecordId> ids = newArrayList();
+            RawNode.Builder builder = RawNode.builder();
+
             Template template = new Template(reader, state);
             if (template.equals(beforeTemplate)) {
-                ids.add(before.getTemplateId());
+                builder.withTemplate(asRawRecordId(before.getTemplateId()));
             } else {
-                ids.add(writeTemplate(template));
+                builder.withTemplate(asRawRecordId(writeTemplate(template)));
             }
 
             String childName = template.getChildName();
@@ -978,9 +979,9 @@ public class SegmentWriter {
                             writeNode(entry.getNodeState()));
                     }
                 }
-                ids.add(writeMap(base, childNodes));
+                builder.withChildrenMap(asRawRecordId(writeMap(base, childNodes)));
             } else if (childName != Template.ZERO_CHILD_NODES) {
-                ids.add(writeNode(state.getChildNode(template.getChildName())));
+                builder.withChild(asRawRecordId(writeNode(state.getChildNode(template.getChildName()))));
             }
 
             List<RecordId> pIds = newArrayList();
@@ -1029,17 +1030,16 @@ public class SegmentWriter {
             }
 
             if (!pIds.isEmpty()) {
-                ids.add(writeList(pIds));
+                builder.withPropertiesList(asRawRecordId(writeList(pIds)));
             }
 
-            RecordId stableId = null;
             if (state instanceof SegmentNodeState) {
                 ByteBuffer bid = ((SegmentNodeState) state).getStableIdBytes();
                 byte[] id = new byte[RecordId.SERIALIZED_RECORD_ID_BYTES];
                 bid.get(id);
-                stableId = writeBlock(id, 0, id.length);
+                builder.withStableId(asRawRecordId(writeBlock(id, 0, id.length)));
             }
-            return newNodeStateWriter(stableId, ids).write(writer);
+            return writer.writeNode(builder.build());
         }
 
         /**

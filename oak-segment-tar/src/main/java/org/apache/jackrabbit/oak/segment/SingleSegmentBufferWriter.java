@@ -18,7 +18,6 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.arraycopy;
@@ -26,7 +25,6 @@ import static org.apache.jackrabbit.oak.segment.Segment.GC_GENERATION_OFFSET;
 import static org.apache.jackrabbit.oak.segment.Segment.HEADER_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 import static org.apache.jackrabbit.oak.segment.Segment.SEGMENT_REFERENCE_SIZE;
-import static org.apache.jackrabbit.oak.segment.SegmentId.isDataSegmentId;
 import static org.apache.jackrabbit.oak.segment.SegmentVersion.LATEST_VERSION;
 
 import java.io.IOException;
@@ -88,10 +86,6 @@ class SingleSegmentBufferWriter {
 
     private final SegmentId segmentId;
 
-    private final boolean enableGenerationCheck;
-
-    private final int generation;
-
     private byte[] buffer;
 
     /**
@@ -106,12 +100,10 @@ class SingleSegmentBufferWriter {
      */
     private int position;
 
-    SingleSegmentBufferWriter(SegmentStore segmentStore, int generation, SegmentIdProvider segmentIdProvider, SegmentId segmentId, boolean enableGenerationCheck) {
+    SingleSegmentBufferWriter(SegmentStore segmentStore, int generation, SegmentIdProvider segmentIdProvider, SegmentId segmentId) {
         this.segmentStore = segmentStore;
         this.segmentId = segmentId;
         this.segmentIdProvider = segmentIdProvider;
-        this.enableGenerationCheck = enableGenerationCheck;
-        this.generation = generation;
 
         statistics = new Statistics();
         statistics.id = segmentId;
@@ -256,69 +248,6 @@ class SingleSegmentBufferWriter {
 
         log.debug("Writing data segment: {} ", statistics);
         segmentStore.writeSegment(segmentId, buffer, buffer.length - length, length);
-    }
-
-    void writeByte(byte value) {
-        position = BinaryUtils.writeByte(buffer, position, value);
-    }
-
-    void writeShort(short value) {
-        position = BinaryUtils.writeShort(buffer, position, value);
-    }
-
-    public void writeInt(int value) {
-        position = BinaryUtils.writeInt(buffer, position, value);
-    }
-
-    public void writeLong(long value) {
-        position = BinaryUtils.writeLong(buffer, position, value);
-    }
-
-    public void writeBytes(byte[] data, int offset, int length) {
-        arraycopy(data, offset, buffer, position, length);
-        position += length;
-    }
-
-    void writeRecordId(RecordId recordId) {
-        writeRecordId(recordId, true);
-    }
-
-    void writeRecordId(RecordId recordId, boolean reference) {
-        checkNotNull(recordId);
-        checkState(segmentReferences.size() + 1 < 0xffff, "Segment cannot have more than 0xffff references");
-        checkGCGeneration(recordId.getSegmentId());
-
-        if (recordId.getSegmentId().equals(segmentId)) {
-            writeShort((short) 0);
-        } else {
-            writeShort((short) segmentReferences.addOrReference(recordId.getSegmentId()));
-        }
-
-        writeInt(recordId.getRecordNumber());
-
-        statistics.recordIdCount++;
-    }
-
-    private void checkGCGeneration(SegmentId id) {
-        if (enableGenerationCheck) {
-            try {
-                if (isDataSegmentId(id.getLeastSignificantBits())) {
-                    if (id.getGcGeneration() < generation) {
-                        log.warn("Detected reference from {} to segment {} from a previous gc generation.", info(segmentId), info(id), new Exception());
-                    }
-                }
-            } catch (SegmentNotFoundException snfe) {
-                log.warn("Detected reference from {} to non existing segment {}", info(segmentId), id, snfe);
-            }
-        }
-    }
-
-    private static String info(SegmentId segmentId) {
-        String info = segmentId.toString();
-        if (isDataSegmentId(segmentId.getLeastSignificantBits())) {
-            info += " " + segmentId.getSegment().getSegmentInfo();
-        }
-        return info;
     }
 
 }

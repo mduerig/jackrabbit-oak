@@ -363,4 +363,51 @@ public final class RawRecordWriter {
         return (int) header;
     }
 
+    public boolean writeNode(int number, int type, RawNode node) {
+        ByteBuffer buffer = addRecord(number, type, nodeSize(node), nodeReferences(node));
+        if (buffer == null) {
+            return false;
+        }
+        if (node.getStableId() != null) {
+            putRecordId(buffer, node.getStableId());
+        } else {
+            buffer.putShort((short) 0).putInt(number);
+        }
+        putRecordId(buffer, node.getTemplate());
+        if (node.getChild() != null) {
+            putRecordId(buffer, node.getChild());
+        }
+        if (node.getChildrenMap() != null) {
+            putRecordId(buffer, node.getChildrenMap());
+        }
+        if (node.getPropertiesList() != null) {
+            putRecordId(buffer, node.getPropertiesList());
+        }
+        return true;
+    }
+
+    private static int nodeSize(RawNode node) {
+        int size = 2 * RawRecordId.BYTES;
+        if (node.getChild() != null) {
+            size += RawRecordId.BYTES;
+        }
+        if (node.getChildrenMap() != null) {
+            size += RawRecordId.BYTES;
+        }
+        if (node.getPropertiesList() != null) {
+            size += RawRecordId.BYTES;
+        }
+        return size;
+    }
+
+    private static Set<UUID> nodeReferences(RawNode node) {
+        Set<UUID> refs;
+        refs = maybeAdd(null, node.getChild());
+        refs = maybeAdd(refs, node.getChildrenMap());
+        refs = maybeAdd(refs, node.getPropertiesList());
+        refs = maybeAdd(refs, node.getTemplate());
+        refs = maybeAdd(refs, node.getStableId());
+        return refs;
+    }
+
 }

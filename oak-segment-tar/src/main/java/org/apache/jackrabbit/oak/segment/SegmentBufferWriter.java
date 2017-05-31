@@ -20,7 +20,6 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.identityHashCode;
 import static java.util.Arrays.sort;
@@ -30,17 +29,14 @@ import static org.apache.jackrabbit.oak.segment.RecordType.BRANCH;
 import static org.apache.jackrabbit.oak.segment.RecordType.BUCKET;
 import static org.apache.jackrabbit.oak.segment.RecordType.LEAF;
 import static org.apache.jackrabbit.oak.segment.RecordType.LIST;
+import static org.apache.jackrabbit.oak.segment.RecordType.NODE;
 import static org.apache.jackrabbit.oak.segment.RecordType.TEMPLATE;
 import static org.apache.jackrabbit.oak.segment.RecordType.VALUE;
-import static org.apache.jackrabbit.oak.segment.Segment.RECORD_SIZE;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -50,6 +46,7 @@ import org.apache.jackrabbit.oak.segment.io.raw.RawList;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapBranch;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapEntry;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapLeaf;
+import org.apache.jackrabbit.oak.segment.io.raw.RawNode;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordId;
 import org.apache.jackrabbit.oak.segment.io.raw.RawRecordWriter;
 import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
@@ -73,12 +70,6 @@ import org.apache.jackrabbit.oak.segment.io.raw.RawTemplate;
  * comment of {@link SegmentWriter}.
  */
 public class SegmentBufferWriter implements WriteOperationHandler {
-
-    /**
-     * Enable an extra check logging warnings should this writer create segments
-     * referencing segments from an older generation.
-     */
-    private static final boolean ENABLE_GENERATION_CHECK = Boolean.getBoolean("enable-generation-check");
 
     private final SegmentStore segmentStore;
 
@@ -152,7 +143,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
         nextRecordNumber = 0;
 
-        singleSegmentBufferWriter = new SingleSegmentBufferWriter(segmentStore, generation, idProvider, segmentId, ENABLE_GENERATION_CHECK);
+        singleSegmentBufferWriter = new SingleSegmentBufferWriter(segmentStore, generation, idProvider, segmentId);
         raw = RawRecordWriter.of(singleSegmentBufferWriter::readSegmentReference, singleSegmentBufferWriter::addRecord);
         String metaInfo = String.format("{\"wid\":\"%s\",\"sno\":%d,\"t\":%d}", wid, idProvider.getSegmentIdCount(), currentTimeMillis());
         segment = singleSegmentBufferWriter.newSegment(reader, metaInfo);
@@ -167,49 +158,6 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         dirty = false;
     }
 
-    public void writeByte(byte value) {
-        singleSegmentBufferWriter.writeByte(value);
-    }
-
-    public void writeShort(short value) {
-        singleSegmentBufferWriter.writeShort(value);
-    }
-
-    public void writeInt(int value) {
-        singleSegmentBufferWriter.writeInt(value);
-    }
-
-    public void writeLong(long value) {
-        singleSegmentBufferWriter.writeLong(value);
-    }
-
-    /**
-     * Write a record id, and marks the record id as referenced (removes it from
-     * the unreferenced set).
-     *
-     * @param recordId the record id
-     */
-    public void writeRecordId(RecordId recordId) {
-        singleSegmentBufferWriter.writeRecordId(recordId);
-    }
-
-    /**
-     * Write a record ID. Optionally, mark this record ID as being a reference.
-     * If a record ID is marked as a reference, the referenced record can't be a
-     * root record in this segment.
-     *
-     * @param recordId  the record ID.
-     * @param reference {@code true} if this record ID is a reference, {@code
-     *                  false} otherwise.
-     */
-    public void writeRecordId(RecordId recordId, boolean reference) {
-        singleSegmentBufferWriter.writeRecordId(recordId, reference);
-    }
-
-    public void writeBytes(byte[] data, int offset, int length) {
-        singleSegmentBufferWriter.writeBytes(data, offset, length);
-    }
-
     /**
      * Adds a segment header to the buffer and writes a segment to the segment
      * store. This is done automatically (called from prepare) when there is not
@@ -222,65 +170,6 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         }
         singleSegmentBufferWriter.flush();
         newSegment();
-    }
-
-    private static Set<UUID> segmentReferences(Collection<RecordId> rids) {
-        Set<UUID> references = null;
-        for (RecordId rid : rids) {
-            if (references == null) {
-                references = newHashSet();
-            }
-            references.add(rid.asUUID());
-        }
-        return references;
-    }
-
-    /**
-     * Before writing a record (which are written backwards, from the end of the
-     * file to the beginning), this method is called, to ensure there is enough
-     * space. A new segment is also created if there is not enough space in the
-     * segment lookup table or elsewhere.
-     * <p>
-     * This method does not actually write into the segment, just allocates the
-     * space (flushing the segment if needed and starting a new one), and sets
-     * the write position (records are written from the end to the beginning,
-     * but within a record from left to right).
-     *
-     * @param type  the record type (only used for root records)
-     * @param size  the size of the record, excluding the size used for the
-     *              record ids
-     * @param ids   the record ids
-     * @return a new record id
-     */
-    RecordId prepare(RecordType type, int size, Collection<RecordId> ids) throws IOException {
-        Set<UUID> references = segmentReferences(ids);
-        int recordSize = size + ids.size() * RECORD_SIZE;
-
-        if (segment == null) {
-            newSegment();
-        }
-
-        int number;
-
-        number = nextRecordNumber++;
-        if (addRecord(number, type.ordinal(), recordSize, references) != null) {
-            dirty = true;
-            return new RecordId(segment.getSegmentId(), number);
-        }
-
-        flush();
-
-        number = nextRecordNumber++;
-        if (addRecord(number, type.ordinal(), recordSize, references) != null) {
-            dirty = true;
-            return new RecordId(segment.getSegmentId(), number);
-        }
-
-        throw new IllegalArgumentException("the record is too big");
-    }
-
-    private ByteBuffer addRecord(int number, int type, int size, Set<UUID> references) {
-        return singleSegmentBufferWriter.addRecord(number, type, size, references);
     }
 
     RecordId writeMapLeaf(int level, Collection<MapEntry> entries) throws IOException {
@@ -369,6 +258,10 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     RecordId writeTemplate(RawTemplate template) throws IOException {
         return writeRecord(TEMPLATE, (n, t) -> raw.writeTemplate(n, t, template));
+    }
+
+    RecordId writeNode(RawNode node) throws IOException {
+        return writeRecord(NODE, (n, t) -> raw.writeNode(n, t, node));
     }
 
     private RawRecordId asRawRecordId(RecordId id) {
