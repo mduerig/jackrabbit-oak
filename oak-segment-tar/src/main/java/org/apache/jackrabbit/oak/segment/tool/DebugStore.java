@@ -35,7 +35,6 @@ import java.util.UUID;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
-
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.RecordType;
 import org.apache.jackrabbit.oak.segment.RecordUsageAnalyser;
@@ -112,9 +111,7 @@ public class DebugStore implements Runnable {
 
         for (int i = 0; i < segment.getReferencedSegmentIdCount(); i++) {
             UUID uuid = segment.getReferencedSegmentId(i);
-            long msb = uuid.getMostSignificantBits();
-            long lsb = uuid.getLeastSignificantBits();
-            result.add(store.getSegmentIdProvider().newSegmentId(msb, lsb));
+            result.add(store.getSegmentIdProvider().newSegmentId(uuid));
         }
 
         return result;

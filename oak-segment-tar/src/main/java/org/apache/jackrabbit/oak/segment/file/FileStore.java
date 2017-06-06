@@ -160,7 +160,7 @@ public class FileStore extends AbstractFileStore {
         @Override
         public Set<UUID> get() {
             Set<UUID> references = newHashSet();
-            for (SegmentId id : tracker.getReferencedSegmentIds()) {
+            for (SegmentId id : segmentTracker.getReferencedSegmentIds()) {
                 if (id.isBulkSegmentId()) {
                     references.add(id.asUUID());
                 }
@@ -256,7 +256,7 @@ public class FileStore extends AbstractFileStore {
 
     FileStore bind(TarRevisions revisions) throws IOException {
         this.revisions = revisions;
-        this.revisions.bind(this, tracker, initialNode());
+        this.revisions.bind(this, segmentIdProvider, initialNode());
         return this;
     }
 
@@ -491,7 +491,7 @@ public class FileStore extends AbstractFileStore {
                 data = ByteBuffer.wrap(buffer, offset, length);
             }
 
-            segment = Segment.newSegment(tracker, segmentReader, id, data);
+            segment = Segment.newSegment(segmentIdProvider, segmentReader, id, data);
             generation = segment.getGcGeneration();
             references = readReferences(segment);
             binaryReferences = readBinaryReferences(segment);
@@ -829,7 +829,7 @@ public class FileStore extends AbstractFileStore {
             if (cleanupResult.isInterrupted()) {
                 gcListener.info("TarMK GC #{}: cleanup interrupted", GC_COUNT);
             }
-            tracker.clearSegmentIdTables(cleanupResult.getReclaimedSegmentIds(), compactionResult.gcInfo());
+            segmentTracker.clearSegmentIdTables(cleanupResult.getReclaimedSegmentIds(), compactionResult.gcInfo());
             gcListener.info("TarMK GC #{}: cleanup marking files for deletion: {}", GC_COUNT, toFileNames(cleanupResult.getRemovableFiles()));
 
             long finalSize = size();

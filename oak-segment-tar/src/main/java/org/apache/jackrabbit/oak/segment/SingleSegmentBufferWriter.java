@@ -135,9 +135,7 @@ class SingleSegmentBufferWriter {
         if (id.equals(segmentId.asUUID())) {
             return 0;
         }
-        long msb = id.getMostSignificantBits();
-        long lsb = id.getLeastSignificantBits();
-        SegmentId sid = segmentIdProvider.newSegmentId(msb, lsb);
+        SegmentId sid = segmentIdProvider.newSegmentId(id);
         return segmentReferences.addOrReference(sid);
     }
 
@@ -169,9 +167,7 @@ class SingleSegmentBufferWriter {
                     if (reference.equals(segmentId.asUUID())) {
                         continue;
                     }
-                    long msb = reference.getMostSignificantBits();
-                    long lsb = reference.getLeastSignificantBits();
-                    SegmentId sid = segmentIdProvider.newSegmentId(msb, lsb);
+                    SegmentId sid = segmentIdProvider.newSegmentId(reference);
                     if (segmentReferences.contains(sid)) {
                         continue;
                     }

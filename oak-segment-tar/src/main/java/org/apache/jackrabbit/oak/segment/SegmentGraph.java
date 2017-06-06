@@ -513,9 +513,7 @@ public final class SegmentGraph {
 
         SegmentId getSegmentId() {
             if (id == null) {
-                long msb = uuid.getMostSignificantBits();
-                long lsb = uuid.getLeastSignificantBits();
-                id = idProvider.newSegmentId(msb, lsb);
+                id = idProvider.newSegmentId(uuid);
             }
             return id;
         }

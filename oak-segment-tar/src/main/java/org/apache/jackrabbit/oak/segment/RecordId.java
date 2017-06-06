@@ -52,9 +52,7 @@ public final class RecordId implements Comparable<RecordId> {
         Matcher matcher = PATTERN.matcher(id);
         if (matcher.matches()) {
             UUID uuid = UUID.fromString(matcher.group(1));
-            SegmentId segmentId = idProvider.newSegmentId(
-                    uuid.getMostSignificantBits(),
-                    uuid.getLeastSignificantBits());
+            SegmentId segmentId = idProvider.newSegmentId(uuid);
 
             int offset;
             if (matcher.group(3) != null) {

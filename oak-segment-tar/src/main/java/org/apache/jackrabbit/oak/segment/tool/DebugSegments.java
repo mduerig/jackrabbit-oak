@@ -154,7 +154,7 @@ public class DebugSegments implements Runnable {
 
         if (matcher.group(1) != null) {
             UUID uuid = UUID.fromString(matcher.group(1));
-            SegmentId id = store.getSegmentIdProvider().newSegmentId(uuid.getMostSignificantBits(), uuid.getLeastSignificantBits());
+            SegmentId id = store.getSegmentIdProvider().newSegmentId(uuid);
             System.out.println(id.getSegment());
             return;
         }

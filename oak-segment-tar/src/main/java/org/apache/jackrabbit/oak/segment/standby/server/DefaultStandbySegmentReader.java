@@ -41,10 +41,8 @@ class DefaultStandbySegmentReader implements StandbySegmentReader {
     @Override
     public byte[] readSegment(String segmentId) {
         UUID uuid = UUID.fromString(segmentId);
-        long msb = uuid.getMostSignificantBits();
-        long lsb = uuid.getLeastSignificantBits();
 
-        Segment segment = readSegmentWithRetry(store, store.getSegmentIdProvider().newSegmentId(msb, lsb));
+        Segment segment = readSegmentWithRetry(store, store.getSegmentIdProvider().newSegmentId(uuid));
 
         if (segment == null) {
             return null;

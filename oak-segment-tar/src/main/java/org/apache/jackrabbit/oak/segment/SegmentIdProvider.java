@@ -18,6 +18,8 @@
 
 package org.apache.jackrabbit.oak.segment;
 
+import java.util.UUID;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -31,6 +33,10 @@ public interface SegmentIdProvider {
      * @return The number of distinct segment ids this provider is tracking.
      */
     int getSegmentIdCount();
+
+    default SegmentId newSegmentId(UUID id) {
+        return newSegmentId(id.getMostSignificantBits(), id.getLeastSignificantBits());
+    }
 
     /**
      * Provide a {@code SegmentId} represented by the given MSB/LSB pair.

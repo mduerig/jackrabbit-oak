@@ -209,10 +209,7 @@ class StandbyClientSyncExecution {
     }
 
     private boolean isLocal(UUID id) {
-        return store.containsSegment(idProvider.newSegmentId(
-                id.getMostSignificantBits(),
-                id.getLeastSignificantBits()
-        ));
+        return store.containsSegment(idProvider.newSegmentId(id));
     }
 
     private void copySegmentFromPrimary(UUID uuid) throws Exception {
@@ -222,9 +219,7 @@ class StandbyClientSyncExecution {
             throw new IllegalStateException("Unable to read segment " + uuid);
         }
 
-        long msb = uuid.getMostSignificantBits();
-        long lsb = uuid.getLeastSignificantBits();
-        SegmentId segmentId = idProvider.newSegmentId(msb, lsb);
+        SegmentId segmentId = idProvider.newSegmentId(uuid);
         store.writeSegment(segmentId, data, 0, data.length);
     }
 

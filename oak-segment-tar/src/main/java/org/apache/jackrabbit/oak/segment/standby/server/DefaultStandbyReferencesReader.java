@@ -42,10 +42,7 @@ class DefaultStandbyReferencesReader implements StandbyReferencesReader {
     public Iterable<String> readReferences(String id) {
         UUID uuid = UUID.fromString(id);
 
-        long msb = uuid.getMostSignificantBits();
-        long lsb = uuid.getLeastSignificantBits();
-
-        Segment segment = readSegmentWithRetry(store, store.getSegmentIdProvider().newSegmentId(msb, lsb));
+        Segment segment = readSegmentWithRetry(store, store.getSegmentIdProvider().newSegmentId(uuid));
 
         if (segment == null) {
             return null;

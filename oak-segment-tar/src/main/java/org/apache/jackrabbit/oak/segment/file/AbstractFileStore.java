@@ -34,6 +34,8 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Supplier;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
 import org.apache.jackrabbit.oak.segment.CachingSegmentReader;
@@ -87,7 +89,9 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
     }
 
     @Nonnull
-    final SegmentTracker tracker;
+    final SegmentIdProvider segmentIdProvider;
+
+    final SegmentTracker segmentTracker;
 
     @Nonnull
     final CachingSegmentReader segmentReader;
@@ -112,14 +116,59 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
 
     protected final IOMonitor ioMonitor;
 
+    private final class CachedSegmentIdProvider implements SegmentIdProvider {
+
+        private final Cache<UUID, SegmentId> cache = CacheBuilder.newBuilder().build();
+
+        private final SegmentIdProvider wrapped;
+
+        CachedSegmentIdProvider(SegmentIdProvider wrapped) {
+            this.wrapped = wrapped;
+        }
+
+        @Override
+        public int getSegmentIdCount() {
+            return wrapped.getSegmentIdCount();
+        }
+
+        @Override
+        public SegmentId newSegmentId(UUID id) {
+            try {
+                return cache.get(id, () -> wrapped.newSegmentId(id));
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Nonnull
+        @Override
+        public SegmentId newSegmentId(long msb, long lsb) {
+            return wrapped.newSegmentId(msb, lsb);
+        }
+
+        @Nonnull
+        @Override
+        public SegmentId newDataSegmentId() {
+            return wrapped.newDataSegmentId();
+        }
+
+        @Nonnull
+        @Override
+        public SegmentId newBulkSegmentId() {
+            return wrapped.newBulkSegmentId();
+        }
+
+    }
+
     AbstractFileStore(final FileStoreBuilder builder) {
         this.directory = builder.getDirectory();
-        this.tracker = new SegmentTracker(new SegmentIdFactory() {
+        this.segmentTracker = new SegmentTracker(new SegmentIdFactory() {
             @Override @Nonnull
             public SegmentId newSegmentId(long msb, long lsb) {
                 return new SegmentId(AbstractFileStore.this, msb, lsb, segmentCache::recordHit);
             }
         });
+        this.segmentIdProvider = new CachedSegmentIdProvider(segmentTracker);
         this.blobStore = builder.getBlobStore();
         this.segmentCache = new SegmentCache(builder.getSegmentCacheSize());
         this.segmentReader = new CachingSegmentReader(new Supplier<SegmentWriter>() {
@@ -204,7 +253,7 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
 
     @Nonnull
     public SegmentIdProvider getSegmentIdProvider() {
-        return tracker;
+        return segmentIdProvider;
     }
 
     /**
@@ -240,7 +289,7 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         int generation = Segment.getGcGeneration(buffer, id);
         w.writeEntry(msb, lsb, data, 0, data.length, generation);
         if (SegmentId.isDataSegmentId(lsb)) {
-            Segment segment = Segment.newSegment(tracker, segmentReader, tracker.newSegmentId(msb, lsb), buffer);
+            Segment segment = Segment.newSegment(segmentIdProvider, segmentReader, segmentIdProvider.newSegmentId(id), buffer);
             populateTarGraph(segment, w);
             populateTarBinaryReferences(segment, w);
         }
@@ -307,7 +356,7 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         if (buffer == null) {
             throw new SegmentNotFoundException(id);
         }
-        return Segment.newSegment(tracker, segmentReader, id, buffer);
+        return Segment.newSegment(segmentIdProvider, segmentReader, id, buffer);
     }
 
 }

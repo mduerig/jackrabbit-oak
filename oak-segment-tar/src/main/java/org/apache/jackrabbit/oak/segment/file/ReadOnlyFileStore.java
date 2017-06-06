@@ -82,7 +82,7 @@ public class ReadOnlyFileStore extends AbstractFileStore {
 
     ReadOnlyFileStore bind(@Nonnull ReadOnlyRevisions revisions) throws IOException {
         this.revisions = revisions;
-        this.revisions.bind(this, tracker);
+        this.revisions.bind(this, segmentIdProvider);
         currentHead = revisions.getHead();
         return this;
     }
@@ -93,7 +93,7 @@ public class ReadOnlyFileStore extends AbstractFileStore {
      * @param revision
      */
     public void setRevision(String revision) {
-        RecordId newHead = RecordId.fromString(tracker, revision);
+        RecordId newHead = RecordId.fromString(segmentIdProvider, revision);
         if (revisions.setHead(currentHead, newHead)) {
             currentHead = newHead;
         }
@@ -164,9 +164,7 @@ public class ReadOnlyFileStore extends AbstractFileStore {
     public Iterable<SegmentId> getSegmentIds() {
         List<SegmentId> ids = new ArrayList<>();
         for (UUID id : tarFiles.getSegmentIds()) {
-            long msb = id.getMostSignificantBits();
-            long lsb = id.getLeastSignificantBits();
-            ids.add(tracker.newSegmentId(msb, lsb));
+            ids.add(segmentIdProvider.newSegmentId(id));
         }
         return ids;
     }
@@ -177,6 +175,6 @@ public class ReadOnlyFileStore extends AbstractFileStore {
     }
 
     public Set<SegmentId> getReferencedSegmentIds() {
-        return tracker.getReferencedSegmentIds();
+        return segmentTracker.getReferencedSegmentIds();
     }
 }

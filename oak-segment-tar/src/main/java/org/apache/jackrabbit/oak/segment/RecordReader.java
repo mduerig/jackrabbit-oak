@@ -231,9 +231,7 @@ class RecordReader {
     }
 
     private SegmentId dereferenceSegmentId(UUID segmentId) {
-        long msb = segmentId.getMostSignificantBits();
-        long lsb = segmentId.getLeastSignificantBits();
-        return segmentIdProvider.newSegmentId(msb, lsb);
+        return segmentIdProvider.newSegmentId(segmentId);
     }
 
 }
