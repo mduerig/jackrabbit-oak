@@ -37,9 +37,9 @@ import org.apache.jackrabbit.api.security.user.User;
 import org.apache.jackrabbit.oak.AbstractSecurityTest;
 import org.apache.jackrabbit.oak.security.user.UserManagerImpl;
 import org.apache.jackrabbit.oak.spi.security.principal.EveryonePrincipal;
+import org.apache.jackrabbit.oak.spi.security.principal.PrincipalImpl;
 import org.apache.jackrabbit.oak.spi.security.user.AuthorizableType;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -178,7 +178,6 @@ public class UserQueryManagerTest extends AbstractSecurityTest {
         assertResultContainsAuthorizables(result);
     }
 
-
     @Test
     public void testFindWithCurrentRelPath() throws Exception {
         user.setProperty(propertyName, v);
@@ -197,7 +196,6 @@ public class UserQueryManagerTest extends AbstractSecurityTest {
         assertResultContainsAuthorizables(result);
     }
 
-    @Ignore("OAK-6290")
     @Test
     public void testFindWithRelPathMultipleSelectorNames() throws Exception {
         user.setProperty(propertyName, v);
@@ -205,8 +203,10 @@ public class UserQueryManagerTest extends AbstractSecurityTest {
         g.setProperty("rel/path/to/" + propertyName, v);
         root.commit();
 
-        Iterator<Authorizable> result = queryMgr.findAuthorizables("rel/path/to/" + propertyName, v.getString(), AuthorizableType.AUTHORIZABLE, false);
-        assertResultContainsAuthorizables(result, g);
+        for (AuthorizableType type : new AuthorizableType[] {AuthorizableType.AUTHORIZABLE, AuthorizableType.GROUP}) {
+            Iterator<Authorizable> result = queryMgr.findAuthorizables("rel/path/to/" + propertyName, v.getString(), AuthorizableType.AUTHORIZABLE, false);
+            assertResultContainsAuthorizables(result, g);
+        }
     }
 
     @Test
@@ -495,5 +495,37 @@ public class UserQueryManagerTest extends AbstractSecurityTest {
 
         Iterator<Authorizable> result = queryMgr.findAuthorizables(q);
         assertEquals(ImmutableList.of(user, g, g2), ImmutableList.copyOf(result));
+    }
+
+    @Test
+    public void testQueryNameMatchesWithUnderscoreId() throws Exception {
+        Group g = createGroup("group_with_underscore", null);
+        root.commit();
+
+        Query q = new Query() {
+            @Override
+            public <T> void build(QueryBuilder<T> builder) {
+                builder.setCondition(builder.nameMatches("group_with_underscore"));
+            }
+        };
+
+        Iterator<Authorizable> result = queryMgr.findAuthorizables(q);
+        assertResultContainsAuthorizables(result, g);
+    }
+
+    @Test
+    public void testQueryNameMatchesWithUnderscorePrincipalName() throws Exception {
+        Group g = createGroup("g", new PrincipalImpl("group_with_underscore"));
+        root.commit();
+
+        Query q = new Query() {
+            @Override
+            public <T> void build(QueryBuilder<T> builder) {
+                builder.setCondition(builder.nameMatches("group_with_underscore"));
+            }
+        };
+
+        Iterator<Authorizable> result = queryMgr.findAuthorizables(q);
+        assertResultContainsAuthorizables(result, g);
     }
 }

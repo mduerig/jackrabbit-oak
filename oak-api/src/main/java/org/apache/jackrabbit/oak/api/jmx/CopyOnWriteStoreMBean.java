@@ -17,17 +17,34 @@
  * under the License.
  */
 
-package org.apache.jackrabbit.oak.plugins.index.progress;
+package org.apache.jackrabbit.oak.api.jmx;
 
-import java.util.Set;
+import aQute.bnd.annotation.ProviderType;
 
-public interface NodeCountEstimator {
-    NodeCountEstimator NOOP = (basePath, indexPaths) -> -1;
+import javax.management.openmbean.TabularData;
+
+/**
+ * MBean for managing the copy-on-write node store
+ */
+@ProviderType
+public interface CopyOnWriteStoreMBean {
+    String TYPE = "CopyOnWriteStoreManager";
 
     /**
-     * Provides an estimate of the sub tree node count at given path
-     * @param basePath path under which count is requested
-     * @return estimated count or -1 if unknown
+     * Enabled the temporary, copy-on-write store
+     * @return the operation status
      */
-    long getEstimatedNodeCount(String basePath, Set<String> indexPaths);
+    String enableCopyOnWrite();
+
+    /**
+     * Disables the temporary store and switched the repository back to the "normal" mode.
+     * @return the operation status
+     */
+    String disableCopyOnWrite();
+
+    /**
+     * Returns the copy-on-write status
+     * @return status of the copy-on-write mode
+     */
+    String getStatus();
 }
