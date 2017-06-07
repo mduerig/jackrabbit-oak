@@ -25,10 +25,9 @@ import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_L
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_MASK;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.LONG_LENGTH_SIZE;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_BRANCH_BITMAP_SIZE;
+import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_DIFF_HEADER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_HEADER_SIZE_BITS;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_EMPTY_HEADER;
-import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MAP_LEAF_HASH_SIZE;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_DELTA;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MARKER;
 import static org.apache.jackrabbit.oak.segment.io.raw.RawRecordConstants.MEDIUM_LENGTH_MASK;
@@ -165,7 +164,7 @@ public final class RawRecordWriter {
     }
 
     public boolean writeMapLeaf(int number, int type) {
-        ByteBuffer buffer = addRecord(number, type, RawRecordConstants.MAP_HEADER_SIZE, null);
+        ByteBuffer buffer = addRecord(number, type, Integer.BYTES, null);
         if (buffer == null) {
             return false;
         }
@@ -174,7 +173,7 @@ public final class RawRecordWriter {
     }
 
     public boolean writeMapLeaf(int number, int type, RawMapLeaf leaf) {
-        ByteBuffer buffer = addRecord(number, type, RawRecordConstants.MAP_HEADER_SIZE + leaf.getEntries().size() * (MAP_LEAF_HASH_SIZE + 2 * RawRecordId.BYTES), mapLeafReferences(leaf));
+        ByteBuffer buffer = addRecord(number, type, Integer.BYTES + leaf.getEntries().size() * (Integer.BYTES + 2 * RawRecordId.BYTES), mapLeafReferences(leaf));
         if (buffer == null) {
             return false;
         }
@@ -202,8 +201,29 @@ public final class RawRecordWriter {
         return (level << MAP_HEADER_SIZE_BITS) | size;
     }
 
+    public boolean writeMapDiff(int number, int type, RawMapDiff diff) {
+        ByteBuffer buffer = addRecord(number, type, 2 * Integer.BYTES + 3 * RawRecordId.BYTES, mapDiffReferences(diff));
+        if (buffer == null) {
+            return false;
+        }
+        buffer.putInt(MAP_DIFF_HEADER);
+        buffer.putInt(diff.getEntry().getHash());
+        putRecordId(buffer, diff.getEntry().getKey());
+        putRecordId(buffer, diff.getEntry().getValue());
+        putRecordId(buffer, diff.getBase());
+        return true;
+    }
+
+    private static Set<UUID> mapDiffReferences(RawMapDiff diff) {
+        Set<UUID> refs;
+        refs = maybeAdd(null, diff.getBase());
+        refs = maybeAdd(refs, diff.getEntry().getKey());
+        refs = maybeAdd(refs, diff.getEntry().getValue());
+        return refs;
+    }
+
     public boolean writeMapBranch(int number, int type, RawMapBranch branch) {
-        ByteBuffer buffer = addRecord(number, type, MAP_BRANCH_BITMAP_SIZE + RawRecordConstants.MAP_HEADER_SIZE + branch.getReferences().size() * RawRecordId.BYTES, mapBranchReferences(branch));
+        ByteBuffer buffer = addRecord(number, type, 2 * Integer.BYTES + branch.getReferences().size() * RawRecordId.BYTES, mapBranchReferences(branch));
         if (buffer == null) {
             return false;
         }

@@ -34,7 +34,6 @@ import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.io.ByteStreams.read;
 import static java.lang.Long.numberOfLeadingZeros;
 import static java.lang.Math.min;
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.nCopies;
 import static org.apache.jackrabbit.oak.api.Type.BINARIES;
@@ -411,7 +410,7 @@ public class SegmentWriter {
                         if (value.equals(entry.getValue())) {
                             return base.getRecordId();
                         } else {
-                            return writer.writeMapBranch(entry.getHash(), asList(entry.getKey(), value, base.getRecordId()));
+                            return writer.writeMapDiff(base.getRecordId(), entry.getHash(), entry.getKey(), value);
                         }
                     }
                 }

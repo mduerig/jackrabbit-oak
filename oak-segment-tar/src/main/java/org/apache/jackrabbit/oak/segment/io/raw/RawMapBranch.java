@@ -17,6 +17,7 @@
 
 package org.apache.jackrabbit.oak.segment.io.raw;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.util.List;
@@ -24,6 +25,8 @@ import java.util.List;
 public class RawMapBranch {
 
     public static RawMapBranch of(int level, int count, int bitmap, List<RawRecordId> references) {
+        checkArgument(count > 0, "count");
+        checkArgument(level >= 0, "level");
         return new RawMapBranch(level, count, bitmap, checkNotNull(references));
     }
 

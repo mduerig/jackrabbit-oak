@@ -44,6 +44,7 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Charsets;
 import org.apache.jackrabbit.oak.segment.io.raw.RawList;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapBranch;
+import org.apache.jackrabbit.oak.segment.io.raw.RawMapDiff;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapEntry;
 import org.apache.jackrabbit.oak.segment.io.raw.RawMapLeaf;
 import org.apache.jackrabbit.oak.segment.io.raw.RawNode;
@@ -196,12 +197,16 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return writeRecord(LEAF, (n, t) -> raw.writeMapLeaf(n, t));
     }
 
-    RecordId writeMapBranch(int level, int entryCount, int bitmap, List<RecordId> ids) throws IOException {
-        return writeMapBranch(RawMapBranch.of(level, entryCount, bitmap, asRawRecordIdList(ids)));
+    RecordId writeMapDiff(RecordId base, int hash, RecordId key, RecordId value) throws IOException {
+        return writeMapDiff(RawMapDiff.of(asRawRecordId(base), RawMapEntry.of(hash, asRawRecordId(key), asRawRecordId(value))));
     }
 
-    RecordId writeMapBranch(int bitmap, List<RecordId> ids) throws IOException {
-        return writeMapBranch(RawMapBranch.of(0, -1, bitmap, asRawRecordIdList(ids)));
+    private RecordId writeMapDiff(RawMapDiff diff) throws IOException {
+        return writeRecord(BRANCH, (n, t) -> raw.writeMapDiff(n, t, diff));
+    }
+
+    RecordId writeMapBranch(int level, int entryCount, int bitmap, List<RecordId> ids) throws IOException {
+        return writeMapBranch(RawMapBranch.of(level, entryCount, bitmap, asRawRecordIdList(ids)));
     }
 
     private RecordId writeMapBranch(RawMapBranch branch) throws IOException {
