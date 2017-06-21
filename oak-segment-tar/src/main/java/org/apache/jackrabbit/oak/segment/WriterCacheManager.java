@@ -39,6 +39,7 @@ import com.google.common.base.Supplier;
 import com.google.common.cache.CacheStats;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
 import org.apache.jackrabbit.oak.segment.file.PriorityCache;
+import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 
 /**
  * Instances of this class manage the deduplication caches used
@@ -104,6 +105,14 @@ public abstract class WriterCacheManager {
      */
     @Nonnull
     public abstract Cache<String, RecordId> getNodeCache(int generation);
+
+    // michid doc
+    @Nonnull
+    public WriterCacheManager withAccessTracking(
+            @Nonnull String name,
+            @Nonnull StatisticsProvider statisticsProvider) {
+        return new AccessTrackingCacheManager(checkNotNull(name), checkNotNull(statisticsProvider), this);
+    }
 
     /**
      * @return  statistics for the string cache or {@code null} if not available.
@@ -420,5 +429,53 @@ public abstract class WriterCacheManager {
             nodeCache().purgeGenerations(generations);
         }
 
+    }
+
+    // michid doc
+    private static class AccessTrackingCacheManager extends WriterCacheManager {
+        @Nonnull
+        private final String name;
+
+        @Nonnull
+        private final StatisticsProvider statisticsProvider;
+
+        @Nonnull
+        private final WriterCacheManager delegate;
+
+        public AccessTrackingCacheManager(
+                @Nonnull String name,
+                @Nonnull StatisticsProvider statisticsProvider,
+                @Nonnull WriterCacheManager delegate) {
+            this.name = name;
+            this.statisticsProvider = statisticsProvider;
+            this.delegate = delegate;
+        }
+
+        @Nonnull
+        @Override
+        public Cache<String, RecordId> getStringCache(int generation) {
+            return new CacheAccessTracker<>(
+                    "oak.segment.string-deduplication-cache-" + name,
+                    delegate.getStringCache(generation),
+                    statisticsProvider);
+        }
+
+        @Nonnull
+        @Override
+        public Cache<Template, RecordId> getTemplateCache(int generation) {
+            return new CacheAccessTracker<>(
+                    "oak.segment.template-deduplication-cache-" + name,
+                    delegate.getTemplateCache(generation),
+                    statisticsProvider);
+        }
+
+        @Nonnull
+        @Override
+        public Cache<String, RecordId> getNodeCache(int generation) {
+            return new CacheAccessTracker<>(
+                    "oak.segment.node-deduplication-cache-" + name,
+                    delegate.getNodeCache(generation),
+                    statisticsProvider);
+        }
     }
 }
