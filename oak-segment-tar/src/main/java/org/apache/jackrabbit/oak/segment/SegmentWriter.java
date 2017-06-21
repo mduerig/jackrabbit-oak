@@ -321,7 +321,7 @@ public class SegmentWriter {
                 @Nonnull
                 @Override
                 public RecordId execute(@Nonnull SegmentBufferWriter writer) throws IOException {
-                    return with(writer, true).writeNode(state);
+                    return with(writer).writeNode(state);
                 }
             });
             return new SegmentNodeState(reader, this, nodeId);
@@ -369,7 +369,7 @@ public class SegmentWriter {
         public abstract RecordId execute(@Nonnull SegmentBufferWriter writer) throws IOException;
 
         @Nonnull
-        SegmentWriteOperation with(@Nonnull SegmentBufferWriter writer, boolean compacting) {
+        SegmentWriteOperation with(@Nonnull SegmentBufferWriter writer) {
             checkState(this.writer == null);
             this.writer = writer;
             int generation = writer.getGeneration();
@@ -377,11 +377,6 @@ public class SegmentWriter {
             this.templateCache = cacheManager.getTemplateCache(generation, COMPACT);
             this.nodeCache = cacheManager.getNodeCache(generation, COMPACT);
             return this;
-        }
-
-        @Nonnull
-        SegmentWriteOperation with(@Nonnull SegmentBufferWriter writer) {
-            return with(writer, false);
         }
 
         private RecordId writeMap(@Nullable MapRecord base,
