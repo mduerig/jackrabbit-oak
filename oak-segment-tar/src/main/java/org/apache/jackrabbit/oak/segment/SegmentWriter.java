@@ -45,7 +45,6 @@ import static org.apache.jackrabbit.oak.api.Type.STRING;
 import static org.apache.jackrabbit.oak.segment.MapEntry.newModifiedMapEntry;
 import static org.apache.jackrabbit.oak.segment.MapRecord.BUCKETS_PER_LEVEL;
 import static org.apache.jackrabbit.oak.segment.RecordWriters.newNodeStateWriter;
-import static org.apache.jackrabbit.oak.segment.WriterCacheManager.Operation.COMPACT;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -373,9 +372,9 @@ public class SegmentWriter {
             checkState(this.writer == null);
             this.writer = writer;
             int generation = writer.getGeneration();
-            this.stringCache = cacheManager.getStringCache(generation, COMPACT);
-            this.templateCache = cacheManager.getTemplateCache(generation, COMPACT);
-            this.nodeCache = cacheManager.getNodeCache(generation, COMPACT);
+            this.stringCache = cacheManager.getStringCache(generation);
+            this.templateCache = cacheManager.getTemplateCache(generation);
+            this.nodeCache = cacheManager.getNodeCache(generation);
             return this;
         }
 
