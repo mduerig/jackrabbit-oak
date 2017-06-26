@@ -182,7 +182,9 @@ public class FileStore extends AbstractFileStore {
                 .withGeneration(new Supplier<Integer>() {
                     @Override
                     public Integer get() {
-                        return getGcGeneration();
+                        // michid doc even by writer odd by compactor
+                        int gen = getGcGeneration();
+                        return gen % 2 == 0 ? gen : gen + 1;
                     }
                 })
                 .withWriterPool()
@@ -662,7 +664,15 @@ public class FileStore extends AbstractFileStore {
             return CompactionResult.succeeded(generation, gcOptions, compactedRootId);
         }
 
-        @Nonnull
+        @CheckForNull
+        private SegmentNodeState getBase() {
+            String root = gcJournal.read().getRoot();
+            RecordId rootId = RecordId.fromString(tracker, root);
+            return RecordId.NULL.equals(rootId)
+                ? null  // michid this results in full compaction. log accordingly once we have full/tail compaction implemented
+                : segmentReader.readNode(rootId);  // michid guard against SNFE in case of a rollback and against rebasing onto a non compactor written state in case of a tampered journal.log
+        }
+
         synchronized CompactionResult compact() {
             final int newGeneration = getGcGeneration() + 1;
             try {
@@ -685,7 +695,7 @@ public class FileStore extends AbstractFileStore {
                 OnlineCompactor compactor = new OnlineCompactor(
                         segmentReader, writer, getBlobStore(), cancel, compactionMonitor::onNode);
 
-                SegmentNodeState after = compact(null, before, compactor, writer);
+                SegmentNodeState after = compact(getBase(), before, compactor, writer);
                 if (after == null) {
                     gcListener.warn("TarMK GC #{}: compaction cancelled: {}.", GC_COUNT, cancel);
                     return compactionAborted(newGeneration);
@@ -1106,6 +1116,7 @@ public class FileStore extends AbstractFileStore {
                 @Nonnull final SegmentGCOptions gcOptions,
                 @Nonnull final RecordId compactedRootId) {
             return new CompactionResult(newGeneration) {
+                // michid incorrect for reclaim > 2
                 final int oldGeneration = newGeneration - gcOptions.getRetainedGenerations();
 
                 @Override
@@ -1155,6 +1166,7 @@ public class FileStore extends AbstractFileStore {
                 final int currentGeneration,
                 @Nonnull final SegmentGCOptions gcOptions) {
             return new CompactionResult(currentGeneration) {
+                // michid incorrect for reclaim > 2
                 final int oldGeneration = currentGeneration - gcOptions.getRetainedGenerations();
                 @Override
                 Predicate<Integer> reclaimer() {
@@ -1216,11 +1228,12 @@ public class FileStore extends AbstractFileStore {
             return new Predicate<Integer>() {
                 @Override
                 public boolean apply(Integer generation) {
-                    return generation <= oldGeneration;
+                    // Old and uncompacted
+                    return generation <= oldGeneration && generation % 2 == 0;
                 }
                 @Override
                 public String toString() {
-                    return "(generation<=" + oldGeneration + ")";
+                    return "(generation<=" + oldGeneration + " && generation % 2 == 0)";
                 }
             };
         }
