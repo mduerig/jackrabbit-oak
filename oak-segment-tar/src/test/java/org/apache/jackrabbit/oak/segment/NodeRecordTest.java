@@ -108,7 +108,7 @@ public class NodeRecordTest {
                     .with(nodesOnlyCache())
                     .build(store);
 
-            generation.set(new GCGeneration(1));
+            generation.set(new GCGeneration(1));  // michid double check
 
             // Write a new node with a non trivial template. This record will
             // belong to generation 1.

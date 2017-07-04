@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
  * 'repoSize, reclaimedSize, timestamp, gcGen, nodes compacted'.
  */
 public class GCJournal {
-
+// michid incorporate compaction type: full vs. tail
     private static final Logger LOG = LoggerFactory.getLogger(GCJournal.class);
 
     public static final String GC_JOURNAL = "gc.log";
