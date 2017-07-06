@@ -24,6 +24,10 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.apache.commons.io.FileUtils.listFiles;
+import static org.xerial.snappy.Snappy.compress;
+import static org.xerial.snappy.Snappy.isValidCompressedBuffer;
+import static org.xerial.snappy.Snappy.uncompress;
+import static org.xerial.snappy.Snappy.uncompressedLength;
 
 import java.io.Closeable;
 import java.io.File;
@@ -52,6 +56,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.xerial.snappy.Snappy;
 
 public class TarFiles implements Closeable {
 
@@ -443,7 +448,7 @@ public class TarFiles implements Closeable {
                 if (writer != null) {
                     ByteBuffer b = writer.readEntry(msb, lsb);
                     if (b != null) {
-                        return b;
+                        return decompress(b);
                     }
                 }
                 head = readers;
@@ -454,7 +459,7 @@ public class TarFiles implements Closeable {
             for (TarReader reader : iterable(head)) {
                 ByteBuffer b = reader.readEntry(msb, lsb);
                 if (b != null) {
-                    return b;
+                    return decompress(b);
                 }
             }
         } catch (IOException e) {
@@ -464,15 +469,43 @@ public class TarFiles implements Closeable {
         return null;
     }
 
+    private static ByteBuffer decompress(ByteBuffer input) throws IOException {
+        int length;
+        if (input.isDirect()) {
+            if (!isValidCompressedBuffer(input)) {
+                return input;
+            }
+            length = uncompressedLength(input);
+        } else {
+            if (!isValidCompressedBuffer(input.array())) {
+                return input;
+            }
+            length = uncompressedLength(input.array());
+        }
+
+        if (input.isDirect()) {
+            ByteBuffer output = ByteBuffer.allocateDirect(length);
+            uncompress(input, output);
+            return output;
+        } else {
+            byte[] in = input.array();
+            byte[] out = new byte[length];
+            uncompress(in, 0, in.length, out, 0);
+            return ByteBuffer.wrap(out);
+        }
+    }
+
     public void writeSegment(UUID id, byte[] buffer, int offset, int length, int generation, Set<UUID> references, Set<String> binaryReferences) throws IOException {
+        byte[] compressed = new byte[Snappy.maxCompressedLength(length)];
+        int compressedLength = compress(buffer, offset, length, compressed, 0);
         lock.writeLock().lock();
         try {
             long size = writer.writeEntry(
                     id.getMostSignificantBits(),
                     id.getLeastSignificantBits(),
-                    buffer,
-                    offset,
-                    length,
+                    compressed,
+                    0,
+                    compressedLength,
                     generation
             );
             if (references != null) {
