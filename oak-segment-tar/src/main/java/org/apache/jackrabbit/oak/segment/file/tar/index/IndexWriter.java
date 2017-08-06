@@ -36,11 +36,11 @@ public class IndexWriter {
 
         int size;
 
+        int generation;
+
         int fullGeneration;
 
-        int tailGeneration;
-
-        boolean isTail;
+        boolean isCompacted;
 
     }
 
@@ -57,15 +57,15 @@ public class IndexWriter {
         this.blockSize = blockSize;
     }
 
-    public void addEntry(long msb, long lsb, int offset, int size, int fullGeneration, int tailGeneration, boolean isTail) {
+    public void addEntry(long msb, long lsb, int offset, int size, int generation, int fullGeneration, boolean isCompacted) {
         Entry entry = new Entry();
         entry.msb = msb;
         entry.lsb = lsb;
         entry.offset = offset;
         entry.size = size;
+        entry.generation = generation;
         entry.fullGeneration = fullGeneration;
-        entry.tailGeneration = tailGeneration;
-        entry.isTail = isTail;
+        entry.isCompacted = isCompacted;
         entries.add(entry);
     }
 
@@ -97,9 +97,9 @@ public class IndexWriter {
             buffer.putLong(entry.lsb);
             buffer.putInt(entry.offset);
             buffer.putInt(entry.size);
+            buffer.putInt(entry.generation);
             buffer.putInt(entry.fullGeneration);
-            buffer.putInt(entry.tailGeneration);
-            buffer.put((byte) (entry.isTail ? 1 : 0));
+            buffer.put((byte) (entry.isCompacted ? 1 : 0));
         }
 
         CRC32 checksum = new CRC32();

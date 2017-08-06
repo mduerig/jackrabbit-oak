@@ -27,10 +27,10 @@ public interface IndexEntry {
 
     int getLength();
 
+    int getGeneration();
+
     int getFullGeneration();
 
-    int getTailGeneration();
-
-    boolean isTail();
+    boolean isCompacted();
 
 }
