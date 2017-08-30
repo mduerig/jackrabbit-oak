@@ -990,7 +990,11 @@ public class DefaultSegmentWriter implements SegmentWriter {
             try {
                 GCGeneration thatGen = id.getSegmentId().getGcGeneration();
                 GCGeneration thisGen = writer.getGCGeneration();
-                return thatGen.compareWith(thisGen) < 0;
+                if (thatGen.isCompacted()) {
+                    return thatGen.getFullGeneration() < thisGen.getFullGeneration();
+                } else {
+                    return thatGen.compareWith(thisGen) < 0;
+                }
             } catch (SegmentNotFoundException snfe) {
                 // This SNFE means a defer compacted node state is too far
                 // in the past. It has been gc'ed already and cannot be
