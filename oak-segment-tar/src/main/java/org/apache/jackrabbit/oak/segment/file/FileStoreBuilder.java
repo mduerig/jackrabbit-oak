@@ -21,6 +21,7 @@ package org.apache.jackrabbit.oak.segment.file;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Sets.newHashSet;
 import static org.apache.jackrabbit.oak.segment.CachingSegmentReader.DEFAULT_STRING_CACHE_MB;
 import static org.apache.jackrabbit.oak.segment.CachingSegmentReader.DEFAULT_TEMPLATE_CACHE_MB;
 import static org.apache.jackrabbit.oak.segment.SegmentCache.DEFAULT_SEGMENT_CACHE_MB;
@@ -32,6 +33,8 @@ import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.defa
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
+import java.util.function.BiConsumer;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -40,13 +43,15 @@ import com.google.common.base.Predicate;
 import org.apache.jackrabbit.oak.segment.CacheWeights.NodeCacheWeigher;
 import org.apache.jackrabbit.oak.segment.CacheWeights.StringCacheWeigher;
 import org.apache.jackrabbit.oak.segment.CacheWeights.TemplateCacheWeigher;
-import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.RecordCache;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundExceptionListener;
 import org.apache.jackrabbit.oak.segment.WriterCacheManager;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions;
+import org.apache.jackrabbit.oak.segment.file.AbstractFileStore.FileStoreProbe;
+import org.apache.jackrabbit.oak.segment.file.tar.CompositeIOMonitor;
+import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.file.tar.IOMonitor;
-import org.apache.jackrabbit.oak.segment.file.tar.IOMonitorAdapter;
+import org.apache.jackrabbit.oak.segment.file.tar.TarFiles.TarProbe;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.gc.DelegatingGCMonitor;
 import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
@@ -120,10 +125,12 @@ public class FileStoreBuilder {
     @Nonnull
     private SegmentNotFoundExceptionListener snfeListener = LOG_SNFE;
 
-    private IOMonitor ioMonitor = new IOMonitorAdapter();
+    @Nonnull
+    private final Set<IOMonitor > ioMonitors = newHashSet();
 
+    @CheckForNull
+    private BiConsumer<FileStoreProbe, TarProbe> probes;
     private boolean strictVersionCheck;
-    
     private boolean built;
 
     /**
@@ -296,9 +303,22 @@ public class FileStoreBuilder {
 
     @Nonnull
     public FileStoreBuilder withIOMonitor(IOMonitor ioMonitor) {
-        this.ioMonitor = checkNotNull(ioMonitor);
+        ioMonitors.add(checkNotNull(ioMonitor));
         return this;
     }
+
+    @Nonnull
+    public FileStoreBuilder withProbes(@Nonnull BiConsumer<FileStoreProbe, TarProbe> probes) {
+        this.probes = checkNotNull(probes);
+        return this;
+    }
+
+    void accept(@Nonnull FileStoreProbe fileStoreProbe, @Nonnull TarProbe tarProbe) {
+        if (this.probes != null) {
+            this.probes.accept(checkNotNull(fileStoreProbe), checkNotNull(tarProbe));
+        }
+    }
+
 
     /**
      * Enable strict version checking. With strict version checking enabled Oak
@@ -313,7 +333,7 @@ public class FileStoreBuilder {
         this.strictVersionCheck = strictVersionCheck;
         return this;
     }
-    
+
     /**
      * Create a new {@link FileStore} instance with the settings specified in this
      * builder. If none of the {@code with} methods have been called before calling
@@ -461,7 +481,7 @@ public class FileStoreBuilder {
     }
 
     IOMonitor getIOMonitor() {
-        return ioMonitor;
+        return new CompositeIOMonitor(ioMonitors);
     }
 
     boolean getStrictVersionCheck() {

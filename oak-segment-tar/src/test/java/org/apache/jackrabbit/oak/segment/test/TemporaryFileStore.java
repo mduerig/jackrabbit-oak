@@ -19,13 +19,18 @@ package org.apache.jackrabbit.oak.segment.test;
 
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+
+import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.commons.concurrent.ExecutorCloser;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundExceptionListener;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
+import org.apache.jackrabbit.oak.segment.file.InvalidFileStoreVersionException;
 import org.apache.jackrabbit.oak.stats.DefaultStatisticsProvider;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.TemporaryFolder;
@@ -57,7 +62,8 @@ public class TemporaryFileStore extends ExternalResource {
     @Override
     protected void before() throws Throwable {
         executor = Executors.newSingleThreadScheduledExecutor();
-        FileStoreBuilder builder = fileStoreBuilder(folder.newFolder())
+        File directory = folder.newFolder();
+        FileStoreBuilder builder = fileStoreBuilder(directory)
                 .withMaxFileSize(1)
                 .withMemoryMapping(false)
                 .withNodeDeduplicationCacheSize(1)
@@ -71,7 +77,13 @@ public class TemporaryFileStore extends ExternalResource {
         if (blobStore != null) {
             builder.withBlobStore(blobStore.blobStore());
         }
-        store = builder.build();
+        store = build(builder, directory);
+    }
+
+    @Nonnull
+    protected FileStore build(@Nonnull FileStoreBuilder builder, @Nonnull File directory)
+    throws IOException, InvalidFileStoreVersionException {
+        return builder.build();
     }
 
     @Override

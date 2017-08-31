@@ -69,6 +69,27 @@ public final class RecordId implements Comparable<RecordId> {
         }
     }
 
+    @Nonnull
+    public static UUID uuidFromString(String recordId) {
+        Matcher matcher = PATTERN.matcher(recordId);
+        if (matcher.matches()) {
+            return UUID.fromString(matcher.group(1));
+        } else {
+            throw new IllegalArgumentException("Bad record identifier: " + recordId);
+        }
+    }
+
+    public static int offsetFormString(String recordId) {
+        Matcher matcher = PATTERN.matcher(recordId);
+        if (matcher.matches()) {
+            return matcher.group(3) != null
+                ? parseInt(matcher.group(3))
+                : parseInt(matcher.group(4), 16);
+        } else {
+            throw new IllegalArgumentException("Bad record identifier: " + recordId);
+        }
+    }
+
     private final SegmentId segmentId;
 
     private final int offset;

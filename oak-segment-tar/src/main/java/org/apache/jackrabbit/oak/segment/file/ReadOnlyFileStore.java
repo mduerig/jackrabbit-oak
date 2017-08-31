@@ -71,9 +71,11 @@ public class ReadOnlyFileStore extends AbstractFileStore {
                 .withIOMonitor(ioMonitor)
                 .withMemoryMapping(memoryMapping)
                 .withReadOnly()
+                .withProbe(tarProbe -> builder.accept(new FileStoreProbe(), tarProbe))
                 .build();
 
         writer = defaultSegmentWriterBuilder("read-only").withoutCache().build(this);
+
         log.info("TarMK ReadOnly opened: {} (mmap={})", directory,
                 memoryMapping);
     }

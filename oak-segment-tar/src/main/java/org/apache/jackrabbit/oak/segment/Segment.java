@@ -381,7 +381,7 @@ public class Segment {
      * @return the segment meta data
      */
     @CheckForNull
-    String getSegmentInfo() {
+    public String getSegmentInfo() {
         if (info == null && id.isDataSegmentId()) {
             info = readString(recordNumbers.iterator().next().getRecordNumber());
         }
@@ -548,32 +548,44 @@ public class Segment {
 
     @Override
     public String toString() {
-        StringWriter string = new StringWriter();
-        try (PrintWriter writer = new PrintWriter(string)) {
-            writer.format("Segment %s (%d bytes)%n", id, data.size());
-            String segmentInfo = getSegmentInfo();
-            if (segmentInfo != null) {
-                writer.format("Info: %s, Generation: %s%n", segmentInfo, getGcGeneration());
-            }
-            if (id.isDataSegmentId()) {
-                writer.println("--------------------------------------------------------------------------");
-                int i = 1;
-                for (SegmentId segmentId : segmentReferences) {
-                    writer.format("reference %02x: %s%n", i++, segmentId);
-                }
-                for (Entry entry : recordNumbers) {
-                    writer.format("%10s record %08x: %08x%n", entry.getType(), entry.getRecordNumber(), entry.getOffset());
-                }
-            }
+        try (
+            StringWriter string = new StringWriter();
+            PrintWriter writer = new PrintWriter(string);
+            WriterOutputStream out = new WriterOutputStream(writer, Charsets.UTF_8))
+        {
+            dumpHeader(out);
             writer.println("--------------------------------------------------------------------------");
-            try {
-                data.hexDump(new WriterOutputStream(writer, Charsets.UTF_8));
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
+            dumpHex(out);
             writer.println("--------------------------------------------------------------------------");
+            return string.toString();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
         }
-        return string.toString();
+    }
+
+    public void dumpHeader(@Nonnull OutputStream stream) throws IOException {
+        PrintWriter writer = new PrintWriter(checkNotNull(stream));
+        writer.format("Segment %s (%s, %d bytes)%n", id, version, data.size());
+        String segmentInfo = getSegmentInfo();
+        if (segmentInfo != null) {
+            writer.format("Info: %s%n", segmentInfo);
+        }
+        writer.format("Generation: %s%n", getGcGeneration());
+        if (id.isDataSegmentId()) {
+            writer.println("--------------------------------------------------------------------------");
+            int i = 1;
+            for (SegmentId segmentId : segmentReferences) {
+                writer.format("reference %02x: %s%n", i++, segmentId);
+            }
+            for (Entry entry : recordNumbers) {
+                writer.format("%10s record %08x: %08x%n", entry.getType(), entry.getRecordNumber(), entry.getOffset());
+            }
+        }
+        writer.flush();
+    }
+
+    public void dumpHex(@Nonnull OutputStream stream) throws IOException {
+        data.hexDump(checkNotNull(stream));
     }
 
     public void writeTo(OutputStream stream) throws IOException {

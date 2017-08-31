@@ -20,10 +20,15 @@ package org.apache.jackrabbit.oak.segment.file.tar;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.concat;
+import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Lists.transform;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.apache.commons.io.FileUtils.listFiles;
 
 import java.io.Closeable;
@@ -48,10 +53,13 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -116,6 +124,9 @@ public class TarFiles implements Closeable {
 
         private long maxFileSize;
 
+        @CheckForNull
+        private Consumer<TarProbe> tarProbe;
+
         private boolean readOnly;
 
         private Builder() {
@@ -150,6 +161,11 @@ public class TarFiles implements Closeable {
         public Builder withMaxFileSize(long maxFileSize) {
             checkArgument(maxFileSize > 0);
             this.maxFileSize = maxFileSize;
+            return this;
+        }
+
+        public Builder withProbe(@Nullable Consumer<TarProbe> tarProbe) {
+            this.tarProbe = checkNotNull(tarProbe);
             return this;
         }
 
@@ -301,14 +317,16 @@ public class TarFiles implements Closeable {
             }
             readers = new Node(r, readers);
         }
-        if (builder.readOnly) {
-            return;
+        if (!builder.readOnly) {
+            int writeNumber = 0;
+            if (indices.length > 0) {
+                writeNumber = indices[indices.length - 1] + 1;
+            }
+            writer = new TarWriter(builder.directory, builder.fileStoreMonitor, writeNumber, builder.ioMonitor);
         }
-        int writeNumber = 0;
-        if (indices.length > 0) {
-            writeNumber = indices[indices.length - 1] + 1;
+        if (builder.tarProbe != null) {
+            builder.tarProbe.accept(new TarProbe(this));
         }
-        writer = new TarWriter(builder.directory, builder.fileStoreMonitor, writeNumber, builder.ioMonitor);
     }
 
     @Override
@@ -747,6 +765,70 @@ public class TarFiles implements Closeable {
             index.put(reader.getFile().getName(), reader.getUUIDs());
         }
         return index;
+    }
+
+    public static final class TarProbe {
+        public interface Tar {
+            File file();
+            Iterable<UUID> segmentIds();
+        }
+
+        @Nonnull
+        private final TarFiles tarFiles;
+
+        private TarProbe(@Nonnull TarFiles tarFiles) {
+            this.tarFiles = checkNotNull(tarFiles);
+        }
+
+        public Iterable<Tar> tarFiles() {
+            Node head;
+            tarFiles.lock.readLock().lock();
+            try {
+                head = tarFiles.readers;
+            } finally {
+                tarFiles.lock.readLock().unlock();
+            }
+
+            Iterable<Tar> readers = transform(iterable(head), tarReader -> new Tar() {
+                @Override
+                public File file() {
+                    return checkNotNull(tarReader).getFile();
+                }
+
+                @Override
+                public Iterable<UUID> segmentIds() {
+                    List<TarEntry> tarEntries = Lists.reverse(
+                            newArrayList(checkNotNull(tarReader).getEntries()));
+                    return transform(tarEntries, this::toUUID);
+                }
+
+                @Nonnull
+                private UUID toUUID(@Nonnull TarEntry tarEntry) {
+                    return new UUID(tarEntry.msb(), tarEntry.lsb());
+                }
+            });
+
+            if (tarFiles.writer == null) {
+                return readers;
+            } else {
+                Tar writer = new Tar() {
+                    @Override
+                    public File file() {
+                        return tarFiles.writer.getFile();
+                    }
+
+                    @Override
+                    public Iterable<UUID> segmentIds() {
+                        if (tarFiles.writer == null) {
+                            return emptyList();
+                        } else {
+                            return tarFiles.writer.getUUIDs();
+                        }
+                    }
+                };
+                return concat(singleton(writer), readers);
+            }
+        }
     }
 
 }

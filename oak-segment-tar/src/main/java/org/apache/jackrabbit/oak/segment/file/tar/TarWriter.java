@@ -23,6 +23,8 @@ import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkPositionIndexes;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Lists.reverse;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
@@ -144,6 +146,10 @@ class TarWriter implements Closeable {
     synchronized boolean containsEntry(long msb, long lsb) {
         checkState(!closed);
         return index.containsKey(new UUID(msb, lsb));
+    }
+
+    synchronized Iterable<UUID> getUUIDs() {
+        return reverse(newArrayList(index.keySet()));
     }
 
     /**

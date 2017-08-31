@@ -18,7 +18,9 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.jackrabbit.oak.segment.data.SegmentData.newSegmentData;
+import static org.apache.jackrabbit.oak.segment.file.TarRevisions.JOURNAL_FILE_NAME;
 
 import java.io.Closeable;
 import java.io.File;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,6 +38,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.io.FileUtils;
 import org.apache.jackrabbit.oak.api.jmx.CacheStatsMBean;
 import org.apache.jackrabbit.oak.segment.CachingSegmentReader;
+import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.RecordType;
 import org.apache.jackrabbit.oak.segment.Revisions;
 import org.apache.jackrabbit.oak.segment.Segment;
@@ -278,4 +282,29 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
         return new Segment(tracker, segmentReader, id, buffer);
     }
 
+    public final class FileStoreProbe {
+        protected FileStoreProbe() {}
+
+        @Nonnull
+        public JournalReader newJournalReader() throws IOException {
+            return new JournalReader(new File(directory, JOURNAL_FILE_NAME));
+        }
+
+        @Nonnull
+        public Optional<Segment> readSegment(@Nonnull SegmentId segmentId) {
+            return containsSegment(checkNotNull(segmentId))
+                ? Optional.of(AbstractFileStore.this.readSegment(segmentId))
+                : Optional.empty();
+        }
+
+        @Nonnull
+        public SegmentNodeState getNode(@Nonnull RecordId id) {
+            return getReader().readNode(checkNotNull(id));
+        }
+
+        @Nonnull
+        public SegmentId newSegmentId(long msb, long lsb) {
+            return getSegmentIdProvider().newSegmentId(msb, lsb);
+        }
+    }
 }
