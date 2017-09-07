@@ -121,6 +121,8 @@ public class FileStoreBuilder {
     private SegmentNotFoundExceptionListener snfeListener = LOG_SNFE;
 
     private IOMonitor ioMonitor = new IOMonitorAdapter();
+
+    private boolean strictVersionCheck;
     
     private boolean built;
 
@@ -297,6 +299,13 @@ public class FileStoreBuilder {
         this.ioMonitor = checkNotNull(ioMonitor);
         return this;
     }
+
+    // michid doc
+    @Nonnull
+    public FileStoreBuilder withStrictVersionCheck(boolean strictVersionCheck) {
+        this.strictVersionCheck = strictVersionCheck;
+        return this;
+    }
     
     /**
      * Create a new {@link FileStore} instance with the settings specified in this
@@ -446,6 +455,10 @@ public class FileStoreBuilder {
 
     IOMonitor getIOMonitor() {
         return ioMonitor;
+    }
+
+    boolean getStrictVersionCheck() {
+        return strictVersionCheck;
     }
 
     @Override
