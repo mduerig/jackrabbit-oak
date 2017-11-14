@@ -53,7 +53,6 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -124,8 +123,8 @@ public class TarFiles implements Closeable {
 
         private long maxFileSize;
 
-        @CheckForNull
-        private Consumer<TarProbe> tarProbe;
+        @Nonnull
+        private Consumer<TarProbe> tarProbe = tarProbe -> {};
 
         private boolean readOnly;
 
@@ -324,9 +323,7 @@ public class TarFiles implements Closeable {
             }
             writer = new TarWriter(builder.directory, builder.fileStoreMonitor, writeNumber, builder.ioMonitor);
         }
-        if (builder.tarProbe != null) {
-            builder.tarProbe.accept(new TarProbe(this));
-        }
+        builder.tarProbe.accept(new TarProbe(this));
     }
 
     @Override

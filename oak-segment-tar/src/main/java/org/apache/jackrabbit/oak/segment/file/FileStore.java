@@ -199,7 +199,7 @@ public class FileStore extends AbstractFileStore {
                 .withIOMonitor(ioMonitor)
                 .withFileStoreMonitor(stats)
                 .withMaxFileSize(builder.getMaxFileSize() * MB)
-                .withProbe(tarProbe -> builder.accept(new FileStoreProbe(), tarProbe))
+                .withProbe(tarProbe -> builder.getProbes().accept(new FileStoreProbe(), tarProbe))
                 .build();
         long size = this.tarFiles.size();
         this.stats.init(size);

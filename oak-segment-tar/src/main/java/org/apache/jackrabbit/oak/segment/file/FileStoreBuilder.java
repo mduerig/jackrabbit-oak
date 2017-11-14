@@ -128,8 +128,9 @@ public class FileStoreBuilder {
     @Nonnull
     private final Set<IOMonitor > ioMonitors = newHashSet();
 
-    @CheckForNull
-    private BiConsumer<FileStoreProbe, TarProbe> probes;
+    @Nonnull
+    private BiConsumer<FileStoreProbe, TarProbe> probes = (fileStoreProbe, tarProbe) -> {};
+
     private boolean strictVersionCheck;
     private boolean built;
 
@@ -313,13 +314,6 @@ public class FileStoreBuilder {
         return this;
     }
 
-    void accept(@Nonnull FileStoreProbe fileStoreProbe, @Nonnull TarProbe tarProbe) {
-        if (this.probes != null) {
-            this.probes.accept(checkNotNull(fileStoreProbe), checkNotNull(tarProbe));
-        }
-    }
-
-
     /**
      * Enable strict version checking. With strict version checking enabled Oak
      * will fail to start if the store version does not exactly match this Oak version.
@@ -482,6 +476,11 @@ public class FileStoreBuilder {
 
     IOMonitor getIOMonitor() {
         return new CompositeIOMonitor(ioMonitors);
+    }
+
+    @Nonnull
+    BiConsumer<FileStoreProbe, TarProbe> getProbes() {
+        return probes;
     }
 
     boolean getStrictVersionCheck() {
