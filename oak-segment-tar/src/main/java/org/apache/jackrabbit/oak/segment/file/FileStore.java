@@ -19,6 +19,7 @@
 package org.apache.jackrabbit.oak.segment.file;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.Integer.getInteger;
@@ -53,6 +54,7 @@ import java.nio.channels.OverlappingFileLockException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.UUID;
@@ -81,6 +83,7 @@ import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundExceptionListener;
+import org.apache.jackrabbit.oak.segment.SegmentReader;
 import org.apache.jackrabbit.oak.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.segment.WriterCacheManager;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions;
@@ -90,6 +93,7 @@ import org.apache.jackrabbit.oak.segment.file.tar.CleanupContext;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles.CleanupResult;
+import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
@@ -565,6 +569,57 @@ public class FileStore extends AbstractFileStore {
         }
     }
 
+    /**
+     * A compactor with a top level cache. Instances of this class delegate the actual
+     * compaction to an instance of {@link Compactor} but add caching keyed on the
+     * {@code before} state passed to {@link #compact(NodeState, NodeState, NodeState)}
+     */
+    private static class CachingCompactor {
+        private final Map<NodeState, SegmentNodeState> cache = newHashMap();
+        private final Compactor compactor;
+
+        static class Result {
+            final SegmentNodeState compacted;
+            final NodeState nextBefore;
+            final NodeState nextOnto;
+
+            Result(@Nonnull SegmentNodeState compacted, @Nonnull NodeState nextBefore, @Nonnull NodeState nextOnto) {
+                this.compacted = compacted;
+                this.nextBefore = nextBefore;
+                this.nextOnto = nextOnto;
+            }
+        }
+
+        CachingCompactor(
+                @Nonnull SegmentReader segmentReader,
+                @Nonnull SegmentWriter writer,
+                @Nullable BlobStore blobStore,
+                @Nonnull Supplier<Boolean> cancel,
+                @Nonnull GCNodeWriteMonitor compactionMonitor) {
+            this.compactor = new Compactor(segmentReader, writer, blobStore, cancel, compactionMonitor);
+        }
+
+        @CheckForNull
+        Result compact(
+                @Nonnull NodeState before,
+                @Nonnull NodeState after,
+                @Nonnull NodeState onto)
+        throws IOException {
+            SegmentNodeState compacted = cache.get(after);
+            if (compacted == null) {
+                compacted = compactor.compact(before, after, onto);
+                if (compacted == null) {
+                    return null;
+                } else {
+                    cache.put(after, compacted);
+                    return new Result(compacted, after, compacted);
+                }
+            } else {
+                return new Result(compacted, before, onto);
+            }
+        }
+    }
+
     private class GarbageCollector {
         @Nonnull
         private final SegmentGCOptions gcOptions;
@@ -741,7 +796,9 @@ public class FileStore extends AbstractFileStore {
             return compact(null, getGcGeneration().nextFull());
         }
 
-        private CompactionResult compact(SegmentNodeState base, GCGeneration newGeneration) {
+        private CompactionResult compact(
+                @Nullable NodeState base,
+                @Nonnull GCGeneration newGeneration) {
             try {
                 Stopwatch watch = Stopwatch.createStarted();
                 gcListener.info("TarMK GC #{}: compaction started, gc options={}", GC_COUNT, gcOptions);
@@ -752,29 +809,35 @@ public class FileStore extends AbstractFileStore {
                 compactionMonitor = new GCNodeWriteMonitor(gcOptions.getGcLogInterval(), gcListener);
                 compactionMonitor.init(GC_COUNT.get(), gcEntry.getRepoSize(), gcEntry.getNodes(), initialSize);
 
-                SegmentNodeState before = getHead();
+                SegmentNodeState head = getHead();
                 CancelCompactionSupplier cancel = new CancelCompactionSupplier(FileStore.this);
                 SegmentWriter writer = defaultSegmentWriterBuilder("c")
                         .with(cacheManager)
                         .withGeneration(newGeneration)
                         .withoutWriterPool()
                         .build(FileStore.this);
-                Compactor compactor = new Compactor(
-                        segmentReader, writer, getBlobStore(), cancel, compactionMonitor);
 
-                SegmentNodeState after = compact(base, before, compactor, writer);
-                if (after == null) {
+                // Use a caching compactor for better checkpoint deduplication during subsequent
+                // compaction cycles (cycles > 0). This allows for reusing a cached checkpoint
+                // from the n-th cycle in the n+1-th cycle unless it has been removed. Without this
+                // cache such unchanged checkpoints would again be rebased on top of the new onto
+                // state.
+                CachingCompactor compactor = new CachingCompactor(segmentReader, writer, getBlobStore(), cancel, compactionMonitor);
+
+                SegmentNodeState compacted = compact(base, head, base, compactor, writer);
+                if (compacted == null) {
                     gcListener.warn("TarMK GC #{}: compaction cancelled: {}.", GC_COUNT, cancel);
                     return compactionAborted(newGeneration);
                 }
 
                 gcListener.info("TarMK GC #{}: compaction cycle 0 completed in {} ({} ms). Compacted {} to {}",
-                        GC_COUNT, watch, watch.elapsed(MILLISECONDS), before.getRecordId(), after.getRecordId());
+                        GC_COUNT, watch, watch.elapsed(MILLISECONDS), head.getRecordId(), compacted.getRecordId());
 
                 int cycles = 0;
                 boolean success = false;
+                SegmentNodeState previousHead = head;
                 while (cycles < gcOptions.getRetryCount() &&
-                        !(success = revisions.setHead(before.getRecordId(), after.getRecordId(), EXPEDITE_OPTION))) {
+                        !(success = revisions.setHead(previousHead.getRecordId(), compacted.getRecordId(), EXPEDITE_OPTION))) {
                     // Some other concurrent changes have been made.
                     // Rebase (and compact) those changes on top of the
                     // compacted state before retrying to set the head.
@@ -784,18 +847,18 @@ public class FileStore extends AbstractFileStore {
                             GC_COUNT, cycles, gcOptions.getRetryCount());
                     gcListener.updateStatus(COMPACTION_RETRY.message() + cycles);
                     Stopwatch cycleWatch = Stopwatch.createStarted();
-                    
-                    SegmentNodeState head = getHead();
-                    after = compact(after, head, compactor, writer);
-                    if (after == null) {
+
+                    head = getHead();
+                    compacted = compact(previousHead, head, compacted, compactor, writer);
+                    if (compacted == null) {
                         gcListener.warn("TarMK GC #{}: compaction cancelled: {}.", GC_COUNT, cancel);
                         return compactionAborted(newGeneration);
                     }
 
                     gcListener.info("TarMK GC #{}: compaction cycle {} completed in {} ({} ms). Compacted {} against {} to {}",
                             GC_COUNT, cycles, cycleWatch, cycleWatch.elapsed(MILLISECONDS),
-                            head.getRecordId(), before.getRecordId(), after.getRecordId());
-                    before = head;
+                            head.getRecordId(), previousHead.getRecordId(), compacted.getRecordId());
+                    previousHead = head;
                 }
 
                 if (!success) {
@@ -811,8 +874,8 @@ public class FileStore extends AbstractFileStore {
                         
                         cycles++;
                         cancel.timeOutAfter(forceTimeout, SECONDS);
-                        after = forceCompact(after, compactor, writer);
-                        success = after != null;
+                        compacted = forceCompact(previousHead, compacted, compactor, writer);
+                        success = compacted != null;
                         if (success) {
                             gcListener.info("TarMK GC #{}: compaction succeeded to force compact remaining commits " +
                                             "after {} ({} ms).",
@@ -836,7 +899,7 @@ public class FileStore extends AbstractFileStore {
                     flush();
                     gcListener.info("TarMK GC #{}: compaction succeeded in {} ({} ms), after {} cycles",
                             GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles);
-                    return compactionSucceeded(newGeneration, after.getRecordId());
+                    return compactionSucceeded(newGeneration, compacted.getRecordId());
                 } else {
                     gcListener.info("TarMK GC #{}: compaction failed after {} ({} ms), and {} cycles",
                             GC_COUNT, watch, watch.elapsed(MILLISECONDS), cycles);
@@ -854,8 +917,10 @@ public class FileStore extends AbstractFileStore {
 
         /**
          * Compact {@code uncompacted} on top of an optional {@code base}.
-         * @param base         the base state to compact onto or {@code null} for an empty state.
+         * @param base         the base state to compact against or {@code null} for an empty state.
          * @param uncompacted  the uncompacted state to compact
+         * @param onto         the state onto which to compact the change between {@code base} and
+         *                     {@code uncompacted}
          * @param compactor    the compactor for creating the new generation of the
          *                     uncompacted state.
          * @param writer       the segment writer used by {@code compactor} for writing to the
@@ -865,18 +930,19 @@ public class FileStore extends AbstractFileStore {
          */
         @CheckForNull
         private SegmentNodeState compact(
-                @Nullable SegmentNodeState base,
+                @Nullable NodeState base,
                 @Nonnull SegmentNodeState uncompacted,
-                @Nonnull Compactor compactor,
+                @Nullable NodeState onto,
+                @Nonnull CachingCompactor compactor,
                 @Nonnull SegmentWriter writer)
         throws IOException {
-            // Collect a chronologically ordered list of roots for the base and the uncompacted
+            // Collect a chronologically ordered list of roots for the uncompacted
             // state. This list consists of all checkpoints followed by the root.
-            LinkedHashMap<String, NodeState> baseRoots = collectRoots(base);
             LinkedHashMap<String, NodeState> uncompactedRoots = collectRoots(uncompacted);
 
             // Compact the list of uncompacted roots to a list of compacted roots.
-            LinkedHashMap<String, NodeState> compactedRoots = compact(baseRoots, uncompactedRoots, compactor);
+            LinkedHashMap<String, NodeState> compactedRoots = compact(
+                    getRoot(base), uncompactedRoots, getRoot(onto), compactor);
             if (compactedRoots == null) {
                 return null;
             }
@@ -896,34 +962,35 @@ public class FileStore extends AbstractFileStore {
             return new SegmentNodeState(segmentReader, segmentWriter, getBlobStore(), nodeId);
         }
 
+        @Nonnull
+        private NodeState getRoot(@Nullable NodeState node) {
+            return node == null
+                ? EMPTY_NODE
+                : node.getChildNode("root");
+        }
+
         /**
          * Compact a list of uncompacted roots on top of base roots of the same key or
          * an empty node if none.
          */
         @CheckForNull
         private LinkedHashMap<String, NodeState> compact(
-                @Nonnull LinkedHashMap<String, NodeState> baseRoots,
+                @Nonnull NodeState base,
                 @Nonnull LinkedHashMap<String, NodeState> uncompactedRoots,
-                @Nonnull Compactor compactor)
+                @Nonnull NodeState onto,
+                @Nonnull CachingCompactor compactor)
         throws IOException {
-            NodeState onto = baseRoots.get("root");
-            NodeState previous = onto;
             LinkedHashMap<String, NodeState> compactedRoots = newLinkedHashMap();
             for (Entry<String, NodeState> uncompactedRoot : uncompactedRoots.entrySet()) {
                 String path = uncompactedRoot.getKey();
-                NodeState state = uncompactedRoot.getValue();
-                NodeState compacted;
-                if (onto == null) {
-                    compacted = compactor.compact(state);
-                } else {
-                    compacted = compactor.compact(previous, state, onto);
-                }
-                if (compacted == null) {
+                NodeState uncompacted = uncompactedRoot.getValue();
+                CachingCompactor.Result result = compactor.compact(base, uncompacted, onto);
+                if (result == null) {
                     return null;
                 }
-                previous = state;
-                onto = compacted;
-                compactedRoots.put(path, compacted);
+                base = result.nextBefore;
+                onto = result.nextOnto;
+                compactedRoots.put(path, result.compacted);
             }
             return compactedRoots;
         }
@@ -964,8 +1031,9 @@ public class FileStore extends AbstractFileStore {
         }
 
         private SegmentNodeState forceCompact(
-                @Nonnull final SegmentNodeState base,
-                @Nonnull final Compactor compactor,
+                @Nullable final NodeState base,
+                @Nullable final NodeState onto,
+                @Nonnull final CachingCompactor compactor,
                 @Nonnull SegmentWriter writer)
         throws InterruptedException {
             RecordId compactedId = revisions.setHead(new Function<RecordId, RecordId>() {
@@ -975,7 +1043,7 @@ public class FileStore extends AbstractFileStore {
                     try {
                         long t0 = currentTimeMillis();
                         SegmentNodeState after = compact(
-                               base, segmentReader.readNode(headId), compactor, writer);
+                               base, segmentReader.readNode(headId), onto, compactor, writer);
                         if (after == null) {
                             gcListener.info("TarMK GC #{}: compaction cancelled after {} seconds",
                                     GC_COUNT, (currentTimeMillis() - t0) / 1000);
