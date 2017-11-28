@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Supplier;
+import org.apache.jackrabbit.oak.plugins.memory.MemoryNodeBuilder;
 import org.apache.jackrabbit.oak.segment.file.GCNodeWriteMonitor;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
@@ -120,7 +121,7 @@ public class CheckpointCompactor {
 
         // Build a compacted super root by replacing the uncompacted roots with
         // the compacted ones in the original node.
-        NodeBuilder builder = uncompacted.builder();
+        NodeBuilder builder = new MemoryNodeBuilder(uncompacted);
         for (Entry<String, NodeState> compactedRoot : compactedRoots.entrySet()) {
             String path = compactedRoot.getKey();
             NodeState state = compactedRoot.getValue();

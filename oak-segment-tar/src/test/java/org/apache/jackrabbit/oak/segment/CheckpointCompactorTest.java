@@ -19,11 +19,11 @@
 package org.apache.jackrabbit.oak.segment;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static java.util.concurrent.TimeUnit.DAYS;
 import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState.binaryPropertyFromBlob;
 import static org.apache.jackrabbit.oak.segment.DefaultSegmentWriterBuilder.defaultSegmentWriterBuilder;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
-import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -79,57 +79,69 @@ public class CheckpointCompactorTest {
     @Test
     public void testCompact() throws Exception {
         addTestContent("cp1", nodeStore);
-        String cp1 = nodeStore.checkpoint(Long.MAX_VALUE);
+        String cp1 = nodeStore.checkpoint(DAYS.toMillis(1));
         addTestContent("cp2", nodeStore);
-        String cp2 = nodeStore.checkpoint(Long.MAX_VALUE);
+        String cp2 = nodeStore.checkpoint(DAYS.toMillis(1));
 
         SegmentNodeState uncompacted1 = fileStore.getHead();
         SegmentNodeState compacted1 = compactor.compact(EMPTY_NODE, uncompacted1, EMPTY_NODE);
         assertNotNull(compacted1);
         assertFalse(uncompacted1 == compacted1);
         assertEquals(uncompacted1, compacted1);
-        assertEquals(
-                uncompacted1.getSegment().getGcGeneration().nextFull(),
-                compacted1.getSegment().getGcGeneration());
+        assertSameStableId(uncompacted1, compacted1);
+        fileStore.getRevisions().setHead(uncompacted1.getRecordId(), compacted1.getRecordId());
+
         NodeState cp1Compacted = nodeStore.retrieve(cp1);
         NodeState cp2Compacted = nodeStore.retrieve(cp2);
-        assertSameStableId(uncompacted1, compacted1);
         assertSameStableId(cp2Compacted, compacted1.getChildNode("root"));
+        assertSameRecord(cp2Compacted, compacted1.getChildNode("root"));
 
+        // Simulate a 2nd compaction cycle
+        SegmentNodeState base2 = fileStore.getHead();
         addTestContent("cp3", nodeStore);
-        String cp3 = nodeStore.checkpoint(Long.MAX_VALUE);
+        String cp3 = nodeStore.checkpoint(DAYS.toMillis(1));
         addTestContent("cp4", nodeStore);
-        String cp4 = nodeStore.checkpoint(Long.MAX_VALUE);
+        String cp4 = nodeStore.checkpoint(DAYS.toMillis(1));
 
         SegmentNodeState uncompacted2 = fileStore.getHead();
-        SegmentNodeState compacted2 = compactor.compact(uncompacted1, uncompacted2, compacted1);
+        SegmentNodeState compacted2 = compactor.compact(base2, uncompacted2, base2);
         assertNotNull(compacted2);
         assertFalse(uncompacted2 == compacted2);
         assertEquals(uncompacted2, compacted2);
-        assertEquals(
-                uncompacted1.getSegment().getGcGeneration().nextFull(),
-                compacted2.getSegment().getGcGeneration());
+        assertSameStableId(uncompacted2, compacted2);
+        fileStore.getRevisions().setHead(uncompacted2.getRecordId(), compacted2.getRecordId());
+
         NodeState cp3Compacted = nodeStore.retrieve(cp3);
         NodeState cp4Compacted = nodeStore.retrieve(cp4);
-        assertSameStableId(uncompacted2, compacted2);
         assertSameStableId(cp4Compacted, compacted2.getChildNode("root"));
+        assertSameRecord(cp4Compacted, compacted2.getChildNode("root"));
         assertSameStableId(cp1Compacted, nodeStore.retrieve(cp1));
+        assertSameRecord(cp1Compacted, nodeStore.retrieve(cp1));
         assertSameStableId(cp2Compacted, nodeStore.retrieve(cp2));
+        assertSameRecord(cp2Compacted, nodeStore.retrieve(cp2));
     }
 
     private static void assertSameStableId(NodeState node1, NodeState node2) {
         assertTrue(node1 instanceof SegmentNodeState);
         assertTrue(node2 instanceof SegmentNodeState);
 
-        assertEquals("Nodes should have been deduplicated but have different stable ids",
+        assertEquals("Nodes should have the same stable ids",
                 ((SegmentNodeState) node1).getStableId(),
                 ((SegmentNodeState) node2).getStableId());
+    }
+
+    private static void assertSameRecord(NodeState node1, NodeState node2) {
+        assertTrue(node1 instanceof SegmentNodeState);
+        assertTrue(node2 instanceof SegmentNodeState);
+
+        assertEquals("Nodes should have been deduplicated",
+                ((SegmentNodeState) node1).getRecordId(),
+                ((SegmentNodeState) node2).getRecordId());
     }
 
     @Nonnull
     private static CheckpointCompactor createCompactor(@Nonnull FileStore fileStore) {
         SegmentWriter writer = defaultSegmentWriterBuilder("c")
-                .withGeneration(newGCGeneration(1, 1, true))
                 .build(fileStore);
 
         return new CheckpointCompactor(
