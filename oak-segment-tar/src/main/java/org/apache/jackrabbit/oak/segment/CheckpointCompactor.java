@@ -95,7 +95,7 @@ public class CheckpointCompactor {
 
     /**
      * Compact {@code uncompacted} on top of an optional {@code base}.
-     * @param base         the base state to compact against or {@code null} for an empty state.
+     * @param base         the base state to compact against
      * @param uncompacted  the uncompacted state to compact
      * @param onto         the state onto which to compact the change between {@code base} and
      *                     {@code uncompacted}
