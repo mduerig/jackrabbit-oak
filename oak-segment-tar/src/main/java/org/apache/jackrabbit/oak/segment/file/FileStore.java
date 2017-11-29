@@ -18,7 +18,6 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.Integer.getInteger;
 import static java.lang.String.format;
@@ -48,7 +47,6 @@ import java.nio.channels.FileLock;
 import java.nio.channels.OverlappingFileLockException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -69,14 +67,12 @@ import com.google.common.base.Supplier;
 import com.google.common.io.Closer;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.apache.jackrabbit.oak.segment.CheckpointCompactor;
-import org.apache.jackrabbit.oak.segment.Compactor;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundExceptionListener;
-import org.apache.jackrabbit.oak.segment.SegmentReader;
 import org.apache.jackrabbit.oak.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.segment.WriterCacheManager;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions;
@@ -86,7 +82,6 @@ import org.apache.jackrabbit.oak.segment.file.tar.CleanupContext;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles.CleanupResult;
-import org.apache.jackrabbit.oak.spi.blob.BlobStore;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
@@ -558,57 +553,6 @@ public class FileStore extends AbstractFileStore {
             log.info("Available disk space ({}) is sufficient again for repository operations, current repository size is approx. {}",
                     humanReadableByteCount(availableDiskSpace),
                     humanReadableByteCount(repositoryDiskSpace));
-        }
-    }
-
-    /**
-     * A compactor with a top level cache. Instances of this class delegate the actual
-     * compaction to an instance of {@link Compactor} but add caching keyed on the
-     * {@code before} state passed to {@link #compact(NodeState, NodeState, NodeState)}
-     */
-    private static class CachingCompactor {
-        private final Map<NodeState, SegmentNodeState> cache = newHashMap();
-        private final Compactor compactor;
-
-        static class Result {
-            final SegmentNodeState compacted;
-            final NodeState nextBefore;
-            final NodeState nextOnto;
-
-            Result(@Nonnull SegmentNodeState compacted, @Nonnull NodeState nextBefore, @Nonnull NodeState nextOnto) {
-                this.compacted = compacted;
-                this.nextBefore = nextBefore;
-                this.nextOnto = nextOnto;
-            }
-        }
-
-        CachingCompactor(
-                @Nonnull SegmentReader segmentReader,
-                @Nonnull SegmentWriter writer,
-                @Nullable BlobStore blobStore,
-                @Nonnull Supplier<Boolean> cancel,
-                @Nonnull GCNodeWriteMonitor compactionMonitor) {
-            this.compactor = new Compactor(segmentReader, writer, blobStore, cancel, compactionMonitor);
-        }
-
-        @CheckForNull
-        Result compact(
-                @Nonnull NodeState before,
-                @Nonnull NodeState after,
-                @Nonnull NodeState onto)
-        throws IOException {
-            SegmentNodeState compacted = cache.get(after);
-            if (compacted == null) {
-                compacted = compactor.compact(before, after, onto);
-                if (compacted == null) {
-                    return null;
-                } else {
-                    cache.put(after, compacted);
-                    return new Result(compacted, after, compacted);
-                }
-            } else {
-                return new Result(compacted, before, onto);
-            }
         }
     }
 
