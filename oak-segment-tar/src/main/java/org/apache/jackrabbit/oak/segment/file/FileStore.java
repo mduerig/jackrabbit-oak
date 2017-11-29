@@ -754,7 +754,7 @@ public class FileStore extends AbstractFileStore {
                 compactionMonitor = new GCNodeWriteMonitor(gcOptions.getGcLogInterval(), gcListener);
                 compactionMonitor.init(GC_COUNT.get(), gcEntry.getRepoSize(), gcEntry.getNodes(), initialSize);
 
-                CheckpointCompactor compactor = new CheckpointCompactor(
+                CheckpointCompactor compactor = new CheckpointCompactor(gcListener, GC_COUNT,
                         segmentReader, writer, getBlobStore(), cancel, compactionMonitor);
 
                 SegmentNodeState head = getHead();
