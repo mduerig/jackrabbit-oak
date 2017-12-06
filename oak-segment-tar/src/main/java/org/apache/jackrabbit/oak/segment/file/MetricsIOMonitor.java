@@ -21,7 +21,6 @@ package org.apache.jackrabbit.oak.segment.file;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.io.File;
-import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
 
@@ -30,8 +29,6 @@ import org.apache.jackrabbit.oak.stats.MeterStats;
 import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.apache.jackrabbit.oak.stats.StatsOptions;
 import org.apache.jackrabbit.oak.stats.TimerStats;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * This {@code IOMonitor} implementations registers the following monitoring endpoints
@@ -48,8 +45,6 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 public class MetricsIOMonitor extends IOMonitorAdapter {
-    private static final Logger LOG = LoggerFactory.getLogger(MetricsIOMonitor.class);
-
     public static final String OAK_SEGMENT_SEGMENT_READ_BYTES = "oak.segment.segment-read-bytes";
     public static final String OAK_SEGMENT_SEGMENT_WRITE_BYTES = "oak.segment.segment-write-bytes";
     public static final String OAK_SEGMENT_SEGMENT_READ_TIME = "oak.segment.segment-read-time";
@@ -71,34 +66,14 @@ public class MetricsIOMonitor extends IOMonitorAdapter {
                 OAK_SEGMENT_SEGMENT_WRITE_TIME, StatsOptions.METRICS_ONLY);
     }
 
-    private final AtomicLong readCount = new AtomicLong();
-    private final AtomicLong readBytes = new AtomicLong();
-
     @Override
     public void afterSegmentRead(File file, long msb, long lsb, int length, long elapsed) {
-        long c = readCount.incrementAndGet();
-        long b = readBytes.addAndGet(length);
-
-        if (c % 1000 == 0) {
-            LOG.info("Segment read count = {}, {} bytes", c, b);
-        }
-
         segmentReadBytes.mark(length);
         segmentReadTime.update(elapsed, NANOSECONDS);
     }
 
-    private final AtomicLong writeCount = new AtomicLong();
-    private final AtomicLong writeBytes = new AtomicLong();
-
     @Override
     public void afterSegmentWrite(File file, long msb, long lsb, int length, long elapsed) {
-        long c = writeCount.incrementAndGet();
-        long b = writeBytes.addAndGet(length);
-
-        if (c % 1000 == 0) {
-            LOG.info("Segment write count = {}, {} bytes", c, b);
-        }
-
         segmentWriteBytes.mark(length);
         segmentWriteTime.update(elapsed, NANOSECONDS);
     }
