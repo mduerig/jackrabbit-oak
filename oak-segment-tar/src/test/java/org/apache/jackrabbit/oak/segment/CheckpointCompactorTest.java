@@ -24,6 +24,7 @@ import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE
 import static org.apache.jackrabbit.oak.plugins.memory.MultiBinaryPropertyState.binaryPropertyFromBlob;
 import static org.apache.jackrabbit.oak.segment.DefaultSegmentWriterBuilder.defaultSegmentWriterBuilder;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
+import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -44,9 +45,11 @@ import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.GCNodeWriteMonitor;
 import org.apache.jackrabbit.oak.segment.file.InvalidFileStoreVersionException;
+import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.spi.commit.CommitInfo;
 import org.apache.jackrabbit.oak.spi.commit.EmptyHook;
 import org.apache.jackrabbit.oak.spi.gc.GCMonitor;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.apache.jackrabbit.oak.spi.state.NodeStore;
@@ -66,11 +69,14 @@ public class CheckpointCompactorTest {
 
     private CheckpointCompactor compactor;
 
+    private GCGeneration compactedGeneration;
+
     @Before
     public void setup() throws IOException, InvalidFileStoreVersionException {
         fileStore = fileStoreBuilder(folder.getRoot()).build();
         nodeStore = SegmentNodeStoreBuilders.builder(fileStore).build();
-        compactor = createCompactor(fileStore);
+        compactedGeneration = newGCGeneration(1,1, true);
+        compactor = createCompactor(fileStore, compactedGeneration);
     }
 
     @After
@@ -89,38 +95,54 @@ public class CheckpointCompactorTest {
         SegmentNodeState compacted1 = compactor.compact(EMPTY_NODE, uncompacted1, EMPTY_NODE);
         assertNotNull(compacted1);
         assertFalse(uncompacted1 == compacted1);
-        assertEquals(uncompacted1, compacted1);
-        assertSameStableId(uncompacted1, compacted1);
-        fileStore.getRevisions().setHead(uncompacted1.getRecordId(), compacted1.getRecordId());
+        checkGeneration(compacted1, compactedGeneration);
 
-        NodeState cp1Compacted = nodeStore.retrieve(cp1);
-        NodeState cp2Compacted = nodeStore.retrieve(cp2);
-        assertSameStableId(cp2Compacted, compacted1.getChildNode("root"));
-        assertSameRecord(cp2Compacted, compacted1.getChildNode("root"));
+        assertSameStableId(uncompacted1, compacted1);
+        assertSameStableId(getCheckpoint(uncompacted1, cp1), getCheckpoint(compacted1, cp1));
+        assertSameStableId(getCheckpoint(uncompacted1, cp2), getCheckpoint(compacted1, cp2));
+        assertSameRecord(getCheckpoint(compacted1, cp2), compacted1.getChildNode("root"));
 
         // Simulate a 2nd compaction cycle
-        SegmentNodeState base2 = fileStore.getHead();
         addTestContent("cp3", nodeStore);
         String cp3 = nodeStore.checkpoint(DAYS.toMillis(1));
         addTestContent("cp4", nodeStore);
         String cp4 = nodeStore.checkpoint(DAYS.toMillis(1));
 
         SegmentNodeState uncompacted2 = fileStore.getHead();
-        SegmentNodeState compacted2 = compactor.compact(base2, uncompacted2, base2);
+        SegmentNodeState compacted2 = compactor.compact(uncompacted1, uncompacted2, compacted1);
         assertNotNull(compacted2);
         assertFalse(uncompacted2 == compacted2);
+        checkGeneration(compacted2, compactedGeneration);
+
+        assertTrue(fileStore.getRevisions().setHead(uncompacted2.getRecordId(), compacted2.getRecordId()));
+
         assertEquals(uncompacted2, compacted2);
         assertSameStableId(uncompacted2, compacted2);
-        fileStore.getRevisions().setHead(uncompacted2.getRecordId(), compacted2.getRecordId());
+        assertSameStableId(getCheckpoint(uncompacted2, cp1), getCheckpoint(compacted2, cp1));
+        assertSameStableId(getCheckpoint(uncompacted2, cp2), getCheckpoint(compacted2, cp2));
+        assertSameStableId(getCheckpoint(uncompacted2, cp3), getCheckpoint(compacted2, cp3));
+        assertSameStableId(getCheckpoint(uncompacted2, cp4), getCheckpoint(compacted2, cp4));
+        assertSameRecord(getCheckpoint(compacted1, cp1), getCheckpoint(compacted2, cp1));
+        assertSameRecord(getCheckpoint(compacted1, cp2), getCheckpoint(compacted2, cp2));
+        assertSameRecord(getCheckpoint(compacted2, cp4), compacted2.getChildNode("root"));
+    }
 
-        NodeState cp3Compacted = nodeStore.retrieve(cp3);
-        NodeState cp4Compacted = nodeStore.retrieve(cp4);
-        assertSameStableId(cp4Compacted, compacted2.getChildNode("root"));
-        assertSameRecord(cp4Compacted, compacted2.getChildNode("root"));
-        assertSameStableId(cp1Compacted, nodeStore.retrieve(cp1));
-        assertSameRecord(cp1Compacted, nodeStore.retrieve(cp1));
-        assertSameStableId(cp2Compacted, nodeStore.retrieve(cp2));
-        assertSameRecord(cp2Compacted, nodeStore.retrieve(cp2));
+    private static void checkGeneration(NodeState node, GCGeneration gcGeneration) {
+        assertTrue(node instanceof SegmentNodeState);
+        assertEquals(gcGeneration, ((SegmentNodeState) node).getRecordId().getSegmentId().getGcGeneration());
+
+        for (ChildNodeEntry cne : node.getChildNodeEntries()) {
+            checkGeneration(cne.getNodeState(), gcGeneration);
+        }
+    }
+
+    private static NodeState getCheckpoint(NodeState superRoot, String name) {
+        NodeState checkpoint = superRoot
+                .getChildNode("checkpoints")
+                .getChildNode(name)
+                .getChildNode("root");
+        assertTrue(checkpoint.exists());
+        return checkpoint;
     }
 
     private static void assertSameStableId(NodeState node1, NodeState node2) {
@@ -142,8 +164,9 @@ public class CheckpointCompactorTest {
     }
 
     @Nonnull
-    private static CheckpointCompactor createCompactor(@Nonnull FileStore fileStore) {
+    private static CheckpointCompactor createCompactor(@Nonnull FileStore fileStore, @Nonnull GCGeneration generation) {
         SegmentWriter writer = defaultSegmentWriterBuilder("c")
+                .withGeneration(generation)
                 .build(fileStore);
 
         return new CheckpointCompactor(
