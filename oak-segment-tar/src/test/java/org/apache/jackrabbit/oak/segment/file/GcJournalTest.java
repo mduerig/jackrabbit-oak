@@ -21,6 +21,8 @@ package org.apache.jackrabbit.oak.segment.file;
 
 import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType.FULL;
+import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType.TAIL;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -141,6 +143,42 @@ public class GcJournalTest {
         assertEquals(newGCGeneration(3, 0, false), entry.getGcGeneration());
         assertEquals(125, entry.getNodes());
         assertEquals("bar", entry.getRoot());
+    }
+
+    @Test
+    public void testLastGCTypeOnEmptyGCLog() throws IOException {
+        File directory = segmentFolder.newFolder();
+        GCJournal gc = new GCJournal(directory);
+        assertEquals(FULL, gc.getLastGCType());
+    }
+
+    @Test
+    public void testLastGCTypeOnSingletonGCLog() throws IOException {
+        File directory = segmentFolder.newFolder();
+        GCJournal gc = new GCJournal(directory);
+
+        gc.persist(0, 100, newGCGeneration(1, 0, false), 50, RecordId.NULL.toString10());
+        assertEquals(FULL, gc.getLastGCType());
+    }
+
+    @Test
+    public void testLastGCTypeTail() throws IOException {
+        File directory = segmentFolder.newFolder();
+        GCJournal gc = new GCJournal(directory);
+
+        gc.persist(0, 100, newGCGeneration(1, 0, false), 50, RecordId.NULL.toString10());
+        gc.persist(0, 100, newGCGeneration(2, 0, false), 50, RecordId.NULL.toString10());
+        assertEquals(TAIL, gc.getLastGCType());
+    }
+
+    @Test
+    public void testLastGCTypeFull() throws IOException {
+        File directory = segmentFolder.newFolder();
+        GCJournal gc = new GCJournal(directory);
+
+        gc.persist(0, 100, newGCGeneration(1, 0, false), 50, RecordId.NULL.toString10());
+        gc.persist(0, 100, newGCGeneration(2, 1, false), 50, RecordId.NULL.toString10());
+        assertEquals(FULL, gc.getLastGCType());
     }
 
     private void createOak16GCLog() throws IOException {
