@@ -43,7 +43,9 @@ class Reclaimers {
      * <p>
      * In the case of {@link GCType#FULL FULL} a segment is reclaimable if its
      * {@link GCGeneration#getFullGeneration() full generation} is at least {@code retainedGenerations}
-     * in the past wrt. {@code referenceGeneration}.
+     * in the past wrt. {@code referenceGeneration} <em>or</em> if its
+     * {@link GCGeneration#getGeneration() generation} is at least {@code retainedGenerations} in the
+     * past wrt. {@code referenceGeneration} and it not a {@link GCGeneration#isCompacted() compacted segment}.
      * <p>
      * In the case of {@link GCType#TAIL TAIL} a segment is reclaimable if its
      * {@link GCGeneration#getGeneration() generation} is at least {@code retainedGenerations} in the
@@ -78,10 +80,14 @@ class Reclaimers {
 
             @Override
             public boolean apply(GCGeneration generation) {
-                return isOld(generation);
+                return isOldFull(generation) || (isOld(generation) && !generation.isCompacted());
             }
 
             private boolean isOld(GCGeneration generation) {
+                return referenceGeneration.compareWith(generation) >= retainedGenerations;
+            }
+
+            private boolean isOldFull(GCGeneration generation) {
                 return referenceGeneration.compareFullGenerationWith(generation) >= retainedGenerations;
             }
 
