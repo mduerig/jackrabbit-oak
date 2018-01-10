@@ -82,17 +82,25 @@ public class ReclaimersTest {
     }
 
     private static void testOldReclaimerForFull(boolean isCompacted) {
-        Predicate<GCGeneration> reclaimer = newOldReclaimer(FULL, newGCGeneration(3, 3, isCompacted), 2);
+        Predicate<GCGeneration> reclaimer = newOldReclaimer(FULL, newGCGeneration(6, 3, isCompacted), 2);
 
-        // Don't reclaim young segments
-        assertFalse(reclaimer.apply(newGCGeneration(3, 3, false)));
-        assertFalse(reclaimer.apply(newGCGeneration(3, 3, true)));
-        assertFalse(reclaimer.apply(newGCGeneration(2, 2, false)));
-        assertFalse(reclaimer.apply(newGCGeneration(2, 2, true)));
+        // Don't reclaim segments from young full generation
+        assertFalse(reclaimer.apply(newGCGeneration(6, 3, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(6, 3, true)));
+        assertFalse(reclaimer.apply(newGCGeneration(6, 2, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(6, 2, true)));
 
-        // Reclaim old and uncompacted segments
-        assertTrue(reclaimer.apply(newGCGeneration(1, 1, false)));
-        assertTrue(reclaimer.apply(newGCGeneration(0, 0, false)));
+        // Reclaim segments from old full generation
+        assertTrue(reclaimer.apply(newGCGeneration(6, 1, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(6, 1, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(6, 0, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(6, 0, true)));
+
+        // Reclaim segments from old generation if not compacted
+        assertTrue(reclaimer.apply(newGCGeneration(4, 2, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(4, 2, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(3, 2, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(3, 2, true)));
     }
 
     private static void testOldReclaimerSequenceForFull(boolean isCompacted) {
