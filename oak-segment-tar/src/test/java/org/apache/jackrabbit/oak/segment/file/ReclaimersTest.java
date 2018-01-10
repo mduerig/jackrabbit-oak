@@ -17,6 +17,8 @@
 
 package org.apache.jackrabbit.oak.segment.file;
 
+import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType.FULL;
+import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType.TAIL;
 import static org.apache.jackrabbit.oak.segment.file.Reclaimers.newExactReclaimer;
 import static org.apache.jackrabbit.oak.segment.file.Reclaimers.newOldReclaimer;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
@@ -29,16 +31,12 @@ import org.junit.Test;
 
 public class ReclaimersTest {
 
-    private static void testOldReclaimer(boolean isCompacted) {
-        Predicate<GCGeneration> reclaimer = newOldReclaimer(newGCGeneration(3, 3, isCompacted), 2);
+    private static void testOldReclaimerForTail(boolean isCompacted) {
+        Predicate<GCGeneration> reclaimer = newOldReclaimer(TAIL, newGCGeneration(3, 3, isCompacted), 2);
 
         // Don't reclaim young segments
         assertFalse(reclaimer.apply(newGCGeneration(3, 3, false)));
         assertFalse(reclaimer.apply(newGCGeneration(3, 3, true)));
-        assertFalse(reclaimer.apply(newGCGeneration(3, 3, false)));
-        assertFalse(reclaimer.apply(newGCGeneration(3, 3, true)));
-        assertFalse(reclaimer.apply(newGCGeneration(2, 3, false)));
-        assertFalse(reclaimer.apply(newGCGeneration(2, 3, true)));
         assertFalse(reclaimer.apply(newGCGeneration(2, 3, false)));
         assertFalse(reclaimer.apply(newGCGeneration(2, 3, true)));
 
@@ -57,8 +55,8 @@ public class ReclaimersTest {
         assertTrue(reclaimer.apply(newGCGeneration(0, 2, false)));
     }
 
-    private static void testOldReclaimerSequence(boolean isCompacted) {
-        Predicate<GCGeneration> reclaimer = newOldReclaimer(newGCGeneration(9, 2, isCompacted), 2);
+    private static void testOldReclaimerSequenceForTail(boolean isCompacted) {
+        Predicate<GCGeneration> reclaimer = newOldReclaimer(TAIL, newGCGeneration(9, 2, isCompacted), 2);
 
         assertFalse(reclaimer.apply(newGCGeneration(9, 2, false)));
         assertFalse(reclaimer.apply(newGCGeneration(9, 2, true)));
@@ -81,27 +79,70 @@ public class ReclaimersTest {
         assertTrue(reclaimer.apply(newGCGeneration(1, 0, false)));
         assertTrue(reclaimer.apply(newGCGeneration(1, 0, true)));
         assertTrue(reclaimer.apply(newGCGeneration(0, 0, false)));
+    }
 
+    private static void testOldReclaimerForFull(boolean isCompacted) {
+        Predicate<GCGeneration> reclaimer = newOldReclaimer(FULL, newGCGeneration(3, 3, isCompacted), 2);
+
+        // Don't reclaim young segments
+        assertFalse(reclaimer.apply(newGCGeneration(3, 3, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(3, 3, true)));
+        assertFalse(reclaimer.apply(newGCGeneration(2, 2, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(2, 2, true)));
+
+        // Reclaim old and uncompacted segments
+        assertTrue(reclaimer.apply(newGCGeneration(1, 1, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(0, 0, false)));
+    }
+
+    private static void testOldReclaimerSequenceForFull(boolean isCompacted) {
+        Predicate<GCGeneration> reclaimer = newOldReclaimer(FULL, newGCGeneration(9, 9, isCompacted), 2);
+
+        assertFalse(reclaimer.apply(newGCGeneration(9, 9, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(9, 9, true)));
+        assertFalse(reclaimer.apply(newGCGeneration(8, 8, false)));
+        assertFalse(reclaimer.apply(newGCGeneration(8, 8, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(7, 7, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(7, 7, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(6, 6, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(6, 6, true)));
+
+        assertTrue(reclaimer.apply(newGCGeneration(5, 1, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(5, 1, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(4, 1, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(4, 1, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(3, 1, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(3, 1, true)));
+
+        assertTrue(reclaimer.apply(newGCGeneration(2, 0, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(2, 0, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(1, 0, false)));
+        assertTrue(reclaimer.apply(newGCGeneration(1, 0, true)));
+        assertTrue(reclaimer.apply(newGCGeneration(0, 0, false)));
     }
 
     @Test
     public void testOldReclaimerCompactedHead() {
-        testOldReclaimer(true);
+        testOldReclaimerForTail(true);
+        testOldReclaimerForFull(true);
     }
 
     @Test
     public void testOldReclaimerUncompactedHead() {
-        testOldReclaimer(false);
+        testOldReclaimerForTail(false);
+        testOldReclaimerForFull(false);
     }
 
     @Test
     public void testOldReclaimerSequenceCompactedHead() throws Exception {
-        testOldReclaimerSequence(true);
+        testOldReclaimerSequenceForTail(true);
+        testOldReclaimerSequenceForFull(true);
     }
 
     @Test
     public void testOldReclaimerSequenceUncompactedHead() throws Exception {
-        testOldReclaimerSequence(false);
+        testOldReclaimerSequenceForTail(false);
+        testOldReclaimerSequenceForFull(false);
     }
 
     @Test
