@@ -272,7 +272,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
         SegmentWriteOperation with(@Nonnull SegmentBufferWriter writer) {
             checkState(this.writer == null);
             this.writer = writer;
-            int generation = writer.getGCGeneration().getGeneration();
+            int generation = writer.getGCGeneration().asInt();
             this.stringCache = cacheManager.getStringCache(generation);
             this.templateCache = cacheManager.getTemplateCache(generation);
             this.nodeCache = cacheManager.getNodeCache(generation);
@@ -998,7 +998,9 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 } else {
                     // If the segment containing the base state is from a regular writer
                     // it is considered old as soon as it is from an earlier generation.
-                    return thatGen.compareWith(thisGen) < 0;
+                    return
+                        thatGen.compareFullGenerationWith(thisGen) < 0 ||
+                        thatGen.compareWith(thisGen) < 0;
                 }
             } catch (SegmentNotFoundException snfe) {
                 // This SNFE means a defer compacted node state is too far

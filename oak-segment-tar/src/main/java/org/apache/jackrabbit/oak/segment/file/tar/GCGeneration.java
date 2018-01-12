@@ -19,10 +19,12 @@
 package org.apache.jackrabbit.oak.segment.file.tar;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Objects;
+
 /**
  * Instances of this class represent the garbage collection generation related
  * information of a segment. It consists of the segment's generation, its full
@@ -81,13 +83,19 @@ public final class GCGeneration {
         return isCompacted;
     }
 
+    public int asInt() {
+        checkState(fullGeneration <= 0x7fff);
+        checkState(generation <= 0xffff);
+        return ((fullGeneration & 0x7fff) << 16) + generation;
+    }
+
     /**
      * Create a new instance with the generation and the full generation incremented by one
      * and the compaction flag left unchanged.
      */
     @Nonnull
     public GCGeneration nextFull() {
-        return new GCGeneration(generation + 1, fullGeneration + 1, true);
+        return new GCGeneration(0, fullGeneration + 1, true);
     }
 
     /**
@@ -110,6 +118,10 @@ public final class GCGeneration {
 
     public int compareWith(@Nonnull GCGeneration gcGeneration) {
         return generation - checkNotNull(gcGeneration).generation;
+    }
+
+    public int compareFullGenerationWith(@Nonnull GCGeneration gcGeneration) {
+        return fullGeneration - checkNotNull(gcGeneration).fullGeneration;
     }
 
     @Override

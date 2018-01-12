@@ -27,6 +27,7 @@ import com.google.common.base.Predicate;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.junit.Test;
 
+// michid update test
 public class ReclaimersTest {
 
     private static void testOldReclaimer(boolean isCompacted) {

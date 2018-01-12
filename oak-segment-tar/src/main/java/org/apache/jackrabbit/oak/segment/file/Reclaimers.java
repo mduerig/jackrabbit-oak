@@ -35,16 +35,26 @@ class Reclaimers {
 
             @Override
             public boolean apply(GCGeneration generation) {
-                return isOld(generation) && !sameCompactedTail(generation);
-            }
+                int retainedTails = retainedGenerations - (referenceGeneration.getGeneration() + 1);
+                if (retainedTails > 0) {
+                    if (referenceGeneration.compareFullGenerationWith(generation) <= retainedTails) {
+                        return false;
+                        // michid cleanup of no compacted segments from previous tail is missing.
+                        // However with the proposed generation scheme there is no way to detect them.
+                    }
+                }
 
-            private boolean isOld(GCGeneration generation) {
-                return referenceGeneration.compareWith(generation) >= retainedGenerations;
-            }
+                if (referenceGeneration.getFullGeneration() == generation.getFullGeneration()) {
+                    if (generation.isCompacted()) {
+                        return false;
+                    }
 
-            private boolean sameCompactedTail(GCGeneration generation) {
-                return generation.isCompacted()
-                        && generation.getFullGeneration() == referenceGeneration.getFullGeneration();
+                    if (referenceGeneration.compareWith(generation) < retainedGenerations) {
+                        return false;
+                    }
+                }
+
+                return true;
             }
 
             @Override

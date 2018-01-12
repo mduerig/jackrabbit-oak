@@ -102,14 +102,14 @@ public class FileStoreBuilder {
         public void compactionSucceeded(@Nonnull GCGeneration newGeneration) {
             compacted();
             if (cacheManager != null) {
-                cacheManager.evictOldGeneration(newGeneration.getGeneration());
+                cacheManager.evictOldGeneration(newGeneration.asInt());
             }
         }
 
         @Override
         public void compactionFailed(@Nonnull GCGeneration failedGeneration) {
             if (cacheManager != null) {
-                cacheManager.evictGeneration(failedGeneration.getGeneration());
+                cacheManager.evictGeneration(failedGeneration.asInt());
             }
         }
     }

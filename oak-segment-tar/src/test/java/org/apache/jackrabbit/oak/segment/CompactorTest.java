@@ -133,7 +133,7 @@ public class CompactorTest {
     @Nonnull
     private static Compactor createCompactor(FileStore fileStore, Supplier<Boolean> cancel, String failOnName) {
         SegmentWriter writer = defaultSegmentWriterBuilder("c")
-                .withGeneration(newGCGeneration(1, 1, true))
+                .withGeneration(newGCGeneration(0, 1, true))
                 .build(fileStore);
         if (failOnName != null) {
             writer = new FailingSegmentWriter(writer, failOnName);
