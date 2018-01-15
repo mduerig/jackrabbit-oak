@@ -18,8 +18,15 @@
 package org.apache.jackrabbit.oak.segment.file;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Predicates.not;
+import static com.google.common.base.Predicates.or;
+import static java.util.Arrays.asList;
+
+import java.util.Arrays;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Predicate;
 import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType;
@@ -64,13 +71,133 @@ class Reclaimers {
             int retainedGenerations) {
 
         switch (checkNotNull(lastGCType)) {
-            case FULL:
-                return newOldFullReclaimer(referenceGeneration, retainedGenerations);
-            case TAIL:
-                return newOldTailReclaimer(referenceGeneration, retainedGenerations);
+            case FULL: {
+                Predicate<GCGeneration> reclaim;
+                switch (retainedGenerations) {
+                    case 1: {
+                        reclaim = newReclaimer(
+                                newGenerationRetainer(referenceGeneration.getGeneration(), false),
+                                newGenerationRetainer(referenceGeneration.getGeneration(), true)
+                        );
+                        break;
+                    }
+                    case 2: {
+                        reclaim = newReclaimer(
+                                newGenerationRetainer(referenceGeneration.getGeneration(), false),
+                                newGenerationRetainer(referenceGeneration.getGeneration(), true),
+                                newGenerationRetainer(referenceGeneration.getGeneration() - 1, false),
+                                newGenerationRetainer(referenceGeneration.getGeneration() - 1, true),
+                                newFullGenerationRetainer(referenceGeneration.getFullGeneration() - 1, true)
+                        );
+                        break;
+                    }
+                    default:
+                        throw new IllegalStateException();
+                }
+
+                Predicate<GCGeneration> reclaim0 = newOldFullReclaimer(referenceGeneration, retainedGenerations);
+                return new Predicate<GCGeneration>() {
+                    @Override
+                    public boolean apply(@Nullable GCGeneration input) {
+                        boolean r = reclaim.apply(input);
+                        boolean r0 = reclaim0.apply(input);
+                        checkState(r == r0);
+                        return r;
+                    }
+                };
+            }
+            case TAIL: {
+                Predicate<GCGeneration> reclaim;
+                switch (retainedGenerations) {
+                    case 1: {
+                        reclaim = newReclaimer(
+                                newGenerationRetainer(referenceGeneration.getGeneration(), false),
+                                newGenerationRetainer(referenceGeneration.getGeneration(), true)
+                        );
+                        break;
+                    }
+                    case 2: {
+                        reclaim = newReclaimer(
+                                newGenerationRetainer(referenceGeneration.getGeneration(), false),
+                                newGenerationRetainer(referenceGeneration.getGeneration(), true),
+                                newGenerationRetainer(referenceGeneration.getGeneration() - 1, false),
+                                newGenerationRetainer(referenceGeneration.getGeneration() - 1, true),
+                                newFullGenerationRetainer(referenceGeneration.getFullGeneration(), true)
+                        );
+                        break;
+                    }
+                    default:
+                        throw new IllegalStateException();
+                }
+
+                Predicate<GCGeneration> reclaim0 = newOldTailReclaimer(referenceGeneration, retainedGenerations);
+                return new Predicate<GCGeneration>() {
+                    @Override
+                    public boolean apply(@Nullable GCGeneration input) {
+                        boolean r = reclaim.apply(input);
+                        boolean r0 = reclaim0.apply(input);
+                        checkState(r == r0);
+                        return r;
+                    }
+                };
+            }
             default:
                 throw new IllegalArgumentException("Invalid gc type: " + lastGCType);
         }
+    }
+
+    private static Predicate<GCGeneration> newGenerationRetainer(
+            int retainGeneration, boolean retainCompacted) {
+        return new Predicate<GCGeneration>() {
+            @Override
+            public boolean apply(GCGeneration generation) {
+                return generation.getGeneration() == retainGeneration
+                    && generation.isCompacted() == retainCompacted;
+            }
+
+            @Override
+            public String toString() {
+                return "GCGeneration{" +
+                        "generation=" + retainGeneration + "," +
+                        "fullGeneration=*," +
+                        "isCompacted=" + retainCompacted + '}';
+            }
+        };
+    }
+
+    private static Predicate<GCGeneration> newFullGenerationRetainer(
+            int retainFullGeneration, boolean retainCompacted) {
+        return new Predicate<GCGeneration>() {
+            @Override
+            public boolean apply(GCGeneration generation) {
+                return generation.getFullGeneration() == retainFullGeneration
+                    && generation.isCompacted() == retainCompacted;
+            }
+
+            @Override
+            public String toString() {
+                return "GCGeneration{" +
+                        "generation=*," +
+                        "fullGeneration=" + retainFullGeneration +  ',' +
+                        "isCompacted=" + retainCompacted + '}';
+            }
+        };
+    }
+
+    private static Predicate<GCGeneration> newReclaimer(@Nonnull Predicate<GCGeneration>... retainers) {
+        return new Predicate<GCGeneration>() {
+            private final Predicate<GCGeneration> reclaim = not(or(asList(retainers)));
+
+            @Override
+            public boolean apply(@Nullable GCGeneration generation) {
+                return reclaim.apply(generation);
+            }
+
+            @Override
+            public String toString() {
+                return "(generation not in" + Arrays.toString(retainers) + ")";
+            }
+        };
     }
 
     private static Predicate<GCGeneration> newOldFullReclaimer(
