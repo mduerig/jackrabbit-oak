@@ -621,7 +621,7 @@ public class FileStore extends AbstractFileStore {
             run(false, this::compactTail);
         }
 
-        private synchronized void run(boolean full, Supplier<CompactionResult> compact) throws IOException {
+        private void run(boolean full, Supplier<CompactionResult> compact) throws IOException {
             try {
                 GC_COUNT.incrementAndGet();
 
@@ -693,12 +693,11 @@ public class FileStore extends AbstractFileStore {
         }
 
         @Nonnull
-        private synchronized CompactionResult compactionSucceeded(
+        private CompactionResult compactionSucceeded(
                 @Nonnull GCType gcType,
                 @Nonnull GCGeneration generation,
                 @Nonnull RecordId compactedRootId) {
             gcListener.compactionSucceeded(generation);
-            lastCompactionType = gcType;
             return CompactionResult.succeeded(gcType, generation, gcOptions, compactedRootId);
         }
 
@@ -734,7 +733,7 @@ public class FileStore extends AbstractFileStore {
             return compact(FULL, EMPTY_NODE, getGcGeneration().nextFull());
         }
 
-        private synchronized CompactionResult compact(
+        private CompactionResult compact(
                 @Nonnull GCType gcType,
                 @Nonnull NodeState base,
                 @Nonnull GCGeneration newGeneration) {
@@ -771,10 +770,6 @@ public class FileStore extends AbstractFileStore {
                 gcListener.info("compaction cycle 0 completed in {}. Compacted {} to {}",
                     watch, head.getRecordId(), compacted.getRecordId());
 
-                // To be safe we reset the last compaction type to its default. This is to avoid
-                // its value to stay at TAIL in the case where a full compaction succeeds but
-                // we fail to update the last compaction type afterwards for whatever reason.
-                lastCompactionType = FULL;
                 int cycles = 0;
                 boolean success = false;
                 SegmentNodeState previousHead = head;
@@ -835,6 +830,8 @@ public class FileStore extends AbstractFileStore {
                 }
 
                 if (success) {
+                    // Update type of the last compaction before calling methods that could throw an exception.
+                    lastCompactionType = gcType;
                     writer.flush();
                     flush();
                     gcListener.info("compaction succeeded in {}, after {} cycles", watch, cycles);
