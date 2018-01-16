@@ -388,12 +388,7 @@ public class FileStore extends AbstractFileStore {
      */
     public void cleanup() throws IOException {
         try (ShutDownCloser ignored = shutDown.keepAlive()) {
-            fileReaper.add(garbageCollector.cleanup(CompactionResult.skipped(
-                garbageCollector.gcJournal.getLastGCType(),
-                getGcGeneration(),
-                garbageCollector.gcOptions,
-                revisions.getHead()
-            )));
+            fileReaper.add(garbageCollector.cleanup());
         }
     }
 
@@ -581,6 +576,15 @@ public class FileStore extends AbstractFileStore {
          */
         private long lastSuccessfullGC;
 
+        /**
+         * Last compaction type used to determine which predicate to use during
+         * {@link #cleanup() cleanup}. Defaults to {@link GCType#FULL FULL}, which is
+         * conservative and safe in case it does not match the real type (e.g. because
+         * of a system restart).
+         */
+        @Nonnull
+        private GCType lastCompactionType = FULL;
+
         GarbageCollector(
                 @Nonnull SegmentGCOptions gcOptions,
                 @Nonnull GCListener gcListener,
@@ -617,7 +621,7 @@ public class FileStore extends AbstractFileStore {
             run(false, this::compactTail);
         }
 
-        private void run(boolean full, Supplier<CompactionResult> compact) throws IOException {
+        private synchronized void run(boolean full, Supplier<CompactionResult> compact) throws IOException {
             try {
                 GC_COUNT.incrementAndGet();
 
@@ -689,11 +693,12 @@ public class FileStore extends AbstractFileStore {
         }
 
         @Nonnull
-        private CompactionResult compactionSucceeded(
+        private synchronized CompactionResult compactionSucceeded(
                 @Nonnull GCType gcType,
                 @Nonnull GCGeneration generation,
                 @Nonnull RecordId compactedRootId) {
             gcListener.compactionSucceeded(generation);
+            lastCompactionType = gcType;
             return CompactionResult.succeeded(gcType, generation, gcOptions, compactedRootId);
         }
 
@@ -729,7 +734,7 @@ public class FileStore extends AbstractFileStore {
             return compact(FULL, EMPTY_NODE, getGcGeneration().nextFull());
         }
 
-        private CompactionResult compact(
+        private synchronized CompactionResult compact(
                 @Nonnull GCType gcType,
                 @Nonnull NodeState base,
                 @Nonnull GCGeneration newGeneration) {
@@ -766,6 +771,10 @@ public class FileStore extends AbstractFileStore {
                 gcListener.info("compaction cycle 0 completed in {}. Compacted {} to {}",
                     watch, head.getRecordId(), compacted.getRecordId());
 
+                // To be safe we reset the last compaction type to its default. This is to avoid
+                // its value to stay at TAIL in the case where a full compaction succeeds but
+                // we fail to update the last compaction type afterwards for whatever reason.
+                lastCompactionType = FULL;
                 int cycles = 0;
                 boolean success = false;
                 SegmentNodeState previousHead = head;
@@ -911,12 +920,28 @@ public class FileStore extends AbstractFileStore {
         }
 
         /**
+         * Cleanup segments whose generation matches the reclaim predicate determined by
+         * the {@link #lastCompactionType last successful compaction}.
+         * @return list of files to be removed
+         * @throws IOException
+         */
+        @Nonnull
+        private synchronized List<File> cleanup() throws IOException {
+            return cleanup(CompactionResult.skipped(
+                lastCompactionType,
+                getGcGeneration(),
+                garbageCollector.gcOptions,
+                revisions.getHead()
+            ));
+        }
+
+        /**
          * Cleanup segments whose generation matches the {@link CompactionResult#reclaimer()} predicate.
          * @return list of files to be removed
          * @throws IOException
          */
         @Nonnull
-        private List<File> cleanup(@Nonnull CompactionResult compactionResult)
+        private synchronized List<File> cleanup(@Nonnull CompactionResult compactionResult)
             throws IOException {
             PrintableStopwatch watch = PrintableStopwatch.createStarted();
 
@@ -973,7 +998,7 @@ public class FileStore extends AbstractFileStore {
         synchronized void collectBlobReferences(Consumer<String> collector) throws IOException {
             segmentWriter.flush();
             tarFiles.collectBlobReferences(collector,
-                    newOldReclaimer(gcJournal.getLastGCType(), getGcGeneration(), gcOptions.getRetainedGenerations()));
+                    newOldReclaimer(lastCompactionType, getGcGeneration(), gcOptions.getRetainedGenerations()));
         }
 
         void cancel() {

@@ -21,15 +21,12 @@ package org.apache.jackrabbit.oak.segment.file;
 
 import static com.google.common.base.Charsets.UTF_8;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.collect.Lists.newArrayList;
 import static java.nio.file.Files.newBufferedWriter;
 import static java.nio.file.Files.readAllLines;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.DSYNC;
 import static java.nio.file.StandardOpenOption.WRITE;
-import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType.FULL;
-import static org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType.TAIL;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 
 import java.io.BufferedWriter;
@@ -45,7 +42,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.base.Joiner;
 import org.apache.jackrabbit.oak.segment.RecordId;
-import org.apache.jackrabbit.oak.segment.compaction.SegmentGCOptions.GCType;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,24 +116,6 @@ public class GCJournal {
             }
         }
         return latest;
-    }
-
-    /**
-     * Determine the type of the most recent gc operation for the entries in the
-     * gc journal.
-     * @return  {@link GCType#TAIL} if there are at least two entries in the gc log
-     *          and both have the same full generation, {@link GCType#FULL} otherwise.
-     */
-    public GCType getLastGCType() {
-        List<GCJournalEntry> entries = newArrayList(readAll());
-        int count = entries.size();
-        if (count < 2) {
-            return FULL;
-        } else {
-            GCGeneration m = entries.get(count - 2).getGcGeneration();
-            GCGeneration n = entries.get(count - 1).getGcGeneration();
-            return n.compareFullGenerationWith(m) > 0 ? FULL : TAIL;
-        }
     }
 
     /**
