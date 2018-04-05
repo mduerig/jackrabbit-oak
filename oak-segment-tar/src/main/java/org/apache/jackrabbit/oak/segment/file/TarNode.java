@@ -52,7 +52,7 @@ public class TarNode extends AbstractNodeState {
     @Nonnull
     @Override
     public Iterable<? extends PropertyState> getProperties() {
-        return emptyList(); // TODO michid return tar meta data
+        return emptyList(); // TODO michid return tar meta data: name, size, time stamp
     }
 
     @Override

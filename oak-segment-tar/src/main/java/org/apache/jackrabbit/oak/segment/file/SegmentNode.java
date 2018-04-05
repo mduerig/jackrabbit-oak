@@ -48,7 +48,7 @@ public class SegmentNode extends AbstractNodeState {
     @Nonnull
     @Override
     public Iterable<? extends PropertyState> getProperties() {
-        return emptyList(); // TODO michid return segment metadata
+        return emptyList(); // TODO michid return segment metadata: data/bulk, uuid, size, references, dump, version, gc generation, info map, ...
     }
 
     @Override
