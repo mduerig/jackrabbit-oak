@@ -55,6 +55,8 @@ public class JournalNode extends AbstractNodeState {
     public JournalNode(@Nonnull Function<JournalEntry, NodeState> nodeResolver,
                        @Nonnull Supplier<JournalReader> journal) {
         this.nodeResolver = nodeResolver;
+
+        // TODO michid snap-shotting the journal does not work under truncation
         journalEntries = new Iterable<JournalEntry>() {
             int limit = size(journal.get());
 
