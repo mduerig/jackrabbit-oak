@@ -316,7 +316,7 @@ public class TarReader implements Closeable {
      * @return An array of {@link IndexEntry}.
      */
     @Nonnull
-    SegmentArchiveEntry[] getEntries() {
+    public SegmentArchiveEntry[] getEntries() {
         List<SegmentArchiveEntry> entryList = archive.listSegments();
         return entryList.toArray(new SegmentArchiveEntry[entryList.size()]);
     }
@@ -625,7 +625,7 @@ public class TarReader implements Closeable {
      *
      * @return An instance of {@link File}.
      */
-    String getFileName() {
+    public String getFileName() {
         return archive.getName();
     }
 

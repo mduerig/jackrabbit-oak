@@ -396,6 +396,18 @@ public class TarFiles implements Closeable {
         }
     }
 
+    public Iterable<TarReader> getTarReaders() {
+        Node head;
+        lock.readLock().lock();
+        try {
+            head = readers;
+        } finally {
+            lock.readLock().unlock();
+        }
+        return iterable(head);
+    }
+
+
     @Override
     public String toString() {
         String w = null;

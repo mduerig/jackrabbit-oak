@@ -18,6 +18,7 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static org.apache.jackrabbit.oak.plugins.memory.EmptyNodeState.EMPTY_NODE;
 import static org.apache.jackrabbit.oak.segment.SegmentCache.newSegmentCache;
 import static org.apache.jackrabbit.oak.segment.data.SegmentData.newSegmentData;
 
@@ -26,8 +27,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
@@ -44,7 +48,6 @@ import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.apache.jackrabbit.oak.segment.SegmentIdFactory;
 import org.apache.jackrabbit.oak.segment.SegmentIdProvider;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentNodeStorePersistence;
 import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentReader;
 import org.apache.jackrabbit.oak.segment.SegmentStore;
@@ -52,10 +55,14 @@ import org.apache.jackrabbit.oak.segment.SegmentTracker;
 import org.apache.jackrabbit.oak.segment.SegmentWriter;
 import org.apache.jackrabbit.oak.segment.file.tar.EntryRecovery;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
-import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
+import org.apache.jackrabbit.oak.segment.file.tar.TarReader;
 import org.apache.jackrabbit.oak.segment.file.tar.TarRecovery;
+import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
+import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentNodeStorePersistence;
 import org.apache.jackrabbit.oak.spi.blob.BlobStore;
+import org.apache.jackrabbit.oak.spi.state.NodeBuilder;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -187,6 +194,38 @@ public abstract class AbstractFileStore implements SegmentStore, Closeable {
     @Nonnull
     public SegmentNodeState getHead() {
         return segmentReader.readHeadState(getRevisions());
+    }
+
+    @Nonnull
+    public NodeState getSystemRoot() {
+        // segmentstore
+        //   tar*
+        //     segments*
+        //       records*
+        // journal
+        //   revision*
+
+        NodeBuilder systemRootBuilder = EMPTY_NODE.builder();
+        systemRootBuilder.setChildNode(
+                "segmentstore",
+                new SegmentStoreNode(getTarReaders()));
+        systemRootBuilder.setChildNode(
+                "journal",
+                new JournalNode(getNodeResolver(), getJournal()));
+
+        return systemRootBuilder.getNodeState();
+    }
+
+    @Nonnull
+    protected abstract List<TarReader> getTarReaders();
+
+    private Function<JournalEntry, NodeState> getNodeResolver() {
+        return null; // TODO michid implement getNodeResolver
+    }
+
+    @Nonnull
+    protected Supplier<JournalReader> getJournal() {
+        return null; // TODO michid implement getJournal
     }
 
     /**
