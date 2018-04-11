@@ -74,7 +74,7 @@ public class ReadOnlyFileStore extends AbstractFileStore {
                 .withIOMonitor(ioMonitor)
                 .withMemoryMapping(memoryMapping)
                 .withReadOnly()
-                .withPersistence(persistence)
+                .withPersistence(builder.getPersistence())
                 .build();
 
         writer = defaultSegmentWriterBuilder("read-only").withoutCache().build(this);
