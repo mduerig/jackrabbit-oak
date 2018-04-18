@@ -582,6 +582,11 @@ public class Segment {
         data.binDump(stream);
     }
 
+    /**
+     * Convert an offset into an address.
+     * @param offset
+     * @return  the address corresponding the {@code offset}
+     */
     public int getAddress(int offset) {
         return data.size() - (MAX_SEGMENT_SIZE - offset);
     }
