@@ -18,13 +18,13 @@
  */
 package org.apache.jackrabbit.oak.segment.spi.persistence;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * This interface represents a read-only segment archive. Since the underlying
@@ -100,6 +100,7 @@ public interface SegmentArchiveReader extends Closeable {
     /**
      * Close the archive.
      */
+    @Override
     void close() throws IOException;
 
     /**
