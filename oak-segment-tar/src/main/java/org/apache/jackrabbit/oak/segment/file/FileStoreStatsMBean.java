@@ -29,6 +29,8 @@ public interface FileStoreStatsMBean {
 
     int getTarFileCount();
 
+    int getSegmentCount();
+
     /**
      * @return  time series of the writes to repository
      */

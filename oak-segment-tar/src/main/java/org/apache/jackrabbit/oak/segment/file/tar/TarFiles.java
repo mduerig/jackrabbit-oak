@@ -447,6 +447,26 @@ public class TarFiles implements Closeable {
         return Iterables.size(iterable(head));
     }
 
+    public int segmentCount() {
+        int count = 0;
+        Node head;
+
+        lock.readLock().lock();
+        try {
+            if (writer != null) {
+                count = writer.getEntryCount();
+            }
+            head = readers;
+        } finally {
+            lock.readLock().unlock();
+        }
+
+        for (TarReader reader : iterable(head)) {
+            count += reader.getEntries().length;
+        }
+        return count;
+    }
+
     public void flush() throws IOException {
         lock.readLock().lock();
         try {

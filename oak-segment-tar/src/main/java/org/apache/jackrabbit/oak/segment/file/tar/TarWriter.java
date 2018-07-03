@@ -102,6 +102,10 @@ class TarWriter implements Closeable {
         return archive.containsSegment(msb, lsb);
     }
 
+    int getEntryCount() {
+        return archive.getEntryCount();
+    }
+
     /**
      * If the given segment is in this file, get the byte buffer that allows
      * reading it.

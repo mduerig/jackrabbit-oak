@@ -18,10 +18,11 @@
  */
 package org.apache.jackrabbit.oak.segment.spi.persistence;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Represents a write-enabled, append-only archive. It allows to append segments
@@ -105,6 +106,8 @@ public interface SegmentArchiveWriter {
      * @return length of the archive, in bytes
      */
     long getLength();
+
+    int getEntryCount();
 
     /**
      * Close the archive.
