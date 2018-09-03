@@ -32,11 +32,22 @@ import org.jetbrains.annotations.Nullable;
  */
 public class CachingSegmentArchiveReader implements SegmentArchiveReader {
 
+    @NotNull
     private final DiskCache diskCache;
+
+    @NotNull
     private final SegmentArchiveReader delegate;
 
+    public CachingSegmentArchiveReader(
+            @NotNull DiskCache diskCache,
+            @NotNull SegmentArchiveReader delegate) {
+        this.diskCache = diskCache;
+        this.delegate = delegate;
+    }
+
     @Override
-    public @Nullable ByteBuffer readSegment(long msb, long lsb) throws IOException {
+    @Nullable
+    public ByteBuffer readSegment(long msb, long lsb) throws IOException {
         ByteBuffer buffer = diskCache.readSegment(msb, lsb);
         if (buffer == null) {
             buffer = delegate.readSegment(msb, lsb);
@@ -55,41 +66,44 @@ public class CachingSegmentArchiveReader implements SegmentArchiveReader {
 
     @Override
     public List<SegmentArchiveEntry> listSegments() {
-        return null; // michid implement listSegments
+        return delegate.listSegments();
     }
 
     @Override
-    public @Nullable ByteBuffer getGraph() throws IOException {
-        return null; // michid implement getGraph
+    @Nullable
+    public ByteBuffer getGraph() throws IOException {
+        return delegate.getGraph();
     }
 
     @Override
     public boolean hasGraph() {
-        return false; // michid implement hasGraph
+        return delegate.hasGraph();
     }
 
     @Override
-    public @NotNull ByteBuffer getBinaryReferences() throws IOException {
-        return null; // michid implement getBinaryReferences
+    @NotNull
+    public ByteBuffer getBinaryReferences() throws IOException {
+        return delegate.getBinaryReferences();
     }
 
     @Override
     public long length() {
-        return 0; // michid implement length
+        return delegate.length();
     }
 
     @Override
-    public @NotNull String getName() {
-        return null; // michid implement getName
+    @NotNull
+    public String getName() {
+        return delegate.getName();
     }
 
     @Override
     public void close() throws IOException {
-        // michid implement close
+        delegate.close();
     }
 
     @Override
     public int getEntrySize(int size) {
-        return 0; // michid implement getEntrySize
+        return delegate.getEntrySize(size);
     }
 }

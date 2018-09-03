@@ -21,7 +21,6 @@ package org.apache.jackrabbit.oak.segment.azure.persistentcache;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveWriter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -31,64 +30,85 @@ import org.jetbrains.annotations.Nullable;
  */
 public class CachingSegmentArchiveWriter implements SegmentArchiveWriter {
 
+    @NotNull
     private final DiskCache diskCache;
+
+    @NotNull
     private final SegmentArchiveWriter delegate;
 
+    public CachingSegmentArchiveWriter(
+            @NotNull DiskCache diskCache,
+            @NotNull SegmentArchiveWriter delegate) {
+        this.diskCache = diskCache;
+        this.delegate = delegate;
+    }
+
     @Override
-    public @NotNull void writeSegment(long msb, long lsb, @NotNull byte[] data, int offset,
-                                      int size, int generation, int fullGeneration,
-                                      boolean isCompacted) throws IOException {
+    public void writeSegment(
+            long msb, long lsb, @NotNull byte[] data, int offset, int size,
+            int generation, int fullGeneration, boolean isCompacted)
+    throws IOException {
         delegate.writeSegment(msb, lsb, data, offset, size, generation, fullGeneration, isCompacted);
         diskCache.writeSegment(msb, lsb, data, offset, size, generation, fullGeneration, isCompacted);
     }
 
     @Override
-    public @Nullable ByteBuffer readSegment(long msb, long lsb) throws IOException {
-        return null; // michid implement readSegment
+    @Nullable
+    public ByteBuffer readSegment(long msb, long lsb) throws IOException {
+        ByteBuffer buffer = diskCache.readSegment(msb, lsb);
+        if (buffer == null) {
+            buffer = delegate.readSegment(msb, lsb);
+        }
+        return buffer;
     }
 
     @Override
     public boolean containsSegment(long msb, long lsb) {
-        return false; // michid implement containsSegment
+        if (diskCache.containsSegment(msb, lsb)) {
+            return true;
+        } else {
+            return delegate.containsSegment(msb, lsb);
+        }
     }
 
     @Override
     public void writeGraph(@NotNull byte[] data) throws IOException {
-        // michid implement writeGraph
+        delegate.writeGraph(data);
     }
 
     @Override
     public void writeBinaryReferences(@NotNull byte[] data) throws IOException {
-        // michid implement writeBinaryReferences
+        delegate.writeBinaryReferences(data);
     }
 
     @Override
     public long getLength() {
-        return 0; // michid implement getLength
+        return delegate.getLength();
     }
 
     @Override
     public int getEntryCount() {
-        return 0; // michid implement getEntryCount
+        return delegate.getEntryCount();
     }
 
     @Override
     public void close() throws IOException {
-        // michid implement close
+        delegate.close();
     }
 
     @Override
     public boolean isCreated() {
-        return false; // michid implement isCreated
+        return delegate.isCreated();
     }
 
     @Override
     public void flush() throws IOException {
-        // michid implement flush
+        delegate.flush();
     }
 
     @Override
-    public @NotNull String getName() {
-        return null; // michid implement getName
+    @NotNull
+    public String getName() {
+        return delegate.getName();
     }
 }

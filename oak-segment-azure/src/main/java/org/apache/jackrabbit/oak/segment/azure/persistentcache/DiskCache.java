@@ -18,23 +18,27 @@
 
 package org.apache.jackrabbit.oak.segment.azure.persistentcache;
 
-import static java.util.Arrays.asList;
 import static java.util.Collections.emptySet;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashSet;
 import java.util.UUID;
 
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * michid document
  */
 public class DiskCache {
 
+    @NotNull
     private final TarFiles tarFiles;
+
+    public DiskCache(@NotNull TarFiles tarFiles) {
+        this.tarFiles = tarFiles;
+    }
 
     public ByteBuffer readSegment(long msb, long lsb) {
         return tarFiles.readSegment(msb, lsb);
@@ -44,11 +48,12 @@ public class DiskCache {
         return tarFiles.containsSegment(msb, lsb);
     }
 
-    public void writeSegment(long msb, long lsb, byte[] data, int offset, int size, int generation,
-                             int fullGeneration, boolean isCompacted) throws IOException {
+    public void writeSegment(long msb, long lsb, byte[] data, int offset, int size,
+                             int generation, int fullGeneration, boolean isCompacted)
+    throws IOException {
         tarFiles.writeSegment(
             new UUID(msb, lsb), data, offset, size,
-            newGCGeneration(1, 1, false),
-            emptySet(), emptySet());
+            newGCGeneration(generation, fullGeneration, isCompacted),
+            emptySet(), emptySet());  // michid skip auxiliary entries for now. Segment graph is not needed. Binary references only for BlobGC.
     }
 }
