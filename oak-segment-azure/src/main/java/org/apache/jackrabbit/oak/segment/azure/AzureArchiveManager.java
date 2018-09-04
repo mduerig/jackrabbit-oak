@@ -57,6 +57,9 @@ public class AzureArchiveManager implements SegmentArchiveManager {
 
     private static final Logger log = LoggerFactory.getLogger(AzureSegmentArchiveReader.class);
 
+    private static final String PERSISTENT_CACHE_LOCATION =
+            System.getProperty("oak.segment.azure.cache.dir", ".");
+
     private final CloudBlobDirectory cloudBlobDirectory;
 
     private final IOMonitor ioMonitor;
@@ -73,7 +76,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
         this.cloudBlobDirectory = cloudBlobDirectory;
         this.ioMonitor = ioMonitor;
         this.monitor = fileStoreMonitor;
-        this.diskCache = new DiskCache(new File("."));  // michid add config option for location of persistence cache
+        this.diskCache = new DiskCache(new File(PERSISTENT_CACHE_LOCATION));
     }
 
     @Override
