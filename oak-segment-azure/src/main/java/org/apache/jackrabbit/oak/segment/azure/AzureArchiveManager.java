@@ -66,6 +66,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
 
     private final FileStoreMonitor monitor;
 
+    // michid needs closing
     private final DiskCache diskCache;
 
     public AzureArchiveManager(

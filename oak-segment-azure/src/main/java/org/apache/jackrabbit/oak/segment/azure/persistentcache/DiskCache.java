@@ -45,15 +45,27 @@ public class DiskCache implements Closeable{
         this.tarFiles = tarFiles;
     }
 
-    public DiskCache(File directory) throws IOException {
+    public DiskCache(@NotNull File directory) throws IOException {
         this(TarFiles.builder()
-            .withDirectory(directory)
+            .withDirectory(createCacheDir(directory))
             .withMaxFileSize(FileStoreBuilder.DEFAULT_MAX_FILE_SIZE * 1024 * 1024)
             .withFileStoreMonitor(new FileStoreMonitorAdapter())
             .withIOMonitor(new IOMonitorAdapter())
             .withMemoryMapping(false)
             .withTarRecovery((uuid, data, entryRecovery) -> { })
             .build());
+    }
+
+    @NotNull
+    private static File createCacheDir(@NotNull File directory) throws IOException {
+        if (!directory.isDirectory()) {
+            throw new IOException("Not a directory " + directory);
+        }
+        File cacheDir = new File(directory, "segment-cache");
+        if (!cacheDir.mkdir()) {
+            throw new IOException("Failed to create cache directory");
+        }
+        return cacheDir;
     }
 
     public ByteBuffer readSegment(long msb, long lsb) {
