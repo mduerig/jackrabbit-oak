@@ -45,11 +45,8 @@ import com.microsoft.azure.storage.blob.CopyStatus;
 import org.apache.jackrabbit.oak.segment.azure.persistentcache.CachingSegmentArchiveReader;
 import org.apache.jackrabbit.oak.segment.azure.persistentcache.CachingSegmentArchiveWriter;
 import org.apache.jackrabbit.oak.segment.azure.persistentcache.DiskCache;
-import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
 import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitor;
-import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitorAdapter;
 import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
-import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitorAdapter;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveManager;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveWriter;
@@ -66,12 +63,17 @@ public class AzureArchiveManager implements SegmentArchiveManager {
 
     private final FileStoreMonitor monitor;
 
-    private DiskCache diskCache;
+    private final DiskCache diskCache;
 
-    public AzureArchiveManager(CloudBlobDirectory cloudBlobDirectory, IOMonitor ioMonitor, FileStoreMonitor fileStoreMonitor) {
+    public AzureArchiveManager(
+            CloudBlobDirectory cloudBlobDirectory,
+            IOMonitor ioMonitor,
+            FileStoreMonitor fileStoreMonitor)
+    throws IOException {
         this.cloudBlobDirectory = cloudBlobDirectory;
         this.ioMonitor = ioMonitor;
         this.monitor = fileStoreMonitor;
+        this.diskCache = new DiskCache(new File("."));  // michid add config option for location of persistence cache
     }
 
     @Override
@@ -101,8 +103,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
                 throw new IOException("The archive " + archiveName + " hasn't been closed correctly.");
             }
             return new CachingSegmentArchiveReader(
-                    getOrCreateDiskCache(),
-                    new AzureSegmentArchiveReader(archiveDirectory, ioMonitor)
+                    diskCache, new AzureSegmentArchiveReader(archiveDirectory, ioMonitor)
             );
             //return new AzureSegmentArchiveReader(archiveDirectory, ioMonitor);
         } catch (StorageException | URISyntaxException e) {
@@ -113,7 +114,7 @@ public class AzureArchiveManager implements SegmentArchiveManager {
     @Override
     public SegmentArchiveWriter create(String archiveName) throws IOException {
         return new CachingSegmentArchiveWriter(
-                getOrCreateDiskCache(),
+                diskCache,
                 new AzureSegmentArchiveWriter(
                         getDirectory(archiveName),
                         ioMonitor,
@@ -121,22 +122,6 @@ public class AzureArchiveManager implements SegmentArchiveManager {
                 )
         );
         //return new AzureSegmentArchiveWriter(getDirectory(archiveName), ioMonitor, monitor);
-    }
-
-    private DiskCache getOrCreateDiskCache() throws IOException {
-        if (null == diskCache) {
-            diskCache = new DiskCache(
-                    TarFiles.builder()  // michid add config options
-                            .withDirectory(new File("."))
-                            .withMaxFileSize(256*1024*1024)
-                            .withFileStoreMonitor(new FileStoreMonitorAdapter())  // michid add monitoring to cache layer
-                            .withIOMonitor(new IOMonitorAdapter())                // michid add monitoring to cache layer
-                            .withMemoryMapping(false)
-                            .withTarRecovery((uuid, data, entryRecovery) -> { })  // michid does this work?
-                            .build()
-            );
-        }
-        return diskCache;
     }
 
     @Override

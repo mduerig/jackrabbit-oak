@@ -22,11 +22,15 @@ import static java.util.Collections.emptySet;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
+import org.apache.jackrabbit.oak.segment.spi.monitor.FileStoreMonitorAdapter;
+import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitorAdapter;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -37,9 +41,19 @@ public class DiskCache implements Closeable{
     @NotNull
     private final TarFiles tarFiles;
 
-    // michid add builder for disk cache so consumers do not need to fiddle with impl details
     public DiskCache(@NotNull TarFiles tarFiles) {
         this.tarFiles = tarFiles;
+    }
+
+    public DiskCache(File directory) throws IOException {
+        this(TarFiles.builder()
+            .withDirectory(directory)
+            .withMaxFileSize(FileStoreBuilder.DEFAULT_MAX_FILE_SIZE * 1024 * 1024)
+            .withFileStoreMonitor(new FileStoreMonitorAdapter())
+            .withIOMonitor(new IOMonitorAdapter())
+            .withMemoryMapping(false)
+            .withTarRecovery((uuid, data, entryRecovery) -> { })
+            .build());
     }
 
     public ByteBuffer readSegment(long msb, long lsb) {
