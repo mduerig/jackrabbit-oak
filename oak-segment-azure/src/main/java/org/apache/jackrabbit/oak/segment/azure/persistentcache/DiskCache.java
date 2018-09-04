@@ -21,22 +21,34 @@ package org.apache.jackrabbit.oak.segment.azure.persistentcache;
 import static java.util.Collections.emptySet;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
+import com.google.common.io.Closer;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * michid document
  */
-public class DiskCache {
+public class DiskCache implements Closeable{
 
     @NotNull
     private final TarFiles tarFiles;
 
+    Closer closer = Closer.create();
+
     public DiskCache(@NotNull TarFiles tarFiles) {
+        closer.register(new Closeable(){
+            @Override public void close() {
+                try {
+                    tarFiles.close();
+                }
+                catch (IOException e) { }
+            }
+        });
         this.tarFiles = tarFiles;
     }
 
@@ -55,5 +67,10 @@ public class DiskCache {
             new UUID(msb, lsb), data, offset, size,
             newGCGeneration(generation, fullGeneration, isCompacted),
             emptySet(), emptySet());  // michid skip auxiliary entries for now. Segment graph is not needed. Binary references only for BlobGC.
+    }
+
+    @Override
+    public void close() throws IOException {
+        closer.close();
     }
 }
