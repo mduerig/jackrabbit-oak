@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import com.google.common.io.Closer;
 import org.apache.jackrabbit.oak.segment.file.tar.TarFiles;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,17 +37,7 @@ public class DiskCache implements Closeable{
     @NotNull
     private final TarFiles tarFiles;
 
-    Closer closer = Closer.create();
-
     public DiskCache(@NotNull TarFiles tarFiles) {
-        closer.register(new Closeable(){
-            @Override public void close() {
-                try {
-                    tarFiles.close();
-                }
-                catch (IOException e) { }
-            }
-        });
         this.tarFiles = tarFiles;
     }
 
@@ -71,6 +60,6 @@ public class DiskCache implements Closeable{
 
     @Override
     public void close() throws IOException {
-        closer.close();
+        tarFiles.close();
     }
 }
