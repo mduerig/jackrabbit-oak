@@ -18,6 +18,7 @@
 
 package org.apache.jackrabbit.oak.segment.azure.persistentcache;
 
+import static java.lang.Math.abs;
 import static java.util.Collections.emptySet;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 
@@ -25,6 +26,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Random;
 import java.util.UUID;
 
 import org.apache.jackrabbit.oak.segment.file.FileStoreBuilder;
@@ -58,10 +60,12 @@ public class DiskCache implements Closeable{
 
     @NotNull
     private static File createCacheDir(@NotNull File directory) throws IOException {
+        long randomLong = abs(new Random(System.currentTimeMillis()).nextLong());
+
         if (!directory.isDirectory()) {
             throw new IOException("Not a directory " + directory);
         }
-        File cacheDir = new File(directory, "segment-cache");
+        File cacheDir = new File(directory, "segment-cache-" + randomLong);
         if (!cacheDir.mkdir()) {
             throw new IOException("Failed to create cache directory");
         }
