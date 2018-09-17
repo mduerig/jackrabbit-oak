@@ -61,6 +61,10 @@ public final class DefaultSegmentWriterBuilder {
     @NotNull
     private WriterCacheManager cacheManager = new WriterCacheManager.Default();
 
+    private int warnThreshold;
+
+    private int errorThreshold;
+
     private DefaultSegmentWriterBuilder(@NotNull String name) {
         this.name = checkNotNull(name);
     }
@@ -140,18 +144,29 @@ public final class DefaultSegmentWriterBuilder {
         return this;
     }
 
+    @NotNull
+    public DefaultSegmentWriterBuilder withFlushMonitor(int warnThreshold, int errorThreshold) {
+        this.warnThreshold = warnThreshold;
+        this.errorThreshold = errorThreshold;
+        return this;
+    }
+
     /**
      * Build a {@code SegmentWriter} for a {@code FileStore}.
      */
     @NotNull
     public DefaultSegmentWriter build(@NotNull FileStore store) {
+        WriteOperationHandler writer = createWriter(store.getSegmentIdProvider(), store.getReader(), pooled);
+        if (warnThreshold > 0) {
+            writer = new WriteOperationHandlerWithFlushMonitor(writer, warnThreshold, errorThreshold);
+        }
         return new DefaultSegmentWriter(
                 checkNotNull(store),
                 store.getReader(),
                 store.getSegmentIdProvider(),
                 store.getBlobStore(),
                 cacheManager,
-                createWriter(store.getSegmentIdProvider(), store.getReader(), pooled)
+                writer
         );
     }
 

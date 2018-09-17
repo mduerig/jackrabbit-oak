@@ -18,14 +18,22 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
+import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.memory.ArrayBasedBlob;
@@ -171,6 +179,42 @@ public class FileStoreIT {
                 assertEquals(id2, roStore.getRevisions().getHead());
             }
         }
+    }
+
+    @Test
+    public void blockedJournalUpdates()
+    throws IOException, InvalidFileStoreVersionException, InterruptedException {
+        try (FileStore store = fileStoreBuilder(getFileStoreFolder())
+                .withFlushThreshold(4, 8)
+                .build()) {
+
+            // Block scheduled journal updates
+            CountDownLatch blockJournalUpdates = new CountDownLatch(1);
+            store.fileStoreScheduler.scheduleOnce("block", 0, SECONDS, () ->
+                awaitUninterruptibly(blockJournalUpdates));
+
+            try {
+                for (int k = 0; k < 1000; k++) {
+                    addNode(store, "n" + k);
+                    sleepUninterruptibly(10, MILLISECONDS);
+                }
+                fail("Expected IOException: flush gap exceeded");
+            } catch (IllegalStateException e) {
+                assertTrue(e.getCause() instanceof IOException);
+            }
+
+            blockJournalUpdates.countDown();
+            store.flush();
+
+            addNode(store, "x");
+        }
+    }
+
+    private static void addNode(FileStore store, String name) throws InterruptedException {
+        SegmentNodeState base = store.getHead();
+        SegmentNodeBuilder builder = base.builder();
+        builder.setChildNode(name);
+        store.getRevisions().setHead(base.getRecordId(), builder.getNodeState().getRecordId());
     }
 
 }

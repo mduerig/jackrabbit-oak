@@ -23,6 +23,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.Boolean.getBoolean;
+import static java.lang.Integer.getInteger;
 import static org.apache.jackrabbit.oak.segment.CachingSegmentReader.DEFAULT_STRING_CACHE_MB;
 import static org.apache.jackrabbit.oak.segment.CachingSegmentReader.DEFAULT_TEMPLATE_CACHE_MB;
 import static org.apache.jackrabbit.oak.segment.SegmentCache.DEFAULT_SEGMENT_CACHE_MB;
@@ -74,6 +75,12 @@ public class FileStoreBuilder {
             "64".equals(System.getProperty("sun.arch.data.model", "32"));
 
     public static final int DEFAULT_MAX_FILE_SIZE = 256;
+
+    public static final int DEFAULT_FLUSH_WARN_THRESHOLD =
+            getInteger("oak.segment.max-flush-warn-threshold", 60);
+
+    public static final int DEFAULT_FLUSH_ERROR_THRESHOLD =
+            getInteger("oak.segment.max-flush-error-threshold", 600);
 
     @NotNull
     private final File directory;
@@ -137,6 +144,10 @@ public class FileStoreBuilder {
     private final Set<IOMonitor> ioMonitors = newHashSet();
 
     private boolean strictVersionCheck;
+
+    private int flushWarnThreshold = DEFAULT_FLUSH_WARN_THRESHOLD;
+
+    private int flushErrorThreshold = DEFAULT_FLUSH_ERROR_THRESHOLD;
 
     private boolean built;
 
@@ -358,6 +369,12 @@ public class FileStoreBuilder {
         return this;
     }
 
+    FileStoreBuilder withFlushThreshold(int flushWarnThreshold, int flushErrorThreshold) {
+        this.flushWarnThreshold = flushWarnThreshold;
+        this.flushErrorThreshold = flushErrorThreshold;
+        return this;
+    }
+
     public Backend buildProcBackend(AbstractFileStore fileStore) throws IOException {
         return new FileStoreProcBackend(fileStore, persistence);
     }
@@ -524,6 +541,14 @@ public class FileStoreBuilder {
 
     boolean getStrictVersionCheck() {
         return strictVersionCheck;
+    }
+
+    int getFlushWarnThreshold() {
+        return flushWarnThreshold;
+    }
+
+    int getFlushErrorThreshold() {
+        return flushErrorThreshold;
     }
 
     @Override

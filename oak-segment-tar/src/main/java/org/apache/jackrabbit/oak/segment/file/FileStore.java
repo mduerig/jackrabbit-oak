@@ -87,7 +87,7 @@ public class FileStore extends AbstractFileStore {
     /**
      * Scheduler for running <em>short</em> background operations
      */
-    private final Scheduler fileStoreScheduler = new Scheduler("FileStore background tasks");
+    final Scheduler fileStoreScheduler = new Scheduler("FileStore background tasks");
 
     /**
      * List of old tar file generations that are waiting to be removed. They can
@@ -128,6 +128,7 @@ public class FileStore extends AbstractFileStore {
                 .withWriterPool()
                 .with(builder.getCacheManager()
                         .withAccessTracking("WRITE", builder.getStatsProvider()))
+                .withFlushMonitor(builder.getFlushWarnThreshold(), builder.getFlushErrorThreshold())
                 .build(this);
 
         newManifestChecker(persistence, builder.getStrictVersionCheck()).checkAndUpdateManifest();
