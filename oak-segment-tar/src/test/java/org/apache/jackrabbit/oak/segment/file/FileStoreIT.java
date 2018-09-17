@@ -18,21 +18,34 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Maps.newLinkedHashMap;
+import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 
 import org.apache.jackrabbit.oak.api.Blob;
 import org.apache.jackrabbit.oak.plugins.memory.ArrayBasedBlob;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
+import org.apache.jackrabbit.oak.segment.SegmentNotFoundException;
 import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
+import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
+import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -170,6 +183,82 @@ public class FileStoreIT {
                 roStore.setRevision(id2.toString());
                 assertEquals(id2, roStore.getRevisions().getHead());
             }
+        }
+    }
+
+    /**
+     * This test case simulates adding revisions to a store, blocking journal
+     * updates, adding more revisions followed by a unclean shutdown.
+     */
+    @Test
+    public void blockedJournalUpdatesCauseSNFE()
+    throws IOException, InvalidFileStoreVersionException, InterruptedException {
+        try (FileStore rwStore = fileStoreBuilder(getFileStoreFolder()).build()) {
+
+            // Block scheduled journal updates
+            CountDownLatch blockJournalUpdates = new CountDownLatch(1);
+            rwStore.fileStoreScheduler.scheduleOnce("block", 0, SECONDS, () ->
+                awaitUninterruptibly(blockJournalUpdates));
+
+            // Add some revisions
+            Map<String, String> roots = newLinkedHashMap();
+            for (int k = 0; k < 1000; k++) {
+                roots.putIfAbsent(addNode(rwStore, "g" + k), "g" + k);
+            }
+
+            // Explicit journal update
+            rwStore.flush();
+
+            // Add more revisions
+            for (int k = 0; k < 1000; k++) {
+                roots.putIfAbsent(addNode(rwStore, "b" + k), "b" + k);
+            }
+
+            // Open the store again in read only mode and check all revisions.
+            // This simulates accessing the store after an unclean shutdown.
+            try (ReadOnlyFileStore roStore = fileStoreBuilder(getFileStoreFolder()).buildReadOnly()) {
+                List<Entry<String, String>> goodRevisions = newArrayList();
+                List<Entry<String, String>> badRevisions = newArrayList();
+                for (Entry<String, String> revision : roots.entrySet()) {
+                    roStore.setRevision(revision.getKey());
+                    try {
+                        checkNode(roStore.getHead());
+                        goodRevisions.add(revision);
+                    } catch (SegmentNotFoundException snfe) {
+                        badRevisions.add(revision);
+                    }
+                }
+
+                if (!badRevisions.isEmpty()) {
+                    System.out.println("Good roots: " + goodRevisions);
+                    System.out.println("Bad roots: " + badRevisions);
+                }
+
+                System.out.println("good/bad roots: " + goodRevisions.size() + "/" + badRevisions.size());
+                assertTrue(badRevisions.isEmpty());
+            }
+            finally {
+                blockJournalUpdates.countDown();
+            }
+        }
+    }
+
+    private static String addNode(FileStore store, String name) throws InterruptedException {
+        Thread thread = new Thread(() -> {
+            SegmentNodeState base = store.getHead();
+            SegmentNodeBuilder builder = base.builder();
+            builder.setChildNode(name);
+            store.getRevisions().setHead(base.getRecordId(), builder.getNodeState().getRecordId());
+        });
+        thread.start();
+        thread.join();
+
+        return store.getRevisions().getHead().toString();
+    }
+
+    private static void checkNode(NodeState node) {
+        for (ChildNodeEntry cne : node.getChildNodeEntries()) {
+            checkNode(cne.getNodeState());
         }
     }
 
