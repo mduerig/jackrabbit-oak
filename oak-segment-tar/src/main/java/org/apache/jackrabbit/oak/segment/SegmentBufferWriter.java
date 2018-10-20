@@ -156,7 +156,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     @NotNull
     @Override
-    public RecordId execute(@NotNull WriteOperation writeOperation) throws IOException {
+    public RecordId execute(@NotNull SegmentStore store, @NotNull WriteOperation writeOperation) throws IOException {
         return writeOperation.execute(this);
     }
 

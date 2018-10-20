@@ -73,7 +73,7 @@ public class SegmentBufferWriterPoolTest {
         return executors[executor].submit(new Callable<RecordId>() {
             @Override
             public RecordId call() throws Exception {
-                return pool.execute(op);
+                return pool.execute(store, op);
             }
         });
     }

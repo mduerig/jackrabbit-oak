@@ -24,26 +24,35 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
+import static java.lang.Integer.getInteger;
 import static java.lang.Thread.currentThread;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Supplier;
 import com.google.common.util.concurrent.Monitor;
 import com.google.common.util.concurrent.Monitor.Guard;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This {@link WriteOperationHandler} uses a pool of {@link SegmentBufferWriter}s,
- * which it passes to its {@link #execute(WriteOperation) execute} method.
+ * which it passes to its {@link #execute(SegmentStore, WriteOperation) execute} method.
  * <p>
  * Instances of this class are thread safe.
  */
 public class SegmentBufferWriterPool implements WriteOperationHandler {
+    private static final Logger LOG = LoggerFactory.getLogger(SegmentBufferWriterPool.class);
+
+    public static final int DEFAULT_FLUSH_GAP = 2000;
+
+    private static final int FLUSH_GAP = getInteger("oak.segment-tar.flush-gap", DEFAULT_FLUSH_GAP);
 
     /**
      * Monitor protecting the state of this pool. Neither of {@link #writers},
@@ -79,6 +88,9 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
     @NotNull
     private final String wid;
 
+    @NotNull
+    private final AtomicInteger borrowCount = new AtomicInteger();
+
     private short writerId = -1;
 
     public SegmentBufferWriterPool(
@@ -94,8 +106,8 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
 
     @NotNull
     @Override
-    public RecordId execute(@NotNull WriteOperation writeOperation) throws IOException {
-        SegmentBufferWriter writer = borrowWriter(currentThread());
+    public RecordId execute(@NotNull SegmentStore store, @NotNull WriteOperation writeOperation) throws IOException {
+        SegmentBufferWriter writer = borrowWriter(store, currentThread());
         try {
             return writeOperation.execute(writer);
         } finally {
@@ -179,7 +191,11 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
      * a fresh writer at any time. Callers need to return a writer before
      * borrowing it again. Failing to do so leads to undefined behaviour.
      */
-    private SegmentBufferWriter borrowWriter(Object key) {
+    private SegmentBufferWriter borrowWriter(SegmentStore store, Object key) {
+        if (borrowCount.incrementAndGet() % FLUSH_GAP == 0) {
+            flushWriters(store);
+        }
+
         poolMonitor.enter();
         try {
             SegmentBufferWriter writer = writers.remove(key);
@@ -203,6 +219,25 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
             return writer;
         } finally {
             poolMonitor.leave();
+        }
+    }
+
+    private void flushWriters(SegmentStore store) {
+        List<SegmentBufferWriter> toFlush = newArrayList();
+        poolMonitor.enter();
+        try {
+            toFlush.addAll(writers.values());
+            writers.clear();
+        } finally {
+            poolMonitor.leave();
+        }
+
+        for (SegmentBufferWriter writer : toFlush) {
+            try {
+                writer.flush(store);
+            } catch (IOException e) {
+                LOG.warn("Failed to flush the segment", e);
+            }
         }
     }
 

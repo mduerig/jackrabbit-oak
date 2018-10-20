@@ -140,7 +140,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
     @NotNull
     RecordId writeMap(@Nullable final MapRecord base, @NotNull final Map<String, RecordId> changes) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -153,7 +153,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
     @NotNull
     RecordId writeList(@NotNull final List<RecordId> list) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -166,7 +166,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
     @NotNull
     RecordId writeString(@NotNull final String string) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -180,7 +180,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
     @Override
     @NotNull
     public RecordId writeBlob(@NotNull final Blob blob) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -193,7 +193,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
     @NotNull
     RecordId writeBlock(@NotNull final byte[] bytes, final int offset, final int length) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -207,7 +207,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
     @Override
     @NotNull
     public RecordId writeStream(@NotNull final InputStream stream) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -219,7 +219,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
     @NotNull
     RecordId writeProperty(@NotNull final PropertyState state) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override
@@ -232,7 +232,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
     @Override
     @NotNull
     public RecordId writeNode(@NotNull final NodeState state, @Nullable final ByteBuffer stableIdBytes) throws IOException {
-        return writeOperationHandler.execute(new SegmentWriteOperation() {
+        return writeOperationHandler.execute(store, new SegmentWriteOperation() {
 
             @NotNull
             @Override

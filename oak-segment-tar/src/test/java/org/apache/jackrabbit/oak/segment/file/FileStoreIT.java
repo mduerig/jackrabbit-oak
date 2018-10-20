@@ -22,10 +22,10 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.jackrabbit.oak.segment.SegmentBufferWriterPool.DEFAULT_FLUSH_GAP;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -202,7 +202,7 @@ public class FileStoreIT {
 
             // Add some revisions
             Map<String, String> roots = newLinkedHashMap();
-            for (int k = 0; k < 1000; k++) {
+            for (int k = 0; k < DEFAULT_FLUSH_GAP / 2; k++) {
                 roots.putIfAbsent(addNode(rwStore, "g" + k), "g" + k);
             }
 
@@ -210,7 +210,7 @@ public class FileStoreIT {
             rwStore.flush();
 
             // Add more revisions
-            for (int k = 0; k < 1000; k++) {
+            for (int k = 0; k < DEFAULT_FLUSH_GAP / 2; k++) {
                 roots.putIfAbsent(addNode(rwStore, "b" + k), "b" + k);
             }
 
@@ -235,7 +235,7 @@ public class FileStoreIT {
                 }
 
                 System.out.println("good/bad roots: " + goodRevisions.size() + "/" + badRevisions.size());
-                assertTrue(badRevisions.isEmpty());
+                assertEquals(1, badRevisions.size());
             }
             finally {
                 blockJournalUpdates.countDown();

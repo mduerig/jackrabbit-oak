@@ -171,7 +171,7 @@ public final class DefaultSegmentWriterBuilder {
                 new WriteOperationHandler() {
                     @NotNull
                     @Override
-                    public RecordId execute(@NotNull WriteOperation writeOperation) {
+                    public RecordId execute(@NotNull SegmentStore store, @NotNull WriteOperation writeOperation) {
                         throw new UnsupportedOperationException("Cannot write to read-only store");
                     }
 

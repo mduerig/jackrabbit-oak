@@ -50,12 +50,13 @@ interface WriteOperationHandler {
 
     /**
      * Execute the passed {@code writeOperation} by passing it a {@link SegmentBufferWriter}.
+     * @param store           the {@code SegmentStore} instance to write
      * @param writeOperation  {@link WriteOperation} to execute
      * @return                {@code RecordId} that resulted from persisting the changes.
      * @throws IOException
      */
     @NotNull
-    RecordId execute(@NotNull WriteOperation writeOperation) throws IOException;
+    RecordId execute(@NotNull SegmentStore store, @NotNull WriteOperation writeOperation) throws IOException;
 
     /**
      * Flush any pending changes on any {@link SegmentBufferWriter} managed by this instance.
