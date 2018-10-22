@@ -151,7 +151,7 @@ public final class DefaultSegmentWriterBuilder {
                 store.getSegmentIdProvider(),
                 store.getBlobStore(),
                 cacheManager,
-                createWriter(store, pooled)
+                createWriter(store.getSegmentIdProvider(), store.getReader(), pooled)
         );
     }
 
@@ -194,42 +194,26 @@ public final class DefaultSegmentWriterBuilder {
                 store.getSegmentIdProvider(),
                 store.getBlobStore(),
                 cacheManager,
-                createWriter(store, pooled)
+                createWriter(store.getSegmentIdProvider(), store.getReader(), pooled)
         );
     }
 
     @NotNull
-    private WriteOperationHandler createWriter(@NotNull FileStore store, boolean pooled) {
+    private WriteOperationHandler createWriter(
+            @NotNull SegmentIdProvider segmentIdProvider,
+            @NotNull SegmentReader segmentReader,
+            boolean pooled) {
         if (pooled) {
             return new SegmentBufferWriterPool(
-                    store.getSegmentIdProvider(),
-                    store.getReader(),
+                    segmentIdProvider,
+                    segmentReader,
                     name,
                     generation
             );
         } else {
             return new SegmentBufferWriter(
-                    store.getSegmentIdProvider(),
-                    store.getReader(),
-                    name,
-                    generation.get()
-            );
-        }
-    }
-
-    @NotNull
-    private WriteOperationHandler createWriter(@NotNull MemoryStore store, boolean pooled) {
-        if (pooled) {
-            return new SegmentBufferWriterPool(
-                    store.getSegmentIdProvider(),
-                    store.getReader(),
-                    name,
-                    generation
-            );
-        } else {
-            return new SegmentBufferWriter(
-                    store.getSegmentIdProvider(),
-                    store.getReader(),
+                    segmentIdProvider,
+                    segmentReader,
                     name,
                     generation.get()
             );
