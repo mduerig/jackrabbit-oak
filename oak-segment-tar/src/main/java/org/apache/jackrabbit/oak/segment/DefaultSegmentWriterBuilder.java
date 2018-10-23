@@ -28,6 +28,7 @@ import org.apache.jackrabbit.oak.segment.file.FileStore;
 import org.apache.jackrabbit.oak.segment.file.ReadOnlyFileStore;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
+import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -64,6 +65,9 @@ public final class DefaultSegmentWriterBuilder {
     private int warnThreshold;
 
     private int errorThreshold;
+
+    @NotNull
+    private StatisticsProvider statsProvider = StatisticsProvider.NOOP;
 
     private DefaultSegmentWriterBuilder(@NotNull String name) {
         this.name = checkNotNull(name);
@@ -145,9 +149,13 @@ public final class DefaultSegmentWriterBuilder {
     }
 
     @NotNull
-    public DefaultSegmentWriterBuilder withFlushMonitor(int warnThreshold, int errorThreshold) {
+    public DefaultSegmentWriterBuilder withFlushMonitor(
+            int warnThreshold,
+            int errorThreshold,
+            @NotNull StatisticsProvider statsProvider) {
         this.warnThreshold = warnThreshold;
         this.errorThreshold = errorThreshold;
+        this.statsProvider = statsProvider;
         return this;
     }
 
@@ -158,7 +166,8 @@ public final class DefaultSegmentWriterBuilder {
     public DefaultSegmentWriter build(@NotNull FileStore store) {
         WriteOperationHandler writer = createWriter(store.getSegmentIdProvider(), store.getReader(), pooled);
         if (warnThreshold > 0) {
-            writer = new WriteOperationHandlerWithFlushMonitor(writer, warnThreshold, errorThreshold);
+            writer = new WriteOperationHandlerWithFlushMonitor(
+                    writer, warnThreshold, errorThreshold, statsProvider);
         }
         return new DefaultSegmentWriter(
                 checkNotNull(store),

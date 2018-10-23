@@ -22,11 +22,14 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.System.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.jackrabbit.oak.stats.StatsOptions.METRICS_ONLY;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.apache.jackrabbit.oak.stats.MeterStats;
+import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +39,9 @@ class WriteOperationHandlerWithFlushMonitor implements WriteOperationHandler {
 
     @NotNull
     private final WriteOperationHandler delegate;
+
+    @NotNull
+    private final MeterStats flushMeter;
 
     private final long warnThreshold;
     private final long errorThreshold;
@@ -49,15 +55,18 @@ class WriteOperationHandlerWithFlushMonitor implements WriteOperationHandler {
     @NotNull
     private final AtomicBoolean blocking = new AtomicBoolean(false);
 
+
     WriteOperationHandlerWithFlushMonitor(
             @NotNull WriteOperationHandler writeOperationHandler,
             int warnThreshold,
-            int errorThreshold) {
+            int errorThreshold,
+            @NotNull StatisticsProvider statsProvider) {
         checkArgument(warnThreshold > 0);
         checkArgument(errorThreshold == 0 || errorThreshold > warnThreshold);
         delegate = writeOperationHandler;
         this.warnThreshold = MILLISECONDS.convert(warnThreshold, SECONDS);
         this.errorThreshold = MILLISECONDS.convert(errorThreshold, SECONDS);
+        flushMeter = statsProvider.getMeter("oak.segment.flush", METRICS_ONLY);
     }
 
     @Override
@@ -97,6 +106,7 @@ class WriteOperationHandlerWithFlushMonitor implements WriteOperationHandler {
     @Override
     public void flush(@NotNull SegmentStore store) throws IOException {
         delegate.flush(store);
+        flushMeter.mark();
         lastFlush.set(currentTimeMillis());
         if (blocking.getAndSet(false)) {
             LOG.info("Successful flush of transient write operations. Allowing write operations again.");

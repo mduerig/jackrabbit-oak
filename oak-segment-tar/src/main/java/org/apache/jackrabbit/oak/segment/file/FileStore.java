@@ -128,7 +128,7 @@ public class FileStore extends AbstractFileStore {
                 .withWriterPool()
                 .with(builder.getCacheManager()
                         .withAccessTracking("WRITE", builder.getStatsProvider()))
-                .withFlushMonitor(builder.getFlushWarnThreshold(), builder.getFlushErrorThreshold())
+                .withFlushMonitor(builder.getFlushWarnThreshold(), builder.getFlushErrorThreshold(), builder.getStatsProvider())
                 .build(this);
 
         newManifestChecker(persistence, builder.getStrictVersionCheck()).checkAndUpdateManifest();
