@@ -164,7 +164,7 @@ public class FileStore extends AbstractFileStore {
                     throw new IOException(
                             format(
                             "The most recent journal entry is %d seconds behind the last modification date of the " +
-                            "most recent tar file. This indicates that the journal might not be up to date with the" +
+                            "most recent tar file. This indicates that the journal might not be up to date with the " +
                             "content in the tar files. %n",
                             SECONDS.convert(dt, MILLISECONDS)));
                 }
