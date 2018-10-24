@@ -19,6 +19,9 @@
 package org.apache.jackrabbit.oak.segment.file;
 
 import static com.google.common.collect.Maps.newLinkedHashMap;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.apache.commons.io.FileUtils.writeStringToFile;
 import static org.apache.jackrabbit.oak.segment.DefaultSegmentWriterBuilder.defaultSegmentWriterBuilder;
 import static org.apache.jackrabbit.oak.segment.file.FileStoreBuilder.fileStoreBuilder;
 import static org.junit.Assert.assertEquals;
@@ -42,6 +45,7 @@ import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
+import org.apache.jackrabbit.oak.segment.file.tar.LocalJournalFile;
 import org.apache.jackrabbit.oak.spi.state.ChildNodeEntry;
 import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.junit.Rule;
@@ -234,6 +238,31 @@ public class FileStoreIT {
     private static void checkNode(NodeState node) {
         for (ChildNodeEntry cne : node.getChildNodeEntries()) {
             checkNode(cne.getNodeState());
+        }
+    }
+
+    @Test(expected = IOException.class)
+    public void detectJournalGap()
+    throws IOException, InvalidFileStoreVersionException, InterruptedException {
+        // Create a file store
+        try (FileStore rwStore = fileStoreBuilder(getFileStoreFolder()).build()) {
+            addNode(rwStore, "n");
+        }
+
+        // Ensure we can open it again
+        try (FileStore rwStore = fileStoreBuilder(getFileStoreFolder()).build()) {
+        }
+
+        // Simulate journal gap by adding a revision to the journal that is 11 minutes behind
+        File journalFile = new File(getFileStoreFolder(), "journal.log");
+        JournalReader journalReader = new JournalReader(new LocalJournalFile(journalFile));
+        JournalEntry journalEntry = journalReader.next();
+        long timestamp = journalEntry.getTimestamp() - MILLISECONDS.convert(11, MINUTES);
+        String journalLine = journalEntry.getRevision() + " root " + timestamp + "\n";
+        writeStringToFile(journalFile, journalLine, true);
+
+        // Ensure opening the sure fails now
+        try (FileStore rwStore = fileStoreBuilder(getFileStoreFolder()).build()) {
         }
     }
 

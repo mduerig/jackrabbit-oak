@@ -18,19 +18,9 @@
  */
 package org.apache.jackrabbit.oak.segment.file.tar;
 
-import com.google.common.base.Stopwatch;
-import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
-import org.apache.jackrabbit.oak.segment.file.tar.binaries.BinaryReferencesIndexLoader;
-import org.apache.jackrabbit.oak.segment.file.tar.binaries.InvalidBinaryReferencesIndexException;
-import org.apache.jackrabbit.oak.segment.file.tar.index.Index;
-import org.apache.jackrabbit.oak.segment.file.tar.index.IndexEntry;
-import org.apache.jackrabbit.oak.segment.file.tar.index.IndexLoader;
-import org.apache.jackrabbit.oak.segment.file.tar.index.InvalidIndexException;
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
-import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
-import org.apache.jackrabbit.oak.segment.util.ReaderAtEnd;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.jackrabbit.oak.segment.file.tar.SegmentTarWriter.getPaddingSize;
+import static org.apache.jackrabbit.oak.segment.file.tar.TarConstants.BLOCK_SIZE;
+import static org.apache.jackrabbit.oak.segment.file.tar.index.IndexLoader.newIndexLoader;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,9 +30,19 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.apache.jackrabbit.oak.segment.file.tar.SegmentTarWriter.getPaddingSize;
-import static org.apache.jackrabbit.oak.segment.file.tar.TarConstants.BLOCK_SIZE;
-import static org.apache.jackrabbit.oak.segment.file.tar.index.IndexLoader.newIndexLoader;
+import com.google.common.base.Stopwatch;
+import org.apache.jackrabbit.oak.segment.file.tar.binaries.BinaryReferencesIndexLoader;
+import org.apache.jackrabbit.oak.segment.file.tar.binaries.InvalidBinaryReferencesIndexException;
+import org.apache.jackrabbit.oak.segment.file.tar.index.Index;
+import org.apache.jackrabbit.oak.segment.file.tar.index.IndexEntry;
+import org.apache.jackrabbit.oak.segment.file.tar.index.IndexLoader;
+import org.apache.jackrabbit.oak.segment.file.tar.index.InvalidIndexException;
+import org.apache.jackrabbit.oak.segment.spi.monitor.IOMonitor;
+import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
+import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
+import org.apache.jackrabbit.oak.segment.util.ReaderAtEnd;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SegmentTarReader implements SegmentArchiveReader {
 
@@ -159,6 +159,11 @@ public class SegmentTarReader implements SegmentArchiveReader {
     @Override
     public long length() {
         return file.length();
+    }
+
+    @Override
+    public long getLastModificationDate() {
+        return file.lastModified();
     }
 
     @Override

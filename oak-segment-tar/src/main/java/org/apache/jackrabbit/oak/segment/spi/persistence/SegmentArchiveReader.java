@@ -89,6 +89,8 @@ public interface SegmentArchiveReader extends Closeable {
      */
     long length();
 
+    long getLastModificationDate();
+
     /**
      * Get the name of the archive.
      *

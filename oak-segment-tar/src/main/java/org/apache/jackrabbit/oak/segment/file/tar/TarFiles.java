@@ -822,6 +822,15 @@ public class TarFiles implements Closeable {
         return index;
     }
 
+    public long getLastModificationDate() {
+        lock.readLock().lock();
+        try {
+            return readers.reader.getLastModificationDate();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
     public FileReaper createFileReaper() {
         return new FileReaper(archiveManager);
     }

@@ -32,6 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlob;
@@ -50,6 +51,8 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
 
     private final long length;
 
+    private final long lastModified;
+
     private final Map<UUID, AzureSegmentArchiveEntry> index = new LinkedHashMap<>();
 
     private Boolean hasGraph;
@@ -67,6 +70,10 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
             length += blob.getProperties().getLength();
         }
         this.length = length;
+
+        // FIXME michid implement last modified
+        this.lastModified = 0;
+        Preconditions.checkState(false, "MISSING IMPLEMENTATION FOR LAST MODIFIED");
     }
 
     @Override
@@ -125,6 +132,11 @@ public class AzureSegmentArchiveReader implements SegmentArchiveReader {
     @Override
     public long length() {
         return length;
+    }
+
+    @Override
+    public long getLastModificationDate() {
+        return lastModified;
     }
 
     @Override

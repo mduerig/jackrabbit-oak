@@ -18,7 +18,9 @@
  */
 package org.apache.jackrabbit.oak.segment.file;
 
+import static java.lang.Integer.getInteger;
 import static java.lang.String.format;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.commons.IOUtils.humanReadableByteCount;
@@ -67,6 +69,12 @@ public class FileStore extends AbstractFileStore {
     private static final Logger log = LoggerFactory.getLogger(FileStore.class);
 
     private static final int MB = 1024 * 1024;
+
+    public static final int DEFAULT_MAX_JOURNAL_GAP = 5;
+
+    public static final String MAX_JOURNAL_GAP_FLAG = "oak.segment.max-journal-gap";
+
+    private static final int MAX_JOURNAL_GAP = getInteger(MAX_JOURNAL_GAP_FLAG, DEFAULT_MAX_JOURNAL_GAP);
 
     private static GarbageCollectionStrategy newGarbageCollectionStrategy() {
         if (Boolean.getBoolean("gc.classic")) {
@@ -147,6 +155,22 @@ public class FileStore extends AbstractFileStore {
                 .withPersistence(builder.getPersistence());
 
         this.tarFiles = tarFilesBuilder.build();
+
+        if (persistence.segmentFilesExist()) {
+            JournalReader journal = new JournalReader(persistence.getJournalFile());
+            if (journal.hasNext()) {
+                long dt = tarFiles.getLastModificationDate() - journal.next().getTimestamp();
+                if (dt > MILLISECONDS.convert(MAX_JOURNAL_GAP, MINUTES)) {
+                    throw new IOException(
+                            format(
+                            "The most recent journal entry is %d seconds behind the last modification date of the " +
+                            "most recent tar file. This indicates that the journal might not be up to date with the" +
+                            "content in the tar files. %n",
+                            SECONDS.convert(dt, MILLISECONDS)));
+                }
+            }
+        }
+
         long size = this.tarFiles.size();
         this.stats.init(size);
 

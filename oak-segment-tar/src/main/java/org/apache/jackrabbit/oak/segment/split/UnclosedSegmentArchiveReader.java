@@ -16,15 +16,15 @@
  */
 package org.apache.jackrabbit.oak.segment.split;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+
 import org.apache.jackrabbit.oak.segment.file.tar.binaries.BinaryReferencesIndexWriter;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveEntry;
 import org.apache.jackrabbit.oak.segment.spi.persistence.SegmentArchiveReader;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
 
 class UnclosedSegmentArchiveReader implements SegmentArchiveReader {
 
@@ -74,6 +74,11 @@ class UnclosedSegmentArchiveReader implements SegmentArchiveReader {
     @Override
     public long length() {
         return delegate.length();
+    }
+
+    @Override
+    public long getLastModificationDate() {
+        return delegate.getLastModificationDate();
     }
 
     @Override

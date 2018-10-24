@@ -628,11 +628,14 @@ public class TarReader implements Closeable {
         return archive.getName();
     }
 
+    public long getLastModificationDate() {
+        return archive.getLastModificationDate();
+    }
+
     //------------------------------------------------------------< Object >--
 
     @Override
     public String toString() {
         return getFileName();
     }
-
 }
