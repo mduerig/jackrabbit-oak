@@ -45,7 +45,6 @@ import javax.annotation.CheckForNull;
 import javax.annotation.Nonnull;
 
 import org.apache.jackrabbit.oak.segment.RecordNumbers.Entry;
-import org.apache.jackrabbit.oak.segment.data.SegmentData;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,8 +158,9 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return writeOperation.execute(this);
     }
 
+    @Override
     @Nonnull
-    GCGeneration getGCGeneration() {
+    public GCGeneration getGCGeneration() {
         return gcGeneration;
     }
 

@@ -23,12 +23,17 @@ import java.io.IOException;
 
 import javax.annotation.Nonnull;
 
+import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
+
 /**
  * A {@code WriteOperationHandler} executes {@link WriteOperation
  * WriteOperation}s and as such serves as a bridge between a {@link
  * SegmentWriter} and {@link SegmentBufferWriter}.
  */
 interface WriteOperationHandler {
+
+    @Nonnull
+    GCGeneration getGCGeneration();
 
     /**
      * A {@code WriteOperation} encapsulates an operation on a {@link

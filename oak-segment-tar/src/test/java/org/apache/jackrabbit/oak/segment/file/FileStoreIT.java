@@ -53,7 +53,6 @@ import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.segment.SegmentTestConstants;
 import org.apache.jackrabbit.oak.segment.SegmentWriter;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -227,7 +226,6 @@ public class FileStoreIT {
         }
     }
 
-    @Ignore("OAK-7867")
     @Test
     public void blockingBlob() throws Exception {
 

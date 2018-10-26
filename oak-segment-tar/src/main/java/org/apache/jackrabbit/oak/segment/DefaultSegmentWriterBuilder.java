@@ -172,6 +172,12 @@ public final class DefaultSegmentWriterBuilder {
                 new WriteOperationHandler() {
                     @Nonnull
                     @Override
+                    public GCGeneration getGCGeneration() {
+                        throw new UnsupportedOperationException("Cannot write to read-only store");
+                    }
+
+                    @Nonnull
+                    @Override
                     public RecordId execute(@Nonnull WriteOperation writeOperation) {
                         throw new UnsupportedOperationException("Cannot write to read-only store");
                     }

@@ -95,6 +95,12 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
 
     @Nonnull
     @Override
+    public GCGeneration getGCGeneration() {
+        return gcGeneration.get();
+    }
+
+    @Nonnull
+    @Override
     public RecordId execute(@Nonnull WriteOperation writeOperation) throws IOException {
         SegmentBufferWriter writer = borrowWriter(currentThread());
         try {
