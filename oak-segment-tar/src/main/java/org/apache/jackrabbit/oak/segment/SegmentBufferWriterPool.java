@@ -97,6 +97,12 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
         this.gcGeneration = checkNotNull(gcGeneration);
     }
 
+    @Override
+    @NotNull
+    public GCGeneration getGCGeneration() {
+        return gcGeneration.get();
+    }
+
     @NotNull
     @Override
     public RecordId execute(@NotNull WriteOperation writeOperation) throws IOException {

@@ -160,8 +160,9 @@ public class SegmentBufferWriter implements WriteOperationHandler {
         return writeOperation.execute(this);
     }
 
+    @Override
     @NotNull
-    GCGeneration getGCGeneration() {
+    public GCGeneration getGCGeneration() {
         return gcGeneration;
     }
 
