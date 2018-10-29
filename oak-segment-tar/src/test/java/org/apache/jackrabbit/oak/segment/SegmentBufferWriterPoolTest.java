@@ -36,7 +36,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 
-import com.google.common.base.Suppliers;
 import org.apache.jackrabbit.oak.segment.WriteOperationHandler.WriteOperation;
 import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.memory.MemoryStore;
@@ -50,11 +49,13 @@ public class SegmentBufferWriterPoolTest {
 
     private final RecordId rootId = store.getRevisions().getHead();
 
+    private GCGeneration gcGeneration = GCGeneration.NULL;
+
     private final SegmentBufferWriterPool pool = new SegmentBufferWriterPool(
             store.getSegmentIdProvider(),
             store.getReader(),
             "",
-            Suppliers.ofInstance(GCGeneration.NULL)
+            () -> gcGeneration
     );
 
     private final ExecutorService[] executors = new ExecutorService[] {
@@ -73,7 +74,7 @@ public class SegmentBufferWriterPoolTest {
         return executors[executor].submit(new Callable<RecordId>() {
             @Override
             public RecordId call() throws Exception {
-                return pool.execute(op);
+                return pool.execute(pool.getGCGeneration(), op);
             }
         });
     }
@@ -151,10 +152,42 @@ public class SegmentBufferWriterPoolTest {
     }
 
     @Test
+    public void testCompaction() throws ExecutionException, InterruptedException, IOException {
+        ConcurrentMap<String, SegmentBufferWriter> map1 = newConcurrentMap();
+        Future<RecordId> res1 = execute(createOp("a", map1), 0);
+        Future<RecordId> res2 = execute(createOp("b", map1), 1);
+        Future<RecordId> res3 = execute(createOp("c", map1), 2);
+
+        // Give the tasks some time to complete
+        sleepUninterruptibly(10, MILLISECONDS);
+
+        assertEquals(rootId, res1.get());
+        assertEquals(rootId, res2.get());
+        assertEquals(rootId, res3.get());
+        assertEquals(3, map1.size());
+
+        gcGeneration = gcGeneration.nextFull();
+
+        ConcurrentMap<String, SegmentBufferWriter> map2 = newConcurrentMap();
+        Future<RecordId> res4 = execute(createOp("a", map2), 0);
+        Future<RecordId> res5 = execute(createOp("b", map2), 1);
+        Future<RecordId> res6 = execute(createOp("c", map2), 2);
+
+        // Give the tasks some time to complete
+        sleepUninterruptibly(10, MILLISECONDS);
+
+        assertEquals(rootId, res4.get());
+        assertEquals(rootId, res5.get());
+        assertEquals(rootId, res6.get());
+        assertEquals(3, map2.size());
+        assertTrue(intersection(newHashSet(map1.values()), newHashSet(map2.values())).isEmpty());
+    }
+
+    @Test
     public void testFlushBlocks() throws ExecutionException, InterruptedException {
         Future<RecordId> res = execute(new WriteOperation() {
-            @NotNull
-            @Nullable @Override
+            @Nullable
+            @Override
             public RecordId execute(@NotNull SegmentBufferWriter writer) {
                 try {
                     // This should deadlock as flush waits for this write
