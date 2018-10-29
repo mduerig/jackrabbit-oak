@@ -32,6 +32,9 @@ import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
  */
 interface WriteOperationHandler {
 
+    /**
+     * @return the current {@code GCGeneration} of the store.
+     */
     @NotNull
     GCGeneration getGCGeneration();
 
@@ -55,12 +58,14 @@ interface WriteOperationHandler {
 
     /**
      * Execute the passed {@code writeOperation} by passing it a {@link SegmentBufferWriter}.
+     * @param gcGeneration    the {@code GCGeneration} the changes should persisted with.
      * @param writeOperation  {@link WriteOperation} to execute
      * @return                {@code RecordId} that resulted from persisting the changes.
      * @throws IOException
      */
     @NotNull
-    RecordId execute(@NotNull WriteOperation writeOperation) throws IOException;
+    RecordId execute(@NotNull GCGeneration gcGeneration, @NotNull WriteOperation writeOperation)
+    throws IOException;
 
     /**
      * Flush any pending changes on any {@link SegmentBufferWriter} managed by this instance.
