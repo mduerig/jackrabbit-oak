@@ -154,7 +154,10 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     @Nonnull
     @Override
-    public RecordId execute(@Nonnull WriteOperation writeOperation) throws IOException {
+    public RecordId execute(@Nonnull GCGeneration gcGeneration,
+                            @Nonnull WriteOperation writeOperation)
+    throws IOException {
+        checkState(gcGeneration.equals(this.gcGeneration));
         return writeOperation.execute(this);
     }
 
