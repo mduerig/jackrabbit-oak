@@ -252,7 +252,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
                         if (value.equals(entry.getValue())) {
                             return base.getRecordId();
                         } else {
-                            return writeOperationHandler.execute(newWriteOperation(
+                            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                                 RecordWriters.newMapBranchWriter(
                                     entry.getHash(),
                                     asList(entry.getKey(), value, base.getRecordId()))));
@@ -289,7 +289,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
             checkElementIndex(size, MapRecord.MAX_SIZE);
             checkPositionIndex(level, MapRecord.MAX_NUMBER_OF_LEVELS);
             checkArgument(size != 0 || level == MapRecord.MAX_NUMBER_OF_LEVELS);
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newMapLeafWriter(level, entries)));
         }
 
@@ -302,7 +302,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
                     bucketIds.add(buckets[i].getRecordId());
                 }
             }
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newMapBranchWriter(level, size, bitmap, bucketIds)));
         }
 
@@ -313,7 +313,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 if (base != null) {
                     return base.getRecordId();
                 } else if (level == 0) {
-                    return writeOperationHandler.execute(newWriteOperation(
+                    return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                         RecordWriters.newMapLeafWriter()));
                 } else {
                     return null;
@@ -423,7 +423,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
         private RecordId writeListBucket(List<RecordId> bucket) throws IOException {
             checkArgument(bucket.size() > 1);
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newListBucketWriter(bucket)));
         }
 
@@ -447,13 +447,13 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
         private RecordId writeValueRecord(long length, RecordId blocks) throws IOException {
             long len = (length - Segment.MEDIUM_LIMIT) | (0x3L << 62);
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newValueWriter(blocks, len)));
         }
 
         private RecordId writeValueRecord(int length, byte... data) throws IOException {
             checkArgument(length < Segment.MEDIUM_LIMIT);
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newValueWriter(length, data)));
         }
 
@@ -553,11 +553,11 @@ public class DefaultSegmentWriter implements SegmentWriter {
             byte[] data = blobId.getBytes(UTF_8);
 
             if (data.length < Segment.BLOB_ID_SMALL_LIMIT) {
-                return writeOperationHandler.execute(newWriteOperation(
+                return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                     RecordWriters.newBlobIdWriter(data)));
             } else {
                 RecordId refId = writeString(blobId);
-                return writeOperationHandler.execute(newWriteOperation(
+                return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                     RecordWriters.newBlobIdWriter(refId)));
             }
         }
@@ -566,7 +566,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 throws IOException {
             checkNotNull(bytes);
             checkPositionIndexes(offset, offset + length, bytes.length);
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newBlockWriter(bytes, offset, length)));
         }
 
@@ -667,11 +667,11 @@ public class DefaultSegmentWriter implements SegmentWriter {
             if (!type.isArray()) {
                 return valueIds.iterator().next();
             } else if (count == 0) {
-                return writeOperationHandler.execute(newWriteOperation(
+                return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                     RecordWriters.newListWriter()));
             } else {
                 RecordId lid = writeList(valueIds);
-                return writeOperationHandler.execute(newWriteOperation(
+                return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                     RecordWriters.newListWriter(count, lid)));
             }
         }
@@ -743,7 +743,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
             checkState(propertyNames.length < (1 << 18));
             head |= propertyNames.length;
 
-            RecordId tid = writeOperationHandler.execute(newWriteOperation(
+            RecordId tid = writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 RecordWriters.newTemplateWriter(
                         ids, propertyNames, propertyTypes, head, primaryId, mixinIds,
                         childNameId, propNamesId)));
@@ -892,7 +892,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 stableId = null;
             }
 
-            return writeOperationHandler.execute(newWriteOperation(
+            return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 newNodeStateWriter(stableId, ids)));
         }
 
