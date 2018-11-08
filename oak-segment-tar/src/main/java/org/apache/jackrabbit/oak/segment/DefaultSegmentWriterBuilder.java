@@ -178,7 +178,7 @@ public final class DefaultSegmentWriterBuilder {
 
                     @NotNull
                     @Override
-                    public RecordId execute(@NotNull GCGeneration gcGeneration,
+                    public RecordId execute(Object cookie, @NotNull GCGeneration gcGeneration,
                                             @NotNull WriteOperation writeOperation) {
                         throw new UnsupportedOperationException("Cannot write to read-only store");
                     }

@@ -74,7 +74,7 @@ public class SegmentBufferWriterPoolTest {
         return executors[executor].submit(new Callable<RecordId>() {
             @Override
             public RecordId call() throws Exception {
-                return pool.execute(gcGeneration, op);
+                return pool.execute("", gcGeneration, op);
             }
         });
     }

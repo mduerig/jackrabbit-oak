@@ -156,7 +156,7 @@ public class SegmentBufferWriter implements WriteOperationHandler {
 
     @NotNull
     @Override
-    public RecordId execute(@NotNull GCGeneration gcGeneration,
+    public RecordId execute(Object cookie, @NotNull GCGeneration gcGeneration,
                             @NotNull WriteOperation writeOperation)
     throws IOException {
         checkState(gcGeneration.equals(this.gcGeneration));

@@ -40,7 +40,7 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * This {@link WriteOperationHandler} uses a pool of {@link SegmentBufferWriter}s,
- * which it passes to its {@link #execute(GCGeneration, WriteOperation) execute} method.
+ * which it passes to its {@link #execute(Object, GCGeneration, WriteOperation) execute} method.
  * <p>
  * Instances of this class are thread safe.
  */
@@ -101,11 +101,12 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
 
     @NotNull
     @Override
-    public RecordId execute(@NotNull GCGeneration gcGeneration,
+    public RecordId execute(Object cookie, @NotNull GCGeneration gcGeneration,
                             @NotNull WriteOperation writeOperation)
     throws IOException {
         SimpleImmutableEntry<?,?> key = new SimpleImmutableEntry<>(currentThread(), gcGeneration);
-        SegmentBufferWriter writer = borrowWriter(key);
+        key = new SimpleImmutableEntry<>(key, cookie);
+        SegmentBufferWriter writer = borrowWriter(key, cookie);
         try {
             return writeOperation.execute(writer);
         } finally {
@@ -189,7 +190,7 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
      * a fresh writer at any time. Callers need to return a writer before
      * borrowing it again. Failing to do so leads to undefined behaviour.
      */
-    private SegmentBufferWriter borrowWriter(Object key) {
+    private SegmentBufferWriter borrowWriter(Object key, Object cookie) {
         poolMonitor.enter();
         try {
             SegmentBufferWriter writer = writers.remove(key);
@@ -197,7 +198,7 @@ public class SegmentBufferWriterPool implements WriteOperationHandler {
                 writer = new SegmentBufferWriter(
                         idProvider,
                         reader,
-                        getWriterId(wid),
+                        getWriterId(wid + "-" + cookie),
                         gcGeneration.get()
                 );
             }

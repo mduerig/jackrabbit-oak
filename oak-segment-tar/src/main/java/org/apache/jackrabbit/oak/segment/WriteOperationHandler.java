@@ -64,7 +64,7 @@ interface WriteOperationHandler {
      * @throws IOException
      */
     @NotNull
-    RecordId execute(@NotNull GCGeneration gcGeneration, @NotNull WriteOperation writeOperation)
+    RecordId execute(Object cookie, @NotNull GCGeneration gcGeneration, @NotNull WriteOperation writeOperation)
     throws IOException;
 
     /**
