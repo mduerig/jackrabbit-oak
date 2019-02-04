@@ -21,6 +21,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import org.apache.jackrabbit.oak.api.CommitFailedException;
+import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
 import org.apache.jackrabbit.oak.spi.commit.CommitHook;
@@ -48,6 +49,10 @@ public class Commit {
 
         this.hook = checkNotNull(hook);
         this.info = checkNotNull(info);
+    }
+
+    public RecordId refresh() {
+        return changes.getNodeState().getRecordId();
     }
 
     /**
@@ -94,7 +99,7 @@ public class Commit {
      * the same semantics as
      * {@link SegmentNodeState#fastEquals(NodeState, NodeState)}, which cannot
      * guarantee against false negatives.
-     * 
+     *
      * @return {@code true}, if the commit has changes.
      */
     public boolean hasChanges() {

@@ -39,6 +39,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.UniformReservoir;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
+import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.Revisions;
 import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
@@ -62,7 +63,7 @@ public class LockBasedScheduler implements Scheduler {
 
         @NotNull
         private final Revisions revisions;
-        
+
         @NotNull
         private final SegmentNodeStoreStats stats;
 
@@ -111,19 +112,19 @@ public class LockBasedScheduler implements Scheduler {
      */
     private static final double SCHEDULER_FETCH_COMMIT_DELAY_QUANTILE = Double
             .parseDouble(System.getProperty("oak.scheduler.fetch.commitDelayQuantile", "0.5"));
-    
+
     /**
      * Maximum number of milliseconds to wait before re-attempting to update the current
      * head state after a successful commit, provided a concurrent head state update happens.
      */
     private static final long MAXIMUM_BACKOFF = MILLISECONDS.convert(10, SECONDS);
-    
+
     /**
      * Sets the number of seconds to wait for the attempt to grab the lock to
      * create a checkpoint
      */
     private final int checkpointsLockWaitTime = Integer.getInteger("oak.checkpoints.lockWaitTime", 10);
-    
+
     static final String ROOT = "root";
 
     /**
@@ -142,9 +143,9 @@ public class LockBasedScheduler implements Scheduler {
     protected final AtomicReference<SegmentNodeState> head;
 
     private final SegmentNodeStoreStats stats;
-    
+
     private final Histogram commitTimeHistogram = new Histogram(new UniformReservoir());
-    
+
     private final Random random = new Random();
 
     public LockBasedScheduler(LockBasedSchedulerBuilder builder) {
@@ -168,7 +169,7 @@ public class LockBasedScheduler implements Scheduler {
                 } finally {
                     commitSemaphore.release();
                 }
-            } 
+            }
         } catch (InterruptedException e) {
             currentThread().interrupt();
         }
@@ -178,7 +179,7 @@ public class LockBasedScheduler implements Scheduler {
     /**
      * Refreshes the head state. Should only be called while holding a permit
      * from the {@link #commitSemaphore}.
-     * 
+     *
      * @param dispatchChanges
      *            if set to true the changes would also be dispatched
      */
@@ -196,6 +197,44 @@ public class LockBasedScheduler implements Scheduler {
         // do nothing without a change dispatcher
     }
 
+    private static class LockAdapter {
+        private static final Runnable NOOP = () -> {};
+
+        private final AtomicReference<Runnable> unlock = new AtomicReference<>(NOOP);
+
+        private final Semaphore semaphore;
+
+        private volatile int generation = Integer.MAX_VALUE;
+
+        private LockAdapter(Semaphore semaphore) {
+            this.semaphore = semaphore;
+        }
+
+        public boolean tryLock(int generation, int time, TimeUnit unit) throws InterruptedException {
+            if (semaphore.tryAcquire(time, unit)) {
+                unlock.set(this::release);
+                this.generation = generation;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        private void release() {
+            semaphore.release();
+        }
+
+        public void unlock() {
+            unlock.getAndSet(NOOP).run();
+        }
+
+        public int getGeneration() {
+            return this.generation;
+        }
+    }
+
+    private final LockAdapter commitLock = new LockAdapter(commitSemaphore);
+
     @Override
     public NodeState schedule(@NotNull Commit commit, SchedulerOption... schedulingOptions)
             throws CommitFailedException {
@@ -210,7 +249,10 @@ public class LockBasedScheduler implements Scheduler {
                 queued = true;
             }
 
-            commitSemaphore.acquire();
+            int commitGeneration;
+            do {
+                commitGeneration = getGeneration(commit.refresh());
+            } while (!tryAcquire(commitLock, commitGeneration));
             try {
                 if (queued) {
                     long dequeuedTime = System.nanoTime();
@@ -228,7 +270,7 @@ public class LockBasedScheduler implements Scheduler {
 
                 return merged;
             } finally {
-                commitSemaphore.release();
+                commitLock.unlock();
             }
         } catch (InterruptedException e) {
             currentThread().interrupt();
@@ -236,6 +278,25 @@ public class LockBasedScheduler implements Scheduler {
         } catch (SegmentOverflowException e) {
             throw new CommitFailedException("Segment", 3, "Merge failed", e);
         }
+    }
+
+    private synchronized boolean tryAcquire(LockAdapter commitLock, int commitGeneration)
+    throws InterruptedException {
+        if (getGeneration(revisions.getHead()) > commitGeneration) {
+            return false;
+        }
+
+        while (!commitLock.tryLock(commitGeneration, 1, SECONDS)) {
+            if (getGeneration(revisions.getHead()) > commitLock.getGeneration()) {
+                commitLock.unlock();
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int getGeneration(RecordId recordId) {
+        return recordId.getSegment().getGcGeneration().getFullGeneration();
     }
 
     private NodeState execute(Commit commit) throws CommitFailedException, InterruptedException {
