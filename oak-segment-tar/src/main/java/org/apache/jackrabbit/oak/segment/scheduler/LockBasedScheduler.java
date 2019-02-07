@@ -55,6 +55,7 @@ import org.apache.jackrabbit.oak.spi.state.NodeState;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 public class LockBasedScheduler implements Scheduler {
 
     public static class LockBasedSchedulerBuilder {
@@ -210,7 +211,21 @@ public class LockBasedScheduler implements Scheduler {
             this.semaphore = semaphore;
         }
 
-        public boolean tryLock(int generation, int time, TimeUnit unit) throws InterruptedException {
+        private void lockAfterRefresh(final Commit commit, final Revisions revisions) throws InterruptedException {
+            int commitGeneration = recordIdGeneration(commit.refresh());
+
+            while (!tryLock(commitGeneration, 1, SECONDS)) {
+                if (recordIdGeneration(revisions.getHead()) > getGeneration()) {
+                    // the commit having the lock has been overtaken by the compactor
+                    unlock();
+                }
+                if (recordIdGeneration(revisions.getHead()) > commitGeneration) {
+                    commitGeneration = recordIdGeneration(commit.refresh());
+                }
+            }
+        }
+
+        public synchronized boolean tryLock(int generation, int time, TimeUnit unit) throws InterruptedException {
             if (semaphore.tryAcquire(time, unit)) {
                 unlock.set(this::release);
                 this.generation = generation;
@@ -221,15 +236,20 @@ public class LockBasedScheduler implements Scheduler {
         }
 
         private void release() {
+            this.generation = Integer.MAX_VALUE;
             semaphore.release();
         }
 
-        public void unlock() {
+        public synchronized void unlock() {
             unlock.getAndSet(NOOP).run();
         }
 
-        public int getGeneration() {
+        public synchronized int getGeneration() {
             return this.generation;
+        }
+
+        private static int recordIdGeneration(RecordId recordId) {
+            return recordId.getSegment().getGcGeneration().getFullGeneration();
         }
     }
 
@@ -249,10 +269,7 @@ public class LockBasedScheduler implements Scheduler {
                 queued = true;
             }
 
-            int commitGeneration;
-            do {
-                commitGeneration = getGeneration(commit.refresh());
-            } while (!tryAcquire(commitLock, commitGeneration));
+            commitLock.lockAfterRefresh(commit, revisions);
             try {
                 if (queued) {
                     long dequeuedTime = System.nanoTime();
@@ -280,57 +297,38 @@ public class LockBasedScheduler implements Scheduler {
         }
     }
 
-    private synchronized boolean tryAcquire(LockAdapter commitLock, int commitGeneration)
-    throws InterruptedException {
-        if (getGeneration(revisions.getHead()) > commitGeneration) {
-            return false;
-        }
-
-        while (!commitLock.tryLock(commitGeneration, 1, SECONDS)) {
-            if (getGeneration(revisions.getHead()) > commitLock.getGeneration()) {
-                commitLock.unlock();
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static int getGeneration(RecordId recordId) {
-        return recordId.getSegment().getGcGeneration().getFullGeneration();
-    }
-
     private NodeState execute(Commit commit) throws CommitFailedException, InterruptedException {
         // only do the merge if there are some changes to commit
         if (commit.hasChanges()) {
             long start = System.nanoTime();
-            
+
             int count = 0;
             for (long backoff = 1; backoff < MAXIMUM_BACKOFF; backoff *= 2) {
                 refreshHead(true);
                 SegmentNodeState before = head.get();
                 SegmentNodeState after = commit.apply(before);
-                
+
                 if (revisions.setHead(before.getRecordId(), after.getRecordId())) {
                     head.set(after);
                     contentChanged(after.getChildNode(ROOT), commit.info());
-                    
+
                     return head.get().getChildNode(ROOT);
-                } 
-                
+                }
+
                 count++;
                 int randNs = random.nextInt(1_000_000);
                 log.info("Scheduler detected concurrent commits. Retrying after {} ms and {} ns", backoff, randNs);
                 Thread.sleep(backoff, randNs);
             }
-            
+
             long finish = System.nanoTime();
-            
+
             String message = MessageFormat.format(
                     "The commit could not be executed after {} attempts. Total wait time: {} ms",
                     count, NANOSECONDS.toMillis(finish - start));
             throw new CommitFailedException("Segment", 3, message);
         }
-        
+
         return head.get().getChildNode(ROOT);
     }
 
@@ -395,7 +393,7 @@ public class LockBasedScheduler implements Scheduler {
 
     private static class ObservableLockBasedScheduler extends LockBasedScheduler implements Observable {
         private final ChangeDispatcher changeDispatcher;
-        
+
         public ObservableLockBasedScheduler(LockBasedSchedulerBuilder builder) {
             super(builder);
             this.changeDispatcher = new ChangeDispatcher(head.get().getChildNode(ROOT));
@@ -405,7 +403,7 @@ public class LockBasedScheduler implements Scheduler {
         protected void contentChanged(NodeState root, CommitInfo info) {
             changeDispatcher.contentChanged(root, info);
         }
-        
+
         @Override
         public Closeable addObserver(Observer observer) {
             return changeDispatcher.addObserver(observer);
