@@ -205,7 +205,7 @@ public class LockBasedScheduler implements Scheduler {
 
         private final Semaphore semaphore;
 
-        private int generation = Integer.MAX_VALUE;
+        private volatile int generation = Integer.MAX_VALUE;
 
         private LockAdapter(Semaphore semaphore) {
             this.semaphore = semaphore;
