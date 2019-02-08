@@ -39,7 +39,6 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.UniformReservoir;
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
-import org.apache.jackrabbit.oak.segment.RecordId;
 import org.apache.jackrabbit.oak.segment.Revisions;
 import org.apache.jackrabbit.oak.segment.SegmentNodeBuilder;
 import org.apache.jackrabbit.oak.segment.SegmentNodeState;
@@ -141,6 +140,9 @@ public class LockBasedScheduler implements Scheduler {
     @NotNull
     private final Revisions revisions;
 
+    @NotNull
+    private final LockAdapter commitLock;
+
     protected final AtomicReference<SegmentNodeState> head;
 
     private final SegmentNodeStoreStats stats;
@@ -156,6 +158,7 @@ public class LockBasedScheduler implements Scheduler {
 
         this.reader = builder.reader;
         this.revisions = builder.revisions;
+        this.commitLock = new LockAdapter(commitSemaphore, revisions::getHead);
         this.stats = builder.stats;
         this.head = new AtomicReference<SegmentNodeState>(reader.readHeadState(revisions));
     }
@@ -198,57 +201,6 @@ public class LockBasedScheduler implements Scheduler {
         // do nothing without a change dispatcher
     }
 
-    private static class LockAdapter {
-        private static final Runnable NOOP = () -> {};
-
-        private final AtomicReference<Runnable> unlock = new AtomicReference<>(NOOP);
-
-        private final Semaphore semaphore;
-
-        private volatile int generation = Integer.MAX_VALUE;
-
-        private LockAdapter(Semaphore semaphore) {
-            this.semaphore = semaphore;
-        }
-
-        public void lockAfterRefresh(Commit commit, Revisions revisions) throws InterruptedException {
-            int commitGeneration = getFullGeneration(commit.refresh());
-            while (!tryLock(revisions, commitGeneration, 1, SECONDS)) {
-                commitGeneration = getFullGeneration(commit.refresh());
-            }
-        }
-
-        private synchronized boolean tryLock(Revisions revisions, int generation, int time, TimeUnit unit)
-        throws InterruptedException {
-            if (semaphore.tryAcquire(time, unit)) {
-                this.generation = generation;
-                unlock.set(this::release);
-                return true;
-            } else {
-                if (getFullGeneration(revisions.getHead()) > this.generation) {
-                    // compaction created a new generation while this lock was owned by a commit
-                    unlock();
-                }
-                return false;
-            }
-        }
-
-        private void release() {
-            this.generation = Integer.MAX_VALUE;
-            semaphore.release();
-        }
-
-        public void unlock() {
-            unlock.getAndSet(NOOP).run();
-        }
-
-        private static int getFullGeneration(RecordId recordId) {
-            return recordId.getSegment().getGcGeneration().getFullGeneration();
-        }
-    }
-
-    private final LockAdapter commitLock = new LockAdapter(commitSemaphore);
-
     @Override
     public NodeState schedule(@NotNull Commit commit, SchedulerOption... schedulingOptions)
             throws CommitFailedException {
@@ -263,7 +215,7 @@ public class LockBasedScheduler implements Scheduler {
                 queued = true;
             }
 
-            commitLock.lockAfterRefresh(commit, revisions);
+            commitLock.lockAfterRefresh(commit);
             try {
                 if (queued) {
                     long dequeuedTime = System.nanoTime();
