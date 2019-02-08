@@ -205,32 +205,30 @@ public class LockBasedScheduler implements Scheduler {
 
         private final Semaphore semaphore;
 
-        private volatile int generation = Integer.MAX_VALUE;
+        private int generation = Integer.MAX_VALUE;
 
         private LockAdapter(Semaphore semaphore) {
             this.semaphore = semaphore;
         }
 
-        private void lockAfterRefresh(final Commit commit, final Revisions revisions) throws InterruptedException {
-            int commitGeneration = recordIdGeneration(commit.refresh());
-
-            while (!tryLock(commitGeneration, 1, SECONDS)) {
-                if (recordIdGeneration(revisions.getHead()) > getGeneration()) {
-                    // the commit having the lock has been overtaken by the compactor
-                    unlock();
-                }
-                if (recordIdGeneration(revisions.getHead()) > commitGeneration) {
-                    commitGeneration = recordIdGeneration(commit.refresh());
-                }
+        public void lockAfterRefresh(Commit commit, Revisions revisions) throws InterruptedException {
+            int commitGeneration = getFullGeneration(commit.refresh());
+            while (!tryLock(revisions, commitGeneration, 1, SECONDS)) {
+                commitGeneration = getFullGeneration(commit.refresh());
             }
         }
 
-        public synchronized boolean tryLock(int generation, int time, TimeUnit unit) throws InterruptedException {
+        private synchronized boolean tryLock(Revisions revisions, int generation, int time, TimeUnit unit)
+        throws InterruptedException {
             if (semaphore.tryAcquire(time, unit)) {
-                unlock.set(this::release);
                 this.generation = generation;
+                unlock.set(this::release);
                 return true;
             } else {
+                if (getFullGeneration(revisions.getHead()) > this.generation) {
+                    // compaction created a new generation while this lock was owned by a commit
+                    unlock();
+                }
                 return false;
             }
         }
@@ -240,15 +238,11 @@ public class LockBasedScheduler implements Scheduler {
             semaphore.release();
         }
 
-        public synchronized void unlock() {
+        public void unlock() {
             unlock.getAndSet(NOOP).run();
         }
 
-        public synchronized int getGeneration() {
-            return this.generation;
-        }
-
-        private static int recordIdGeneration(RecordId recordId) {
+        private static int getFullGeneration(RecordId recordId) {
             return recordId.getSegment().getGcGeneration().getFullGeneration();
         }
     }
