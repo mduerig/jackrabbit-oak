@@ -18,6 +18,7 @@
 
 package org.apache.jackrabbit.oak.segment.scheduler;
 
+import static java.lang.Integer.getInteger;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 import java.util.concurrent.Semaphore;
@@ -29,6 +30,11 @@ import org.apache.jackrabbit.oak.segment.RecordId;
 import org.jetbrains.annotations.NotNull;
 
 class LockAdapter {
+    public static final int DEFAULT_RETRY_INTERVAL = 1;
+
+    private static final int RETRY_INTERVAL = getInteger(
+            "oak.segment.commit-lock-retry-interval", DEFAULT_RETRY_INTERVAL);
+
     @NotNull
     private static final Runnable NOOP = () -> { };
 
@@ -41,16 +47,23 @@ class LockAdapter {
     @NotNull
     private final Supplier<RecordId> headId;
 
+    private final int retryInterval;
+
     private volatile int generation = Integer.MAX_VALUE;
 
-    LockAdapter(@NotNull Semaphore semaphore, @NotNull Supplier<RecordId> headId) {
+    public LockAdapter(@NotNull Semaphore semaphore, @NotNull Supplier<RecordId> headId, int retryInterval) {
         this.semaphore = semaphore;
         this.headId = headId;
+        this.retryInterval = retryInterval;
+    }
+
+    public LockAdapter(@NotNull Semaphore semaphore, @NotNull Supplier<RecordId> headId) {
+        this(semaphore, headId, RETRY_INTERVAL);
     }
 
     public void lockAfterRefresh(Commit commit) throws InterruptedException {
         int commitGeneration = getFullGeneration(commit.refresh());
-        while (!tryLock(commitGeneration, 1, SECONDS)) {
+        while (!tryLock(commitGeneration, retryInterval, SECONDS)) {
             commitGeneration = getFullGeneration(commit.refresh());
         }
     }
