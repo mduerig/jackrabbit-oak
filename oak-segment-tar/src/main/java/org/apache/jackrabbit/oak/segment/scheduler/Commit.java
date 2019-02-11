@@ -51,6 +51,12 @@ public class Commit {
         this.info = checkNotNull(info);
     }
 
+    /**
+     * Write ahead the current commit to its underlying persistence. Does nothing
+     * if the persisted state is consistent with the state of this commit.
+     * @return  the {@code RecordId} of the persisted root node of this commit
+     */
+    @NotNull
     public RecordId writeAhead() {
         return changes.getNodeState().getRecordId();
     }

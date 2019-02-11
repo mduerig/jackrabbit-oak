@@ -18,6 +18,7 @@
 
 package org.apache.jackrabbit.oak.segment.scheduler;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Integer.getInteger;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -29,7 +30,30 @@ import com.google.common.base.Supplier;
 import org.apache.jackrabbit.oak.segment.RecordId;
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * This class adapts a {@code Semaphore} with a single permit to a lock with some extra
+ * properties:
+ * <ul>
+ *     <li>No ownership: any thread can unlock this lock at anytime regardless if any thread and
+ *     which thread is holding the lock.</li>
+ *     <li>Loss of lock: any thread can lose the lock at anytime given it is holding it for
+ *     too long and compaction completed in the meanwhile.</li>
+ *     <li>Commit write ahead: pending changes in commits of threads trying to acquire this lock
+ *     are written ahead before the lock is actually acquired.</li>
+ * </ul>
+ * Together those properties prevent long rewrite operation to take place while holding the lock
+ * and thus blocking other commits. Such rewrite operations can be caused by compaction completing
+ * making it necessary to rewrite pending commits to segments of the current garbage collection
+ * generation.
+ * <p>
+ * See OAK-8014 for further details.
+ */
 class LockAdapter {
+
+    /**
+     * Default value for the {@code retryInterval} argument of
+     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int)}
+     */
     public static final int DEFAULT_RETRY_INTERVAL = 1;
 
     private static final int RETRY_INTERVAL = getInteger(
@@ -39,7 +63,7 @@ class LockAdapter {
     private static final Runnable NOOP = () -> { };
 
     @NotNull
-    private final AtomicReference<Runnable> unlock = new AtomicReference<>(NOOP);
+    private final AtomicReference<Runnable> unlocker = new AtomicReference<>(NOOP);
 
     @NotNull
     private final Semaphore semaphore;
@@ -51,16 +75,50 @@ class LockAdapter {
 
     private volatile int generation = Integer.MAX_VALUE;
 
-    public LockAdapter(@NotNull Semaphore semaphore, @NotNull Supplier<RecordId> headId, int retryInterval) {
+    /**
+     * @param semaphore      a semaphore with exactly one permit
+     * @param headId         a supplier returning the most recent head state when called
+     * @param retryInterval  interval in seconds at which a commit of a thread trying to
+     *                       acquire the lock will be written ahead.
+     */
+    public LockAdapter(
+            @NotNull Semaphore semaphore,
+            @NotNull Supplier<RecordId> headId,
+            int retryInterval) {
+        checkArgument(semaphore.availablePermits() == 1);
         this.semaphore = semaphore;
         this.headId = headId;
         this.retryInterval = retryInterval;
     }
 
+    /**
+     * Equivalent to
+     * <pre>
+     *     new LockAdapter(semaphore, headId, RETRY_INTERVAL);
+     * </pre>
+     */
     public LockAdapter(@NotNull Semaphore semaphore, @NotNull Supplier<RecordId> headId) {
         this(semaphore, headId, RETRY_INTERVAL);
     }
 
+    /**
+     * {@link Commit#writeAhead() Write ahead} pending changes in the current {@code commit}
+     * and acquire this lock. Write ahead of pending changes also include rewriting this commit to
+     * the current {@link org.apache.jackrabbit.oak.segment.file.tar.GCGeneration garbage collection generation}
+     * after a successfully completed compaction. The write ahead operation is always completed
+     * <em>before</em> the lock is actually acquired and will be reattempted periodically as
+     * specified by the {@code retryInterval} that was passed to the
+     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance.
+     * <p>
+     * Trying to acquire this lock while it is held by another thread can cause the other thread
+     * to lose the lock: this happens after the thread that wishes to acquire the lock waited for
+     * at least the number of seconds specified in the {@code retryInterval} that was passed to the
+     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance <
+     * em>and</em> compaction completed successfully while the other thread was holding the lock.
+     *
+     * @param commit  the current commit
+     * @throws InterruptedException if the current thread is interrupted
+     */
     public void lock(Commit commit) throws InterruptedException {
         checkInterrupted();
         int commitGeneration = getFullGeneration(commit.writeAhead());
@@ -78,13 +136,18 @@ class LockAdapter {
 
     private synchronized boolean tryLock(int generation, int time, @NotNull TimeUnit unit)
     throws InterruptedException {
+        // This method needs to be synchronized to protect against data races between accesses
+        // to this.generation in the if and else clause of the following condition.
         if (semaphore.tryAcquire(time, unit)) {
+
+            // Setting this.generation *before* the unlocker ensures calls to release()
+            // always see the correct generation
             this.generation = generation;
-            unlock.set(this::release);
+            unlocker.set(this::release);
             return true;
         } else {
             if (getFullGeneration(headId.get()) > this.generation) {
-                // compaction created a new generation while this lock was owned by a commit
+                // compaction created a new generation while this lock was held by another thread
                 unlock();
             }
             return false;
@@ -96,8 +159,15 @@ class LockAdapter {
         semaphore.release();
     }
 
+    /**
+     * Unlock this lock. This method has no effect if no thread is holding this lock.
+     * The calling thread does not have to owen this lock in order to be able to unlock
+     * this lock.
+     */
     public void unlock() {
-        unlock.getAndSet(NOOP).run();
+        // Looping unlock through the atomic object unlocker object reference ensures
+        // the semaphore backing this lock is only ever release once per call to lock()
+        unlocker.getAndSet(NOOP).run();
     }
 
     private static int getFullGeneration(@NotNull RecordId recordId) {
