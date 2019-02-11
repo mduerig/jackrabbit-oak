@@ -215,7 +215,7 @@ public class LockBasedScheduler implements Scheduler {
                 queued = true;
             }
 
-            commitLock.lockAfterRefresh(commit);
+            commitLock.lock(commit);
             try {
                 if (queued) {
                     long dequeuedTime = System.nanoTime();

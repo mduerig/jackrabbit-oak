@@ -51,7 +51,7 @@ public class Commit {
         this.info = checkNotNull(info);
     }
 
-    public RecordId refresh() {
+    public RecordId writeAhead() {
         return changes.getNodeState().getRecordId();
     }
 

@@ -61,12 +61,12 @@ class LockAdapter {
         this(semaphore, headId, RETRY_INTERVAL);
     }
 
-    public void lockAfterRefresh(Commit commit) throws InterruptedException {
+    public void lock(Commit commit) throws InterruptedException {
         checkInterrupted();
-        int commitGeneration = getFullGeneration(commit.refresh());
+        int commitGeneration = getFullGeneration(commit.writeAhead());
         while (!tryLock(commitGeneration, retryInterval, SECONDS)) {
             checkInterrupted();
-            commitGeneration = getFullGeneration(commit.refresh());
+            commitGeneration = getFullGeneration(commit.writeAhead());
         }
     }
 
