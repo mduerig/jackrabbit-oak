@@ -62,11 +62,11 @@ class LockAdapter {
     }
 
     public void lockAfterRefresh(Commit commit) throws InterruptedException {
-        int commitGeneration = getFullGeneration(commit.refresh());
         checkInterrupted();
+        int commitGeneration = getFullGeneration(commit.refresh());
         while (!tryLock(commitGeneration, retryInterval, SECONDS)) {
-            commitGeneration = getFullGeneration(commit.refresh());
             checkInterrupted();
+            commitGeneration = getFullGeneration(commit.refresh());
         }
     }
 
