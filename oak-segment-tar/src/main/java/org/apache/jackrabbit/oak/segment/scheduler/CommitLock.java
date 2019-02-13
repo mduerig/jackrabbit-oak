@@ -18,57 +18,30 @@
 
 package org.apache.jackrabbit.oak.segment.scheduler;
 
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 import org.jetbrains.annotations.NotNull;
 
-class StrictCommitLock implements CommitLock {
-
-    @NotNull
-    private final Semaphore semaphore;
-
-    @NotNull
-    private static final Runnable NOOP = () -> { };
-
-    @NotNull
-    private final AtomicReference<Runnable> unlocker = new AtomicReference<>(NOOP);
-
-    /**
-     * @param fair           {@code true} if this semaphore should make an effort to handle
-     *                       grant the lock in a first come first serve order.
-     */
-    public StrictCommitLock(boolean fair) {
-        this.semaphore = new Semaphore(1, fair);
-    }
+public interface CommitLock {
 
     /**
      * Acquires this lock , blocking until it becomes available, or the thread is
      * {@link Thread#interrupt interrupted}.
+     * <p>
+     * Implementations can define additional semantics depending of the value of
+     * the {@code commit} argument.
      *
+     * @param commit  the current commit
      * @throws InterruptedException if the current thread is interrupted
      */
-    @Override
-    public void lock(@NotNull Commit commit) throws InterruptedException {
-        semaphore.acquire();
-        acquired();
-    }
+    void lock(@NotNull Commit commit) throws InterruptedException;
 
     /**
      * Acquires the lock if it is not locked at the time of invocation.
      *
      * @return {@code true} if the lock was acquired, {@code false} otherwise
      */
-    @Override
-    public boolean tryLock() {
-        if (semaphore.tryAcquire()) {
-            acquired();
-            return true;
-        } else {
-            return false;
-        }
-    }
+    boolean tryLock();
 
     /**
      * Acquires the lock if it becomes available within the given waiting time and the current
@@ -79,44 +52,19 @@ class StrictCommitLock implements CommitLock {
      * @return {@code true} if the lock was acquired, {@code false} otherwise
      * @throws InterruptedException if the current thread is interrupted
      */
-    @Override
-    public boolean tryLock(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
-        if (semaphore.tryAcquire(timeout, unit)) {
-            acquired();
-            return true;
-        } else {
-            return false;
-        }
-    }
+    boolean tryLock(long timeout, TimeUnit unit) throws InterruptedException;
 
     /**
      * Returns the status of this lock.
      *
      * @return {@code true} if locked, {@code false} otherwise
      */
-    @Override
-    public boolean isLocked() {
-        return semaphore.availablePermits() < 1;
-    }
-
-    /* Callers must own the permit from {@code semaphore} */
-    private void acquired() {
-        unlocker.set(this::release);
-    }
-
-    private void release() {
-        semaphore.release();
-    }
+    boolean isLocked();
 
     /**
      * Unlock this lock. This method has no effect if no thread is holding this lock.
      * The calling thread does not have to owen this lock in order to be able to unlock
      * this lock.
      */
-    @Override
-    public void unlock() {
-        // Looping unlock through the atomic object unlocker object reference ensures
-        // the semaphore backing this lock is only ever release once per call to lock()
-        unlocker.getAndSet(NOOP).run();
-    }
+    void unlock();
 }

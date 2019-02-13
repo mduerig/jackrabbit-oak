@@ -46,7 +46,7 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * See OAK-8014 for further details.
  */
-class WeakCommitLock {
+class WeakCommitLock implements CommitLock {
 
     /**
      * Default value for the {@code retryInterval} argument of
@@ -115,6 +115,7 @@ class WeakCommitLock {
      * @param commit  the current commit
      * @throws InterruptedException if the current thread is interrupted
      */
+    @Override
     public void lock(@NotNull Commit commit) throws InterruptedException {
         checkInterrupted();
         int commitGeneration = getFullGeneration(commit.writeAhead());
@@ -132,6 +133,7 @@ class WeakCommitLock {
      *
      * @return {@code true} if the lock was acquired, {@code false} otherwise
      */
+    @Override
     public boolean tryLock() {
         if (semaphore.tryAcquire()) {
             acquired(Integer.MAX_VALUE);
@@ -153,6 +155,7 @@ class WeakCommitLock {
      * @return {@code true} if the lock was acquired, {@code false} otherwise
      * @throws InterruptedException if the current thread is interrupted
      */
+    @Override
     public boolean tryLock(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
         if (semaphore.tryAcquire(timeout, unit)) {
             acquired(Integer.MAX_VALUE);
@@ -167,6 +170,7 @@ class WeakCommitLock {
      *
      * @return {@code true} if locked, {@code false} otherwise
      */
+    @Override
     public boolean isLocked() {
         return semaphore.availablePermits() < 1;
     }
@@ -211,6 +215,7 @@ class WeakCommitLock {
      * The calling thread does not have to owen this lock in order to be able to unlock
      * this lock.
      */
+    @Override
     public void unlock() {
         // Looping unlock through the atomic object unlocker object reference ensures
         // the semaphore backing this lock is only ever release once per call to lock()

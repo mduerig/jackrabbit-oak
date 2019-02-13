@@ -132,7 +132,7 @@ public class LockBasedScheduler implements Scheduler {
      * progress, no external updates will be seen.
      */
     @NotNull
-    private final WeakCommitLock commitLock;
+    private final CommitLock commitLock;
 
     @NotNull
     private final SegmentReader reader;
