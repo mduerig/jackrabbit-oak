@@ -144,6 +144,9 @@ class WeakCommitLock {
     /**
      * Acquires the lock if it becomes available within the given waiting time and the current
      * thread has not been {@linkplain Thread#interrupt interrupted}.
+     * <p>
+     * When the lock is acquired through this method it cannot be lost to other
+     * threads trying to acquire the lock through {@link #lock(Commit)}.
      *
      * @param timeout the maximum time to wait for a permit
      * @param unit the time unit of the {@code timeout} argument
