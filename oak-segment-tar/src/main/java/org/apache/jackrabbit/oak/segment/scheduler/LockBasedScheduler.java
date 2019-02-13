@@ -68,6 +68,8 @@ public class LockBasedScheduler implements Scheduler {
 
         private boolean dispatchChanges = true;
 
+        private boolean strictCommitLock = LockBasedScheduler.USE_STRICT_LOCK;
+
         private LockBasedSchedulerBuilder(@NotNull Revisions revisions, @NotNull SegmentReader reader,
                 @NotNull SegmentNodeStoreStats stats) {
             this.revisions = revisions;
@@ -78,6 +80,12 @@ public class LockBasedScheduler implements Scheduler {
         @NotNull
         public LockBasedSchedulerBuilder dispatchChanges(boolean dispatchChanges) {
             this.dispatchChanges = dispatchChanges;
+            return this;
+        }
+
+        @NotNull
+        public LockBasedSchedulerBuilder withStrictCommitLock(boolean strictCommitLock) {
+            this.strictCommitLock = strictCommitLock;
             return this;
         }
 
@@ -166,7 +174,7 @@ public class LockBasedScheduler implements Scheduler {
 
         this.reader = builder.reader;
         this.revisions = builder.revisions;
-        this.commitLock = USE_STRICT_LOCK
+        this.commitLock = builder.strictCommitLock
                 ? new StrictCommitLock(COMMIT_FAIR_LOCK)
                 : new WeakCommitLock(COMMIT_FAIR_LOCK, revisions::getHead);
         this.stats = builder.stats;

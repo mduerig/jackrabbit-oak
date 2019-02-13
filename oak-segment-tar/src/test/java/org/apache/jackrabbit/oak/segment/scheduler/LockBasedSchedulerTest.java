@@ -19,6 +19,23 @@
 
 package org.apache.jackrabbit.oak.segment.scheduler;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNotNull;
+
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.jackrabbit.oak.api.CommitFailedException;
 import org.apache.jackrabbit.oak.api.PropertyState;
 import org.apache.jackrabbit.oak.commons.concurrent.ExecutorCloser;
@@ -36,17 +53,6 @@ import org.apache.jackrabbit.oak.stats.StatisticsProvider;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly;
-import static java.util.concurrent.Executors.newFixedThreadPool;
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertNotNull;
 
 public class LockBasedSchedulerTest {
 
@@ -128,6 +134,7 @@ public class LockBasedSchedulerTest {
         StatisticsProvider statsProvider = StatisticsProvider.NOOP;
         SegmentNodeStoreStats stats = new SegmentNodeStoreStats(statsProvider);
         final LockBasedScheduler scheduler = LockBasedScheduler.builder(ms.getRevisions(), ms.getReader(), stats)
+                .withStrictCommitLock(false)
                 .build();
 
         createGarbage(scheduler);
