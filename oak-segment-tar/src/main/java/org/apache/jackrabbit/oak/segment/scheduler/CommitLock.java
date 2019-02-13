@@ -22,7 +22,11 @@ import java.util.concurrent.TimeUnit;
 
 import org.jetbrains.annotations.NotNull;
 
-public interface CommitLock {
+/**
+ * Abstracting over the concept of a commit lock used by the
+ * {@link LockBasedScheduler} to coordinate concurrent commits.
+ */
+interface CommitLock {
 
     /**
      * Acquires this lock , blocking until it becomes available, or the thread is

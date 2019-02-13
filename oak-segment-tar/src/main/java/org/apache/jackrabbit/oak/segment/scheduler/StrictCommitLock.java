@@ -24,6 +24,10 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.jetbrains.annotations.NotNull;
 
+/**
+ * This class implements a lock without ownership: any thread can unlock this lock at anytime
+ * regardless if any thread and which thread is currently holding the lock.
+ */
 class StrictCommitLock implements CommitLock {
 
     @NotNull
