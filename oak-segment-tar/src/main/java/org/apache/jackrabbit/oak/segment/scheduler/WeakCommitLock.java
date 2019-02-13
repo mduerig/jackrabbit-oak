@@ -115,7 +115,7 @@ class WeakCommitLock {
      * @param commit  the current commit
      * @throws InterruptedException if the current thread is interrupted
      */
-    public void lock(Commit commit) throws InterruptedException {
+    public void lock(@NotNull Commit commit) throws InterruptedException {
         checkInterrupted();
         int commitGeneration = getFullGeneration(commit.writeAhead());
         while (!tryLock(commitGeneration, retryInterval, SECONDS)) {
@@ -150,7 +150,7 @@ class WeakCommitLock {
      * @return {@code true} if the lock was acquired, {@code false} otherwise
      * @throws InterruptedException if the current thread is interrupted
      */
-    public boolean tryLock(long timeout, TimeUnit unit) throws InterruptedException {
+    public boolean tryLock(long timeout, @NotNull TimeUnit unit) throws InterruptedException {
         if (semaphore.tryAcquire(timeout, unit)) {
             acquired(Integer.MAX_VALUE);
             return true;
