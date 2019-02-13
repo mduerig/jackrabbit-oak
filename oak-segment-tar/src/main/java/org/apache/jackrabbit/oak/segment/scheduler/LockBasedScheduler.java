@@ -106,6 +106,16 @@ public class LockBasedScheduler implements Scheduler {
             .parseBoolean(System.getProperty("oak.segmentNodeStore.commitFairLock", "true"));
 
     /**
+     * Flag controlling the usage of the strict vs. weak lock.
+     * See also OAK-8014.
+     *
+     * @see StrictCommitLock
+     * @see WeakCommitLock
+     */
+    private static final boolean USE_STRICT_LOCK = Boolean
+            .parseBoolean(System.getProperty("oak.segmentNodeStore.strictLock", "true"));
+
+    /**
      * Flag controlling the commit time quantile to wait for the lock in order
      * to increase chances of returning an up to date state.
      */
@@ -156,7 +166,9 @@ public class LockBasedScheduler implements Scheduler {
 
         this.reader = builder.reader;
         this.revisions = builder.revisions;
-        this.commitLock = new WeakCommitLock(COMMIT_FAIR_LOCK, revisions::getHead);
+        this.commitLock = USE_STRICT_LOCK
+                ? new StrictCommitLock(COMMIT_FAIR_LOCK)
+                : new WeakCommitLock(COMMIT_FAIR_LOCK, revisions::getHead);
         this.stats = builder.stats;
         this.head = new AtomicReference<SegmentNodeState>(reader.readHeadState(revisions));
     }
