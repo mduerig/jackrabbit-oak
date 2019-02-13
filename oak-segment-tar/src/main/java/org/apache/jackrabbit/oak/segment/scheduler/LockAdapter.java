@@ -110,11 +110,12 @@ class LockAdapter {
      * specified by the {@code retryInterval} that was passed to the
      * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance.
      * <p>
-     * Trying to acquire this lock while it is held by another thread can cause the other thread
-     * to lose the lock: this happens after the thread that wishes to acquire the lock waited for
-     * at least the number of seconds specified in the {@code retryInterval} that was passed to the
-     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance <
-     * em>and</em> compaction completed successfully while the other thread was holding the lock.
+     * Trying to acquire this lock while it is held by another thread that acquired the lock through
+     * this method can cause the other thread to lose the lock: this happens after the thread that
+     * wishes to acquire the lock waited for at least the number of seconds specified in the
+     * {@code retryInterval} that was passed to the
+     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance
+     * <em>and</em> compaction completed successfully while the other thread was holding the lock.
      *
      * @param commit  the current commit
      * @throws InterruptedException if the current thread is interrupted
@@ -128,6 +129,50 @@ class LockAdapter {
         }
     }
 
+    /**
+     * Acquires the lock if it is not locked at the time of invocation.
+     * <p>
+     * When the lock is acquired through this method it cannot be lost to other
+     * threads trying to acquire the lock through {@link #lock(Commit)}.
+     *
+     * @return {@code true} if the lock was acquired, {@code false} otherwise
+     */
+    public boolean tryLock() {
+        if (semaphore.tryAcquire()) {
+            acquired(Integer.MAX_VALUE);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Acquires the lock if it becomes available within the given waiting time and the current
+     * thread has not been {@linkplain Thread#interrupt interrupted}.
+     *
+     * @param timeout the maximum time to wait for a permit
+     * @param unit the time unit of the {@code timeout} argument
+     * @return {@code true} if the lock was acquired, {@code false} otherwise
+     * @throws InterruptedException if the current thread is interrupted
+     */
+    public boolean tryLock(long timeout, TimeUnit unit) throws InterruptedException {
+        if (semaphore.tryAcquire(timeout, unit)) {
+            acquired(Integer.MAX_VALUE);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    /**
+     * Returns the status of this lock.
+     *
+     * @return {@code true} if locked, {@code false} otherwise
+     */
+    public boolean isLocked() {
+        return semaphore.availablePermits() < 1;
+    }
+
     private static void checkInterrupted() throws InterruptedException {
         if (Thread.interrupted()) {
             throw new InterruptedException();
@@ -139,11 +184,7 @@ class LockAdapter {
         // This method needs to be synchronized to protect against data races between accesses
         // to this.generation in the if and else clause of the following condition.
         if (semaphore.tryAcquire(time, unit)) {
-
-            // Setting this.generation *before* the unlocker ensures calls to release()
-            // always see the correct generation
-            this.generation = generation;
-            unlocker.set(this::release);
+            acquired(generation);
             return true;
         } else {
             if (getFullGeneration(headId.get()) > this.generation) {
@@ -152,6 +193,14 @@ class LockAdapter {
             }
             return false;
         }
+    }
+
+    /* Callers must own the permit from {@code semaphore} */
+    private void acquired(int generation) {
+        // Setting this.generation *before* the unlocker ensures calls to release()
+        // always see the correct generation
+        this.generation = generation;
+        unlocker.set(this::release);
     }
 
     private void release() {

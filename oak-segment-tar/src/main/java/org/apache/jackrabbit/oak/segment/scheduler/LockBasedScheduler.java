@@ -128,11 +128,12 @@ public class LockBasedScheduler implements Scheduler {
     static final String ROOT = "root";
 
     /**
-     * Semaphore that controls access to the {@link #head} variable. Only a
+     * Lock that controls access to the {@link #head} variable. Only a
      * single local commit is allowed at a time. When such a commit is in
      * progress, no external updates will be seen.
      */
-    private final Semaphore commitSemaphore = new Semaphore(1, COMMIT_FAIR_LOCK);
+    @NotNull
+    private final LockAdapter commitLock;
 
     @NotNull
     private final SegmentReader reader;
@@ -140,8 +141,6 @@ public class LockBasedScheduler implements Scheduler {
     @NotNull
     private final Revisions revisions;
 
-    @NotNull
-    private final LockAdapter commitLock;
 
     protected final AtomicReference<SegmentNodeState> head;
 
@@ -158,7 +157,7 @@ public class LockBasedScheduler implements Scheduler {
 
         this.reader = builder.reader;
         this.revisions = builder.revisions;
-        this.commitLock = new LockAdapter(commitSemaphore, revisions::getHead);
+        this.commitLock = new LockAdapter(new Semaphore(1, COMMIT_FAIR_LOCK), revisions::getHead);
         this.stats = builder.stats;
         this.head = new AtomicReference<SegmentNodeState>(reader.readHeadState(revisions));
     }
@@ -167,11 +166,11 @@ public class LockBasedScheduler implements Scheduler {
     public NodeState getHeadNodeState() {
         long delay = (long) commitTimeHistogram.getSnapshot().getValue(SCHEDULER_FETCH_COMMIT_DELAY_QUANTILE);
         try {
-            if (commitSemaphore.tryAcquire(delay, NANOSECONDS)) {
+            if (commitLock.tryLock(delay, NANOSECONDS)) {
                 try {
                     refreshHead(true);
                 } finally {
-                    commitSemaphore.release();
+                    commitLock.unlock();
                 }
             }
         } catch (InterruptedException e) {
@@ -182,7 +181,7 @@ public class LockBasedScheduler implements Scheduler {
 
     /**
      * Refreshes the head state. Should only be called while holding a permit
-     * from the {@link #commitSemaphore}.
+     * from the {@link #commitLock}.
      *
      * @param dispatchChanges
      *            if set to true the changes would also be dispatched
@@ -209,7 +208,7 @@ public class LockBasedScheduler implements Scheduler {
         try {
             long queuedTime = -1;
 
-            if (commitSemaphore.availablePermits() < 1) {
+            if (commitLock.isLocked()) {
                 queuedTime = System.nanoTime();
                 stats.onCommitQueued(Thread.currentThread());
                 queued = true;
@@ -285,7 +284,7 @@ public class LockBasedScheduler implements Scheduler {
         String name = UUID.randomUUID().toString();
         try {
             CPCreator cpc = new CPCreator(name, lifetime, properties);
-            if (commitSemaphore.tryAcquire(checkpointsLockWaitTime, TimeUnit.SECONDS)) {
+            if (commitLock.tryLock(checkpointsLockWaitTime, TimeUnit.SECONDS)) {
                 try {
                     if (cpc.call()) {
                         return name;
@@ -294,7 +293,7 @@ public class LockBasedScheduler implements Scheduler {
                     // Explicitly give up reference to the previous root state
                     // otherwise they would block cleanup. See OAK-3347
                     refreshHead(true);
-                    commitSemaphore.release();
+                    commitLock.unlock();
                 }
             }
             log.warn("Failed to create checkpoint {} in {} seconds.", name, checkpointsLockWaitTime);
@@ -313,7 +312,7 @@ public class LockBasedScheduler implements Scheduler {
 
         // try 5 times
         for (int i = 0; i < 5; i++) {
-            if (commitSemaphore.tryAcquire()) {
+            if (commitLock.tryLock()) {
                 try {
                     refreshHead(true);
 
@@ -330,7 +329,7 @@ public class LockBasedScheduler implements Scheduler {
                         }
                     }
                 } finally {
-                    commitSemaphore.release();
+                    commitLock.unlock();
                 }
             }
         }

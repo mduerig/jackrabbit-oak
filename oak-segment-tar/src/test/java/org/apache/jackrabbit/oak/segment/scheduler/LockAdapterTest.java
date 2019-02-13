@@ -19,9 +19,11 @@
 package org.apache.jackrabbit.oak.segment.scheduler;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.jackrabbit.oak.segment.file.tar.GCGeneration.newGCGeneration;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +33,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -92,6 +95,17 @@ public class LockAdapterTest {
             lock(owner, __ -> {});
         }
 
+        public boolean tryLock(int owner) {
+            checkArgument(owner >= 0);
+            if (lock.tryLock()) {
+                assertEquals("Acquired already locked lock", -1, this.owner.get());
+                this.owner.set(owner);
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         public void unlock() {
             this.owner.set(-1);
             lock.unlock();
@@ -100,6 +114,7 @@ public class LockAdapterTest {
         public void assertLocked(int expectedOwner) {
             checkArgument(expectedOwner >= 0);
             int actualOwner = owner.get();
+            assertTrue("Expected lock to be locked", lock.isLocked());
             assertTrue("Expected lock to be locked", actualOwner >= 0);
             assertEquals("Lock is locked by wrong owner", expectedOwner, owner.get());
         }
@@ -236,6 +251,27 @@ public class LockAdapterTest {
 
         lockFixture.unlock();
         lockFixture.assertUnlocked();
+    }
+
+    @Test
+    public void noLockLoss() throws ExecutionException, InterruptedException {
+        LockFixture lockFixture = new LockFixture();
+
+        lockFixture.tryLock(0);
+        lockFixture.assertLocked(0);
+
+        FutureTask<Void> lockedBy1 = runAsync(
+                () -> lockFixture.lock(1, 0));
+        lockFixture.assertLocked(0);
+
+        lockFixture.setHead(1);
+        try {
+            lockedBy1.get(2, SECONDS);
+            fail("Expected to not get the lock");
+        } catch (TimeoutException ignore) {
+            lockFixture.unlock();
+            lockFixture.assertUnlocked();
+        }
     }
 
     private interface Thunk extends Callable<Void> {
