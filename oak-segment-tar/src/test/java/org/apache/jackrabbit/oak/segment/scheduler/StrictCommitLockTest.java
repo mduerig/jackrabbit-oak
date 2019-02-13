@@ -109,6 +109,17 @@ public class StrictCommitLockTest {
     }
 
     @Test
+    public void unlockLock() throws InterruptedException {
+        LockFixture lockFixture = new LockFixture();
+
+        lockFixture.unlock();
+        lockFixture.assertUnlocked();
+
+        lockFixture.lock(0);
+        lockFixture.assertLocked(0);
+    }
+
+    @Test
     public void lockLocked() throws InterruptedException, ExecutionException {
         LockFixture lockFixture = new LockFixture();
 
