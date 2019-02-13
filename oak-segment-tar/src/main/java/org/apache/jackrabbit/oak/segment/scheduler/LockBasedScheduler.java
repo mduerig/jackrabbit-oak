@@ -132,7 +132,7 @@ public class LockBasedScheduler implements Scheduler {
      * progress, no external updates will be seen.
      */
     @NotNull
-    private final LockAdapter commitLock;
+    private final WeakCommitLock commitLock;
 
     @NotNull
     private final SegmentReader reader;
@@ -156,7 +156,7 @@ public class LockBasedScheduler implements Scheduler {
 
         this.reader = builder.reader;
         this.revisions = builder.revisions;
-        this.commitLock = new LockAdapter(COMMIT_FAIR_LOCK, revisions::getHead);
+        this.commitLock = new WeakCommitLock(COMMIT_FAIR_LOCK, revisions::getHead);
         this.stats = builder.stats;
         this.head = new AtomicReference<SegmentNodeState>(reader.readHeadState(revisions));
     }

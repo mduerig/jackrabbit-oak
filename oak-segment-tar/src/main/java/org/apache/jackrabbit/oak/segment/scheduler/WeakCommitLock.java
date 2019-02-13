@@ -46,11 +46,11 @@ import org.jetbrains.annotations.NotNull;
  * <p>
  * See OAK-8014 for further details.
  */
-class LockAdapter {
+class WeakCommitLock {
 
     /**
      * Default value for the {@code retryInterval} argument of
-     * {@link LockAdapter#LockAdapter(boolean, Supplier, int)}
+     * {@link WeakCommitLock#WeakCommitLock(boolean, Supplier, int)}
      */
     public static final int DEFAULT_RETRY_INTERVAL = 1;
 
@@ -80,7 +80,7 @@ class LockAdapter {
      * @param retryInterval  interval in seconds at which a commit of a thread trying to
      *                       acquire the lock will be written ahead.
      */
-    public LockAdapter(boolean fair, @NotNull Supplier<RecordId> headId, int retryInterval) {
+    public WeakCommitLock(boolean fair, @NotNull Supplier<RecordId> headId, int retryInterval) {
         this.semaphore = new Semaphore(1, fair);
         this.headId = headId;
         this.retryInterval = retryInterval;
@@ -89,10 +89,10 @@ class LockAdapter {
     /**
      * Equivalent to
      * <pre>
-     *     new LockAdapter(fair, headId, RETRY_INTERVAL);
+     *     new WeakCommitLock(fair, headId, RETRY_INTERVAL);
      * </pre>
      */
-    public LockAdapter(boolean fair, @NotNull Supplier<RecordId> headId) {
+    public WeakCommitLock(boolean fair, @NotNull Supplier<RecordId> headId) {
         this(fair, headId, RETRY_INTERVAL);
     }
 
@@ -103,13 +103,13 @@ class LockAdapter {
      * after a successfully completed compaction. The write ahead operation is always completed
      * <em>before</em> the lock is actually acquired and will be reattempted periodically as
      * specified by the {@code retryInterval} that was passed to the
-     * {@link LockAdapter#LockAdapter(boolean, Supplier, int) constructor} of this instance.
+     * {@link WeakCommitLock#WeakCommitLock(boolean, Supplier, int) constructor} of this instance.
      * <p>
      * Trying to acquire this lock while it is held by another thread that acquired the lock through
      * this method can cause the other thread to lose the lock: this happens after the thread that
      * wishes to acquire the lock waited for at least the number of seconds specified in the
      * {@code retryInterval} that was passed to the
-     * {@link LockAdapter#LockAdapter(boolean, Supplier, int) constructor} of this instance
+     * {@link WeakCommitLock#WeakCommitLock(boolean, Supplier, int) constructor} of this instance
      * <em>and</em> compaction completed successfully while the other thread was holding the lock.
      *
      * @param commit  the current commit

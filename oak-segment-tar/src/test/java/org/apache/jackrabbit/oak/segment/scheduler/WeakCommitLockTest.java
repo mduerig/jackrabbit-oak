@@ -41,12 +41,12 @@ import org.apache.jackrabbit.oak.segment.Segment;
 import org.apache.jackrabbit.oak.segment.SegmentId;
 import org.junit.Test;
 
-public class LockAdapterTest {
+public class WeakCommitLockTest {
 
     private static class LockFixture {
         private volatile RecordId headId = createRecordId(0);
 
-        private final LockAdapter lock = new LockAdapter(true, () -> headId);
+        private final WeakCommitLock lock = new WeakCommitLock(true, () -> headId);
 
         private static RecordId createRecordId(int fullGeneration) {
             Segment segment = mock(Segment.class);
