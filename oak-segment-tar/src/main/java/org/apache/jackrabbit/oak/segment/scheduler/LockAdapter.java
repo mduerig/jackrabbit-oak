@@ -18,7 +18,6 @@
 
 package org.apache.jackrabbit.oak.segment.scheduler;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Integer.getInteger;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
@@ -31,8 +30,7 @@ import org.apache.jackrabbit.oak.segment.RecordId;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * This class adapts a {@code Semaphore} with a single permit to a lock with some extra
- * properties:
+ * This class implements a lock with some extra properties:
  * <ul>
  *     <li>No ownership: any thread can unlock this lock at anytime regardless if any thread and
  *     which thread is holding the lock.</li>
@@ -52,7 +50,7 @@ class LockAdapter {
 
     /**
      * Default value for the {@code retryInterval} argument of
-     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int)}
+     * {@link LockAdapter#LockAdapter(boolean, Supplier, int)}
      */
     public static final int DEFAULT_RETRY_INTERVAL = 1;
 
@@ -76,17 +74,14 @@ class LockAdapter {
     private volatile int generation = Integer.MAX_VALUE;
 
     /**
-     * @param semaphore      a semaphore with exactly one permit
+     * @param fair           {@code true} if this semaphore should make an effort to handle
+     *                       grant the lock in a first come first serve order.
      * @param headId         a supplier returning the most recent head state when called
      * @param retryInterval  interval in seconds at which a commit of a thread trying to
      *                       acquire the lock will be written ahead.
      */
-    public LockAdapter(
-            @NotNull Semaphore semaphore,
-            @NotNull Supplier<RecordId> headId,
-            int retryInterval) {
-        checkArgument(semaphore.availablePermits() == 1);
-        this.semaphore = semaphore;
+    public LockAdapter(boolean fair, @NotNull Supplier<RecordId> headId, int retryInterval) {
+        this.semaphore = new Semaphore(1, fair);
         this.headId = headId;
         this.retryInterval = retryInterval;
     }
@@ -94,11 +89,11 @@ class LockAdapter {
     /**
      * Equivalent to
      * <pre>
-     *     new LockAdapter(semaphore, headId, RETRY_INTERVAL);
+     *     new LockAdapter(fair, headId, RETRY_INTERVAL);
      * </pre>
      */
-    public LockAdapter(@NotNull Semaphore semaphore, @NotNull Supplier<RecordId> headId) {
-        this(semaphore, headId, RETRY_INTERVAL);
+    public LockAdapter(boolean fair, @NotNull Supplier<RecordId> headId) {
+        this(fair, headId, RETRY_INTERVAL);
     }
 
     /**
@@ -108,13 +103,13 @@ class LockAdapter {
      * after a successfully completed compaction. The write ahead operation is always completed
      * <em>before</em> the lock is actually acquired and will be reattempted periodically as
      * specified by the {@code retryInterval} that was passed to the
-     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance.
+     * {@link LockAdapter#LockAdapter(boolean, Supplier, int) constructor} of this instance.
      * <p>
      * Trying to acquire this lock while it is held by another thread that acquired the lock through
      * this method can cause the other thread to lose the lock: this happens after the thread that
      * wishes to acquire the lock waited for at least the number of seconds specified in the
      * {@code retryInterval} that was passed to the
-     * {@link LockAdapter#LockAdapter(Semaphore, Supplier, int) constructor} of this instance
+     * {@link LockAdapter#LockAdapter(boolean, Supplier, int) constructor} of this instance
      * <em>and</em> compaction completed successfully while the other thread was holding the lock.
      *
      * @param commit  the current commit

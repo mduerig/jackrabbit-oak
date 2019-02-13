@@ -31,7 +31,6 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -157,7 +156,7 @@ public class LockBasedScheduler implements Scheduler {
 
         this.reader = builder.reader;
         this.revisions = builder.revisions;
-        this.commitLock = new LockAdapter(new Semaphore(1, COMMIT_FAIR_LOCK), revisions::getHead);
+        this.commitLock = new LockAdapter(COMMIT_FAIR_LOCK, revisions::getHead);
         this.stats = builder.stats;
         this.head = new AtomicReference<SegmentNodeState>(reader.readHeadState(revisions));
     }

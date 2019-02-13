@@ -32,7 +32,6 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -47,7 +46,7 @@ public class LockAdapterTest {
     private static class LockFixture {
         private volatile RecordId headId = createRecordId(0);
 
-        private final LockAdapter lock = new LockAdapter(new Semaphore(1), () -> headId);
+        private final LockAdapter lock = new LockAdapter(true, () -> headId);
 
         private static RecordId createRecordId(int fullGeneration) {
             Segment segment = mock(Segment.class);
@@ -122,21 +121,6 @@ public class LockAdapterTest {
         public void assertUnlocked() {
             assertEquals("Expected lock to be unlocked", -1, owner.get());
         }
-    }
-
-    @Test
-    public void singlePermitSemaphore() {
-        new LockAdapter(new Semaphore(1), () -> null);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void zeroPermitSemaphore() {
-        new LockAdapter(new Semaphore(0), () -> null);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void multiPermitSemaphore() {
-        new LockAdapter(new Semaphore(42), () -> null);
     }
 
     @Test
