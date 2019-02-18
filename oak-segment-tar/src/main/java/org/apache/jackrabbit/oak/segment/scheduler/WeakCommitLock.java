@@ -212,13 +212,13 @@ class WeakCommitLock implements CommitLock {
 
     /**
      * Unlock this lock. This method has no effect if no thread is holding this lock.
-     * The calling thread does not have to owen this lock in order to be able to unlock
+     * The calling thread does not have to own this lock in order to be able to unlock
      * this lock.
      */
     @Override
     public void unlock() {
-        // Looping unlock through the atomic object unlocker object reference ensures
-        // the semaphore backing this lock is only ever release once per call to lock()
+        // Looping unlock through the atomic unlocker object reference ensures
+        // the semaphore backing this lock is only ever released once per call to lock()
         unlocker.getAndSet(NOOP).run();
     }
 
