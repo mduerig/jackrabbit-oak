@@ -190,6 +190,12 @@ public class WeakCommitLockTest {
         assertEquals(1, writeAheadCount.get());
         lockFixture.assertLocked(0);
 
+        /**
+        The owner is also the fullGeneration of the commit.
+        Because 1 is newer a generation than 0,
+        {@link WeakCommitLock#tryLock} will take the lock away from 0
+        after a second.
+        */
         CountDownLatch writeAheadLatch = new CountDownLatch(3);
         FutureTask<Void> lockedBy1 = runAsync(() ->
               lockFixture.lock(1, owner -> {
