@@ -119,6 +119,7 @@ public class WeakCommitLockTest {
         }
 
         public void assertUnlocked() {
+            assertTrue("Expected lock to be unlocked", !lock.isLocked());
             assertEquals("Expected lock to be unlocked", -1, owner.get());
         }
     }
