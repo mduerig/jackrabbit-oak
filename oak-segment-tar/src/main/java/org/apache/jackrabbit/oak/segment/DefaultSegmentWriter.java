@@ -870,30 +870,51 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 newNodeStateWriter(stableId, ids)));
         }
 
+        private class ChildNodeConsumer implements BiConsumer<String, RecordId> {
+            private final Map<String, RecordId> childNodes = newHashMap();
+
+            private MapRecord base;
+
+            public ChildNodeConsumer(MapRecord base) {
+                this.base = base;
+            }
+
+            public ChildNodeConsumer() {
+                this(null);
+            }
+
+            @Override
+            public void accept(String nodeName, RecordId recordId) {
+                childNodes.put(nodeName, recordId);
+            }
+
+            public RecordId flush() throws IOException {
+                return writeMap(base, childNodes);
+            }
+        }
+
         @NotNull
         private RecordId writeChildNodes(
                 @NotNull NodeState state,
                 @Nullable SegmentNodeState before,
                 @Nullable ModifiedNodeState after)
         throws IOException {
-            MapRecord base;
-            Map<String, RecordId> childNodes = newHashMap();
-            BiConsumer<String, RecordId> onChildNode = childNodes::put;
+            ChildNodeConsumer childNodeConsumer;
 
             if (before != null && after != null
                     && before.getChildNodeCount(2) > 1
                     && after.getChildNodeCount(2) > 1) {
-                base = before.getChildNodeMap();
-                new ChildNodeCollectorDiff(onChildNode).diff(before, after);
+                childNodeConsumer = new ChildNodeConsumer(before.getChildNodeMap());
+                new ChildNodeCollectorDiff(childNodeConsumer).diff(before, after);
             } else {
-                base = null;
+                childNodeConsumer = new ChildNodeConsumer();
                 for (ChildNodeEntry entry : state.getChildNodeEntries()) {
-                    onChildNode.accept(
+                    childNodeConsumer.accept(
                             entry.getName(),
                             writeNode(entry.getNodeState(), null));
                 }
             }
-            return writeMap(base, childNodes);
+            return childNodeConsumer.flush();
         }
 
         /**
