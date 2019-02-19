@@ -56,7 +56,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 import javax.jcr.PropertyType;
 
@@ -870,12 +869,13 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 newNodeStateWriter(stableId, ids)));
         }
 
-        private class ChildNodeConsumer implements BiConsumer<String, RecordId> {
+        private class ChildNodeConsumer {
             private final Map<String, RecordId> childNodes = newHashMap();
 
+            @Nullable
             private MapRecord base;
 
-            public ChildNodeConsumer(MapRecord base) {
+            public ChildNodeConsumer(@Nullable MapRecord base) {
                 this.base = base;
             }
 
@@ -883,13 +883,18 @@ public class DefaultSegmentWriter implements SegmentWriter {
                 this(null);
             }
 
-            @Override
-            public void accept(String nodeName, RecordId recordId) {
+            public void accept(String nodeName, RecordId recordId) throws IOException {
                 childNodes.put(nodeName, recordId);
+                if (childNodes.size() > 11000) {  // michid use org.apache.jackrabbit.oak.segment.SegmentNodeBuilder.UPDATE_LIMIT !?
+                    flush();
+                }
             }
 
             public RecordId flush() throws IOException {
-                return writeMap(base, childNodes);
+                RecordId mapId = writeMap(this.base, childNodes);
+                base = reader.readMap(mapId);
+                childNodes.clear();
+                return mapId;
             }
         }
 
@@ -996,11 +1001,11 @@ public class DefaultSegmentWriter implements SegmentWriter {
         }
 
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
-            private final BiConsumer<String, RecordId> onChildNode;
+            private final ChildNodeConsumer onChildNode;
 
             private IOException exception;
 
-            private ChildNodeCollectorDiff(BiConsumer<String, RecordId> onChildNode) {
+            private ChildNodeCollectorDiff(ChildNodeConsumer onChildNode) {
                 this.onChildNode = onChildNode;
             }
 
@@ -1041,7 +1046,12 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
             @Override
             public boolean childNodeDeleted(String name, NodeState before) {
-                onChildNode.accept(name, null);
+                try {
+                    onChildNode.accept(name, null);
+                } catch (IOException e) {
+                    exception = e;
+                    return false;
+                }
                 return true;
             }
         }
