@@ -56,6 +56,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import javax.jcr.PropertyType;
 
@@ -801,23 +802,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
             String childName = template.getChildName();
             if (childName == Template.MANY_CHILD_NODES) {
-                MapRecord base;
-                Map<String, RecordId> childNodes;
-                if (before != null
-                        && before.getChildNodeCount(2) > 1
-                        && after.getChildNodeCount(2) > 1) {
-                    base = before.getChildNodeMap();
-                    childNodes = new ChildNodeCollectorDiff().diff(before, after);
-                } else {
-                    base = null;
-                    childNodes = newHashMap();
-                    for (ChildNodeEntry entry : state.getChildNodeEntries()) {
-                        childNodes.put(
-                                entry.getName(),
-                                writeNode(entry.getNodeState(), null));
-                    }
-                }
-                ids.add(writeMap(base, childNodes));
+                ids.add(writeChildNodes(state, before, after));
             } else if (childName != Template.ZERO_CHILD_NODES) {
                 ids.add(writeNode(state.getChildNode(template.getChildName()), null));
             }
@@ -883,6 +868,32 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
             return writeOperationHandler.execute(gcGeneration, newWriteOperation(
                 newNodeStateWriter(stableId, ids)));
+        }
+
+        @NotNull
+        private RecordId writeChildNodes(
+                @NotNull NodeState state,
+                @Nullable SegmentNodeState before,
+                @Nullable ModifiedNodeState after)
+        throws IOException {
+            MapRecord base;
+            Map<String, RecordId> childNodes = newHashMap();
+            BiConsumer<String, RecordId> onChildNode = childNodes::put;
+
+            if (before != null && after != null
+                    && before.getChildNodeCount(2) > 1
+                    && after.getChildNodeCount(2) > 1) {
+                base = before.getChildNodeMap();
+                new ChildNodeCollectorDiff(onChildNode).diff(before, after);
+            } else {
+                base = null;
+                for (ChildNodeEntry entry : state.getChildNodeEntries()) {
+                    onChildNode.accept(
+                            entry.getName(),
+                            writeNode(entry.getNodeState(), null));
+                }
+            }
+            return writeMap(base, childNodes);
         }
 
         /**
@@ -964,24 +975,29 @@ public class DefaultSegmentWriter implements SegmentWriter {
         }
 
         private class ChildNodeCollectorDiff extends DefaultNodeStateDiff {
-
-            private final Map<String, RecordId> childNodes = newHashMap();
+            private final BiConsumer<String, RecordId> onChildNode;
 
             private IOException exception;
 
-            public Map<String, RecordId> diff(SegmentNodeState before, ModifiedNodeState after) throws IOException {
+            private ChildNodeCollectorDiff(BiConsumer<String, RecordId> onChildNode) {
+                this.onChildNode = onChildNode;
+            }
+
+
+            public void diff(
+                    SegmentNodeState before,
+                    ModifiedNodeState after)
+            throws IOException {
                 after.compareAgainstBaseState(before, this);
                 if (exception != null) {
                     throw new IOException(exception);
-                } else {
-                    return childNodes;
                 }
             }
 
             @Override
             public boolean childNodeAdded(String name, NodeState after) {
                 try {
-                    childNodes.put(name, writeNode(after, null));
+                    onChildNode.accept(name, writeNode(after, null));
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -994,7 +1010,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
                     String name, NodeState before, NodeState after
             ) {
                 try {
-                    childNodes.put(name, writeNode(after, null));
+                    onChildNode.accept(name, writeNode(after, null));
                 } catch (IOException e) {
                     exception = e;
                     return false;
@@ -1004,7 +1020,7 @@ public class DefaultSegmentWriter implements SegmentWriter {
 
             @Override
             public boolean childNodeDeleted(String name, NodeState before) {
-                childNodes.put(name, null);
+                onChildNode.accept(name, null);
                 return true;
             }
         }
