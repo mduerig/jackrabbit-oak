@@ -30,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.jackrabbit.oak.commons.concurrent.ExecutorCloser;
+import org.apache.jackrabbit.oak.segment.CommitsTracker.Commit;
 import org.junit.Test;
 
 public class CommitsTrackerTest {
@@ -55,7 +56,7 @@ public class CommitsTrackerTest {
 
     @Test
     public void testCommitsCountOthers() throws InterruptedException {
-        CommitsTracker commitsTracker = new CommitsTracker(new String[] {}, 10, false);
+        CommitsTracker commitsTracker = new CommitsTracker(new String[] {}, 10);
         ExecutorService executorService = newFixedThreadPool(30);
         final CountDownLatch addLatch = new CountDownLatch(25);
 
@@ -81,7 +82,7 @@ public class CommitsTrackerTest {
 
             addLatch.await();
             Map<String, Long> commitsCountOthersMap = commitsTracker.getCommitsCountOthers();
-            Map<String, String> queuedWritersMap = commitsTracker.getQueuedWritersMap();
+            Map<String, Commit> queuedWritersMap = commitsTracker.getQueuedWritersMap();
 
             assertTrue(commitsCountOthersMap.size() >= 10);
             assertTrue(commitsCountOthersMap.size() < 20);
@@ -103,7 +104,7 @@ public class CommitsTrackerTest {
     @Test
     public void testCommitsCountPerGroup() throws InterruptedException {
         String[] groups = new String[] { "Thread-1.*", "Thread-2.*", "Thread-3.*" };
-        CommitsTracker commitsTracker = new CommitsTracker(groups, 10, false);
+        CommitsTracker commitsTracker = new CommitsTracker(groups, 10);
         ExecutorService executorService = newFixedThreadPool(30);
         AtomicInteger counter = new AtomicInteger(10);
         final CountDownLatch latch = new CountDownLatch(30);
