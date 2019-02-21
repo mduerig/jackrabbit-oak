@@ -26,6 +26,7 @@ import static org.apache.jackrabbit.oak.segment.ListRecord.LEVEL_SIZE;
 import static org.apache.jackrabbit.oak.segment.ListRecord.MAX_ELEMENTS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -40,6 +41,8 @@ import java.util.Map;
 import com.google.common.base.Charsets;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
+import org.apache.jackrabbit.oak.segment.file.FileStore;
+import org.apache.jackrabbit.oak.segment.file.tar.GCGeneration;
 import org.apache.jackrabbit.oak.segment.test.TemporaryFileStore;
 import org.junit.Before;
 import org.junit.Rule;
@@ -292,6 +295,27 @@ public class DefaultSegmentWriterTest {
 
             writer.flush();
         }
+    }
+
+    @Test
+    public void testNode() throws IOException {
+        FileStore fileStore = store.fileStore();
+        DefaultSegmentWriter writer = defaultSegmentWriterBuilder("test")
+                .withGeneration(GCGeneration.newGCGeneration(1, 1, false))
+                .build(fileStore);
+
+        SegmentNodeState root = fileStore.getHead();
+        SegmentNodeBuilder builder = root.builder();
+        for (int k = 0; k < 50000; k++) {
+            builder.setChildNode("n-" + k);
+        }
+
+        SegmentNodeState node1 = builder.getNodeState();
+        RecordId nodeId = writer.writeNode(node1);
+        SegmentNodeState node2 = fileStore.getReader().readNode(nodeId);
+
+        assertNotEquals(node1.getRecordId(), node2.getRecordId());
+        assertEquals(node1, node2);
     }
 
 }
