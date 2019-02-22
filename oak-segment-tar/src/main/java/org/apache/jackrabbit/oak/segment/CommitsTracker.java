@@ -87,12 +87,12 @@ class CommitsTracker {
         this.queuedWritersMap = new ConcurrentHashMap<>();
     }
 
-    public void trackQueuedCommitOf(Thread t) {
-        queuedWritersMap.put(t.getName(), new Commit(System.currentTimeMillis(), t));
+    public void trackQueuedCommitOf(Thread thread) {
+        queuedWritersMap.put(thread.getName(), new Commit(System.currentTimeMillis(), thread));
     }
 
-    public void trackDequedCommitOf(Thread t) {
-        queuedWritersMap.remove(t.getName());
+    public void trackDequedCommitOf(Thread thread) {
+        queuedWritersMap.remove(thread.getName());
     }
 
     public void trackExecutedCommitOf(Thread thread) {
