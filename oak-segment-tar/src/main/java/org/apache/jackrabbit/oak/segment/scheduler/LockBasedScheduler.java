@@ -201,7 +201,7 @@ public class LockBasedScheduler implements Scheduler {
             throws CommitFailedException {
         try {
             long queuedTime = System.nanoTime();
-            stats.onCommitQueued(Thread.currentThread());
+            stats.onCommitQueued(Thread.currentThread(), commit::getGCGeneration);
 
             commitSemaphore.acquire();
             try {
