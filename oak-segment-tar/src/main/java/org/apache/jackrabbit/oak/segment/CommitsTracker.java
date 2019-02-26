@@ -45,7 +45,11 @@ import org.jetbrains.annotations.Nullable;
  * currently waiting on the commit semaphore
  * </ul>
  * 
- * This class delegates thread-safety to its underlying state variables.
+ * For the most part, this class delegates thread-safety to its underlying
+ * state variables. However, the {@link #trackDequedCommitOf(Thread)} and
+ * {@link #trackExecutedCommitOf(Thread)} method must be called in
+ * sequence within the same transaction, because they are linked
+ * via the {@link #currentCommit} field.
  */
 class CommitsTracker {
     private final String[] threadGroups;
