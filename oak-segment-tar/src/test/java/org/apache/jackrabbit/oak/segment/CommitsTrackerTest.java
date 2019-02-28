@@ -76,7 +76,8 @@ public class CommitsTrackerTest {
 
     @Test
     public void testCommitsCountOthers() throws InterruptedException {
-        CommitsTracker commitsTracker = new CommitsTracker(new String[] {}, 10);
+        final int OTHER_WRITERS_LIMIT = 10;
+        CommitsTracker commitsTracker = new CommitsTracker(new String[] {}, OTHER_WRITERS_LIMIT);
 
         List<CommitTask> queued = newArrayList();
         for (int k = 0; k < 20; k++) {
@@ -90,7 +91,7 @@ public class CommitsTrackerTest {
         }
 
         List<CommitTask> executed = newArrayList();
-        for (int k = 0; k < 13; k ++) {
+        for (int k = 0; k < OTHER_WRITERS_LIMIT + 3; k++) {
             CommitTask commitTask = queued.remove(0);
             executed.add(commitTask);
             commitTask.dequeue();
@@ -102,7 +103,7 @@ public class CommitsTrackerTest {
             commitTask.executed();
             assertNull(commitsTracker.getCurrentWriter());
             assertEquals(queued.size(), commitsTracker.getQueuedWritersMap().size());
-            assertEquals(min(10, executed.size()), commitsTracker.getCommitsCountOthers().size());
+            assertEquals(min(OTHER_WRITERS_LIMIT, executed.size()), commitsTracker.getCommitsCountOthers().size());
             assertTrue(commitsTracker.getCommitsCountPerGroupLastMinute().isEmpty());
         }
     }
